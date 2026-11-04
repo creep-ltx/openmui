@@ -32,3 +32,12 @@ void *zune_cf_lazy(unsigned which)
         zune_cf_setbases(zune_cf_iface);
     return base;
 }
+
+/* A library base muimaster.library opened after this file copied them
+ * (cybergraphics.library, opened by window setup for a deep screen):
+ * take them over again. */
+void zune_cf_refresh(void)
+{
+    if (zune_cf_iface)
+        zune_cf_setbases(zune_cf_iface);
+}
