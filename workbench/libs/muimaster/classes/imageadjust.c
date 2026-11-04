@@ -440,7 +440,7 @@ static void Imageadjust_External_Destruct(struct Hook *h, APTR pool,
  * errors or partial inserts. Frees local buffers/control/lock; no input
  * pumping, recursion/cycle guard or aggregate error propagation.
  */
-static int AddDirectory(Object *list, STRPTR dir, LONG parent)
+static int AddDirectory(Object *list, STRPTR dir, LONG parent, int rootlen)
 {
     BPTR lock = Lock(dir, ACCESS_READ);
     struct ExAllControl *eac;
@@ -522,7 +522,7 @@ static int AddDirectory(Object *list, STRPTR dir, LONG parent)
                     //bug("AddDirectory: adding image %s\n", buf);
 
 
-                    ele.reldir = dir + strlen(IMSPEC_EXTERNAL_PREFIX);
+                    ele.reldir = dir + rootlen;
                     ele.dirlen = strlen(ele.reldir);
                     ele.filename = ead->ed_Name;
                     ele.namelen = strlen(ele.filename);
@@ -536,7 +536,7 @@ static int AddDirectory(Object *list, STRPTR dir, LONG parent)
                 }
                 if (num != -1 && is_directory)
                 {
-                    AddDirectory(list, buf, num);
+                    AddDirectory(list, buf, num, rootlen);
                 }
                 FreeVec(buf);
             }
@@ -1329,7 +1329,12 @@ IPTR Imageadjust__MUIM_Imageadjust_ReadExternal(struct IClass *cl,
         oldwinptr = me->pr_WindowPtr;
         me->pr_WindowPtr = (APTR) - 1;
     }
-    AddDirectory(data->external_list, IMSPEC_EXTERNAL_PREFIX, -1);
+    AddDirectory(data->external_list, IMSPEC_EXTERNAL_PREFIX, -1,
+        strlen(IMSPEC_EXTERNAL_PREFIX));
+#ifdef IMSPEC_EXTERNAL_PREFIX2
+    AddDirectory(data->external_list, IMSPEC_EXTERNAL_PREFIX2, -1,
+        strlen(IMSPEC_EXTERNAL_PREFIX2));
+#endif
     if (me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
         me->pr_WindowPtr = oldwinptr;
     set(data->external_list, MUIA_List_Quiet, FALSE);

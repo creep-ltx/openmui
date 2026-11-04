@@ -579,21 +579,33 @@ struct MUI_ImageSpec_intern *zune_imspec_setup(IPTR s,
                     if (!spec->u.brush.dt[i]
                         && !strchr(spec->u.brush.filename[i], ':'))
                     {
-                        int size;
-                        STRPTR fullpath;
+                        static CONST_STRPTR const prefixes[] = {
+                            IMSPEC_EXTERNAL_PREFIX,
+#ifdef IMSPEC_EXTERNAL_PREFIX2
+                            IMSPEC_EXTERNAL_PREFIX2,
+#endif
+                        };
+                        int p;
 
-                        size = strlen(IMSPEC_EXTERNAL_PREFIX)
-                            + strlen(spec->u.brush.filename[i]) + 1;
-                        fullpath = (STRPTR) AllocVec(size, MEMF_ANY);
-
-                        if (fullpath != NULL)
+                        for (p = 0; !spec->u.brush.dt[i]
+                            && p < sizeof(prefixes) / sizeof(prefixes[0]); p++)
                         {
-                            strcpy(fullpath, IMSPEC_EXTERNAL_PREFIX);
-                            strcat(fullpath, spec->u.brush.filename[i]);
-                            fullpath[size - 1] = 0;
-                            spec->u.brush.dt[i] = dt_load_picture
-                                (fullpath, mri->mri_Screen);
-                            FreeVec(fullpath);
+                            int size;
+                            STRPTR fullpath;
+
+                            size = strlen(prefixes[p])
+                                + strlen(spec->u.brush.filename[i]) + 1;
+                            fullpath = (STRPTR) AllocVec(size, MEMF_ANY);
+
+                            if (fullpath != NULL)
+                            {
+                                strcpy(fullpath, prefixes[p]);
+                                strcat(fullpath, spec->u.brush.filename[i]);
+                                fullpath[size - 1] = 0;
+                                spec->u.brush.dt[i] = dt_load_picture
+                                    (fullpath, mri->mri_Screen);
+                                FreeVec(fullpath);
+                            }
                         }
                     }
                 }
