@@ -546,6 +546,20 @@ struct MUIP_CreateFrameClippingRegion
 
 struct MUI_ImageSpec_intern;
 
+/* Per-object state needed only once the object has been set up */
+struct MUI_AreaLive
+{
+    struct MUI_EventHandlerNode ehn;
+    struct MUI_EventHandlerNode hiehn;  /* to simulate MUIM_HandleInput */
+    struct MUI_EventHandlerNode ccn;    /* gross hack for control char */
+    struct MUI_InputHandlerNode Timer;  /* MUIA_Timer */
+    struct ZMenu *ContextZMenu;
+    LONG ClickX;                /* x position of the initial SELECTDOWN click */
+    LONG ClickY;                /* y position of the initial SELECTDOWN click */
+};
+/* The object's live block, made on first use; NULL without memory. */
+struct MUI_AreaLive *zune_area_live(Object *obj, struct IClass *cl);
+
 struct MUI_AreaData
 {
     struct MUI_RenderInfo *mad_RenderInfo;      /* RenderInfo for this object */
@@ -601,16 +615,16 @@ struct MUI_AreaData
     CONST_STRPTR mad_HardHeightTxt;
 // TODO: move SelBack in RenderInfo as it's common for all objects
     struct MUI_ImageSpec_intern *mad_SelBack;   /* selected state background */
-// there's an event handler at 114
-    struct MUI_EventHandlerNode mad_ehn;
-    struct MUI_InputHandlerNode mad_Timer;      /* MUIA_Timer */
+    /* The event and timer nodes, click position and context menu state
+     * are in mad_Live, made at the first MUIM_Setup (or MUI_RequestIDCMP)
+     * and kept until OM_DISPOSE: objects in windows that never open do
+     * not carry them. Never free them at Cleanup: a window can close
+     * inside a notification of its own button, which is then still in
+     * its input code. */
+    struct MUI_AreaLive *mad_Live;
     ULONG mad_Timeval;          /* just to trigger notifications */
-    struct MUI_EventHandlerNode mad_ccn;        /* gross hack for control char */
     Object *mad_ContextMenu;    /* menu strip */
-    LONG mad_ClickX;            /* x position of the initial SELECTDOWN click */
-    LONG mad_ClickY;            /* y position of the intiial SELECTDOWN click */
-    struct ZMenu *mad_ContextZMenu;
-    struct MUI_EventHandlerNode mad_hiehn;      /* Eventhandler to simulate MUIM_HandleInput */
+    BYTE mad_ehnPriority;       /* priority for mad_Live->ehn */
 
     LONG mad_DisableCount;      /* counts number of disables */
     IPTR mad_PointerType;       /* built-in type or borrowed pointerclass */

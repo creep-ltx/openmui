@@ -46,24 +46,30 @@
 *****************************************************************************/
 {
     AROS_LIBFUNC_INIT
+    /* The node is in the Area's live block; without one nothing was
+     * requested. */
+    struct MUI_AreaLive *live = muiAreaData(obj)->mad_Live;
+
+    if (!live)
+        return;
 
     if (muiRenderInfo(obj) && (_flags(obj) & MADF_SETUP) && _win(obj))
     {
-        if (muiAreaData(obj)->mad_hiehn.ehn_Events)
+        if (live->hiehn.ehn_Events)
         {
             DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                (IPTR)&muiAreaData(obj)->mad_hiehn);
+                (IPTR)&live->hiehn);
         }
-        muiAreaData(obj)->mad_hiehn.ehn_Events &= ~flags;
-        if (muiAreaData(obj)->mad_hiehn.ehn_Events)
+        live->hiehn.ehn_Events &= ~flags;
+        if (live->hiehn.ehn_Events)
         {
             DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                (IPTR)&muiAreaData(obj)->mad_hiehn);
+                (IPTR)&live->hiehn);
         }
     }
     else
     {
-        muiAreaData(obj)->mad_hiehn.ehn_Events &= ~flags;
+        live->hiehn.ehn_Events &= ~flags;
     }
 
     AROS_LIBFUNC_EXIT
