@@ -93,6 +93,24 @@ static struct Request *find_request(APTR public)
     ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
     return r;
 }
+/* Filepanel's result buffers, never storage allocated by asl.library.
+ * Here rather than in Filepanel, which may be a class file of its own. */
+void ZuneFreeFileResult(struct FileRequester *r)
+{
+    for (LONG i = 0; i < r->fr_NumArgs; i++)
+    {
+        if (r->fr_ArgList[i].wa_Lock) UnLock(r->fr_ArgList[i].wa_Lock);
+        FreeVec(r->fr_ArgList[i].wa_Name);
+    }
+    FreeVec(r->fr_ArgList);
+    FreeVec(r->fr_Drawer);
+    FreeVec(r->fr_File);
+    FreeVec(r->fr_Pattern);
+    r->fr_ArgList = NULL;
+    r->fr_NumArgs = 0;
+    r->fr_Drawer = r->fr_File = r->fr_Pattern = NULL;
+}
+
 static void free_result(struct Request *r)
 {
     if (r->owned)

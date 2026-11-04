@@ -82,10 +82,21 @@ def component_files(build_dir):
     return files
 
 
-def install_script(files):
+def builtin_class_files(build_dir):
+    """The library's own classes built as files (LIBS:Zune, classfile.h)."""
+    return sorted(p.name for p in (build_dir / 'Zune').glob('*.mui'))
+
+
+def install_script(files, class_files=()):
     script = (ROOT / 'dist/Install').read_text()
+    # The library's own class files belong to it: copied without a prompt
+    # each, replacing those of an earlier Zune68.
+    class_lines = []
+    if class_files:
+        class_lines.append('(copyfiles (source (tackon #package "Libs/Zune")) '
+                           '(dest "LIBS:Zune") (all))')
     if not files:
-        return script
+        return script.replace('; COMPONENT_INSTALL', '\n'.join(class_lines))
     preflight = []
     for name in files:
         preflight.append('(if (<> (exists (tackon #package "' + name + '")) 1)\n'
@@ -93,8 +104,8 @@ def install_script(files):
         if name == 'Prefs/Zune' or name.startswith('Libs/MUI/'):
             preflight.append(f'(if (= (getversion (tackon #package "{name}")) 0)\n'
                              f'    (abort "Cannot read the bundled version of {name}."))')
-    lines = ['(P_InstallFile "Prefs/Zune" "SYS:Prefs"',
-             '    "Zune68 preferences editor, opened by application settings menus." "")']
+    lines = class_lines + ['(P_InstallFile "Prefs/Zune" "SYS:Prefs"',
+              '    "Zune68 preferences editor, opened by application settings menus." "")']
     for name in CLASS_FILES:
         lines.append(f'(P_InstallFile "Libs/MUI/{name}" "LIBS:MUI" '
                      f'"Optional, demand-loaded MUI custom class." "{name}")')
@@ -159,6 +170,13 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
         for name in LIBRARIES:
             shutil.copyfile(build_dir / name, package / 'Libs' / name)
             (package / 'Libs' / name).chmod(0o755)
+        class_files = builtin_class_files(build_dir)
+        if class_files:
+            (package / 'Libs' / 'Zune').mkdir()
+        for name in class_files:
+            component_version(build_dir / 'Zune' / name)
+            shutil.copyfile(build_dir / 'Zune' / name, package / 'Libs/Zune' / name)
+            (package / 'Libs/Zune' / name).chmod(0o755)
         shutil.copyfile(build_dir / 'opentest', package / 'Tests/opentest')
         (package / 'Tests/opentest').chmod(0o755)
         if full:
@@ -172,7 +190,8 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
             (package / name).write_text(substitute(
                 (ROOT / 'dist' / name).read_text(encoding='ascii'),
                 version, date, line), encoding='ascii')
-        (package / 'Install').write_bytes(install_script(files).encode('latin1'))
+        (package / 'Install').write_bytes(
+            install_script(files, class_files).encode('latin1'))
         for name in files:
             target = package / name
             target.parent.mkdir(parents=True, exist_ok=True)

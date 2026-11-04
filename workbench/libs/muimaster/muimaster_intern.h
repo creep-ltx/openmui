@@ -47,6 +47,8 @@
 #include "penspec.h"
 
 
+#include "classfiles.h"   /* generated: ZUNE_CLASSFILE_NFILES */
+
 struct MUIMasterBase_intern
 {
     struct Library              library;
@@ -89,6 +91,7 @@ struct MUIMasterBase_intern
     struct MUI_PenSpec          *defaultPens;
     struct SignalSemaphore      LazyLibSemaphore; /* zune_lazylib_open() */
     ULONG                       LazyLibFailed;    /* 1 << ZUNE_LIB_* */
+    struct Library              *ClassFiles[ZUNE_CLASSFILE_NFILES + 1]; /* classfile.h */
 };
 
 

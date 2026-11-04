@@ -148,23 +148,6 @@ static void navigate(struct FilepanelData *d, CONST_STRPTR path, BOOL remember)
     FreeVec(copy);
 }
 
-/* These are our result buffers, never storage allocated by asl.library. */
-void ZuneFreeFileResult(struct FileRequester *r)
-{
-    for (LONG i = 0; i < r->fr_NumArgs; i++)
-    {
-        if (r->fr_ArgList[i].wa_Lock) UnLock(r->fr_ArgList[i].wa_Lock);
-        FreeVec(r->fr_ArgList[i].wa_Name);
-    }
-    FreeVec(r->fr_ArgList);
-    FreeVec(r->fr_Drawer);
-    FreeVec(r->fr_File);
-    FreeVec(r->fr_Pattern);
-    r->fr_ArgList = NULL;
-    r->fr_NumArgs = 0;
-    r->fr_Drawer = r->fr_File = r->fr_Pattern = NULL;
-}
-
 static BOOL export_files(struct FilepanelData *d, struct FileRequester *r)
 {
     struct FileRequester result = {0};

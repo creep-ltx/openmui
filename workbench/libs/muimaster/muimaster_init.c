@@ -7,6 +7,7 @@
 #include <graphics/text.h>
 #include "muimaster_intern.h"
 #include "penspec.h"
+#include "classfile.h"
 
 struct DosLibrary *DOSBase;
 struct Library *UtilityBase;
@@ -89,6 +90,9 @@ void L_ExpungeLib(struct Library *library)
     struct MUIMasterBase_intern *base = MUIMB(library);
     unsigned i = sizeof(dependencies) / sizeof(dependencies[0]);
     MUIGfx_Remove();
+#if ZUNE_CLASSFILE_NFILES
+    ZUNE_CloseClassFiles(library);  /* their classes are freed by now */
+#endif
     zune_vector_free_templates();
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
     CyberGfxBase = NULL;

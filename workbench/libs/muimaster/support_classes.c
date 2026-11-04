@@ -17,6 +17,9 @@
 #include "support.h"
 #include "support_classes.h"
 #include "muimaster_intern.h"
+#include "classfile.h"
+#include "classfiles.h"
+#include "native_version.h"
 
 /*#define MYDEBUG*/
 #include "debug.h"
@@ -84,17 +87,31 @@ static const struct __MUIBuiltinClass *const builtins[] = {
     &_MUI_Area_desc,
     &_MUI_Rectangle_desc,
     &_MUI_Group_desc,
+#if ZUNE_BUILTIN_SELECTGROUP
     &_MUI_Selectgroup_desc,
+#endif
+#if ZUNE_BUILTIN_SELECTORPANEL
     &_MUI_SelectorPanel_desc,
+#endif
+#if ZUNE_BUILTIN_FILEPANEL
     &_MUI_Filepanel_desc,
+#endif
+#if ZUNE_BUILTIN_FONTPANEL
     &_MUI_Fontpanel_desc,
     &_MUI_Fontdisplay_desc,
+#endif
+#if ZUNE_BUILTIN_KEYADJUST
     &_MUI_Keyadjust_desc,
+#endif
     &_MUI_Image_desc,
     &_MUI_Configdata_desc,
     &_MUI_Text_desc,
+#if ZUNE_BUILTIN_TEXTDATA
     &_MUI_Textdata_desc,
+#endif
+#if ZUNE_BUILTIN_TITLE
     &_MUI_Title_desc,
+#endif
     &_MUI_Numeric_desc,
     &_MUI_Slider_desc,
     &_MUI_String_desc,
@@ -110,8 +127,10 @@ static const struct __MUIBuiltinClass *const builtins[] = {
     &_MUI_Process_desc,
 #endif
     &_MUI_Dataspace_desc,
+#if ZUNE_BUILTIN_DATAMAP
     &_MUI_Datamap_desc,
     &_MUI_Objectmap_desc,
+#endif
     &_MUI_Bitmap_desc,
     &_MUI_Bodychunk_desc,
     &_MUI_ChunkyImage_desc,
@@ -227,11 +246,93 @@ static Class *ZUNE_FindBuiltinClass(CONST_STRPTR classid, struct Library *MUIMas
     return cl;
 }
 
+#if ZUNE_CLASSFILE_NFILES
+/* Class name -> class file, and the files (generated: classfiles.h) */
+static const struct { CONST_STRPTR name; UBYTE file; } classfile_classes[] = {
+#define ZCF_CLASS(name, file) { name, file },
+    ZUNE_CLASSFILE_CLASSES(ZCF_CLASS)
+};
+static CONST_STRPTR const classfile_files[] = {
+#define ZCF_FILE(name) name,
+    ZUNE_CLASSFILE_FILES(ZCF_FILE)
+};
+
+static const struct __MUIBuiltinClass *classfile_query(struct Library *lib,
+    CONST_STRPTR classid)
+{
+    register const struct __MUIBuiltinClass *res __asm("d0");
+    register const struct ZuneClassFileIface *a0 __asm("a0") =
+        &zune_classfile_iface;
+    register CONST_STRPTR a1 __asm("a1") = classid;
+    register struct Library *a6 __asm("a6") = lib;
+
+    __asm volatile ("jsr %%a6@(-36:W)"
+        : "=r" (res), "+r" (a0), "+r" (a1)
+        : "r" (a6)
+        : "d1", "cc", "memory");
+    return res;
+}
+
+/* Called under ZuneSemaphore. The file stays open until the library's
+ * expunge has freed its classes (ZUNE_CloseClassFiles). */
+const struct __MUIBuiltinClass *ZUNE_LoadClassFile(CONST_STRPTR classid,
+    struct Library *MUIMasterBase)
+{
+    struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
+    const struct __MUIBuiltinClass *desc;
+    struct Library *lib;
+    unsigned i;
+    UBYTE file;
+
+    for (i = 0; i < sizeof(classfile_classes) / sizeof(classfile_classes[0]); i++)
+        if (!strcmp(classfile_classes[i].name, classid))
+            break;
+    if (i == sizeof(classfile_classes) / sizeof(classfile_classes[0]))
+        return NULL;
+    file = classfile_classes[i].file;
+    if (!(lib = base->ClassFiles[file]))
+    {
+        TEXT path[48];
+
+        snprintf(path, sizeof(path), "Zune/%s", classfile_files[file]);
+        if (!(lib = OpenLibrary(path, ZUNE68_LIBRARY_VERSION)))
+            return NULL;
+        /* Only Zune68's own class files have the query vector */
+        if (!lib->lib_IdString || lib->lib_NegSize < 36
+            || !strstr((const char *)lib->lib_IdString, ZUNE_CLASSFILE_IDTAG))
+        {
+            CloseLibrary(lib);
+            return NULL;
+        }
+        base->ClassFiles[file] = lib;
+    }
+    desc = classfile_query(lib, classid);
+    if (desc && strcmp(desc->name, classid))
+        desc = NULL;
+    return desc;
+}
+
+/* After the classes are freed: close the class files. */
+void ZUNE_CloseClassFiles(struct Library *MUIMasterBase)
+{
+    struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
+    unsigned i;
+
+    for (i = 0; i < ZUNE_CLASSFILE_NFILES; i++)
+    {
+        if (base->ClassFiles[i])
+            CloseLibrary(base->ClassFiles[i]);
+        base->ClassFiles[i] = NULL;
+    }
+}
+#endif
+
 static Class *ZUNE_MakeBuiltinClass(CONST_STRPTR classid,
     struct Library *MUIMasterBase)
 {
     int i;
     Class *cl = NULL;
+    const struct __MUIBuiltinClass *desc = NULL;
 
     D(bug("Makeing Builtinclass %s\n", classid));
 
@@ -239,49 +340,55 @@ static Class *ZUNE_MakeBuiltinClass(CONST_STRPTR classid,
     {
         if (!strcmp(builtins[i]->name, classid))
         {
-            Class *supercl;
-            ClassID superclid;
+            desc = builtins[i];
+            break;
+        }
+    }
+#if ZUNE_CLASSFILE_NFILES
+    if (!desc)
+        desc = ZUNE_LoadClassFile(classid, MUIMasterBase);
+#endif
+    if (desc)
+    {
+        Class *supercl;
+        ClassID superclid;
 
-            /* Cached classes do not own library opens. Expunge checks
-               references, objects and subclasses before reclaiming them. */
-            if (strcmp(builtins[i]->supername, ROOTCLASS) == 0)
-            {
-                superclid = ROOTCLASS;
-                supercl = NULL;
-            }
-            else
-            {
-                superclid = NULL;
-                supercl = MUI_GetClass(builtins[i]->supername);
+        /* Cached classes do not own library opens. Expunge checks
+           references, objects and subclasses before reclaiming them. */
+        if (strcmp(desc->supername, ROOTCLASS) == 0)
+        {
+            superclid = ROOTCLASS;
+            supercl = NULL;
+        }
+        else
+        {
+            superclid = NULL;
+            supercl = MUI_GetClass(desc->supername);
 
-                if (!supercl)
-                    break;
-            }
+            if (!supercl)
+                return NULL;
+        }
 
-            cl = MakeClass(builtins[i]->name, superclid, supercl,
-                builtins[i]->datasize, 0);
-            /* MakeClass owns the subclass link on success. The temporary
-               lookup reference is no longer needed, including on failure. */
-            if (supercl)
-                MUI_FreeClass(supercl);
-            if (cl)
-            {
+        cl = MakeClass(desc->name, superclid, supercl, desc->datasize, 0);
+        /* MakeClass owns the subclass link on success. The temporary
+           lookup reference is no longer needed, including on failure. */
+        if (supercl)
+            MUI_FreeClass(supercl);
+        if (cl)
+        {
 #if defined(__MAXON__) || defined(__amigaos4__)
-                cl->cl_Dispatcher.h_Entry = builtins[i]->dispatcher;
+            cl->cl_Dispatcher.h_Entry = desc->dispatcher;
 #else
 #ifdef __AROS__
-                cl->cl_Dispatcher.h_Entry = (HOOKFUNC) metaDispatcher;
+            cl->cl_Dispatcher.h_Entry = (HOOKFUNC) metaDispatcher;
 #else
-                cl->cl_Dispatcher.h_Entry = (HOOKFUNC) builtinDispatcher;
+            cl->cl_Dispatcher.h_Entry = (HOOKFUNC) builtinDispatcher;
 #endif
-                cl->cl_Dispatcher.h_SubEntry = builtins[i]->dispatcher;
+            cl->cl_Dispatcher.h_SubEntry = desc->dispatcher;
 #endif
-                /* Use this as a reference counter */
-                cl->cl_Dispatcher.h_Data = MUIMasterBase;
-                cl->cl_UserData = 0;
-            }
-
-            break;
+            /* Use this as a reference counter */
+            cl->cl_Dispatcher.h_Data = MUIMasterBase;
+            cl->cl_UserData = 0;
         }
     }
 

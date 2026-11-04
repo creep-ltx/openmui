@@ -85,18 +85,36 @@ SOURCES = \
   classes/settings.c classes/settingsgroup.c classes/slider.c \
   classes/string.c classes/text.c classes/textdata.c classes/title.c classes/virtgroup.c \
   classes/volumelist.c classes/window.c
+# Classes built as files of their own, $(BUILD)/Zune/<Name>.mui, installed
+# in LIBS:Zune/ and loaded the first time a program makes one of their
+# objects, as MUI 3.8 does with MUI:Libs/mui (classfile.h). CLASSFILES=
+# (empty) builds every class into the library again.
+CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
+  frameadjust framedisplay gauge imageadjust imagedisplay knob levelmeter \
+  numericbutton palette penadjust pendisplay popasl popframe popimage poppen \
+  popscreen scale scrollgroup volumelist \
+  fontpanel filepanel selectorpanel keyadjust title datamap textdata \
+  selectgroup process
+CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
+CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
+CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/Zune/$(shell echo $(c) | sed 's/^./\U&/').mui)
+CF_OFF = $(foreach c,$(CLASSFILES),-DZUNE_BUILTIN_$(shell echo $(c) | tr a-z A-Z)=0)
+SOURCES := $(filter-out $(CF_SOURCES),$(SOURCES))
+CPPFLAGS += $(CF_OFF)
 OBJECTS = $(addprefix $(BUILD)/,$(SOURCES:.c=.o))
 LDLIBS = -Wl,--start-group -lgcc -lnix20 -lnix -lm -lamiga -ldebug \
   -Wl,--end-group
 GENERATED = $(BUILD)/muimaster_strings.h $(BUILD)/trace-config.h $(BUILD)/include/libraries/mui.h \
-  $(BUILD)/include/inline/muimaster.h $(BUILD)/include/inline/muiscreen.h $(BUILD)/gates.h
+  $(BUILD)/include/inline/muimaster.h $(BUILD)/include/inline/muiscreen.h $(BUILD)/gates.h \
+  $(BUILD)/classfiles.h
 
 .PHONY: all clean check check-core check-sdk release
 include ../../../tools/flags.mk
 # Programs compiled and linked in one step write their header dependencies here.
 PROGRAM_DEPS = -MMD -MP -MF $@.d -MT $@
 all: core $(BUILD)/compatcheck
-core: $(BUILD)/muimaster.library $(BUILD)/zunemaster.library $(BUILD)/opentest
+core: $(BUILD)/muimaster.library $(BUILD)/zunemaster.library $(BUILD)/opentest \
+  $(CF_FILES)
 
 release: all
 	$(PYTHON) ../../../tools/release.py --build-dir "$(BUILD)" \
@@ -291,9 +309,57 @@ $(BUILD)/zunemaster_lib.o: zunemaster_lib.c $(GENERATED)
 	$(CC) $(CPPFLAGS) $(LIB_CFLAGS) -I$(BUILD) -MMD -MP -c $< -o $@
 
 # Keep start.o first regardless of the compiler's function ordering.
-$(BUILD)/%.library: $(BUILD)/start.o $(BUILD)/%_lib.o $(BUILD)/gates.o $(OBJECTS)
+$(BUILD)/%.library: $(BUILD)/start.o $(BUILD)/%_lib.o $(BUILD)/gates.o $(OBJECTS) \
+  $(BUILD)/cf/classtable.o
 	$(CC) $(CPUFLAGS) $(CRTFLAGS) -nostdlib $(LDFLAGS) $(LTO_LDFLAGS) \
 	  -Wl,-Map,$@.map -o $@ $^ $(LDLIBS)
+
+# Class files (classfile.h): which class is in which file, the class code
+# compiled for a file of its own, the function table both sides share, and
+# the files themselves.
+$(BUILD)/classfiles.h: $(CF_SOURCES) gcc/classfiles.py GNUmakefile
+	@mkdir -p $(@D)
+	$(PYTHON) gcc/classfiles.py header $@ $(CF_SOURCES)
+
+$(BUILD)/cf/%.o: classes/%.c $(GENERATED)
+	@mkdir -p $(@D)
+	$(CC) $(filter-out $(CF_OFF),$(CPPFLAGS)) -DZUNE_CLASSFILE $(LIB_CFLAGS) \
+	  -MMD -MP -c $< -o $@
+
+$(BUILD)/cf/classfile-%.o: classfile.c classfile.h native_version.h $(GENERATED)
+	@mkdir -p $(@D)
+	$(CC) -I. -I$(BUILD) -include $(BUILD)/trace-config.h $(LIB_CFLAGS) \
+	  $$(cat $(BUILD)/cf/$*.flags) -c $< -o $@
+
+$(BUILD)/cf/cfbases.o: cfbases.c classfile.h
+	@mkdir -p $(@D)
+	$(CC) -I. $(LIB_CFLAGS) -c $< -o $@
+
+$(BUILD)/cf/classtable.c: $(OBJECTS) $(CF_OBJECTS) \
+  $(BUILD)/cf/cfbases.o gcc/classfiles.py
+	@mkdir -p $(@D)
+	$(PYTHON) gcc/classfiles.py iface $(CROSS)nm $(BUILD)/cf $(OBJECTS) -- \
+	  $(CF_OBJECTS) $(BUILD)/cf/cfbases.o
+
+$(BUILD)/cf/classtable.o: $(BUILD)/cf/classtable.c classfile.h
+	$(CC) -I. $(LIB_CFLAGS) -c $< -o $@
+
+# The jumps as a link library: each class file takes only those it calls.
+$(BUILD)/cf/libclassstubs.a: $(BUILD)/cf/classtable.c
+	rm -f $@ $(BUILD)/cf/stubs/*.o
+	for f in $(BUILD)/cf/stubs/*.s; do \
+	  $(CC) $(CPUFLAGS) -c $$f -o $${f%.s}.o || exit 1; done
+	$(CROSS)ar rcs $@ $(BUILD)/cf/stubs/*.o
+
+define classfile_rule
+$(BUILD)/Zune/$(shell echo $(1) | sed 's/^./\U&/').mui: $(BUILD)/start.o \
+  $(BUILD)/cf/classfile-$(1).o $(BUILD)/cf/$(1).o $(BUILD)/cf/cfbases.o \
+  $(BUILD)/cf/libclassstubs.a
+	@mkdir -p $$(@D)
+	$$(CC) $$(CPUFLAGS) $$(CRTFLAGS) -nostdlib $$(LDFLAGS) -o $$@ \
+	  $$(filter %.o,$$^) $(BUILD)/cf/libclassstubs.a $$(LDLIBS)
+endef
+$(foreach c,$(CLASSFILES),$(eval $(call classfile_rule,$(c))))
 
 $(BUILD)/opentest: opentest.c $(GENERATED)
 	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) -DMUIMASTER_YES_INLINE_STDARG= $(PROGRAM_DEPS) \
@@ -308,7 +374,7 @@ $(OBJECTS) $(BUILD)/start.o $(BUILD)/gates.o $(BUILD)/muimaster_lib.o \
 clean:
 	rm -rf $(BUILD)
 
--include $(OBJECTS:.o=.d) $(BUILD)/gates.d \
+-include $(OBJECTS:.o=.d) $(CF_OBJECTS:.o=.d) $(BUILD)/gates.d \
   $(BUILD)/muimaster_lib.d $(BUILD)/zunemaster_lib.d $(PROGRAMS:=.d)
 
 include ../../../tools/components.mk

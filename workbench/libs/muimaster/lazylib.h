@@ -26,8 +26,16 @@ struct Library;
 /* Returns the opened base, or NULL if the library cannot be opened. */
 struct Library *zune_lazylib_open(unsigned which);
 
+#ifndef ZUNE_CLASSFILE
 #define ZUNE_LAZY_BASE(base, which) \
     ((base) ? (void *)(base) : (void *)zune_lazylib_open(which))
+#else
+/* A class file (classfile.h) has its own copies of the bases: open
+ * through the library, then copy them again (cfbases.c). */
+void *zune_cf_lazy(unsigned which);
+#define ZUNE_LAZY_BASE(base, which) \
+    ((base) ? (void *)(base) : zune_cf_lazy(which))
+#endif
 
 /* Tests at each feature's entry (allocating a requester, an IFF handle, a
  * picture object, a broker, ...): non-NULL once the library is open. The
@@ -44,7 +52,12 @@ struct Library *zune_lazylib_open(unsigned which);
 /* The soft-float runtime (libnix) calls these bases directly: code that
  * computes with doubles tests ZUNE_MATH() (and ZUNE_MATHTRANS() for
  * sin, cos and atan2) before it starts. */
+#ifndef ZUNE_CLASSFILE
 #define ZUNE_MATH()      zune_lazylib_open(ZUNE_LIB_MATHBAS)
 #define ZUNE_MATHTRANS() zune_lazylib_open(ZUNE_LIB_MATHTRANS)
+#else
+#define ZUNE_MATH()      zune_cf_lazy(ZUNE_LIB_MATHBAS)
+#define ZUNE_MATHTRANS() zune_cf_lazy(ZUNE_LIB_MATHTRANS)
+#endif
 
 #endif /* ZUNE_LAZYLIB_H */
