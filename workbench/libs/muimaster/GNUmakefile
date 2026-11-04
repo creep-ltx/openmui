@@ -48,7 +48,14 @@ endif
 LTO_CFLAGS = -flto
 LTO_LDFLAGS = -flto $(LIB_CFLAGS) -Wl,-u,_RomTag
 endif
-LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(LTO_CFLAGS) \
+# bebbo's GCC 6.5 (m68k-amigaos-gcc with -fbbb): its "i" pass turns
+# (a2) into (a2)+ and leaves the later offsets from a2 as they were, so
+# Numeric's OM_SET compared the old minimum with the value and relaid out
+# the parent group on every set (a slider set took 24 ms instead of
+# 3 ms). Every other pass of the default -fbbb=+ stays on.
+BBB_CFLAGS := $(shell $(CC) -fbbb=abcefhlmnprsz0 -S -o /dev/null -x c /dev/null \
+  2>/dev/null && echo -fbbb=abcefhlmnprsz0)
+LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(BBB_CFLAGS) $(LTO_CFLAGS) \
   -fno-common -fno-builtin -fno-strict-aliasing
 SOURCES = \
   gcc/format.c gcc/runtime.c muimaster_init.c datatypescache.c dragndrop.c font.c \
