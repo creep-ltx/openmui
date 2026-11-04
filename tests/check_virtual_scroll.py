@@ -50,8 +50,10 @@ class ScrollHarness(BackfillHarness):
         self.trap(self.symbols['_DoMethod'], self.unexpected_method)
 
     def family(self, obj, family, head, children):
+        # The group's first field points at its own child list (no Family
+        # object since the lean edition); the trap below stays unused.
         self.families[family] = head
-        self.mem.w32(obj + GROUP_OFFSET, family)
+        self.mem.w32(obj + GROUP_OFFSET, head)
         self.mem.w32(head, children[0] - 12)
         for i, child in enumerate(children):
             self.mem.w32(child - 12,

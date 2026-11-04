@@ -81,7 +81,7 @@ struct layout2d_elem
 
 struct MUI_GroupData
 {
-    Object *family;
+    struct MinList *children;   /* &childlist; kept first so the other offsets stay */
     struct Hook *layout_hook;
     ULONG flags;
     ULONG columns;
@@ -114,17 +114,77 @@ struct MUI_GroupData
     /* MUI4 group with tabs */
     Object *titlegroup;
     APTR paint_clip;            /* previous clipping during virtual painting */
-    struct MinList *children;   /* the family's list, fetched once; last to keep the other offsets */
+    /* The children. MUI keeps them in the group itself; Zune kept them in
+     * a Family object of its own per group (54 bytes and a dispatch per
+     * child operation). The list and the Family methods below work as
+     * Family's did (family.c). */
+    struct MinList childlist;
 };
 
-/* The Family's list pointer, fetched once at OM_NEW and kept: asking for
- * it through OM_GET cost a dispatch per group per draw, layout and minmax
- * pass. A fake object in the linked checks may leave it unset. */
 static inline struct MinList *group_children(struct MUI_GroupData *data)
 {
-    if (!data->children)
-        get(data->family, MUIA_Family_List, &data->children);
     return data->children;
+}
+
+/* Family's AddHead/AddTail/Insert on the group's own list. Family's parent
+ * pointer and ConnectParent are not needed: the caller sets the group as
+ * parent and connects the child itself. */
+static void group_family_add(struct MUI_GroupData *data, Msg msg)
+{
+    struct MUIP_Family_Insert *m = (struct MUIP_Family_Insert *)msg;
+    struct List *list = (struct List *)&data->childlist;
+
+    if (!m->obj)
+        return;
+    if (msg->MethodID == MUIM_Family_AddHead)
+        AddHead(list, (struct Node *)_OBJECT(m->obj));
+    else if (msg->MethodID == MUIM_Family_Insert)
+        Insert(list, (struct Node *)_OBJECT(m->obj),
+            (struct Node *)_OBJECT(m->pred));
+    else
+        DoMethod(m->obj, OM_ADDTAIL, (IPTR)list);
+}
+
+/* Family_Reorder: move the NULL-terminated array behind after (NULL: to
+ * the front, -1: to the end), links only. FALSE for a stranger or a
+ * duplicate. */
+static BOOL group_contains(struct MinList *list, Object *obj)
+{
+    Object *state = (Object *)list->mlh_Head, *child;
+
+    while ((child = NextObject(&state)))
+        if (child == obj) return TRUE;
+    return FALSE;
+}
+
+static IPTR group_reorder(struct MUI_GroupData *data, Object *after,
+    Object **array)
+{
+    struct List *list = (struct List *)&data->childlist;
+    struct Node *at;
+    ULONG i, j;
+
+    if (after && after != (Object *)-1 &&
+        !group_contains(&data->childlist, after)) return FALSE;
+    for (i = 0; array[i]; i++)
+    {
+        if (array[i] == after ||
+            !group_contains(&data->childlist, array[i])) return FALSE;
+        for (j = 0; j < i; j++)
+            if (array[i] == array[j]) return FALSE;
+    }
+    for (i = 0; array[i]; i++)
+        Remove((struct Node *)_OBJECT(array[i]));
+    at = after == (Object *)-1 ? list->lh_TailPred :
+        after ? (struct Node *)_OBJECT(after) : NULL;
+    for (i = 0; array[i]; i++)
+    {
+        struct Node *node = (struct Node *)_OBJECT(array[i]);
+        Insert(list, node, at);
+        /* MUI keeps a fixed insertion point except when appending. */
+        if (after == (Object *)-1) at = node;
+    }
+    return TRUE;
 }
 
 
@@ -172,16 +232,16 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *       Area.mui
 *
 *   DESCRIPTION
-*       Own an ordered set of Area-compatible children through an internal
-*       Family. Arrange them horizontally, vertically, in a grid, as pages or
-*       through a layout hook. Default orientation is vertical, with both stored
+*       Own an ordered set of Area-compatible children in a list of its own,
+*       as MUI does (no Family object). Arrange them horizontally,
+*       vertically, in a grid, as pages or through a layout hook. Default orientation is vertical, with both stored
 *       row and column counts initially one. Layout requires the connected
 *       application's preferences and valid child min/max information.
-*       Group owns the internal Family, its attached children and private grid
+*       Group owns its child list, its attached children and private grid
 *       arrays. It borrows the layout Hook. Construction returns NULL on
-*       superclass/Family creation failure or any explicit NULL Group_Child tag.
-*       Disposal frees grid arrays and disposes the Family and remaining
-*       children, then Area. Hide and Cleanup must already have ended active
+*       superclass failure or any explicit NULL Group_Child tag.
+*       Disposal frees grid arrays and disposes the remaining children, then
+*       Area. Hide and Cleanup must already have ended active
 *       display resources and handlers.
 *       Only attach live compatible objects that are not already owned or linked
 *       elsewhere. Adding adopts a child; removing unlinks without disposing it.
@@ -203,11 +263,10 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *       hook's result for a custom hook, otherwise TRUE. The library MUI_Layout
 *       sets a child's box and returns FALSE when that box is outside the
 *       child's min/max limits, otherwise the child's layout result.
-*       FindUData/GetUData match Group first, then delegate through its internal
-*       Family, whose own default UserData can also match. GetUData reports a
-*       match without checking getter success. SetUData may set Group, whose
-*       setter can already broadcast, and then visits the Family, so assignments
-*       can repeat; SetUDataOnce stops at the first match. Export/Import visit
+*       FindUData/GetUData match Group first, then ask the children in list
+*       order. GetUData reports a match without checking getter success.
+*       SetUData may set Group, whose setter can already broadcast, and then
+*       visits every child, so assignments can repeat; SetUDataOnce stops at the first match. Export/Import visit
 *       children only and return zero; they do not call Area's own
 *       Selected-state serialization.
 *       OM_GET tries Group, then Area/Notify, then children until one getter
@@ -225,14 +284,14 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *       Probe storage is a fixed 30-IPTR stack array; getters must not write
 *       beyond it. Return TRUE on the child path does not prove that any
 *       registration succeeded.
-*       Family_GetChild is delegated to the internal Family. Group also
+*       Family_GetChild walks the group's own list as Family's does. Group also
 *       implements virtual offset/extent attributes used by Virtgroup. The
 *       locally defined Group_Insert is an internal source interface; the
 *       header's Group_ChildCount getter returns the stored child count, and
 *       its ExitChange2 is explicitly private.
 *
 *   BUGS
-*       Add/remove helpers ignore child and Family results and adjust a stored
+*       Add/remove helpers ignore child results and adjust a stored
 *       count without validating membership. Setup has incomplete failure
 *       unwinding. Page indices and grid dimensions are not generally
 *       range-checked. Several layout intermediates are WORD values, and
@@ -248,7 +307,7 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *
 *   FUNCTION
 *       Append a non-NULL Area-compatible child through OM_ADDMEMBER. The
-*       internal Family owns attached children.
+*       group owns attached children.
 *
 *   INPUTS
 *       Object pointer; initialize only; repeatable.
@@ -256,7 +315,7 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *   NOTES
 *       Runtime changes use AddHead/AddTail or OM_ADDMEMBER and Remove or
 *       OM_REMMEMBER. Any explicit NULL Child tag makes construction fail after
-*       tag processing and disposes attached children. Earlier superclass/Family
+*       tag processing and disposes attached children. Earlier superclass
 *       allocation failure can occur before child adoption. Do not dispose an
 *       attached child separately.
 *
@@ -271,7 +330,7 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *       MUIA_Group_ChildList
 *
 *   FUNCTION
-*       Return the borrowed child list owned by the internal Family.
+*       Return the borrowed child list owned by the group.
 *
 *   INPUTS
 *       Exec List pointer; get only.
@@ -794,7 +853,7 @@ struct MUIP_StructWithObj
 
 /*
  * Shared private insertion path for AddHead/AddTail/Insert. Requires a
- * valid unowned Area child and valid predecessor for Insert. Family
+ * valid unowned Area child and valid predecessor for Insert. List
  * insertion, connection and Setup results are ignored; count increases
  * unconditionally. Attach parent/virtual state and propagate disabled
  * nesting. Return TRUE, not verified insertion/setup success.
@@ -810,7 +869,7 @@ static IPTR Group__MUIM_AddObject(struct IClass *cl, Object *obj, Msg msg)
         { TAG_DONE                      }
     };
 
-    DoMethodA(data->family, (Msg) msg);
+    group_family_add(data, msg);
     data->num_children++;
     if (data->num_children == 1 &&
         (muiAreaData(msgint->obj)->mad_Flags2 & MADF2_ISTITLE))
@@ -861,10 +920,10 @@ static IPTR Group__MUIM_AddObject(struct IClass *cl, Object *obj, Msg msg)
  OM_NEW - Constructor
 **************************************************************************/
 /*
- * Construct Area, an owned Family and default Group state; consume
+ * Construct Area, the child list and default Group state; consume
  * initialization tags in order. Adopt Child objects; remember first
  * register-frame child as borrowed titlegroup. Return object or NULL on
- * superclass/Family failure or explicit NULL child. Failure disposal
+ * superclass failure or explicit NULL child. Failure disposal
  * releases already adopted children. No grid arrays are allocated here.
  */
 IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
@@ -885,16 +944,8 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     /* Initial local instance data */
     data = INST_DATA(cl, obj);
 
-    data->family = MUI_NewObjectA(MUIC_Family, NULL);
-    if (!data->family)
-    {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
-    }
-    /* The list lives in the family object for its lifetime; asking for
-     * it through OM_GET at every walk cost a dispatch per group per
-     * draw, layout and minmax pass. */
-    get(data->family, MUIA_Family_List, &data->children);
+    NewList((struct List *)&data->childlist);
+    data->children = &data->childlist;
 
     data->horiz_spacing = -1;
     data->vert_spacing = -1;
@@ -1026,7 +1077,7 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
  OM_DISPOSE
 **************************************************************************/
 /*
- * Free owned row/column arrays and dispose internal Family with remaining
+ * Free owned row/column arrays and dispose the remaining
  * children, then invoke Area disposal. Requires prior Hide/Cleanup of
  * active resources and no surviving borrowers. Does not dispose the
  * borrowed Hook separately; return superclass result.
@@ -1039,8 +1090,14 @@ IPTR Group__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
         mui_free(data->row_infos);
     if (data->col_infos != NULL)
         mui_free(data->col_infos);
-    if (data->family != NULL)
-        MUI_DisposeObject(data->family);
+    if (data->children)
+    {
+        Object *cstate = (Object *)data->childlist.mlh_Head;
+        Object *child;
+
+        while ((child = NextObject(&cstate)))
+            MUI_DisposeObject(child);
+    }
     return DoSuperMethodA(cl, obj, msg);
 }
 
@@ -1294,7 +1351,7 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
  * Write recognized Group/virtual getters to caller storage, including
  * private MUIA_Group_ChildCount from the unchecked stored count. Otherwise
  * try Area then children until success unless forwarding is suppressed.
- * Return getter status. Borrowed ChildList stays Family-owned; Horiz
+ * Return getter status. Borrowed ChildList stays group-owned; Horiz
  * returns its raw flag bit.
  */
 IPTR Group__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
@@ -1384,7 +1441,7 @@ IPTR Group__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 *       IPTR result = DoMethod(obj, MUIM_Group_AddTail, (IPTR)child);
 *
 *   FUNCTION
-*       Insert a child at the end of the internal Family and increase the stored
+*       Insert a child at the end of the child list and increase the stored
 *       count. Set its parent to this Group, connect it when application
 *       information exists, and set it up immediately when the Group is set up.
 *
@@ -1393,7 +1450,7 @@ IPTR Group__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 *       linked elsewhere. Ownership transfers through attachment.
 *
 *   RESULT
-*       Always TRUE; Family, child connection and child Setup results are
+*       Always TRUE; child connection and child Setup results are
 *       ignored.
 *
 *   NOTES
@@ -1405,7 +1462,7 @@ IPTR Group__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 *
 *   BUGS
 *       No NULL/membership validation is provided by the Group helper; it
-*       dereferences child even if Family rejects the insertion. A reported TRUE
+*       dereferences child even for a NULL child. A reported TRUE
 *       does not establish successful setup. Subsequent removal does not undo
 *       inherited disabled state.
 *
@@ -1428,7 +1485,7 @@ IPTR Group__MUIM_AddTail(struct IClass *cl, Object *obj,
 *       IPTR result = DoMethod(obj, MUIM_Group_AddHead, (IPTR)child);
 *
 *   FUNCTION
-*       Insert a child at the beginning of the internal Family and increase the
+*       Insert a child at the beginning of the child list and increase the
 *       stored count. Set its parent to this Group, connect it when application
 *       information exists, and set it up immediately when the Group is set up.
 *
@@ -1437,7 +1494,7 @@ IPTR Group__MUIM_AddTail(struct IClass *cl, Object *obj,
 *       linked elsewhere. Ownership transfers through attachment.
 *
 *   RESULT
-*       Always TRUE; Family, child connection and child Setup results are
+*       Always TRUE; child connection and child Setup results are
 *       ignored.
 *
 *   NOTES
@@ -1449,7 +1506,7 @@ IPTR Group__MUIM_AddTail(struct IClass *cl, Object *obj,
 *
 *   BUGS
 *       No NULL/membership validation is provided by the Group helper; it
-*       dereferences child even if Family rejects the insertion. A reported TRUE
+*       dereferences child even for a NULL child. A reported TRUE
 *       does not establish successful setup. Subsequent removal does not undo
 *       inherited disabled state.
 *
@@ -1466,9 +1523,9 @@ IPTR Group__MUIM_AddHead(struct IClass *cl, Object *obj,
 /*
  * Private source-local MUIM_Group_Insert forwards to the shared insertion
  * helper. Message carries child and predecessor; predecessor must be a
- * current child. Family converts it with _OBJECT without a NULL guard; do
+ * current child. It is converted with _OBJECT without a NULL guard; do
  * not assume NULL safely requests head insertion. Adopts child and returns
- * TRUE without checking Family/setup results. This is not a public header
+ * TRUE without checking setup results. This is not a public header
  * interface.
  */
 IPTR Group__MUIM_Insert(struct IClass *cl, Object *obj,
@@ -1490,21 +1547,21 @@ IPTR Group__MUIM_Insert(struct IClass *cl, Object *obj,
 *
 *   FUNCTION
 *       Hide the child when the Group is drawable, clean it when the Group is
-*       set up, disconnect it, decrement the stored count and remove it through
-*       Family.
+*       set up, disconnect it, decrement the stored count and remove it from
+*       the child list.
 *
 *   INPUTS
 *       child - Non-NULL live child currently attached to this Group.
 *
 *   RESULT
-*       Always TRUE; child and Family results are ignored.
+*       Always TRUE; child results are ignored.
 *
 *   NOTES
 *       The child is not disposed; the caller resumes responsibility for its
 *       lifetime. OM_REMMEMBER uses this path. Use InitChange/ExitChange for
-*       live removal. Family removal also disconnects the child, so the
-*       connected path can send DisconnectParent twice. The final Family removal
-*       clears the parent pointer.
+*       live removal. As with Zune's former Family object, the removal also
+*       disconnects the child, so the connected path can send
+*       DisconnectParent twice. The final removal clears the parent pointer.
 *
 *   BUGS
 *       No membership/count validation occurs. Passing an unrelated child can
@@ -1533,7 +1590,13 @@ IPTR Group__MUIM_Remove(struct IClass *cl, Object *obj,
     if ((data->flags & GROUP_CHANGING) != 0)
         data->flags |= GROUP_CHANGED;
     data->num_children--;
-    DoMethodA(data->family, (Msg) msg);
+    /* What Family_Remove did after the group's part */
+    if (msg->obj)
+    {
+        DoMethod(msg->obj, MUIM_DisconnectParent);
+        muiNotifyData(msg->obj)->mnd_ParentObject = NULL;
+        DoMethod(msg->obj, OM_REMOVE);
+    }
 
     return TRUE;
 }
@@ -1542,7 +1605,7 @@ IPTR Group__MUIM_Remove(struct IClass *cl, Object *obj,
  MUIM_Family_GetChild
 **************************************************************************/
 /*
- * Delegate the message to the owned internal Family and return its result.
+ * Find a child by number or relative to ref, as Family_GetChild does.
  * The returned child is borrowed; index/selectors and failure behavior
  * belong to Family_GetChild. Requires an intact Family and stable list.
  */
@@ -1550,8 +1613,30 @@ IPTR Group__MUIM_Family_GetChild(struct IClass *cl, Object *obj,
     struct MUIP_Group_Remove *msg)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUIP_Family_GetChild *m = (struct MUIP_Family_GetChild *)msg;
+    Object *cstate = (Object *)data->childlist.mlh_Head;
+    Object *child, *prev = NULL;
+    LONG counter = 0;
 
-    return DoMethodA(data->family, (APTR) msg);
+    while ((child = NextObject(&cstate)))
+    {
+        if ((m->nr >= 0) && (m->nr == counter))
+            return (IPTR) child;
+        if ((m->ref != NULL) && (m->ref == child))
+        {
+            if (m->nr == MUIV_Family_GetChild_Next)
+                return (IPTR) NextObject(&cstate);
+            if (m->nr == MUIV_Family_GetChild_Previous)
+                return (IPTR) prev;
+        }
+        if (m->nr == MUIV_Family_GetChild_First)
+            return (IPTR) child;
+        prev = child;
+        counter++;
+    }
+    if (m->nr == MUIV_Family_GetChild_Last)
+        return (IPTR) prev;
+    return (IPTR) NULL;
 }
 
 /**************************************************************************
@@ -1560,8 +1645,7 @@ IPTR Group__MUIM_Family_GetChild(struct IClass *cl, Object *obj,
 /*
  * Connect Area first, then each child to this Group, assigning parent and
  * inherited virtual flags. Requires a valid connected parent and stable
- * child list. Ignore superclass/child results and return TRUE; the internal
- * Family is not itself connected here.
+ * child list. Ignore superclass/child results and return TRUE.
  */
 IPTR Group__MUIM_ConnectParent(struct IClass *cl, Object *obj,
     struct MUIP_ConnectParent *msg)
@@ -1850,17 +1934,21 @@ static IPTR GroupMoveMember(struct IClass *cl, Object *obj,
     state = (Object *)list->lh_Head;
     while (pos && (child = NextObject(&state)))
         if (child != msg->o) { after = child; pos--; }
-    return DoMethod(data->family, MUIM_Family_Reorder, after, msg->o, NULL);
+    {
+        Object *array[2];
+
+        array[0] = msg->o;
+        array[1] = NULL;
+        return group_reorder(data, after, array);
+    }
 }
 static IPTR GroupReorder(struct IClass *cl, Object *obj,
     struct MUIP_Group_Reorder *msg)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
-    IPTR result;
-    msg->MethodID = MUIM_Family_Reorder;
-    result = DoMethodA(data->family, (Msg)msg);
-    msg->MethodID = MUIM_Group_Reorder;
-    return result;
+    struct MUIP_Family_Reorder *m = (struct MUIP_Family_Reorder *)msg;
+
+    return group_reorder(data, m->after, m->array);
 }
 
 /****** Group.mui/MUIM_Group_Sort ************
@@ -1873,16 +1961,15 @@ static IPTR GroupReorder(struct IClass *cl, Object *obj,
 *       (IPTR)NULL);
 *
 *   FUNCTION
-*       Replace the internal Family child order with the supplied
-*       NULL-terminated sequence. The method temporarily changes MethodID to
-*       Family_Sort, invokes Family, then restores Group_Sort.
+*       Replace the child order with the supplied NULL-terminated
+*       sequence, as Family_Sort does.
 *
 *   INPUTS
 *       first, ... - Every currently attached child exactly once in the desired
 *       order, followed by NULL. A retained method message must be writable.
 *
 *   RESULT
-*       Always TRUE; Family result is ignored.
+*       Always TRUE.
 *
 *   NOTES
 *       This is explicit ordering, not a comparison callback sort. It does not
@@ -1901,14 +1988,13 @@ IPTR Group__MUIM_Sort(struct IClass *cl, Object *obj,
     struct MUIP_Group_Sort *msg)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
+    int i;
 
-    /* modify message */
-    msg->MethodID = MUIM_Family_Sort;
-
-    DoMethodA(data->family, (APTR) msg);
-
-    /* restore original message */
-    msg->MethodID = MUIM_Group_Sort;
+    /* Family_Sort: the list becomes the array, in its order */
+    NewList((struct List *)&data->childlist);
+    for (i = 0; msg->obj[i]; i++)
+        AddTail((struct List *)&data->childlist,
+            (struct Node *)_OBJECT(msg->obj[i]));
     return TRUE;
 }
 
@@ -4731,9 +4817,9 @@ IPTR Group__MUIM_Hide(struct IClass *cl, Object *obj,
  * contains the given <udata> and returns the object pointer in this case.
  */
 /*
- * Return this borrowed Group if UserData matches; otherwise delegate to
- * internal Family, which can itself match. Requires live objects and stable
- * traversal. Return zero when Family finds no match; do not dispose
+ * Return this borrowed Group if UserData matches; otherwise ask the
+ * children in order. Requires live objects and stable
+ * traversal. Return zero when no child matches; do not dispose
  * returned objects.
  */
 IPTR Group__MUIM_FindUData(struct IClass *cl, Object *obj,
@@ -4741,10 +4827,20 @@ IPTR Group__MUIM_FindUData(struct IClass *cl, Object *obj,
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
 
+    Object *cstate = (Object *)data->childlist.mlh_Head;
+    Object *child;
+
     if (muiNotifyData(obj)->mnd_UserData == msg->udata)
         return (IPTR) obj;
 
-    return DoMethodA(data->family, (Msg) msg);
+    while ((child = NextObject(&cstate)))
+    {
+        Object *found = (Object *) DoMethodA(child, (Msg) msg);
+
+        if (found)
+            return (IPTR) found;
+    }
+    return 0;
 }
 
 
@@ -4755,7 +4851,7 @@ IPTR Group__MUIM_FindUData(struct IClass *cl, Object *obj,
  */
 /*
  * Match Group first and invoke its getter into caller storage without
- * checking getter success; otherwise delegate to Family. Return match
+ * checking getter success; otherwise ask the children. Return match
  * status, not getter success. Requires storage suitable for requested
  * attribute and stable traversal.
  */
@@ -4764,13 +4860,19 @@ IPTR Group__MUIM_GetUData(struct IClass *cl, Object *obj,
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
 
+    Object *cstate = (Object *)data->childlist.mlh_Head;
+    Object *child;
+
     if (muiNotifyData(obj)->mnd_UserData == msg->udata)
     {
         get(obj, msg->attr, msg->storage);
         return TRUE;
     }
 
-    return DoMethodA(data->family, (Msg) msg);
+    while ((child = NextObject(&cstate)))
+        if (DoMethodA(child, (Msg) msg))
+            return TRUE;
+    return FALSE;
 }
 
 
@@ -4779,8 +4881,8 @@ IPTR Group__MUIM_GetUData(struct IClass *cl, Object *obj,
  * contains the given <udata> and sets <attr> to <val> for itself in this case.
  */
 /*
- * Set matching Group then traverse Family for all matches. Group setter may
- * already broadcast to children before explicit Family traversal, so
+ * Set matching Group then visit every child. Group setter may
+ * already broadcast to children before the explicit child walk, so
  * assignments can repeat. Requires writable valid setter arguments and
  * stable membership. Return TRUE; delegated results are ignored.
  */
@@ -4789,10 +4891,14 @@ IPTR Group__MUIM_SetUData(struct IClass *cl, Object *obj,
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
 
+    Object *cstate = (Object *)data->childlist.mlh_Head;
+    Object *child;
+
     if (muiNotifyData(obj)->mnd_UserData == msg->udata)
         set(obj, msg->attr, msg->val);
 
-    DoMethodA(data->family, (Msg) msg);
+    while ((child = NextObject(&cstate)))
+        DoMethodA(child, (Msg) msg);
     return TRUE;
 }
 
@@ -4804,7 +4910,7 @@ IPTR Group__MUIM_SetUData(struct IClass *cl, Object *obj,
  */
 /*
  * Set Group and return TRUE when its UserData matches; otherwise return
- * Family search result. A Group match can still propagate its setter to
+ * the children's search result. A Group match can still propagate its setter to
  * children. Requires live compatible objects and valid setter arguments; no
  * ownership change.
  */
@@ -4813,12 +4919,18 @@ IPTR Group__MUIM_SetUDataOnce(struct IClass *cl, Object *obj,
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
 
+    Object *cstate = (Object *)data->childlist.mlh_Head;
+    Object *child;
+
     if (muiNotifyData(obj)->mnd_UserData == msg->udata)
     {
         set(obj, msg->attr, msg->val);
         return TRUE;
     }
-    return DoMethodA(data->family, (Msg) msg);
+    while ((child = NextObject(&cstate)))
+        if (DoMethodA(child, (Msg) msg))
+            return TRUE;
+    return FALSE;
 }
 
 /**************************************************************************

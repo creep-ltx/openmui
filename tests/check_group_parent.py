@@ -26,6 +26,7 @@ def check(path):
            lambda: calls.append(('super', argument(1))))
     h.trap(INTUITION - 654, get_attr)
     h.mem.w16(CLASS + 32, 256)
+    h.mem.w32(GROUP + 256, LIST)  # the group's child list pointer (first field)
 
     # Two children: struct _Object nodes (MinNode, class) precede each object.
     nodes = [LIST + 0x100, LIST + 0x200]
