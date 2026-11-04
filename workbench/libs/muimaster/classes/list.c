@@ -1643,20 +1643,6 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     List_HandleScrollerPos(cl, obj);
 
-    /* The horizontal scroller lives inside the entry area and is shown
-     * by the layout when the columns need it */
-    if (!data->area_replaced)
-        data->horiz = ScrollbarObject,
-            MUIA_Group_Horiz, TRUE,
-            MUIA_ShowMe, FALSE,
-            End;
-    if (data->horiz)
-    {
-        DoMethod(obj, OM_ADDMEMBER, (IPTR) data->horiz);
-        DoMethod(data->horiz, MUIM_Notify, MUIA_Prop_First, MUIV_EveryTime,
-            (IPTR) obj, 4, MUIM_CallHook, (IPTR) &data->hook,
-            PROP_HORIZ_FIRST, MUIV_TriggerValue);
-    }
     data->layout_hook.h_Entry = HookEntry;
     data->layout_hook.h_SubEntry = (HOOKFUNC) List_LayoutFunction;
     data->layout_hook.h_Data = data;
@@ -2303,6 +2289,26 @@ IPTR List__MUIM_Setup(struct IClass *cl, Object *obj,
     struct MUIP_Setup *msg)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
+
+    /* The horizontal scroller (MUI 3.9) lives inside the entry area and is
+     * shown by the layout when the columns need it. It is made at the
+     * first setup, before the group sets up its children, not with the
+     * list: a list in a window that is never opened then costs no
+     * scroller (a group, a prop and two buttons, ~1.3 KB). */
+    if (!data->horiz && !data->area_replaced)
+    {
+        data->horiz = ScrollbarObject,
+            MUIA_Group_Horiz, TRUE,
+            MUIA_ShowMe, FALSE,
+            End;
+        if (data->horiz)
+        {
+            DoMethod(obj, OM_ADDMEMBER, (IPTR) data->horiz);
+            DoMethod(data->horiz, MUIM_Notify, MUIA_Prop_First,
+                MUIV_EveryTime, (IPTR) obj, 4, MUIM_CallHook,
+                (IPTR) &data->hook, PROP_HORIZ_FIRST, MUIV_TriggerValue);
+        }
+    }
 
     if (!DoSuperMethodA(cl, obj, (Msg) msg))
         return 0;
