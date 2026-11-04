@@ -27,8 +27,8 @@
 #define SUPERCLASS MUIC_Area
 #define INSTDATA Pixmap_DATA
 #define VERSION 20
-#define REVISION 29
-#define USERLIBID CLASS " 20.29 (7.10.2026) AROS native AmigaOS port"
+#define REVISION 30
+#define USERLIBID CLASS " 20.30 (4.11.2026) Zune68 AROS native AmigaOS port"
 struct Library *CyberGfxBase;
 #define CLASSINIT
 #define CLASSEXPUNGE

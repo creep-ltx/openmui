@@ -7,7 +7,10 @@
 
 #include <intuition/classes.h>
 #include <clib/alib_protos.h>
+#include <exec/resident.h>
+#include <exec/execbase.h>
 #include <proto/exec.h>
+#include <proto/dos.h>
 #include <proto/intuition.h>
 #include <proto/utility.h>
 #include <proto/muimaster.h>
@@ -174,6 +177,74 @@ static const struct __MUIBuiltinClass *const builtins[] = {
         ZUNE_PANELTITLE_DESC
 };
 
+static BOOL zune_is_mui_file(CONST_STRPTR name)
+{
+    size_t len = strlen(name);
+
+    return len > 4 && !Stricmp(name + len - 4, ".mui");
+}
+
+/* Zune68's own .mui files say so in their id string; those built before
+ * 2026-11-04 (Pixmap.mui 20.29) said "AROS native AmigaOS port". */
+static BOOL zune_is_own_id(CONST_STRPTR id)
+{
+    return id && (strstr((const char *)id, "Zune68")
+        || strstr((const char *)id, "AROS"));
+}
+
+/* The Resident tag in a loaded file: it points at itself once relocated. */
+static const struct Resident *zune_find_resident(BPTR seglist)
+{
+    BPTR seg;
+
+    for (seg = seglist; seg; seg = *(BPTR *)BADDR(seg))
+    {
+        UWORD *p = (UWORD *)((UBYTE *)BADDR(seg) + 4);
+        UWORD *end = (UWORD *)((UBYTE *)BADDR(seg) - 4
+            + ((ULONG *)BADDR(seg))[-1]) - sizeof(struct Resident) / 2;
+
+        for (; p <= end; p++)
+            if (*p == RTC_MATCHWORD
+                && ((const struct Resident *)p)->rt_MatchTag
+                    == (const struct Resident *)p)
+                return (const struct Resident *)p;
+    }
+    return NULL;
+}
+
+/* Is LIBS:<path> (a ".mui") Zune68's? Decided from the library in memory
+ * by that name (OpenLibrary would return it, whatever the drawer), else
+ * from the file's Resident tag, without running its code: opening a real
+ * MUI .mui runs its init, which opens muimaster.library = Zune. */
+static BOOL zune_mui_file_is_own(CONST_STRPTR path)
+{
+    struct Library *lib;
+    const struct Resident *rt;
+    TEXT file[260];
+    BOOL own = FALSE, inmem = FALSE;
+    BPTR seg;
+
+    Forbid();
+    lib = (struct Library *)FindName(&SysBase->LibList, FilePart(path));
+    if (lib)
+    {
+        inmem = TRUE;
+        own = zune_is_own_id(lib->lib_IdString);
+    }
+    Permit();
+    if (inmem)
+        return own;
+    if (FindTask(NULL)->tc_Node.ln_Type != NT_PROCESS)
+        return FALSE;
+    snprintf(file, sizeof(file), "LIBS:%s", path);
+    if (!(seg = LoadSeg(file)))
+        return FALSE;
+    rt = zune_find_resident(seg);
+    own = rt && zune_is_own_id(rt->rt_IdString);
+    UnLoadSeg(seg);
+    return own;
+}
+
 Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
     struct Library *MUIMasterBase)
 {
@@ -194,6 +265,15 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
         snprintf(s, 255, *pathptr, classname);
 
         D(bug("Trying opening of %s\n", s));
+
+        /* A ".mui" is a built-in class of a muimaster.library. Real
+         * MUI's own (MUI:Libs/mui/Pixmap.mui, Balance.mui, ...) work only
+         * inside real MUI: open only Zune68's. */
+        if (zune_is_mui_file(classname) && !zune_mui_file_is_own(s))
+        {
+            D(bug("%s is not Zune68's, skipped\n", s));
+            continue;
+        }
 
         if ((mcclib = OpenLibrary(s, 0)))
         {
