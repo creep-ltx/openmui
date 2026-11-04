@@ -344,7 +344,8 @@ static void calcscale16(struct Prop_DATA *data)
     else
     {
         unsigned long long v =
-            ((unsigned long long)data->entries) * 0x10000 / 65535;
+            ZuneDiv64(((unsigned long long)data->entries) * 0x10000, 65535,
+                NULL);
 
         data->scale16 = (ULONG) v;
     }
@@ -370,7 +371,7 @@ static ULONG downscale(struct Prop_DATA *data, ULONG val)
     if (data->entries >= 0x10000)
     {
         unsigned long long v =
-            ((unsigned long long)val) * 65535 / data->entries;
+            ZuneDiv64(((unsigned long long)val) * 65535, data->entries, NULL);
         val = (ULONG) v;
     }
 
@@ -397,7 +398,7 @@ static ULONG upscale(struct Prop_DATA *data, ULONG val)
     if (data->entries >= 0x10000)
     {
         unsigned long long v =
-            ((unsigned long long)val) * data->entries / 65535;
+            ZuneDiv64(((unsigned long long)val) * data->entries, 65535, NULL);
         val = (ULONG) v;
     }
 #endif

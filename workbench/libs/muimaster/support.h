@@ -77,6 +77,10 @@ void ZuneUnwatchWindow(Object *window, struct ZuneWindowGuard *guard);
 
 void ZuneResetWindowPointer(Object *window);
 IPTR DoLayoutMethod(Object *obj);
+/* Unsigned 64-by-32-bit division (d != 0), quotient returned, remainder
+ * stored when rem is not NULL. Numeric, Prop and String need nothing
+ * wider; libgcc's general 64-by-64 __udivdi3/__umoddi3 are 3 KB. */
+unsigned long long ZuneDiv64(unsigned long long n, ULONG d, ULONG *rem);
 IPTR ZuneLayout(Object *obj, LONG left, LONG top, LONG width, LONG height,
     ULONG flags);
 IPTR ZuneLayoutObject(Object *obj, LONG left, LONG top, LONG width,

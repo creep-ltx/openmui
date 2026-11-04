@@ -726,8 +726,10 @@ static void StringFormat64(char *buffer, long long value)
     }
     do
     {
-        digits[count++] = '0' + magnitude % 10;
-        magnitude /= 10;
+        ULONG digit;
+
+        magnitude = ZuneDiv64(magnitude, 10, &digit);
+        digits[count++] = '0' + digit;
     } while (magnitude);
     while (count) *buffer++ = digits[--count];
     *buffer = 0;

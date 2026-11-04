@@ -202,6 +202,58 @@ WORD SubtractRectFromRect(struct Rectangle *a, struct Rectangle *b,
 
 }
 
+unsigned long long ZuneDiv64(unsigned long long n, ULONG d, ULONG *rem)
+{
+    ULONG hi = (ULONG)(n >> 32), lo = (ULONG)n, r = 0;
+
+    if (d <= 0xffff)
+    {
+        /* Four 32-by-16 steps: the remainder stays below d, so each
+         * quotient digit fits 16 bits (one divu.w on any 68k) */
+        UWORD digit[4];
+        int i;
+
+        digit[0] = hi >> 16; digit[1] = hi; digit[2] = lo >> 16; digit[3] = lo;
+        for (i = 0; i < 4; i++)
+        {
+            ULONG t = (r << 16) | digit[i];
+#if defined(__mc68000__)
+            __asm__("divu.w %1,%0" : "+d"(t) : "d"((UWORD)d));
+            digit[i] = (UWORD)t;
+            r = t >> 16;
+#else
+            digit[i] = (UWORD)(t / d);
+            r = t % d;
+#endif
+        }
+        hi = ((ULONG)digit[0] << 16) | digit[1];
+        lo = ((ULONG)digit[2] << 16) | digit[3];
+    }
+    else
+    {
+        /* Shift and subtract: n shifts out of hi:lo into r while the
+         * quotient bits shift in at the bottom */
+        int i;
+
+        for (i = 0; i < 64; i++)
+        {
+            ULONG carry = r >> 31;
+
+            r = (r << 1) | (hi >> 31);
+            hi = (hi << 1) | (lo >> 31);
+            lo <<= 1;
+            if (carry || r >= d)
+            {
+                r -= d;
+                lo |= 1;
+            }
+        }
+    }
+    if (rem)
+        *rem = r;
+    return ((unsigned long long)hi << 32) | lo;
+}
+
 ULONG IsObjectVisible(Object * child, struct Library * MUIMasterBase)
 {
     Object *wnd;

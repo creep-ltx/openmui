@@ -894,8 +894,11 @@ static ULONG numeric_scale(ULONG offset, ULONG target, ULONG source,
     else
     {
         unsigned long long span = (unsigned long long)target + 1;
-        return (offset * span + (center ? span / 2 : 0)) /
-            ((unsigned long long)source + 1);
+        unsigned long long n = offset * span + (center ? span / 2 : 0);
+
+        if (source == 0xffffffff)       /* divisor 2^32 */
+            return (ULONG)(n >> 32);
+        return (ULONG)ZuneDiv64(n, source + 1, NULL);
     }
 }
 
