@@ -52,7 +52,9 @@ endif
 # (a2) into (a2)+ and leaves the later offsets from a2 as they were, so
 # Numeric's OM_SET compared the old minimum with the value and relaid out
 # the parent group on every set (a slider set took 24 ms instead of
-# 3 ms). Every other pass of the default -fbbb=+ stays on.
+# 3 ms). Every other pass of the default -fbbb=+ stays on. AmigaPorts'
+# GCC 16.2 has -fbbb too, so it gets the same flag; there the "i" pass
+# changes no instruction in this library (docs/lean/compiler.md).
 BBB_CFLAGS := $(shell $(CC) -fbbb=abcefhlmnprsz0 -S -o /dev/null -x c /dev/null \
   2>/dev/null && echo -fbbb=abcefhlmnprsz0)
 LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(BBB_CFLAGS) $(LTO_CFLAGS) \
