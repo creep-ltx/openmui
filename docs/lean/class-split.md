@@ -8,12 +8,13 @@ used classes in `MUI:Libs/mui/`.
 
 ## The split
 
-**Files (`LIBS:Zune/<Name>.mui`, 35 files, 160 KB on disk):**
+**Files (`LIBS:Zune/<Name>.mui`, 36 files, 163 KB on disk):**
 
 - MUI 3.8's own external set: Boopsi, Coloradjust, Colorfield, Dirlist,
   Floattext, Frameadjust, Framedisplay, Gauge, Imageadjust, Imagedisplay,
   Knob, Levelmeter, Numericbutton, Palette, Penadjust, Pendisplay, Popasl,
-  Popframe, Popimage, Poppen, Popscreen, Scale, Scrollgroup, Volumelist.
+  Popframe, Popimage, Poppen, Popscreen, Scale, Scrollgroup, Volumelist,
+  Dtpic (since 08e1f52e).
 - Balance (inside MUI 3.8; 5 KB of floating point, rarely used).
 - MUI 4/5 classes: Fontpanel (with Fontdisplay), Filepanel, Selectorpanel
   (class `Panel.mui`), Keyadjust, Title, Datamap (with Objectmap), Textdata,
@@ -24,7 +25,7 @@ Group, Virtgroup, Image, Configdata, Text, Numeric, Slider, String, Prop,
 Scrollbar, Scrollbutton, Register, Menuitem/Menu/Menustrip, Semaphore,
 Dataspace, Bitmap, Bodychunk, ChunkyImage, Cycle, Radio, Popstring,
 Popobject, Poplist, Listview, List, Mccprefs, Settings, Settingsgroup,
-Aboutmui, Crawling, Dtpic. Aboutmui, Settings, Settingsgroup and Virtgroup
+Aboutmui, Crawling. Aboutmui, Settings, Settingsgroup and Virtgroup
 are external in MUI 3.8 but a few hundred bytes each here, less than a
 file's own overhead (~1.4 KB).
 
@@ -59,8 +60,12 @@ The list is `CLASSFILES` in `workbench/libs/muimaster/GNUmakefile`;
 - **Library bases:** the file has its own copies (`cfbases.c`), copied from
   the library at the query. Lazily opened libraries (`lazylib.h`) are opened
   through the library and copied again, so the class code's `ZUNE_ASL()`
-  etc. work unchanged. libnix/libgcc functions (string, soft float) are
-  linked into each file that needs them.
+  etc. work unchanged. A base the library opens by itself later
+  (cybergraphics.library, at window setup on a deep screen) is taken over
+  with `zune_cf_refresh()`: Dtpic calls it in its MUIM_Setup, and
+  `classfiles.py` refuses a file that uses CyberGfxBase without it.
+  libnix/libgcc functions (string, soft float) are linked into each file
+  that needs them.
 - **Search:** `OpenLibrary("Zune/<Name>.mui")`, i.e. `LIBS:Zune/`, a drawer
   MUI 3.8 does not use. A file that is not Zune68's (id string) is closed
   again.

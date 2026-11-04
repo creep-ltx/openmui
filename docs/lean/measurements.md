@@ -1,8 +1,10 @@
 # Lean edition: where Zune68's memory goes (2026-11-04)
 
-The results of steps 2-7 are in [The lean steps](#the-lean-steps-2026-11-04)
-and [Final comparison](#final-comparison) below; step 1 (this report)
-follows first.
+The results of steps 2-7 are in [The lean steps](#the-lean-steps-2026-11-04),
+steps 8-13 (a compiler bug, Group, division, fonts, List, Dtpic) in [the
+second session](#the-lean-steps-second-session-2026-11-04), and both in
+[Final comparison](#final-comparison) below; step 1 (this report) follows
+first.
 
 Step 1 of the lean edition: build Zune68, measure it the same way as MUI 3.8 and
 Zune68k (an earlier lean Zune port for OS 3.1), and find where its memory goes.
@@ -195,6 +197,93 @@ Textinput API, multi-line, column state); shrinking them saves well under
 1 KB per MUI-Demo. Area's remaining fields up to offset 120 follow MUI's
 layout for programs that read them.
 
+## The lean steps, second session (2026-11-04)
+
+Same method (MUI-Demo cold, OS 3.1, A1200 68EC020, 2 MB chip + 4 MB fast,
+68000 build with bebbo's GCC 6.5, FS-UAE); each build measured with
+`measure.sh` (twice), `libonly.sh`, `fullcheck.sh` and `bench.sh`
+(perfbench), the bigger ones with `real.sh` as well.
+
+| step | commit | library file | library only | first MUI-Demo | each further | first window | fullcheck |
+|---|---|---|---|---|---|---|---|
+| 6 classes as files (start) | cdecd1a7 | 322,240 | 330.5 KB | 601 KB | 266 KB | 1.94 s | all open, -24..+104 B |
+| 8 GCC 6.5 auto-increment pass off | cd4f882e | 322,748 | 331.0 KB | 602.0 KB | 266.4 KB | 1.94 s | all open, 0..+128 B |
+| 9 Group without Family object | 3bde59da | 323,004 | 331.3 KB | 596.6 KB | 260.9 KB | 1.92 s | all open, 0..+128 B |
+| 10 own 64/32-bit division | fbba14ed | 319,468 | 328.0 KB | 593.3 KB | 260.9 KB | 1.90-1.92 s | all open, 0..+128 B |
+| 11 screen font by default | 6e32efa3 | 319,440 | 327.9 KB | 575.3 KB | 260.8 KB | 1.80-1.87 s | all open, -24..+128 B |
+| 12 List's horizontal scroller at setup | 140d5b1f | 319,448 | 327.9 KB | 557.9 KB | 243.4 KB | 1.64-1.72 s | all open, -48..+200 B (+128, 0, 0 in three runs) |
+| 13 Dtpic as a class file | 08e1f52e | 314,512 (+163 KB in 36 files) | 323.2 KB | 553.4 KB | 243.4 KB | 1.72-1.76 s | all open, 0..+128 B |
+
+(First-window times wander by ~0.1 s between runs when other emulators run
+on the PC; `wintimes.sh` below is the better comparison.)
+
+**perfbench**, `bench.sh` (15 repetitions, median, ms per batch, the same
+68000 executable on all; MUI 3.8 measured in the same session):
+
+| batch | MUI 3.8 | lean, step 6 | lean, step 13 |
+|---|---:|---:|---:|
+| create/dispose tree | 173.5 | 129.6 | 109.0 |
+| open/close window | 480.2 | 417.5 | 399.4 |
+| redraw x10 | 1292.7 | 1250.7 | 1237.4 |
+| relayout x5 | 940.0 | 861.6 | 851.1 |
+| insert 200 | 1500.8 | 952.2 | 941.9 |
+| list active x50 | 1062.2 | 1142.3 | 1127.1 |
+| notify x100 | 784.3 | **31,344.6** | 601.6 |
+| text set x100 | 250.5 | 239.9 | 240.1 |
+
+- **The 31 s notification chain** was not Zune's code: bebbo's GCC 6.5
+  pass `-fbbb=i` compiled `data->min != oldmin` in Numeric's OM_SET as a
+  compare with the value (it turned `(a2)` into `(a2)+` and left the later
+  offsets), so every set of a slider relaid out its parent group. A slider
+  set took 23.8 ms (MUI 3.8: 4.0 ms), now 2.75 ms. Zune68 main built with
+  GCC 6.5 has it too; GCC 13/16 (the release builds) do not have `-fbbb`.
+- "list active" is the one batch slower than MUI 3.8 (+6%), on Zune68
+  main too (1137 ms); not investigated.
+
+**Window times** (`wintimes.sh`: three MUI-Demos started one after the
+other, from `run` to its window, wall clock):
+
+| | 1st (cold) | 2nd | 3rd |
+|---|---|---|---|
+| MUI 3.8 | 1.48-1.56 s | 1.09-1.11 s | 1.21-1.27 s |
+| lean, step 8 | 1.90 s | 1.69 s | 1.75 s |
+| lean, step 13 | 1.72 s | 1.47 s | 1.37 s |
+
+Loading is not where the lean edition loses: a small program (`otime`,
+Application + Window + a few objects, EClock) takes OpenLibrary 57 ms cold
+(MUI 3.8: 209 ms, it loads muigfx, muilowlevel and commodities), the
+application 65 ms (66), the window 176 ms (171); LoadSeg of the library
+file alone is 49 ms (MUI 3.8: 22 ms). The difference is in what MUI-Demo
+creates and opens; making the 13 unused horizontal list scrollers lazily
+took 0.2 s off. A PC-sampling profiler (a pri-60 task reading the saved
+PC of the task at the head of TaskReady every 1 ms) was not usable: in
+FS-UAE it got one sample per 5-45 ms and mostly saw tasks just woken.
+
+**Memory tally** (second MUI-Demo's own task, `tally.sh`): 192.3 KB /
+1,488 blocks (step 6) -> 186.9 KB / 1,371 (step 9: 116 Family objects
+fewer, objects 388) -> 170.0 KB / 1,180 (step 12: objects 340 / 99.5 KB,
+lists 20.5 KB, backing store 17.1 KB, notifications 13.1 KB / 268, text
+engine 5.9 KB, windows 5.6 KB). Instance sizes now: Area 136, Group 160
+(with its child list), Text 50, Image 36, List 416, Window 726.
+
+**Code size, what was tried** (68000, text of the linked library):
+
+| build | text | |
+|---|---:|---|
+| step 8 | 301,672 | |
+| `-fomit-frame-pointer` | -2,696 | link/unlk in 1,033 functions; a5 free |
+| `-fno-partial-inlining`, `-fno-ipa-cp-clone`, `-fno-reorder-blocks`, `-fno-tree-switch-conversion` | -100..0 | |
+| `-fno-inline-small-functions`, `-fno-jump-tables` | +370, +660 | |
+| no `-falign-*` | -8 | `-Os` ignores them |
+| `LTO=1` (GCC 6.5) | -3,624 | class files then do not link: no `nm` plugin for the class table, and `-ffat-lto-objects` makes this linker write no file at all (exit 0) |
+| `-mregparm=2` | - | does not build |
+| libgcc 64-bit division | -3,332 | done (step 10) |
+
+The rest is Zune's own code (per object file: List 29.6 KB, Window 29.3,
+String 21.2, Group 20.4, Area 15.7, Application 15.0, frame 11.3, text
+engine 9.4, Configdata 8.6, vector images 8.2, context menus 7.7,
+datatype pictures 7.1).
+
 ## Real programs (OS 3.1 + 4 MB fast + 68882, `real.sh`)
 
 Third-party binaries (`~/.cache/zune68k-real/`): NList 0.128, TextEditor
@@ -221,12 +310,14 @@ OS 3.1, A1200 68EC020, 2 MB chip + 4 MB fast:
 
 | | library file | library only | first MUI-Demo | each further | first window |
 |---|---|---|---|---|---|
-| MUI 3.8 | 166 KB (+271 KB classes) | 238 KB | 460 KB | 211-219 KB | 1.5 s |
+| MUI 3.8 | 166 KB (+271 KB classes) | 238 KB | 460 KB | 211-219 KB | 1.48-1.5 s |
 | Zune68k | 237 KB (+118 KB .mui) | 257 KB | 460-471 KB | 210-214 KB | 1.9-2.1 s |
 | Zune68 main, 68000 | 429,472 | 535 KB | 832 KB | 334 KB | 2.0 s |
-| **lean, 68000** | 322,240 (+160 KB in 35 files) | **331 KB** | **601 KB** | **266 KB** | 1.94 s |
+| lean, 68000, step 6 | 322,240 (+160 KB in 35 files) | 331 KB | 601 KB | 266 KB | 1.94 s |
+| **lean, 68000, step 13** | 314,512 (+163 KB in 36 files) | **323 KB** | **553 KB** | **243 KB** | 1.72-1.76 s |
 | Zune68 main, 68020 | 419,812 | 527 KB | 825 KB | 334 KB | 1.9 s |
-| **lean, 68020** | 314,372 (+ files) | **324 KB** | **595 KB** | **266 KB** | 1.94 s |
+| lean, 68020, step 6 | 314,372 (+ files) | 324 KB | 595 KB | 266 KB | 1.94 s |
+| **lean, 68020, step 13** | 309,656 (+ files) | **320 KB** | **549 KB** | **243 KB** | 1.7 s |
 
 OS 3.2.1, A1200 68EC020, 2 MB chip + 8 MB fast, 68000 build: main 444 /
 739 / 337 KB, **lean 335 / 581 / 271 KB** (library only / first / each
@@ -237,11 +328,14 @@ KB, **lean 601 / 266 KB**, first window 6.5-7.8 s -> 6.6-6.7 s. (The
 library-only figure of `libonly.sh` is not valid on this machine: 34 KB
 for both.)
 
-Against MUI 3.8 the lean edition is still +93 KB with the library alone
-(its code: 322 KB against 3.8's 166 KB), +141 KB for the first program and
-+50 KB for each further one (of which 17 KB is smart refresh backing store
-that 3.8 also has, but its demo windows are smaller; and ~28 KB more in
-objects: 504 objects of 234 bytes on average).
+Against MUI 3.8 the lean edition (step 6) was still +93 KB with the
+library alone (its code: 322 KB against 3.8's 166 KB), +141 KB for the
+first program and +50 KB for each further one (of which 17 KB is smart
+refresh backing store that 3.8 also has, but its demo windows are
+smaller; and ~28 KB more in objects: 504 objects of 234 bytes on
+average). After step 13: +85 KB library alone (code 315 KB), +93 KB first
+program, +24-32 KB each further one (17 KB of it backing store), first
+window +0.25 s.
 
 ## Tools
 
@@ -249,7 +343,8 @@ objects: 504 objects of 234 bytes on average).
   `tally.sh`, `fullcheck.sh` (+ `leak.sh`, `subwin.sh`), `snoop.sh`, the
   wrappers `m.sh` / `full.sh`, and `real.sh` (+ `realinstall.sh`,
   `realinstall2.sh`, `realrun.sh`, `putdir.sh`) for the third-party
-  programs. `putlib.sh` also installs the class files (`Zune/` next to the
+  programs, `bench.sh` (perfbench on an instance) and `wintimes.sh` (three
+  MUI-Demo starts, time to each window). `putlib.sh` also installs the class files (`Zune/` next to the
   library) to `LIBS:Zune/`. They drive `amiga-test` instances over wasabi;
   `ZWORK` (default `~/.cache/zune68-lean`) holds `demos/` (MUI 3.8's demo
   binaries), `logs/`, `res/`, `suite/`, and the `libs` / `HoldLib` helpers
