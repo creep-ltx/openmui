@@ -95,9 +95,12 @@ struct MUI_ApplicationData
     struct TrackingNode     app_TrackingNode;
     BOOL                    app_is_TNode_in_list;
     ULONG searchwinid;
-    LONG winposused;       //dont add other vars before windowpos all is save
-                           //together
-    struct windowpos        winpos[MAXWINS];
+    /* Remembered window positions, made when the first one is stored:
+     * a LONG byte count (the serialized header), then app_WinPosCap
+     * records. NULL until needed: a 300-record array was 6 KB in every
+     * application. */
+    LONG                    *app_WinPos;
+    ULONG                   app_WinPosCap;
     struct MsgPort          *app_RexxPort;
     struct RexxMsg          *app_RexxMsg;
     struct Hook             *app_RexxHook;
@@ -119,6 +122,33 @@ struct MUI_ApplicationData
     BOOL                    app_NotifyStarted;  /* file notifications set up */
     struct DateStamp        app_Created;        /* prefs older than this were read */
 };
+
+#define WINPOS(data) ((struct windowpos *)((data)->app_WinPos + 1))
+#define WINPOS_MAX (MAXWINS - 1)
+
+/* Make room for at least cap records (at most WINPOS_MAX), cleared. */
+static BOOL winpos_grow(struct MUI_ApplicationData *data, ULONG cap)
+{
+    LONG *table;
+
+    if (cap > WINPOS_MAX)
+        cap = WINPOS_MAX;
+    if (data->app_WinPos && cap <= data->app_WinPosCap)
+        return TRUE;
+    table = AllocVec(sizeof(LONG) + cap * sizeof(struct windowpos),
+        MEMF_ANY | MEMF_CLEAR);
+    if (!table)
+        return FALSE;
+    if (data->app_WinPos)
+    {
+        CopyMem(data->app_WinPos, table,
+            sizeof(LONG) + data->app_WinPosCap * sizeof(struct windowpos));
+        FreeVec(data->app_WinPos);
+    }
+    data->app_WinPos = table;
+    data->app_WinPosCap = cap;
+    return TRUE;
+}
 
 struct timerequest_ext
 {
@@ -869,9 +899,10 @@ struct timerequest_ext
 *       Pointer to struct windowpos; set only.
 *
 *   NOTES
-*       Supply a non-NULL readable record. The first 299 slots of the
-*       MAXWINS=300 array are examined. A full examined range silently ignores a
-*       new ID. The record is copied, not retained.
+*       Supply a non-NULL readable record. Up to 299 records are kept; the
+*       table is allocated with the first record and grows by eight. A full
+*       table, or failed growth, silently ignores a new ID. The record is
+*       copied, not retained.
 *
 */
 /****** Application.mui/MUIA_Application_GetWinPos ************
@@ -906,7 +937,7 @@ struct timerequest_ext
 *       LONG byte count; get only.
 *
 *   NOTES
-*       This getter mutates winposused. Call it before using GetWinPosAddr to
+*       This getter writes the serialized header. Call it before using GetWinPosAddr to
 *       obtain a current serialized header; there is no lock around the pair.
 *
 */
@@ -916,8 +947,9 @@ struct timerequest_ext
 *       MUIA_Application_GetWinPosAddr
 *
 *   FUNCTION
-*       Return a borrowed pointer to the LONG winposused field immediately
-*       preceding the internal position array.
+*       Return a borrowed pointer to the LONG size header immediately
+*       preceding the internal position records (a shared empty header
+*       while none are stored).
 *
 *   INPUTS
 *       APTR; get only.
@@ -935,8 +967,9 @@ struct timerequest_ext
 *       MUIA_Application_CopyWinPosToApp
 *
 *   FUNCTION
-*       If non-NULL, read the first LONG as a byte count and CopyMem that many
-*       bytes into the application beginning at winposused. NULL does nothing.
+*       If non-NULL, read the first LONG as a byte count and copy the header
+*       and the whole records it covers (at most 299) into the application's
+*       table, which grows to hold them. NULL does nothing.
 *
 *   INPUTS
 *       CONST_APTR; set only.
@@ -1912,6 +1945,8 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
     if (data->app_DefaultDiskObject)
         FreeDiskObject(data->app_DefaultDiskObject);
 
+    FreeVec(data->app_WinPos);
+
     if (data->app_AppPort)
     {
         struct Message *msg;
@@ -1994,8 +2029,17 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
                      * integer even on 64-bit systems
                      */
                     LONG wpsize = *(LONG *)(addr);
+                    LONG n = wpsize > (LONG)sizeof(LONG) ? (wpsize
+                        - (LONG)sizeof(LONG)) / (LONG)sizeof(struct windowpos)
+                        : 0;
                     D(bug("[MUI] Copying coords (%ld bytes @ 0x%p) ...\n", wpsize, addr));
-                    CopyMem(addr, &data->winposused, wpsize);
+                    /* The table grows to the stored records; the copy
+                     * never runs past it. */
+                    if (n > WINPOS_MAX)
+                        n = WINPOS_MAX;
+                    if (n > 0 && winpos_grow(data, n))
+                        CopyMem(addr, data->app_WinPos,
+                            sizeof(LONG) + n * sizeof(struct windowpos));
                 }
             }
             break;
@@ -2006,50 +2050,34 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
                 winp = (struct windowpos *)tag->ti_Data;
                 //kprintf("SetWinPos %d %d %d %d %d\n", winp->id, winp->x1,
                 //    winp->y1, winp->w1, winp->h1);
-                int i;
+                ULONG i, cap;
+                struct windowpos *wp;
                 if (!winp->id) break;
                 if (!winp->w1)
                 {
-                    for (i = 0; i < MAXWINS - 1 && data->winpos[i].w1; i++)
-                        if (data->winpos[i].id == winp->id)
+                    cap = data->app_WinPos ? data->app_WinPosCap : 0;
+                    wp = cap ? WINPOS(data) : NULL;
+                    for (i = 0; i < cap && wp[i].w1; i++)
+                        if (wp[i].id == winp->id)
                         {
-                            memmove(&data->winpos[i], &data->winpos[i + 1],
-                                (MAXWINS - i - 1) * sizeof(*winp));
-                            memset(&data->winpos[MAXWINS - 1], 0, sizeof(*winp));
+                            memmove(&wp[i], &wp[i + 1],
+                                (cap - i - 1) * sizeof(*winp));
+                            memset(&wp[cap - 1], 0, sizeof(*winp));
                             break;
                         }
                     break;
                 }
-                for (i = 0; i < MAXWINS - 1; i++)
+                /* The record with this id, or the first free one; the
+                 * table grows by eight records at a time. */
+                for (i = 0; i < WINPOS_MAX; i++)
                 {
-                    if (data->winpos[i].w1)
+                    if ((!data->app_WinPos || i >= data->app_WinPosCap)
+                        && !winpos_grow(data, i + 8))
+                        break;
+                    wp = &WINPOS(data)[i];
+                    if (!wp->w1 || wp->id == winp->id)
                     {
-                        if (winp->id == data->winpos[i].id)
-                        {
-                            //existing entry is overwritten
-                            data->winpos[i].x1 = winp->x1;
-                            data->winpos[i].y1 = winp->y1;
-                            data->winpos[i].w1 = winp->w1;
-                            data->winpos[i].h1 = winp->h1;
-                            data->winpos[i].x2 = winp->x2;
-                            data->winpos[i].y2 = winp->y2;
-                            data->winpos[i].w2 = winp->w2;
-                            data->winpos[i].h2 = winp->h2;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        // a new entry is added
-                        data->winpos[i].id = winp->id;
-                        data->winpos[i].x1 = winp->x1;
-                        data->winpos[i].y1 = winp->y1;
-                        data->winpos[i].w1 = winp->w1;
-                        data->winpos[i].h1 = winp->h1;
-                        data->winpos[i].x2 = winp->x2;
-                        data->winpos[i].y2 = winp->y2;
-                        data->winpos[i].w2 = winp->w2;
-                        data->winpos[i].h2 = winp->h2;
+                        *wp = *winp;
                         break;
                     }
                 }
@@ -2284,22 +2312,29 @@ static IPTR Application__OM_GET(struct IClass *cl, Object *obj,
     switch (msg->opg_AttrID)
     {
     case MUIA_Application_GetWinPosAddr:
-        STORE = (IPTR) & data->winposused;
-        return TRUE;
+        {
+            /* No positions stored: an empty serialized block. */
+            static const LONG no_winpos = 0;
+            STORE = data->app_WinPos ? (IPTR) data->app_WinPos
+                : (IPTR) &no_winpos;
+            return TRUE;
+        }
 
     case MUIA_Application_GetWinPosSize:
         {
-            int i, sz = 0;
-            for (i = 0; i < MAXWINS - 1; i++)
+            ULONG i;
+            LONG sz = 0;
+            for (i = 0; data->app_WinPos && i < data->app_WinPosCap; i++)
             {
-                if (!data->winpos[i].w1)
+                if (!WINPOS(data)[i].w1)
                     break;
                 sz += sizeof(struct windowpos);
             }
             if (sz > 0) {
                 sz += sizeof(LONG);
             }
-            data->winposused = sz;
+            if (data->app_WinPos)
+                data->app_WinPos[0] = sz;
             STORE = sz;
             return (TRUE);
         }
@@ -2309,13 +2344,14 @@ static IPTR Application__OM_GET(struct IClass *cl, Object *obj,
             int i;
             if (data->searchwinid)
             {
-                for (i = 0; i < MAXWINS - 1; i++)
+                for (i = 0; data->app_WinPos
+                    && i < (int)data->app_WinPosCap; i++)
                 {
-                    if (data->winpos[i].w1)
+                    if (WINPOS(data)[i].w1)
                     {
-                        if (data->searchwinid == data->winpos[i].id)
+                        if (data->searchwinid == WINPOS(data)[i].id)
                         {
-                            STORE = (IPTR) & data->winpos[i].id;
+                            STORE = (IPTR) & WINPOS(data)[i].id;
                             return 1;
                         }
                     }

@@ -354,7 +354,9 @@ struct NotifyList
 static struct NotifyNode *CreateNNode(struct MUI_NotifyData *data,
     struct MUIP_Notify *msg)
 {
-    ULONG i, paramsize;
+    ULONG i, paramsize, nodesize = sizeof(struct NotifyNode);
+    IX ix = { IX_VERSION };
+    BOOL isix = FALSE;
 
     struct NotifyNode *nnode;
 
@@ -364,30 +366,11 @@ static struct NotifyNode *CreateNNode(struct MUI_NotifyData *data,
     if ((msg->TrigAttr == MUIA_Window_InputEvent)
         && (msg->TrigVal != MUIV_EveryTime))
     {
-        IX ix = { IX_VERSION };
-
         if (!ZUNE_CX() || ParseIX((CONST_STRPTR) msg->TrigVal, &ix) != 0)
             return NULL;
-
-        if ((nnode =
-                (struct NotifyNode *)mui_alloc_struct(struct NotifyNodeIX)))
-        {
-            ((struct NotifyNodeIX *)nnode)->ix = ix;
-        }
+        isix = TRUE;
+        nodesize = sizeof(struct NotifyNodeIX);
     }
-    else
-    {
-        nnode = mui_alloc_struct(struct NotifyNode);
-    }
-
-    if (!nnode)
-        return NULL;
-
-    nnode->nn_Active = FALSE;
-    nnode->nn_TrigAttr = msg->TrigAttr;
-    nnode->nn_TrigVal = msg->TrigVal;
-    nnode->nn_DestObj = msg->DestObj;
-    nnode->nn_NumParams = msg->FollowParams;
 
     /* Allocate one more IPTR (FollowParams + 1) as some ext apps/classes
        forget trailing NULLs in methods like MUIM_MultiSet and MUI seems
@@ -399,7 +382,20 @@ static struct NotifyNode *CreateNNode(struct MUI_NotifyData *data,
         paramsize *= 2;
     }
 
-    if ((nnode->nn_Params = (IPTR *) mui_alloc(paramsize * sizeof(IPTR))))
+    /* The node and its parameters are one allocation: half the blocks
+     * and their Exec overhead for every notification. */
+    nodesize = (nodesize + sizeof(IPTR) - 1) & ~(sizeof(IPTR) - 1);
+    if (!(nnode = mui_alloc(nodesize + paramsize * sizeof(IPTR))))
+        return NULL;
+    if (isix)
+        ((struct NotifyNodeIX *)nnode)->ix = ix;
+
+    nnode->nn_Active = FALSE;
+    nnode->nn_TrigAttr = msg->TrigAttr;
+    nnode->nn_TrigVal = msg->TrigVal;
+    nnode->nn_DestObj = msg->DestObj;
+    nnode->nn_NumParams = msg->FollowParams;
+    nnode->nn_Params = (IPTR *)((UBYTE *)nnode + nodesize);
     {
         IPTR *par = (IPTR *) & msg->FollowParams;
 
@@ -416,13 +412,8 @@ static struct NotifyNode *CreateNNode(struct MUI_NotifyData *data,
                 nnode->nn_NewParams[i] = *(par + i + 1);
             }
         }
-
-        return nnode;
     }
-
-    mui_free(nnode);
-
-    return NULL;
+    return nnode;
 }
 
 /* Unlink a registered notification node, move active walks past it and
@@ -449,8 +440,7 @@ static void DeleteNNode(struct MUI_NotifyData *data,
         nnode->nn_Active = NN_REMOVED;
     else
     {
-        mui_free(nnode->nn_Params);
-        mui_free(nnode);
+        mui_free(nnode); /* nn_Params is in the same block */
     }
 }
 
@@ -685,8 +675,7 @@ static void check_notify(NNode nnode, Object *obj, struct TagItem *tag)
 
         if (nnode->nn_Active == NN_REMOVED)
         {
-            mui_free(nnode->nn_Params);
-            mui_free(nnode);
+            mui_free(nnode); /* nn_Params is in the same block */
         }
         else
             nnode->nn_Active = FALSE;

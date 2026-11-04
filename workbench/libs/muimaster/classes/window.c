@@ -4865,7 +4865,9 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data->wd_Opacity = 255;
     data->wd_Class = cl;
     data->wd_EventCursors = NULL;
-    data->wd_MemoryPool = CreatePool(0, 4096, 2048);
+    /* 1 KB puddles (was 4 KB): the pool holds the gadget-ID and
+     * cycle-chain nodes, 12 to 16 bytes each, a few dozen per window. */
+    data->wd_MemoryPool = CreatePool(0, 1024, 512);
     if (NULL == data->wd_MemoryPool)
     {
         CoerceMethod(cl, obj, OM_DISPOSE);

@@ -32,6 +32,8 @@
 extern struct Library *MUIMasterBase;
 
 #define ENTRY_TITLE (-1)
+/* Display array slots reserved at least (see ParseListFormat) */
+#define LIST_MIN_RESERVED 16
 
 #define FORMAT_TEMPLATE "DELTA=D/K/N,PREPARSE=P/K,WEIGHT=W/K/N,MINWIDTH=MIW/K," \
     "MAXWIDTH=MAW/K,COL=C/K/N,BAR/S,H=HIDDEN/S,SORTABLE/S,ORDER/K," \
@@ -236,6 +238,7 @@ struct MUI_ListData
     LONG title_columns;
     STRPTR *mapped_strings;
     BOOL format_layout, max_columns_explicit;
+    LONG columns_reserved;      /* slots in strings[] and preparses[] */
 };
 
 #define MOUSE_CLICK_ENTRY 1     /* on entry clicked */
@@ -619,6 +622,16 @@ static struct ListEntry *AllocListEntry(struct MUI_ListData *data)
 }
 
 /**************************************************************************
+ The title entry lives outside the pool: a list that never gets an entry
+ then does not hold a whole pool puddle for it. Cleared.
+**************************************************************************/
+static struct ListEntry *AllocTitleEntry(int columns)
+{
+    return (struct ListEntry *) AllocVec(sizeof(struct ListEntry)
+        + sizeof(LONG) * (columns + 1), MEMF_ANY | MEMF_CLEAR);
+}
+
+/**************************************************************************
  Deallocate a single list entry, does not deinitialize it
 **************************************************************************/
 static void FreeListEntry(struct MUI_ListData *data,
@@ -750,18 +763,6 @@ static BOOL ParseListFormat(struct MUI_ListData *data, STRPTR format,
 
     if (new_columns > data->max_columns) return FALSE;
 
-    if (!(data->preparses =
-            AllocVec((MAX(new_columns, data->max_columns) + 10) * sizeof(STRPTR), MEMF_CLEAR)))
-        return FALSE;
-
-    if (!(data->strings_mem = AllocVec((MAX(new_columns, data->max_columns) + 1 + 10)
-        * sizeof(STRPTR), MEMF_CLEAR)))
-                                  /* hold enough space also for the entry pos,
-                                   * used by orginal MUI and also some
-                                   * security space */
-        return FALSE;
-    data->strings=data->strings_mem;
-
     if (!(data->ci = AllocVec(new_columns * sizeof(struct ColumnInfo), MEMF_CLEAR)))
         return FALSE;
 
@@ -888,11 +889,36 @@ static BOOL ParseListFormat(struct MUI_ListData *data, STRPTR format,
         }
         data->columns_allocated = new_columns;
     }
+    /* The display arrays hold every column the format names (COL= may
+     * point past the column count), all of MUIA_List_MaxColumns when a
+     * program set it, and at least LIST_MIN_RESERVED: display hooks may
+     * fill more columns than the format has (Zune's Dirlist always fills
+     * six), so a format of one column must not get a one-slot array. */
+    data->columns_reserved = MAX(new_columns, data->max_columns_explicit
+        ? data->max_columns : MIN(LIST_MIN_RESERVED, data->max_columns));
     for (i = 0; i < new_columns; i++)
     {
         if (data->ci[i].colno < 0 ||
             data->ci[i].colno >= MAX(new_columns, data->max_columns))
             data->ci[i].colno = i;
+        if (data->ci[i].colno >= data->columns_reserved)
+            data->columns_reserved = data->ci[i].colno + 1;
+    }
+
+    if (!(data->preparses =
+            AllocVec((data->columns_reserved + 10) * sizeof(STRPTR), MEMF_CLEAR)))
+        return FALSE;
+
+    if (!(data->strings_mem = AllocVec((data->columns_reserved + 1 + 10)
+        * sizeof(STRPTR), MEMF_CLEAR)))
+                                  /* hold enough space also for the entry pos,
+                                   * used by orginal MUI and also some
+                                   * security space */
+        return FALSE;
+    data->strings=data->strings_mem;
+
+    for (i = 0; i < new_columns; i++)
+    {
         if (data->ci[i].colno != i && !data->mapped_strings)
         {
             data->mapped_strings = AllocVec(2 * new_columns * sizeof(STRPTR), MEMF_ANY);
@@ -965,7 +991,7 @@ static void DisplayEntry(struct IClass *cl, Object *obj, int entry_pos)
 
     if (data->mapped_strings)
     {
-        memset(data->preparses, 0, data->max_columns * sizeof(STRPTR));
+        memset(data->preparses, 0, data->columns_reserved * sizeof(STRPTR));
         for (col = 0; col < data->columns; col++)
             data->preparses[data->ci[col].colno] = data->ci[col].preparse;
     }
@@ -978,7 +1004,7 @@ static void DisplayEntry(struct IClass *cl, Object *obj, int entry_pos)
         if (data->title_array)
         {
             LONG count = data->title_columns;
-            for (col = 0; col < MAX(data->columns, data->max_columns); col++)
+            for (col = 0; col < data->columns_reserved; col++)
                 data->strings[col] = col < count ? (STRPTR)data->title_array[col] : NULL;
             MapColumns(data);
             return;
@@ -1230,16 +1256,23 @@ static BOOL IncreaseColumns(struct MUI_ListData *data, int new_columns)
     for (; i < data->entries_num; i++)
     {
         D(bug("IncreaseColumns: i: %d, size: %d => %d\n", i, oldsize, newsize));
-        le = (struct ListEntry *) AllocVecPooled(data->pool, newsize);
+        if (i == ENTRY_TITLE)
+            le = AllocTitleEntry(new_columns);
+        else
+            le = (struct ListEntry *) AllocVecPooled(data->pool, newsize);
         if (!le)
         {
             return FALSE;
         }
-        memset(le, 0, newsize);
+        if (i != ENTRY_TITLE)
+            memset(le, 0, newsize);
         D(bug("IncreaseColumns: CopyMem(%p, %p, %d)\n", data->entries[i],
             le, oldsize));
         CopyMem(data->entries[i], le, oldsize);
-        FreeVecPooled(data->pool, data->entries[i]);
+        if (i == ENTRY_TITLE)
+            FreeVec(data->entries[i]);
+        else
+            FreeVecPooled(data->pool, data->entries[i]);
         data->entries[i]=le;
     }
 
@@ -1436,8 +1469,11 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     if (data->max_columns < 1 || data->max_columns > 256)
     { CoerceMethod(cl, obj, OM_DISPOSE); return 0; }
     data->entries_active = MUIV_List_Active_Off;
-    data->intern_puddle_size = 2008;
-    data->intern_thresh_size = 1024;
+    /* 1 KB puddles (MUI documents 2008): most lists hold a few entries
+     * and kept a 2 KB puddle each. Programs that set
+     * MUIA_List_PoolPuddleSize/PoolThreshSize get theirs. */
+    data->intern_puddle_size = 1000;
+    data->intern_thresh_size = 500;
     data->default_compare_hook.h_Entry = (HOOKFUNC) default_compare_func;
     data->default_compare_hook.h_SubEntry = 0;
     data->compare_hook = &(data->default_compare_hook);
@@ -1660,7 +1696,7 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         return 0;
     }
 
-    if (!(data->entries[ENTRY_TITLE] = AllocListEntry(data)))
+    if (!(data->entries[ENTRY_TITLE] = AllocTitleEntry(data->columns)))
     {
         CoerceMethod(cl, obj, OM_DISPOSE);
         return 0;
@@ -1739,7 +1775,10 @@ IPTR List__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
     if (data->intern_pool)
         DeletePool(data->intern_pool);
     if (data->entries)
+    {
+        FreeVec(data->entries[ENTRY_TITLE]); /* not pooled */
         FreeVec(data->entries - 1);
+    }
             /* title is currently before all other elements */
 
     FreeListFormat(data);
@@ -4076,7 +4115,7 @@ IPTR List__MUIM_Display(struct IClass *cl, Object *obj,
 
     if ((IPTR)data->display_hook == MUIV_List_DisplayHook_StringArray)
     {
-        for (LONG i = 0; i < MAX(data->columns, data->max_columns); i++)
+        for (LONG i = 0; i < data->columns_reserved; i++)
             msg->array[i] = msg->entry && i < data->max_columns ?
                 ((STRPTR *)msg->entry)[i] : NULL;
         return TRUE;
