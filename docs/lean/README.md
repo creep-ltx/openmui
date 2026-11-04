@@ -18,7 +18,9 @@ perfbench (68EC020, same session): lean is faster than MUI 3.8 in seven of
 eight batches; "list active" is 6% slower (Zune68 main too).
 
 Details: [measurements.md](measurements.md), the class split:
-[class-split.md](class-split.md).
+[class-split.md](class-split.md), GCC 16.2 against GCC 6.5 (16.2 is 6 KB
+smaller in memory and 1-3% faster in some batches):
+[compiler.md](compiler.md).
 
 ## What differs from upstream
 

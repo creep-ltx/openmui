@@ -236,7 +236,8 @@ on the PC; `wintimes.sh` below is the better comparison.)
   compare with the value (it turned `(a2)` into `(a2)+` and left the later
   offsets), so every set of a slider relaid out its parent group. A slider
   set took 23.8 ms (MUI 3.8: 4.0 ms), now 2.75 ms. Zune68 main built with
-  GCC 6.5 has it too; GCC 13/16 (the release builds) do not have `-fbbb`.
+  GCC 6.5 has it too. GCC 16.2 (the release builds) also has `-fbbb`, but
+  there the "i" pass changes no code (see [compiler.md](compiler.md)).
 - "list active" is the one batch slower than MUI 3.8 (+6%), on Zune68
   main too (1137 ms); not investigated.
 
