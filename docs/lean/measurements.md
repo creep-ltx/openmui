@@ -1,5 +1,9 @@
 # Lean edition: where Zune68's memory goes (2026-11-04)
 
+The results of steps 2-7 are in [The lean steps](#the-lean-steps-2026-11-04)
+and [Final comparison](#final-comparison) below; step 1 (this report)
+follows first.
+
 Step 1 of the lean edition: build Zune68, measure it the same way as MUI 3.8 and
 Zune68k (an earlier lean Zune port for OS 3.1), and find where its memory goes.
 Nothing in the library is changed by this step; the tools are in `tools/lean/` and
@@ -142,11 +146,111 @@ code, which on-demand class files can win back on main, and it lacks main's 141
 later commits (speed work, String/List/menu/requester compatibility, IBrowse,
 Voyager and YAM fixes). Base: main.
 
+## The lean steps (2026-11-04)
+
+One row per step, each measured cold with the same method as above:
+MUI-Demo, OS 3.1, A1200 68EC020, 2 MB chip + 4 MB fast (`a1200-31 --config
+fast_memory=4096`), 68000 build (GCC 6.5, `-Os`), FS-UAE. "fullcheck" is
+`fullcheck.sh` (19 MUI 3.8 demos + MUI-Demo's 8 sub-windows, Avail after
+`avail flush` before/after each).
+
+| step | commit | library file | library only | first MUI-Demo | each further | first window | fullcheck |
+|---|---|---|---|---|---|---|---|
+| 1 rexxsyslib v36 | be74ee7d | 429,472 | 535 KB | 832 KB | 334 KB | 2.0 s | all open, -48..+128 B |
+| 2 libraries on first use | 294fa0af | 430,488 | 431 KB | 753 KB | 334 KB | 1.92 s | all open, 0..+128 B |
+| 3 per-application/list memory | 7f31a15e | 430,800 | 432 KB | 720 KB | 301 KB | 1.9 s | all open, -48..+128 B |
+| 4 Area nodes at first setup | 2475c0fd | 431,128 | 432 KB | 686 KB | 266 KB | 1.9 s | all open, -48..+128 B |
+| 5 TheBar/YAM behaviour | f949dc3d | 431,680 | 433 KB | 686 KB | 266 KB | 1.9 s | all open, -104..+128 B |
+| 6 classes as files | cdecd1a7 | 322,240 (+160 KB in 35 files) | 331 KB | 601 KB | 266 KB | 1.94 s | all open, -24..+104 B |
+| 7 remaining per-object fat | - | (no change, see below) | | | | | |
+
+- **Step 2**: at start only dos, utility, graphics, intuition, layers,
+  gadtools, keymap and locale are opened; with MUI-Demo running asl,
+  datatypes and mathieeedoubtrans are no longer in memory. diskfont stays
+  (MUI-Demo's frame titles use helvetica/9, which is not in memory);
+  rexxsyslib and commodities are also opened by other programs on the test
+  machine.
+- **Step 3**: Application data 6,348 -> 352 bytes.
+- **Step 4**: Area data 238 -> 136 bytes (the fields MUI programs read at
+  fixed offsets, up to mad_SelBack, are unchanged).
+- **Step 5**: no memory change; TheBar demo2 now also opens its control
+  window and demo3 its window (it stayed without one), YAM's error counter
+  reads "Error 1/1" (was "OcError 1/1").
+- **Step 6**: MUI-Demo loads five class files (Floattext, Dirlist,
+  Volumelist, Gauge, Scale). `docs/lean/class-split.md`.
+
+Memory tally (`tally.sh`, second MUI-Demo's own task) after step 6:
+**192.3 KB / 1,488 blocks** (step 1: 258.8 KB / 1,639; Zune68k 137.3 KB):
+objects 117.8 KB / 504, lists 20.5 KB / 97, smart refresh 17.2 KB,
+notifications 16.3 KB / 340 blocks (was 16.7 KB / 529), text engine 8.6 KB,
+windows 3.5 KB, Area live blocks 2.7 KB / 24 (only the objects of the one
+open window).
+
+**Step 7, not done:** what is left per object is small or not safe to
+change. The largest is one Family object per Group (and per menu), 117
+objects of 54 bytes (~7.5 KB per MUI-Demo); Group forwards its child-list
+methods to it, so removing it is a Group rewrite. Text (50 bytes), String
+(304) and List (416) carry Zune68's newer features (marking, Text_Data,
+Textinput API, multi-line, column state); shrinking them saves well under
+1 KB per MUI-Demo. Area's remaining fields up to offset 120 follow MUI's
+layout for programs that read them.
+
+## Real programs (OS 3.1 + 4 MB fast + 68882, `real.sh`)
+
+Third-party binaries (`~/.cache/zune68k-real/`): NList 0.128, TextEditor
+15.56, TheBar 26.22, BetterString 11.36, YAM 2.5. Same results for Zune68
+main (step 1) and every lean step unless noted:
+
+| program | result |
+|---|---|
+| NList-Demo (two windows) | works; 2,000-2,040 bytes more in use after the second run, on main too |
+| NListtree-Demo | no window, keeps waiting, **on main too** (not a lean regression; Zune68k opened it) |
+| TextEditor-Demo | works, 0 lost |
+| TheBar demo1-10 | all work from step 5 on (demo3 had no window and demo2 no control window before); 0 lost (demo4 -240 B, main -3,104 B) |
+| YAM 2.5 | charset and AmiSSL requesters, error window, update window and main window open; toolbar labels drawn, disabled buttons embossed, not ghosted or black; "Error 1/1" (main: "OcError 1/1") |
+
+Voyager and IBrowse are not on these test machines; the Area layout they
+read (offsets up to 104) is unchanged.
+
+## Final comparison
+
+MUI-Demo, cold, same method; MUI 3.8 measured again in the same session
+(`a1200-31-mui38`, 4 MB fast).
+
+OS 3.1, A1200 68EC020, 2 MB chip + 4 MB fast:
+
+| | library file | library only | first MUI-Demo | each further | first window |
+|---|---|---|---|---|---|
+| MUI 3.8 | 166 KB (+271 KB classes) | 238 KB | 460 KB | 211-219 KB | 1.5 s |
+| Zune68k | 237 KB (+118 KB .mui) | 257 KB | 460-471 KB | 210-214 KB | 1.9-2.1 s |
+| Zune68 main, 68000 | 429,472 | 535 KB | 832 KB | 334 KB | 2.0 s |
+| **lean, 68000** | 322,240 (+160 KB in 35 files) | **331 KB** | **601 KB** | **266 KB** | 1.94 s |
+| Zune68 main, 68020 | 419,812 | 527 KB | 825 KB | 334 KB | 1.9 s |
+| **lean, 68020** | 314,372 (+ files) | **324 KB** | **595 KB** | **266 KB** | 1.94 s |
+
+OS 3.2.1, A1200 68EC020, 2 MB chip + 8 MB fast, 68000 build: main 444 /
+739 / 337 KB, **lean 335 / 581 / 271 KB** (library only / first / each
+further), first window 2.0 s both.
+
+A600 68000 7 MHz, 3.1, 1 MB chip + 4 MB fast, 68000 build: main 832 / 334
+KB, **lean 601 / 266 KB**, first window 6.5-7.8 s -> 6.6-6.7 s. (The
+library-only figure of `libonly.sh` is not valid on this machine: 34 KB
+for both.)
+
+Against MUI 3.8 the lean edition is still +93 KB with the library alone
+(its code: 322 KB against 3.8's 166 KB), +141 KB for the first program and
++50 KB for each further one (of which 17 KB is smart refresh backing store
+that 3.8 also has, but its demo windows are smaller; and ~28 KB more in
+objects: 504 objects of 234 bytes on average).
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
-  `tally.sh`, `fullcheck.sh` (+ `leak.sh`, `subwin.sh`), `snoop.sh`, and the
-  wrappers `m.sh` / `full.sh`. They drive `amiga-test` instances over wasabi;
+  `tally.sh`, `fullcheck.sh` (+ `leak.sh`, `subwin.sh`), `snoop.sh`, the
+  wrappers `m.sh` / `full.sh`, and `real.sh` (+ `realinstall.sh`,
+  `realinstall2.sh`, `realrun.sh`, `putdir.sh`) for the third-party
+  programs. `putlib.sh` also installs the class files (`Zune/` next to the
+  library) to `LIBS:Zune/`. They drive `amiga-test` instances over wasabi;
   `ZWORK` (default `~/.cache/zune68-lean`) holds `demos/` (MUI 3.8's demo
   binaries), `logs/`, `res/`, `suite/`, and the `libs` / `HoldLib` helpers
   built from `tests/lean/libs.c` and `holdlib.c`. Pass FS-UAE options as
