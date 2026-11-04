@@ -921,12 +921,16 @@ static void imspec_draw(struct MUI_ImageSpec_intern *spec,
                 }
                 pattern = rows;
             }
+            /* Restore the draw mode and background pen afterwards */
+            UBYTE oldDrMd = rp->DrawMode, oldBPen = rp->BgPen;
             SetDrMd(rp, JAM2);
             SetAPen(rp, fg);
             SetBPen(rp, bg);
             SetAfPt(rp, (UWORD *)pattern, 1);
             RectFill(rp, left - dx, top - dy, right - dx, bottom - dy);
             SetAfPt(rp, NULL, 0);
+            SetBPen(rp, oldBPen);
+            SetDrMd(rp, oldDrMd);
         }
         break;
 

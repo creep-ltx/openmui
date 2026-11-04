@@ -470,6 +470,10 @@ struct MUIP_CreateFrameClippingRegion
     (MUIB_MUI | 0x0042fbce)   /* MUI: V11 isg BOOL              */
 #define MUIA_FillArea \
     (MUIB_MUI | 0x004294a3)   /* MUI: V4  is. BOOL              */
+/* The object draws its own disabled look; MUI must not ghost it (TheBar's
+ * buttons set it) */
+#define MUIA_KnowsDisabled \
+    (MUIB_MUI | 0x0042deef)   /* MUI: V20 isg BOOL              */
 #define MUIA_FixHeight \
     (MUIB_MUI | 0x0042a92b)   /* MUI: V4  i.. LONG              */
 #define MUIA_FixHeightTxt \
@@ -640,6 +644,7 @@ struct MUI_AreaData
 #define MADF2_ISTITLE          (1UL << 3)
 #define MADF2_BGCHECKED        (1UL << 4) /* PRIV: MADF2_BUILTINBG is valid */
 #define MADF2_BUILTINBG        (1UL << 5) /* PRIV: all classes down to Area built-in */
+#define MADF2_KNOWSDISABLED    (1UL << 6) /* MUIA_KnowsDisabled: do not ghost */
 
 #define MADF_DRAWOBJECT        (1<< 0)  /* draw object completely */
 #define MADF_DRAWUPDATE        (1<< 1)  /* update object */

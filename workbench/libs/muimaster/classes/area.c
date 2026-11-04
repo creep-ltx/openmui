@@ -1124,6 +1124,7 @@ static void _zune_focus_new(Object *obj, int type)
     Object *parent;
     struct RastPort *rp;
     UWORD oldDrPt;
+    UBYTE oldDrMd, oldBPen;
 
     // bug("_zune_focus_new 1 %p\n", obj);
 
@@ -1142,6 +1143,11 @@ static void _zune_focus_new(Object *obj, int type)
     if (!parent || parent == _win(obj))
         return;
 
+    /* Keep the caller's draw mode and background pen: left in JAM2 with
+     * the shadow pen, text drawn later by classes that do not set the mode
+     * (TheBar's buttons in YAM) came out as black blocks. */
+    oldDrMd = rp->DrawMode;
+    oldBPen = rp->BgPen;
     SetABPenDrMd(rp, _pens(obj)[MPEN_SHINE], _pens(obj)[MPEN_SHADOW], JAM2);
 
     if (type == ZUNE_FOCUS_TYPE_ACTIVE_OBJ) {
@@ -1162,6 +1168,8 @@ static void _zune_focus_new(Object *obj, int type)
     Draw(rp, x1, y2);
     Draw(rp, x1, y1);
     SetDrPt(rp, oldDrPt);
+    SetBPen(rp, oldBPen);
+    SetDrMd(rp, oldDrMd);
 }
 
 /* Erase a drawable object outline. Keyboard focus repaints four strips
@@ -1313,6 +1321,11 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_FillArea:
             _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_FILLAREA);
+            break;
+
+        case MUIA_KnowsDisabled:
+            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
+                MADF2_KNOWSDISABLED);
             break;
 
         case MUIA_Draggable:
@@ -1582,6 +1595,11 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_FillArea:
             _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_FILLAREA);
+            break;
+
+        case MUIA_KnowsDisabled:
+            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
+                MADF2_KNOWSDISABLED);
             break;
 
         case MUIA_Frame:
@@ -1947,6 +1965,10 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 
     case MUIA_Frame:
         STORE = (IPTR)data->mad_Frame;
+        return TRUE;
+
+    case MUIA_KnowsDisabled:
+        STORE = !!(data->mad_Flags2 & MADF2_KNOWSDISABLED);
         return TRUE;
 
     case MUIA_Draggable:

@@ -4817,6 +4817,8 @@ IPTR List__MUIM_DragReport(struct IClass *cl, Object *obj,
 
             /* Draw new drop mark and store its position */
 
+            /* Restore draw mode and background pen afterwards */
+            UBYTE oldDrMd = rp->DrawMode, oldBPen = rp->BgPen;
             SetABPenDrMd(rp, _pens(obj)[MPEN_SHINE], _pens(obj)[MPEN_SHADOW],
                 JAM2);
             old_pattern = rp->LinePtrn;
@@ -4824,6 +4826,8 @@ IPTR List__MUIM_DragReport(struct IClass *cl, Object *obj,
             Move(rp, _mleft(data->area), y);
             Draw(rp, _mright(data->area), y);
             SetDrPt(rp, old_pattern);
+            SetBPen(rp, oldBPen);
+            SetDrMd(rp, oldDrMd);
             data->drop_mark_y = y;
         }
     }

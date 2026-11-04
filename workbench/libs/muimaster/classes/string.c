@@ -1837,6 +1837,9 @@ static VOID TextM(Object *obj, struct MUI_StringData *data,
         SetABPenDrMd(rp, textpen, _pens(obj)[MPEN_BACKGROUND], JAM1);
         Text(rp, text, textlen);
     }
+    /* Leave JAM1 behind: classes that draw text without setting the
+     * mode (TheBar's labels) follow in the same rastport. */
+    SetDrMd(rp, JAM1);
     //kprintf("\n");
 }
 
@@ -1926,6 +1929,7 @@ static void Ml_Draw(Object *obj, struct MUI_StringData *data,
                     data->BufferPos - from), top);
                 Text(rp, (LONG)data->BufferPos < end ?
                     text + data->BufferPos : (STRPTR)" ", 1);
+                SetDrMd(rp, JAM1);
             }
         }
         if (end >= (LONG)data->NumChars)
@@ -2070,6 +2074,7 @@ IPTR String__MUIM_Draw(struct IClass *cl, Object *obj,
             Text(_rp(obj),
                 ((data->BufferPos < data->NumChars)
                     ? dispstr + cursoroffset : (STRPTR) " "), 1);
+            SetDrMd(_rp(obj), JAM1);
         }
     }
 

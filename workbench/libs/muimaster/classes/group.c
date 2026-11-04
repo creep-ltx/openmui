@@ -1122,6 +1122,16 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             data->rows = 0;
             need_recalc = TRUE;
             break;
+        case MUIA_Group_Horiz:
+            /* MUI 3.8 also takes this after OM_NEW although its autodoc
+             * says [I..]: TheBar's demo3 sets it on its Radio objects
+             * (a row of radio buttons; Zune stacked them). */
+            if (!(data->flags & GROUP_HORIZ) != !tag->ti_Data)
+            {
+                _handle_bool_tag(data->flags, tag->ti_Data, GROUP_HORIZ);
+                need_recalc = TRUE;
+            }
+            break;
         case MUIA_Group_ActivePage:
             change_active_page(cl, obj, (LONG) tag->ti_Data);
             break;

@@ -88,6 +88,36 @@ extern struct Library *MUIMasterBase;
         *var = (LONG)_iptr_var; \
     } while(0)
 
+/* MUI draws a Numericbutton's text through its text engine, so formatting
+ * codes in MUIM_Numeric_Stringify's result are not shown (YAM's error
+ * counter returns "\33c..."; Zune drew "OcError 1/30"). Drop ESC+letter
+ * and ESC+I[..]/P[..]/O[..]; the text is centred anyway. Returns buf. */
+static char *nb_plain(const char *s, char *buf, int size)
+{
+    char *d = buf;
+
+    while (*s && d < buf + size - 1)
+    {
+        if (*s == '\33' && s[1])
+        {
+            if ((s[1] == 'I' || s[1] == 'P' || s[1] == 'O') && s[2] == '[')
+            {
+                s += 3;
+                while (*s && *s != ']')
+                    s++;
+                if (*s)
+                    s++;
+            }
+            else
+                s += 2;
+            continue;
+        }
+        *d++ = *s++;
+    }
+    *d = 0;
+    return buf;
+}
+
 /*
  * Construct Numeric with button visual defaults and initialize mouse-
  * handler descriptor on success. Return object or NULL; caller tags may
@@ -239,9 +269,10 @@ IPTR Numericbutton__MUIM_AskMinMax(struct IClass *cl, Object *obj,
         for (val = min; val <= max; val++)
         {
             LONG nw;
-            char *buf;
+            char *buf, plain[80];
 
-            buf = (char *)DoMethod(obj, MUIM_Numeric_Stringify, val);
+            buf = nb_plain((char *)DoMethod(obj, MUIM_Numeric_Stringify, val),
+                plain, sizeof(plain));
             nw = TextLength(&rp, buf, strlen(buf));
 
             if (nw > width)
@@ -277,6 +308,7 @@ static void DrawKnob(Object *obj, struct Numericbutton_DATA *data,
     struct RastPort *rp, *saverp;
     LONG x, val, pixeloffset, textlen, pixellen;
     STRPTR text;
+    char plainbuf[80];
 
     pixeloffset =
         data->popwin->MouseX - data->pop_innerx - 2 -
@@ -351,7 +383,8 @@ static void DrawKnob(Object *obj, struct Numericbutton_DATA *data,
 
     SetFont(rp, _font(obj));
 
-    text = (STRPTR) DoMethod(obj, MUIM_Numeric_Stringify, val);
+    text = (STRPTR) nb_plain((char *)DoMethod(obj, MUIM_Numeric_Stringify,
+        val), plainbuf, sizeof(plainbuf));
     textlen = strlen(text);
     pixellen = TextLength(_rp(obj), text, textlen);
 
@@ -548,6 +581,7 @@ IPTR Numericbutton__MUIM_Draw(struct IClass *cl, Object *obj,
 {
     IPTR val = 0;
     char *buf;
+    char plainbuf[80];
     int width;
 
     DoSuperMethodA(cl, obj, (Msg) msg);
@@ -563,7 +597,8 @@ IPTR Numericbutton__MUIM_Draw(struct IClass *cl, Object *obj,
         _pens(obj)[MPEN_BACKGROUND], JAM1);
 
     get(obj, MUIA_Numeric_Value, &val);
-    buf = (char *)DoMethod(obj, MUIM_Numeric_Stringify, val);
+    buf = nb_plain((char *)DoMethod(obj, MUIM_Numeric_Stringify, val),
+        plainbuf, sizeof(plainbuf));
     width = TextLength(_rp(obj), buf, strlen(buf));
 
     Move(_rp(obj), _mleft(obj) + (_mwidth(obj) - width) / 2,

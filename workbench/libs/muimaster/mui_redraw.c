@@ -33,6 +33,11 @@ void ZuneDrawDisabled(Object *obj)
 {
     IPTR disabled = 0;
 
+    /* MUIA_KnowsDisabled: the object draws its own disabled look (TheBar's
+     * buttons; MUI 3.8 does not ghost them) */
+    if (muiAreaData(obj)->mad_Flags2 & MADF2_KNOWSDISABLED)
+        return;
+
     if (get(obj, MUIA_Disabled, &disabled))
     {
 #if 0
