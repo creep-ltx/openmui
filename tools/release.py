@@ -87,27 +87,47 @@ def builtin_class_files(build_dir):
     return sorted(p.name for p in (build_dir / 'Zune').glob('*.mui'))
 
 
+def package_path(name):
+    """Where a build file goes in the archive. Zune68's own .mui files
+    (Pixmap.mui) go to Libs/Zune with the class files, not to Libs/MUI:
+    LIBS:MUI is real MUI's drawer, and a Zune68 Pixmap.mui there would
+    shadow (or replace) real MUI's own Pixmap.mui."""
+    if name.startswith('Libs/MUI/') and name.endswith('.mui'):
+        return 'Libs/Zune/' + name[len('Libs/MUI/'):]
+    return name
+
+
 def install_script(files, class_files=()):
     script = (ROOT / 'dist/Install').read_text()
+    files = [package_path(name) for name in files]
+    # The first directory of LIBS:, where the libraries go. "LIBS:MUI" on a
+    # system with MUI 4/5 (LIBS: + MUI:Libs) is MUI's own drawer when the
+    # first one has no MUI drawer yet: the classes would go into MUI's
+    # installation and be removed with it.
+    class_lines = ['(set #libsdir (expandpath "LIBS:"))',
+                   '(set #muidir (tackon #libsdir "MUI"))',
+                   '(set #zunedir (tackon #libsdir "Zune"))']
     # The library's own class files belong to it: copied without a prompt
     # each, replacing those of an earlier Zune68.
-    class_lines = []
-    if class_files:
+    if class_files or any(n.startswith('Libs/Zune/') for n in files):
+        class_lines.append('(makedir #zunedir)')
         class_lines.append('(copyfiles (source (tackon #package "Libs/Zune")) '
-                           '(dest "LIBS:Zune") (all))')
+                           '(dest #zunedir) (all))')
     if not files:
         return script.replace('; COMPONENT_INSTALL', '\n'.join(class_lines))
     preflight = []
     for name in files:
         preflight.append('(if (<> (exists (tackon #package "' + name + '")) 1)\n'
                          '    (abort "The package is incomplete. Extract the complete Zune68 archive."))')
-        if name == 'Prefs/Zune' or name.startswith('Libs/MUI/'):
+        if name == 'Prefs/Zune' or name.startswith(('Libs/MUI/', 'Libs/Zune/')):
             preflight.append(f'(if (= (getversion (tackon #package "{name}")) 0)\n'
                              f'    (abort "Cannot read the bundled version of {name}."))')
     lines = class_lines + ['(P_InstallFile "Prefs/Zune" "SYS:Prefs"',
               '    "Zune68 preferences editor, opened by application settings menus." "")']
     for name in CLASS_FILES:
-        lines.append(f'(P_InstallFile "Libs/MUI/{name}" "LIBS:MUI" '
+        if package_path('Libs/MUI/' + name) != 'Libs/MUI/' + name:
+            continue
+        lines.append(f'(P_InstallFile "Libs/MUI/{name}" #muidir '
                      f'"Optional, demand-loaded MUI custom class." "{name}")')
     lines += ['(if (askbool (prompt "Install the bundled translations to LOCALE:Catalogs?\\nExisting catalogs are backed up once as .old.")',
               '    (help "Missing translations fall back to English. No saved preferences are replaced.")',
@@ -193,7 +213,7 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
         (package / 'Install').write_bytes(
             install_script(files, class_files).encode('latin1'))
         for name in files:
-            target = package / name
+            target = package / package_path(name)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(build_dir / name, target)
             if name.startswith(('Libs/', 'Prefs/', 'Examples/')) and not name.endswith('.info'):

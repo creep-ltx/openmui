@@ -41,11 +41,21 @@ explicit choice as upgrades. The default is Skip.
   Prefs/Zune         -> SYS:Prefs/Zune (with Workbench icon)
     The preferences editor used by application settings menus.
 
+  Libs/Zune/*        -> LIBS:Zune/ (no question per file)
+    The library's own rarely used classes as files (Balance.mui,
+    Floattext.mui, ...), loaded when a program first needs them, and
+    Pixmap.mui. They belong to this release's library and work with no
+    other: always install them with it.
+
   Libs/MUI/*         -> LIBS:MUI/
+    Both go to the first directory of LIBS: (SYS:Libs on most systems),
+    never into MUI 4/5's own drawer (MUI:Libs/mui), which LIBS:MUI would
+    name on a system with MUI installed.
     BetterString, HotkeyString, NBitmap, NBalance, NList, NListview,
     NFloattext, NListtree, TextEditor, TheBar, TheBarVirt, TheButton,
-    the Toolbar wrapper, and their bundled MCP editors. Rawimage and
-    Pixmap supply image rendering for the built-in preferences pages.
+    the Toolbar wrapper, and their bundled MCP editors. Rawimage (with
+    Pixmap.mui from Libs/Zune) supplies image rendering for the built-in
+    preferences pages.
     Aboutbox, AboutWindow, Busy, Calendar, Calltips, Clock, Flexgroup,
     Graph, IconImage, Lamp, Listtree, LoginWindow, PrefsEditor, PrefsWindow,
     QRCode and SystemPrefsWindow are the AROS utility classes. Textinput and
