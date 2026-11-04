@@ -1317,9 +1317,21 @@ IPTR Imageadjust__MUIM_Imageadjust_ReadExternal(struct IClass *cl,
 {
     struct Imageadjust_DATA *data = INST_DATA(cl, obj);
 
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR oldwinptr = NULL;
+
     DoMethod(data->external_list, MUIM_List_Clear);
     set(data->external_list, MUIA_List_Quiet, TRUE);
+    /* Without MUI installed there is no MUI: assign; scanning it must not
+     * ask the user to insert a volume. */
+    if (me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
+    {
+        oldwinptr = me->pr_WindowPtr;
+        me->pr_WindowPtr = (APTR) - 1;
+    }
     AddDirectory(data->external_list, IMSPEC_EXTERNAL_PREFIX, -1);
+    if (me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
+        me->pr_WindowPtr = oldwinptr;
     set(data->external_list, MUIA_List_Quiet, FALSE);
     return 0;
 }
