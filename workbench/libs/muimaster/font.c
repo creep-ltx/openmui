@@ -40,6 +40,25 @@ static CONST_STRPTR fallback_font_name(UWORD stage, SIPTR preset)
     return "helvetica/11";
 }
 
+/* A font in memory (ROM topaz, or one a program or Workbench already
+ * uses) comes from graphics.library; diskfont.library is opened, on first
+ * use, only for a font or size that is not loaded. */
+static struct TextFont *zune_open_font(struct TextAttr *ta)
+{
+    struct TextFont *tf = OpenFont(ta);
+    struct TextFont *df;
+
+    if (tf && tf->tf_YSize == ta->ta_YSize)
+        return tf;
+    if (ZUNE_DISKFONT() && (df = OpenDiskFont(ta)))
+    {
+        if (tf)
+            CloseFont(tf);
+        return df;
+    }
+    return tf;
+}
+
 struct TextFont *zune_font_get(Object *obj, IPTR font)
 {
     struct MUI_GlobalInfo *mgi;
@@ -89,7 +108,7 @@ struct TextFont *zune_font_get(Object *obj, IPTR font)
                 if ((p = PathPart(ta.ta_Name)))
                     strcpy(p, ".font");
                 D(bug("zune_font_get : OpenDiskFont(%s)\n", ta.ta_Name));
-                mri->mri_Fonts[-preset] = OpenDiskFont(&ta);
+                mri->mri_Fonts[-preset] = zune_open_font(&ta);
 
                 FreeVec(ta.ta_Name);
             }
@@ -116,7 +135,7 @@ struct TextFont *zune_font_get(Object *obj, IPTR font)
                 scr_attr.ta_Flags = 0;
                 D(bug("zune_font_get : OpenDiskFont(%s) (screen font)\n",
                         scr_attr.ta_Name));
-                mri->mri_Fonts[-preset] = OpenDiskFont(&scr_attr);
+                mri->mri_Fonts[-preset] = zune_open_font(&scr_attr);
             }
             else                /* MUIV_Font_Fixed */
             {
@@ -128,7 +147,7 @@ struct TextFont *zune_font_get(Object *obj, IPTR font)
                 def_attr.ta_Flags = GfxBase->DefaultFont->tf_Flags;
                 D(bug("zune_font_get : OpenDiskFont(%s) (system font)\n",
                         def_attr.ta_Name));
-                mri->mri_Fonts[-preset] = OpenDiskFont(&def_attr);
+                mri->mri_Fonts[-preset] = zune_open_font(&def_attr);
             }
         }
         return mri->mri_Fonts[-preset];

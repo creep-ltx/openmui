@@ -1387,7 +1387,7 @@ struct BitMap *CreateBitmapFromIcon(struct Screen *scr,
         TAG_DONE, 0
     };
 
-    if (!dobj)
+    if (!dobj || !ZUNE_ICON())
         return NULL;
 
     if (GetIconRectangleA(NULL, dobj, NULL, &rect, rect_tags))

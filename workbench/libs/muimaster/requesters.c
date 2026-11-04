@@ -112,6 +112,8 @@ static void native_result(struct Request *r)
 }
 APTR ZuneAllocAslRequest(ULONG type, struct TagItem *tags)
 {
+    if (!ZUNE_ASL())
+        return NULL;
     if (type != ASL_FileRequest && type != ASL_FontRequest)
         return AllocAslRequest(type, tags);
     struct Request *r = AllocVec(sizeof(*r), MEMF_ANY | MEMF_CLEAR);
@@ -141,7 +143,7 @@ APTR ZuneAllocAslRequest(ULONG type, struct TagItem *tags)
 void ZuneFreeAslRequest(APTR public)
 {
     struct Request *r = find_request(public), **link;
-    if (!r) { FreeAslRequest(public); return; }
+    if (!r) { if (public) FreeAslRequest(public); return; }
     if (r->running) return;
     ObtainSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
     for (link = &requests; *link != r; link = &(*link)->next);

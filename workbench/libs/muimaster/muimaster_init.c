@@ -25,34 +25,64 @@ struct Library *DiskfontBase;
 struct Library *IconBase;
 struct Library *WorkbenchBase;
 struct Library *MUIMasterBase, *MUIScreenBase, *CyberGfxBase;
-BOOL ZuneGccInit(void);
-void ZuneGccCleanup(void);
+extern struct Library *MathIeeeDoubBasBase, *MathIeeeDoubTransBase;
 BOOL Locale_Initialize(void);
 void MUIGfx_Install(struct Library *owner);
 void MUIGfx_Remove(void);
 void Locale_Deinitialize(void);
-static const struct {
+struct lazylib_dependency {
     struct Library **base;
     CONST_STRPTR name;
     ULONG version;
-} dependencies[] = {
+};
+static const struct lazylib_dependency dependencies[] = {
     { (struct Library **)&DOSBase, "dos.library", 37 },
     { (struct Library **)&UtilityBase, "utility.library", 37 },
     { (struct Library **)&GfxBase, "graphics.library", 39 },
     { (struct Library **)&IntuitionBase, "intuition.library", 39 },
-    { (struct Library **)&AslBase, "asl.library", 37 },
     { (struct Library **)&LayersBase, "layers.library", 37 },
-    { (struct Library **)&CxBase, "commodities.library", 37 },
-    { (struct Library **)&RexxSysBase, "rexxsyslib.library", 36 },
     { (struct Library **)&GadToolsBase, "gadtools.library", 37 },
     { (struct Library **)&KeymapBase, "keymap.library", 37 },
     { (struct Library **)&LocaleBase, "locale.library", 38 },
+};
+/* Opened on first use (lazylib.h), in ZUNE_LIB_* order. */
+static const struct lazylib_dependency lazy_dependencies[ZUNE_LIB_COUNT] = {
+    { (struct Library **)&AslBase, "asl.library", 37 },
+    { (struct Library **)&CxBase, "commodities.library", 37 },
+    { (struct Library **)&RexxSysBase, "rexxsyslib.library", 36 },
     { (struct Library **)&DataTypesBase, "datatypes.library", 39 },
     { (struct Library **)&IFFParseBase, "iffparse.library", 37 },
     { (struct Library **)&DiskfontBase, "diskfont.library", 37 },
     { (struct Library **)&IconBase, "icon.library", 37 },
     { (struct Library **)&WorkbenchBase, "workbench.library", 37 },
+    { &MathIeeeDoubBasBase, "mathieeedoubbas.library", 0 },
+    { &MathIeeeDoubTransBase, "mathieeedoubtrans.library", 0 },
 };
+
+/* A library that failed once is not searched for again until the next
+ * expunge: every caller would otherwise wait for ramlib to scan LIBS:. */
+struct Library *zune_lazylib_open(unsigned which)
+{
+    const struct lazylib_dependency *dep = &lazy_dependencies[which];
+    struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
+    struct Library *lib = *dep->base;
+
+    if (lib)
+        return lib;
+    ObtainSemaphore(&base->LazyLibSemaphore);
+    if (!(lib = *dep->base) && !(base->LazyLibFailed & (1UL << which))) {
+        if (which == ZUNE_LIB_MATHTRANS && !zune_lazylib_open(ZUNE_LIB_MATHBAS))
+            lib = NULL;
+        else
+            lib = OpenLibrary(dep->name, dep->version);
+        if (lib)
+            *dep->base = lib;
+        else
+            base->LazyLibFailed |= 1UL << which;
+    }
+    ReleaseSemaphore(&base->LazyLibSemaphore);
+    return lib;
+}
 
 void L_ExpungeLib(struct Library *library)
 {
@@ -63,11 +93,17 @@ void L_ExpungeLib(struct Library *library)
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
     CyberGfxBase = NULL;
     Locale_Deinitialize();
-    ZuneGccCleanup();
     if (base->topaz8font) CloseFont(base->topaz8font);
     if (base->defaultPens)
         FreeMem(base->defaultPens, MPEN_COUNT * sizeof(*base->defaultPens));
     if (base->SpecialMemory) FreeMem(base->SpecialMemory, 4);
+    for (i = ZUNE_LIB_COUNT; i--; ) {
+        if (*lazy_dependencies[i].base)
+            CloseLibrary(*lazy_dependencies[i].base);
+        *lazy_dependencies[i].base = NULL;
+    }
+    base->LazyLibFailed = 0;
+    i = sizeof(dependencies) / sizeof(dependencies[0]);
     while (i--) {
         if (*dependencies[i].base) CloseLibrary(*dependencies[i].base);
         *dependencies[i].base = NULL;
@@ -89,6 +125,7 @@ ULONG L_InitLib(struct Library *library)
     unsigned i;
     MUIMasterBase = library;
     InitSemaphore(&base->ZuneSemaphore);
+    InitSemaphore(&base->LazyLibSemaphore);
     NewList((struct List *)&base->BuiltinClasses);
     NewList((struct List *)&base->Applications);
     for (i = 0; i < sizeof(dependencies) / sizeof(dependencies[0]); ++i) {
@@ -116,7 +153,6 @@ ULONG L_InitLib(struct Library *library)
     }
     for (i = 0; i < sizeof(mark_pen); ++i)
         base->defaultPens[MPEN_MARK].buf[i] = mark_pen[i];
-    if (!ZuneGccInit()) goto fail;
     Locale_Initialize();
     MUIGfx_Install(library);
     return TRUE;

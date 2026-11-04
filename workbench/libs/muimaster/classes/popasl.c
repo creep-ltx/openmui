@@ -454,7 +454,8 @@ IPTR Popasl__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         GetTagData(MUIA_Popasl_Type, ASL_FileRequest, msg->ops_AttrList);
     APTR asl_req;
 
-    if (!(asl_req = AllocAslRequest(asl_type, msg->ops_AttrList)))
+    if (!ZUNE_ASL()
+        || !(asl_req = AllocAslRequest(asl_type, msg->ops_AttrList)))
         return 0;
 
     obj = (Object *) DoSuperNewTags(cl, obj, NULL,

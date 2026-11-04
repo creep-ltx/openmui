@@ -126,6 +126,9 @@ IPTR Balance__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     struct TagItem *tags;
     struct TagItem *tag;
 
+    /* Dragging computes the weights in double precision. */
+    if (!ZUNE_MATH())
+        return 0;
     obj = (Object *) DoSuperMethodA(cl, obj, (Msg) msg);
 
     if (!obj)

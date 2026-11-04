@@ -87,6 +87,8 @@ struct MUIMasterBase_intern
     struct MinList              BuiltinClasses;
     struct MinList              Applications;
     struct MUI_PenSpec          *defaultPens;
+    struct SignalSemaphore      LazyLibSemaphore; /* zune_lazylib_open() */
+    ULONG                       LazyLibFailed;    /* 1 << ZUNE_LIB_* */
 };
 
 

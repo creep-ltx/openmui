@@ -135,6 +135,9 @@ static const UBYTE knob_rle[] =  /* hand-encoded, BTW ;-) */
  */
 IPTR Knob__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 {
+    /* The needle is drawn with sin and cos (mathieeedoubtrans). */
+    if (!ZUNE_MATHTRANS())
+        return 0;
     obj = (Object *) DoSuperNewTags
         (cl, obj, NULL,
         MUIA_FillArea, FALSE, TAG_MORE, (IPTR) msg->ops_AttrList);
