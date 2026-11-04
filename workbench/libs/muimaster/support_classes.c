@@ -337,30 +337,66 @@ static CONST_STRPTR const classfile_files[] = {
     ZUNE_CLASSFILE_FILES(ZCF_FILE)
 };
 
-static const struct __MUIBuiltinClass *classfile_query(struct Library *lib,
+typedef const struct __MUIBuiltinClass *(*classfile_queryfn)(void);
+
+static const struct __MUIBuiltinClass *classfile_query(classfile_queryfn fn,
     CONST_STRPTR classid)
 {
     register const struct __MUIBuiltinClass *res __asm("d0");
     register const struct ZuneClassFileIface *a0 __asm("a0") =
         &zune_classfile_iface;
     register CONST_STRPTR a1 __asm("a1") = classid;
-    register struct Library *a6 __asm("a6") = lib;
+    register classfile_queryfn a2 __asm("a2") = fn;
 
-    __asm volatile ("jsr %%a6@(-36:W)"
-        : "=r" (res), "+r" (a0), "+r" (a1)
-        : "r" (a6)
+    /* cf_query(a0 iface, a1 name); its a6 (the file's library base) is
+     * not used, the file is not opened as a library. */
+    __asm volatile ("jsr %%a2@"
+        : "=r" (res), "+r" (a0), "+r" (a1), "+r" (a2)
+        :
         : "d1", "cc", "memory");
     return res;
 }
 
-/* Called under ZuneSemaphore. The file stays open until the library's
- * expunge has freed its classes (ZUNE_CloseClassFiles). */
+/* The query vector of a loaded class file: its Resident tag (the tag
+ * points at itself once relocated), a Zune68 class id string of this
+ * library's version, an auto-init table whose function table has exactly
+ * the six vectors of classfile.c. */
+static classfile_queryfn classfile_find_query(BPTR seglist)
+{
+    const struct Resident *rt = zune_find_resident(seglist);
+    const ULONG *init;
+    APTR const *funcs;
+
+    if (!rt || !(rt->rt_Flags & RTF_AUTOINIT)
+        || rt->rt_Version < ZUNE68_LIBRARY_VERSION
+        || !rt->rt_IdString
+        || !strstr((const char *)rt->rt_IdString, ZUNE_CLASSFILE_IDTAG)
+        || !(init = (const ULONG *)rt->rt_Init)
+        || !(funcs = (APTR const *)init[1])
+        || funcs[0] == (APTR)-1 || funcs[5] == (APTR)-1
+        || funcs[6] != (APTR)-1)
+        return NULL;
+    return (classfile_queryfn)funcs[5];
+}
+
+/* Called under ZuneSemaphore. Each library base loads its own copy of a
+ * class file with LoadSeg, not OpenLibrary: the class code keeps the
+ * library bases and the jump table of the library it serves in its own
+ * globals, so muimaster.library and zunemaster.library (or two builds)
+ * in memory at once each need their copy. With one library in memory
+ * this is the same single copy OpenLibrary would load, without its
+ * library base; nothing is ever shared by name in the library list, so
+ * a real MUI .mui of the same name can never be taken for it. The copy
+ * stays until the library's expunge has freed its classes
+ * (ZUNE_CloseClassFiles). */
 const struct __MUIBuiltinClass *ZUNE_LoadClassFile(CONST_STRPTR classid,
     struct Library *MUIMasterBase)
 {
     struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
     const struct __MUIBuiltinClass *desc;
-    struct Library *lib;
+    classfile_queryfn query;
+    struct Task *me;
+    BPTR seg;
     unsigned i;
     UBYTE file;
 
@@ -370,29 +406,35 @@ const struct __MUIBuiltinClass *ZUNE_LoadClassFile(CONST_STRPTR classid,
     if (i == sizeof(classfile_classes) / sizeof(classfile_classes[0]))
         return NULL;
     file = classfile_classes[i].file;
-    if (!(lib = base->ClassFiles[file]))
+    if (!(seg = base->ClassFiles[file]))
     {
-        TEXT path[48];
+        TEXT path[56];
 
-        snprintf(path, sizeof(path), "Zune/%s", classfile_files[file]);
-        if (!(lib = OpenLibrary(path, ZUNE68_LIBRARY_VERSION)))
+        /* LoadSeg needs a process (ramlib is one, for classes made
+         * while a custom class initialises). */
+        me = FindTask(NULL);
+        if (me->tc_Node.ln_Type != NT_PROCESS)
+            return NULL;
+        snprintf(path, sizeof(path), "LIBS:Zune/%s", classfile_files[file]);
+        if (!(seg = LoadSeg(path)))
             return NULL;
         /* Only Zune68's own class files have the query vector */
-        if (!lib->lib_IdString || lib->lib_NegSize < 36
-            || !strstr((const char *)lib->lib_IdString, ZUNE_CLASSFILE_IDTAG))
+        if (!classfile_find_query(seg))
         {
-            CloseLibrary(lib);
+            UnLoadSeg(seg);
             return NULL;
         }
-        base->ClassFiles[file] = lib;
+        base->ClassFiles[file] = seg;
     }
-    desc = classfile_query(lib, classid);
+    if (!(query = classfile_find_query(seg)))
+        return NULL;
+    desc = classfile_query(query, classid);
     if (desc && strcmp(desc->name, classid))
         desc = NULL;
     return desc;
 }
 
-/* After the classes are freed: close the class files. */
+/* After the classes are freed: unload the class files. */
 void ZUNE_CloseClassFiles(struct Library *MUIMasterBase)
 {
     struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
@@ -401,8 +443,8 @@ void ZUNE_CloseClassFiles(struct Library *MUIMasterBase)
     for (i = 0; i < ZUNE_CLASSFILE_NFILES; i++)
     {
         if (base->ClassFiles[i])
-            CloseLibrary(base->ClassFiles[i]);
-        base->ClassFiles[i] = NULL;
+            UnLoadSeg(base->ClassFiles[i]);
+        base->ClassFiles[i] = 0;
     }
 }
 #endif

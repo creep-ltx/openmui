@@ -45,7 +45,11 @@ The list is `CLASSFILES` in `workbench/libs/muimaster/GNUmakefile`;
   in which file is generated from the sources (`gcc/classfiles.py header`
   -> `classfiles.h`), so a name that is not in the list never touches the
   disk.
-- **Lifetime:** a file stays open as long as the library; it is closed by
+- **Loading:** each library base loads its own copy with `LoadSeg`, finds
+  the file's Resident tag and calls vector 6 through its function table;
+  the file is never opened as a shared library (2026-11-04, before that:
+  `OpenLibrary`).
+- **Lifetime:** a copy stays as long as the library; it is unloaded by
   the library's expunge after `ZUNE_FreeBuiltinClasses` has freed its
   classes (`ZUNE_CloseClassFiles`), so no class code is unloaded while a
   class exists.
@@ -66,12 +70,21 @@ The list is `CLASSFILES` in `workbench/libs/muimaster/GNUmakefile`;
   `classfiles.py` refuses a file that uses CyberGfxBase without it.
   libnix/libgcc functions (string, soft float) are linked into each file
   that needs them.
-- **Search:** `OpenLibrary("Zune/<Name>.mui")`, i.e. `LIBS:Zune/`, a drawer
-  MUI 3.8 does not use. A file that is not Zune68's (id string) is closed
+- **Search:** `LIBS:Zune/<Name>.mui`, a drawer MUI 3.8 does not use. A
+  file without a Zune68 class Resident tag of this version is unloaded
   again.
 - **Two libraries at once** (`muimaster.library` and `zunemaster.library`
-  both in memory): a class file serves one of them at a time; the second
-  then cannot make that class until the first has expunged.
+  both in memory, as soon as a program on zunemaster uses a custom class:
+  the class opens muimaster.library): each has its own copy of the files it
+  uses, because the class code keeps the bases and the jump table of its
+  library in its own globals. Until 2026-11-04 one shared copy served the
+  first library only; the second fell back to `LIBS:MUI/<Name>.mui`, real
+  MUI's own file on a MUI 4/5 system (Zune prefs opened no window). With
+  one library in memory the cost is the same single copy as before, less
+  the library base.
+- **Not real MUI's:** `MUI_GetClass` of a `.mui` name Zune has not built in
+  (Pixmap.mui) opens only a file whose id string says Zune68, checked from
+  its Resident tag before any of its code runs.
 
 ## Measured (MUI-Demo, OS 3.1 + 4 MB fast, FS-UAE)
 

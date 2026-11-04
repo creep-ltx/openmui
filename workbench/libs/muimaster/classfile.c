@@ -6,6 +6,11 @@
  * Vector 5 (-30) is the usual MCC_Query and returns NULL: this is not a
  * custom class. Vector 6 (-36) gives muimaster.library a class description
  * by name, once the library's interface has been checked.
+ * The library does not OpenLibrary the file: each library base LoadSegs a
+ * private copy and calls vector 6 through the Resident tag's function
+ * table (support_classes.c), because the globals below (bases, jump
+ * table) belong to one library. The library vectors stay so that the file
+ * is still a well-formed library (version, the id string).
  */
 #include <exec/resident.h>
 #include <exec/execbase.h>
@@ -102,7 +107,9 @@ static const struct __MUIBuiltinClass *cf_query(
     if (!iface || iface->magic != ZUNE_CLASSFILE_MAGIC
         || iface->id != zune_cf_id || iface->count != zune_cf_count)
         return NULL;
-    /* One library at a time: the bases and functions are global. */
+    /* One library per copy: the bases and functions are global. The
+     * library loads a private copy each, so this only refuses a second
+     * library on a copy opened as a shared library. */
     if (zune_cf_iface && zune_cf_iface != iface)
         return NULL;
     zune_cf_iface = iface;
