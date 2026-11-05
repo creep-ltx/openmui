@@ -985,14 +985,19 @@ static void frame_round_thick_border_down_draw(struct dt_frame_image *fi,
 **************************************************************************/
 /**
  * Draw a rounded thin border - complex multi-pen effect
- * Uses 5 pens to create gradient-like rounded appearance
+ * Uses 5 pens to create gradient-like rounded appearance. Pixels as MUI
+ * 3.8's type 8 (3 pixels wide all round, thin and thick alike); the four
+ * pixels of the top-left and the bottom-right corner diagonals, from
+ * outside in, are in the pens diag.
  */
 static void round_thin_border_draw(struct dt_frame_image *fi,
                                    struct MUI_RenderInfo *mri, int left,
                                    int top, int width, int height, MPen pen1,
-                                   MPen pen2, MPen pen3, MPen pen4, MPen pen5)
+                                   MPen pen2, MPen pen3, MPen pen4, MPen pen5,
+                                   const UBYTE *diag)
 {
     struct RastPort *rp = mri->mri_RastPort;
+    int i;
 
     if (width <= 6 || height <= 6)
         return; /* Safety check */
@@ -1028,7 +1033,20 @@ static void round_thin_border_draw(struct dt_frame_image *fi,
              top + 1); /* Top edge */
     WritePixel(rp, left + 2, top + height - 3);
     WritePixel(rp, left + width - 3, top + 2);
+
+    for (i = 0; i < 4; i++) {
+        SetAPen(rp, mri->mri_Pens[diag[i]]);
+        WritePixel(rp, left + i, top + i);
+        WritePixel(rp, left + width - 4 + i, top + height - 4 + i);
+    }
 }
+
+static const UBYTE round_thin_up_diag[4] = {
+    MPEN_HALFSHINE, MPEN_BACKGROUND, MPEN_BACKGROUND, MPEN_HALFSHADOW
+};
+static const UBYTE round_thin_down_diag[4] = {
+    MPEN_BACKGROUND, MPEN_SHADOW, MPEN_SHINE, MPEN_BACKGROUND
+};
 
 /**************************************************************************
 
@@ -1040,7 +1058,7 @@ static void frame_round_thin_border_up_draw(struct dt_frame_image *fi,
 {
     round_thin_border_draw(fi, mri, left, top, width, height, MPEN_SHINE,
                            MPEN_HALFSHINE, MPEN_BACKGROUND, MPEN_HALFSHADOW,
-                           MPEN_SHADOW);
+                           MPEN_SHADOW, round_thin_up_diag);
 }
 
 /**************************************************************************
@@ -1054,7 +1072,7 @@ static void frame_round_thin_border_down_draw(struct dt_frame_image *fi,
 {
     round_thin_border_draw(fi, mri, left, top, width, height, MPEN_SHADOW,
                            MPEN_HALFSHADOW, MPEN_BACKGROUND, MPEN_HALFSHINE,
-                           MPEN_SHINE);
+                           MPEN_SHINE, round_thin_down_diag);
 }
 
 /**************************************************************************
@@ -1398,9 +1416,9 @@ static const struct ZuneFrameGfx __builtinFrameGfx[] = {
     {frame_round_thick_border_down_draw, 0, 4, 4, 4, 4, NULL, FALSE, 4, 3},
 
     /* rounded thin border */
-    /* 8 : FST_ROUND_THIN_BORDER */
-    {frame_round_thin_border_up_draw, 0, 4, 4, 4, 4, NULL, FALSE, 2, 2},
-    {frame_round_thin_border_down_draw, 0, 4, 4, 4, 4, NULL, FALSE, 2, 2},
+    /* 8 : FST_ROUND_THIN_BORDER, 3 pixels as in MUI 3.8 */
+    {frame_round_thin_border_up_draw, 0, 3, 3, 3, 3, NULL, FALSE, 2, 2},
+    {frame_round_thin_border_down_draw, 0, 3, 3, 3, 3, NULL, FALSE, 2, 2},
 
     /* strange gray border */
     /* 9 : FST_GRAY_BORDER */
