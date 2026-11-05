@@ -428,6 +428,51 @@ static void Imageadjust_External_Display(struct Hook *h, char **strings,
     }
 }
 
+/* Gadget images are small. A picture larger than this (a logo among the
+ * images) gets no preview: a list's rows all take the tallest row's
+ * height, and one such row made every row of the tree that tall. */
+#define PREVIEW_MAX_WIDTH  64
+#define PREVIEW_MAX_HEIGHT 40
+
+/* FALSE if the file is an IFF ILBM or a PNG picture larger than the
+ * preview limit (from its BMHD or IHDR); TRUE for anything else, which
+ * the datatypes decide on. */
+static BOOL external_preview_fits(CONST_STRPTR spec)
+{
+    char path[300];
+    UBYTE head[24];
+    BPTR file;
+    LONG got = 0;
+    ULONG r;
+
+    for (r = 0; r < EXTERNAL_ROOTS && !got; r++)
+    {
+        snprintf(path, sizeof(path), "%s%s", external_roots[r], spec);
+        if ((file = Open(path, MODE_OLDFILE)))
+        {
+            got = Read(file, head, sizeof(head));
+            Close(file);
+        }
+    }
+    if (got != sizeof(head))
+        return TRUE;
+    if (!memcmp(head, "FORM", 4) && !memcmp(head + 8, "ILBM", 4)
+        && !memcmp(head + 12, "BMHD", 4))
+    {
+        UWORD w = (head[20] << 8) | head[21], hh = (head[22] << 8) | head[23];
+
+        return w <= PREVIEW_MAX_WIDTH && hh <= PREVIEW_MAX_HEIGHT;
+    }
+    if (!memcmp(head, "\x89PNG", 4) && !memcmp(head + 12, "IHDR", 4))
+    {
+        /* 32-bit width and height; anything above 64 K is too big too */
+        return !head[16] && !head[17] && !head[20] && !head[21]
+            && ((head[18] << 8) | head[19]) <= PREVIEW_MAX_WIDTH
+            && ((head[22] << 8) | head[23]) <= PREVIEW_MAX_HEIGHT;
+    }
+    return TRUE;
+}
+
 /*
  * Copy the entry into the pool; a file gets its preview image (the list
  * is the hook's h_Data). Return NULL without memory; a preview that
@@ -464,11 +509,12 @@ static struct ExternalListEntry *Imageadjust_External_Construct(struct Hook
 
         snprintf(spec, sizeof(spec), "3:%s%s%s", entry->reldir,
             *entry->reldir ? "/" : "", entry->filename);
-        entry->preview = ImageObject,
-            MUIA_Image_Spec, (IPTR)spec,
-            MUIA_Image_FreeHoriz, FALSE,
-            MUIA_Image_FreeVert, FALSE,
-            End;
+        if (external_preview_fits(spec + 2))
+            entry->preview = ImageObject,
+                MUIA_Image_Spec, (IPTR)spec,
+                MUIA_Image_FreeHoriz, FALSE,
+                MUIA_Image_FreeVert, FALSE,
+                End;
         if (entry->preview)
         {
             entry->listimage = (APTR)DoMethod(list, MUIM_List_CreateImage,
@@ -556,10 +602,12 @@ static LONG AddDirectory(Object *list, UBYTE root, CONST_STRPTR reldir,
         {
             ULONG len = strlen(ead->ed_Name);
 
-            /* the second (selected) states of frames and brushes */
+            /* the second (selected) states of frames and brushes, and
+             * Workbench icons */
             if (ead->ed_Type <= 0 && len > 4
                 && (!strcmp(ead->ed_Name + len - 4, ".mf1")
-                    || !strcmp(ead->ed_Name + len - 4, ".mb1")))
+                    || !strcmp(ead->ed_Name + len - 4, ".mb1")
+                    || !Stricmp(ead->ed_Name + len - 5, ".info")))
                 continue;
             if (count == size)
             {
