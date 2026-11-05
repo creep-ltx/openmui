@@ -1280,7 +1280,6 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         MADF_FILLAREA | MADF_SHOWME | MADF_SHOWSELSTATE | MADF_DROPABLE;
     data->mad_HorizWeight = data->mad_VertWeight = 100;
     data->mad_InputMode = MUIV_InputMode_None;
-    data->mad_PointerType = MUIV_PointerType_Parent;
 
     /* parse initial taglist */
 
@@ -1342,7 +1341,8 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_FixHeightTxt:
-            data->mad_HardHeightTxt = (STRPTR)tag->ti_Data;
+            if (tag->ti_Data && zune_area_rare(data))
+                data->mad_Rare->HardHeightTxt = (STRPTR)tag->ti_Data;
             break;
 
         case MUIA_FixWidth:
@@ -1351,7 +1351,8 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_FixWidthTxt:
-            data->mad_HardWidthTxt = (STRPTR)tag->ti_Data;
+            if (tag->ti_Data && zune_area_rare(data))
+                data->mad_Rare->HardWidthTxt = (STRPTR)tag->ti_Data;
             break;
 
         case MUIA_Font:
@@ -1423,7 +1424,9 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_PointerType:
-            data->mad_PointerType = tag->ti_Data;
+            if ((tag->ti_Data != MUIV_PointerType_Parent || data->mad_Rare)
+                && zune_area_rare(data))
+                data->mad_Rare->PointerType = tag->ti_Data;
             break;
 
         case MUIA_ShortHelp:
@@ -1447,7 +1450,8 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_ContextMenu:
-            data->mad_ContextMenu = (Object *)tag->ti_Data;
+            if ((tag->ti_Data || data->mad_Rare) && zune_area_rare(data))
+                data->mad_Rare->ContextMenu = (Object *)tag->ti_Data;
             break;
         }
     }
@@ -1475,6 +1479,15 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 /* Return the object's live block, making it on first use with the handler
  * nodes set up as OM_NEW used to. cl is Area's class, which the window
  * reaches MUIM_HandleEvent through. NULL without memory. */
+struct MUI_AreaRare *zune_area_rare(struct MUI_AreaData *data)
+{
+    if (!data->mad_Rare
+        && (data->mad_Rare = AllocVec(sizeof(struct MUI_AreaRare),
+            MEMF_ANY | MEMF_CLEAR)))
+        data->mad_Rare->PointerType = MUIV_PointerType_Parent;
+    return data->mad_Rare;
+}
+
 struct MUI_AreaLive *zune_area_live(Object *obj, struct IClass *cl)
 {
     struct MUI_AreaData *data = muiAreaData(obj);
@@ -1523,7 +1536,10 @@ static IPTR Area__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 
     /* Safe to call this with NULL */
     zune_image_spec_free(data->mad_BackgroundSpec);
-    FreeVec(data->mad_Live);
+    if (data->mad_Live)
+        FreeVec(data->mad_Live);
+    if (data->mad_Rare)
+        FreeVec(data->mad_Rare);
 
     return DoSuperMethodA(cl, obj, msg);
 }
@@ -1694,7 +1710,9 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_PointerType:
-            data->mad_PointerType = tag->ti_Data;
+            if ((tag->ti_Data != MUIV_PointerType_Parent || data->mad_Rare)
+                && zune_area_rare(data))
+                data->mad_Rare->PointerType = tag->ti_Data;
             break;
 
         case MUIA_ShortHelp:
@@ -1766,7 +1784,12 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_Timer:
-            data->mad_Timeval = tag->ti_Data;
+            {
+                struct MUI_AreaLive *live = zune_area_live(obj, NULL);
+
+                if (live)
+                    live->Timeval = tag->ti_Data;
+            }
             break;
 
         case MUIA_VertWeight:
@@ -1782,7 +1805,8 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_ContextMenu:
-            data->mad_ContextMenu = (Object *)tag->ti_Data;
+            if ((tag->ti_Data || data->mad_Rare) && zune_area_rare(data))
+                data->mad_Rare->ContextMenu = (Object *)tag->ti_Data;
             break;
 
         case MUIA_Font:
@@ -1918,7 +1942,7 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_PointerType:
-        STORE = data->mad_PointerType;
+        STORE = AREA_POINTERTYPE(data);
         return TRUE;
 
     case MUIA_ShortHelp:
@@ -1930,7 +1954,7 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_Timer:
-        STORE = data->mad_Timeval;
+        STORE = data->mad_Live ? data->mad_Live->Timeval : 0;
         return TRUE;
 
     case MUIA_TopEdge:
@@ -1960,7 +1984,7 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_ContextMenu:
-        STORE = (IPTR)data->mad_ContextMenu;
+        STORE = (IPTR)AREA_CONTEXTMENU(data);
         return TRUE;
 
     case MUIA_Frame:
@@ -2075,11 +2099,11 @@ void __area_finish_minmax(Object *obj, struct MUI_MinMax *MinMaxInfo)
                                     CLAMP(h, MinMaxInfo->MinHeight, MinMaxInfo->MaxHeight);
         if (MinMaxInfo->DefHeight < MinMaxInfo->MinHeight)
             MinMaxInfo->DefHeight = MinMaxInfo->MinHeight;
-    } else if (data->mad_HardHeightTxt) {
+    } else if (AREA_HARDHEIGHTTXT(data)) {
         ZText *text;
 
         if ((text =
-                    zune_text_new(NULL, data->mad_HardHeightTxt, ZTEXT_ARG_NONE, 0))) {
+                    zune_text_new(NULL, AREA_HARDHEIGHTTXT(data), ZTEXT_ARG_NONE, 0))) {
             zune_text_get_bounds(text, obj);
 
             MinMaxInfo->MinHeight = MinMaxInfo->DefHeight = MinMaxInfo->MaxHeight =
@@ -2101,11 +2125,11 @@ void __area_finish_minmax(Object *obj, struct MUI_MinMax *MinMaxInfo)
                                    CLAMP(w, MinMaxInfo->MinWidth, MinMaxInfo->MaxWidth);
         if (MinMaxInfo->DefWidth < MinMaxInfo->MinWidth)
             MinMaxInfo->DefWidth = MinMaxInfo->MinWidth;
-    } else if (data->mad_HardWidthTxt) {
+    } else if (AREA_HARDWIDTHTXT(data)) {
         ZText *text;
 
         if ((text =
-                    zune_text_new(NULL, data->mad_HardWidthTxt, ZTEXT_ARG_NONE, 0))) {
+                    zune_text_new(NULL, AREA_HARDWIDTHTXT(data), ZTEXT_ARG_NONE, 0))) {
             zune_text_get_bounds(text, obj);
 
             MinMaxInfo->MinWidth = MinMaxInfo->DefWidth = MinMaxInfo->MaxWidth =
@@ -2263,7 +2287,7 @@ static UBYTE Area_Draw_handle_background(Object *obj, struct MUI_AreaData *data,
             !(data->mad_Flags & MADF_SHOWSELSTATE) || !data->mad_Background)
         background = data->mad_Background;
     else
-        background = data->mad_SelBack;
+        background = AREA_SELBACK(data);
 
     /* Corner hints only for a plain bevel drawn now, over an untitled
      * box, by an object not showing a selected state and with no custom
@@ -2951,9 +2975,9 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
             msg->width, msg->height);
 
     if ((msg->flags & MADF_SELECTED) && (msg->flags & MADF_SHOWSELSTATE) &&
-            data->mad_SelBack && data->mad_Background) {
+            AREA_SELBACK(data) && data->mad_Background) {
         /*      D(bug("Area_DrawBackground(%p): selected bg\n", obj)); */
-        bg = data->mad_SelBack;
+        bg = AREA_SELBACK(data);
         state = IDS_SELECTED;
     } else {
         /*      D(bug("Area_DrawBackground(%p): normal bg\n", obj)); */
@@ -3264,11 +3288,11 @@ static IPTR Area__MUIM_Setup(struct IClass *cl, Object *obj,
 
     if ((data->mad_Flags & MADF_SHOWSELSTATE) &&
             (data->mad_InputMode != MUIV_InputMode_None)) {
-        data->mad_SelBack =
+        data->mad_Live->SelBack =
             zune_imspec_setup(MUII_SelectedBack, muiRenderInfo(obj));
     }
 
-    if (data->mad_InputMode != MUIV_InputMode_None || data->mad_ContextMenu) {
+    if (data->mad_InputMode != MUIV_InputMode_None || AREA_CONTEXTMENU(data)) {
         data->mad_Live->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;
         DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
     }
@@ -3362,8 +3386,8 @@ static IPTR Area__MUIM_Cleanup(struct IClass *cl, Object *obj,
     /* It's safe to call the following function with NULL */
     if ((data->mad_Flags & MADF_SHOWSELSTATE) &&
             (data->mad_InputMode != MUIV_InputMode_None)) {
-        zune_imspec_cleanup(data->mad_SelBack);
-        data->mad_SelBack = NULL;
+        zune_imspec_cleanup(data->mad_Live->SelBack);
+        data->mad_Live->SelBack = NULL;
     }
     if (data->mad_Flags & MADF_OWNBG) {
         zune_imspec_cleanup(data->mad_Background);
@@ -3409,7 +3433,7 @@ static IPTR Area__MUIM_Show(struct IClass *cl, Object *obj,
 
     if (data->mad_Flags & MADF_SHOWSELSTATE &&
             data->mad_InputMode != MUIV_InputMode_None) {
-        zune_imspec_show(data->mad_SelBack, obj);
+        zune_imspec_show(AREA_SELBACK(data), obj);
     }
 
     return TRUE;
@@ -3451,7 +3475,7 @@ static IPTR Area__MUIM_Hide(struct IClass *cl, Object *obj,
     zune_imspec_hide(data->mad_Background);
     if (data->mad_Flags & MADF_SHOWSELSTATE &&
             data->mad_InputMode != MUIV_InputMode_None) {
-        zune_imspec_hide(data->mad_SelBack);
+        zune_imspec_hide(AREA_SELBACK(data));
     }
 
     if (data->mad_Live && data->mad_Live->ContextZMenu) {
@@ -3670,7 +3694,7 @@ static void handle_press(struct IClass *cl, Object *obj)
     switch (data->mad_InputMode) {
     case MUIV_InputMode_RelVerify:
         SetAttrs(obj, MUIA_Selected, TRUE, MUIA_Pressed, TRUE, TAG_DONE);
-        set(obj, MUIA_Timer, ++muiAreaData(obj)->mad_Timeval);
+        set(obj, MUIA_Timer, ++muiAreaData(obj)->mad_Live->Timeval);
         if (!data->mad_Live->Timer.ihn_Millis && data->mad_DisableCount == 0) {
             data->mad_Live->Timer.ihn_Millis = 300;
             DoMethod(_app(obj), MUIM_Application_AddInputHandler,
@@ -3785,7 +3809,7 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
         break;
 
     case MENUDOWN:
-        if (in && data->mad_ContextMenu) {
+        if (in && AREA_CONTEXTMENU(data)) {
             Object *menuobj = (Object *)DoMethod(obj, MUIM_ContextMenuBuild,
                                                  imsg->MouseX, imsg->MouseY);
             if (menuobj) {
@@ -3951,7 +3975,7 @@ static IPTR Area__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
     if (data->mad_DisableCount)
         return 0;
-    if (data->mad_InputMode == MUIV_InputMode_None && !data->mad_ContextMenu)
+    if (data->mad_InputMode == MUIV_InputMode_None && !AREA_CONTEXTMENU(data))
         return 0;
 
     if (msg->muikey != MUIKEY_NONE) {
@@ -4093,7 +4117,7 @@ static IPTR Area__MUIM_ContextMenuBuild(struct IClass *cl, Object *obj,
                                         struct MUIP_ContextMenuBuild *msg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
-    return (IPTR)data->mad_ContextMenu; /* a Menustrip object */
+    return (IPTR)AREA_CONTEXTMENU(data); /* a Menustrip object */
 }
 
 /**************************************************************************/
@@ -4185,7 +4209,7 @@ static IPTR Area__MUIM_Timer(struct IClass *cl, Object *obj, Msg msg)
     DoMethod(_app(obj), MUIM_Application_AddInputHandler, (IPTR)&data->mad_Live->Timer);
 
     if (data->mad_Flags & MADF_SELECTED)
-        set(obj, MUIA_Timer, ++muiAreaData(obj)->mad_Timeval);
+        set(obj, MUIA_Timer, ++muiAreaData(obj)->mad_Live->Timeval);
     return 0;
 }
 
@@ -4835,7 +4859,7 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case MUIM_GoInactive:
         return Area__MUIM_GoInactive(cl, obj, (APTR)msg);
     case MUIM_WhichPointerType:
-        return muiAreaData(obj)->mad_PointerType;
+        return AREA_POINTERTYPE(muiAreaData(obj));
     case MUIM_Layout:
         return Area__MUIM_Layout(cl, obj, (APTR)msg);
     case MUIM_Zune_Layout:

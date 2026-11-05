@@ -5156,7 +5156,7 @@ BOOL Group_PassesBackground(Object *obj)
     ad = muiAreaData(obj);
     return (BOOL)(!(((struct MUI_GroupData *)INST_DATA(cl, obj))->flags
         & GROUP_VIRTUAL) && (ad->mad_Flags & MADF_CANDRAW) &&
-        !ad->mad_Background && !ad->mad_SelBack &&
+        !ad->mad_Background && !AREA_SELBACK(ad) &&
         !(ad->mad_Flags2 & MADF2_CUSTOMBACKFILL));
 }
 

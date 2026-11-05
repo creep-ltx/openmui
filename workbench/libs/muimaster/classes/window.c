@@ -3129,7 +3129,7 @@ static BOOL ContextMenuUnderPointer(struct MUI_WindowData *data,
 
     if (!(muiAreaData(obj)->mad_Flags & MADF_CANDRAW))
         return FALSE;
-    if (!(muiAreaData(obj)->mad_ContextMenu))
+    if (!(AREA_CONTEXTMENU(muiAreaData(obj))))
         return FALSE;
 
     return TRUE;

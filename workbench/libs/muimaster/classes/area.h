@@ -560,7 +560,28 @@ struct MUI_AreaLive
     struct ZMenu *ContextZMenu;
     LONG ClickX;                /* x position of the initial SELECTDOWN click */
     LONG ClickY;                /* y position of the initial SELECTDOWN click */
+    struct MUI_ImageSpec_intern *SelBack;   /* selected state background */
+    ULONG Timeval;              /* MUIA_Timer, just to trigger notifications */
 };
+
+/* Attributes few objects set, made when one is: MUIA_FixWidthTxt,
+ * MUIA_FixHeightTxt, MUIA_ContextMenu, MUIA_PointerType */
+struct MUI_AreaRare
+{
+    CONST_STRPTR HardWidthTxt;
+    CONST_STRPTR HardHeightTxt;
+    Object *ContextMenu;        /* menu strip */
+    IPTR PointerType;           /* built-in type or borrowed pointerclass */
+};
+#define AREA_SELBACK(d) ((d)->mad_Live ? (d)->mad_Live->SelBack : NULL)
+#define AREA_CONTEXTMENU(d) ((d)->mad_Rare ? (d)->mad_Rare->ContextMenu : NULL)
+#define AREA_POINTERTYPE(d) \
+    ((d)->mad_Rare ? (d)->mad_Rare->PointerType : MUIV_PointerType_Parent)
+#define AREA_HARDWIDTHTXT(d) ((d)->mad_Rare ? (d)->mad_Rare->HardWidthTxt : NULL)
+#define AREA_HARDHEIGHTTXT(d) ((d)->mad_Rare ? (d)->mad_Rare->HardHeightTxt : NULL)
+/* The object's rare block, made on first use; NULL without memory. */
+struct MUI_AreaData;
+struct MUI_AreaRare *zune_area_rare(struct MUI_AreaData *data);
 /* The object's live block, made on first use; NULL without memory. */
 struct MUI_AreaLive *zune_area_live(Object *obj, struct IClass *cl);
 
@@ -615,10 +636,6 @@ struct MUI_AreaData
     IPTR mad_Frame;
     WORD mad_HardHeight;        /* if harcoded dim (see flags)  */
     WORD mad_HardWidth;         /* if harcoded dim (see flags)  */
-    CONST_STRPTR mad_HardWidthTxt;
-    CONST_STRPTR mad_HardHeightTxt;
-// TODO: move SelBack in RenderInfo as it's common for all objects
-    struct MUI_ImageSpec_intern *mad_SelBack;   /* selected state background */
     /* The event and timer nodes, click position and context menu state
      * are in mad_Live, made at the first MUIM_Setup (or MUI_RequestIDCMP)
      * and kept until OM_DISPOSE: objects in windows that never open do
@@ -626,12 +643,12 @@ struct MUI_AreaData
      * inside a notification of its own button, which is then still in
      * its input code. */
     struct MUI_AreaLive *mad_Live;
-    ULONG mad_Timeval;          /* just to trigger notifications */
-    Object *mad_ContextMenu;    /* menu strip */
+    /* The selected background and MUIA_Timer are in mad_Live, the rarely
+     * set attributes in mad_Rare (NULL until one is set): 114 bytes per
+     * object instead of 136 (MUI 3.8's Area data is 108) */
+    struct MUI_AreaRare *mad_Rare;
+    WORD mad_DisableCount;      /* counts number of disables */
     BYTE mad_ehnPriority;       /* priority for mad_Live->ehn */
-
-    LONG mad_DisableCount;      /* counts number of disables */
-    IPTR mad_PointerType;       /* built-in type or borrowed pointerclass */
     /* END PRIV */
 // only 148 bytes for the struct in MUI !
 };
