@@ -8,6 +8,7 @@ from amitools.binfmt.BinFmt import BinFmt
 from amitools.binfmt.Relocate import Relocate
 from amitools.vamos.machine.machine import Machine
 from amitools.vamos.machine.backend import Backend
+from check_class_lifetime import low_memory, check_low_memory
 
 BASE, STACK = 0x10000, 0xf0000
 CLASS, OBJECT, DATA, MESSAGE, TAGS, STORE = 0x70000, 0x71000, 0x71100, 0x73000, 0x74000, 0x75000
@@ -94,7 +95,10 @@ class Pixmap:
         for i, value in enumerate([CLASS, OBJECT, message]):
             self.mem.w32(STACK + i * 4, value)
         self.machine.prepare(self.symbols['_Pixmap__' + method], STACK)
-        assert self.machine.was_exit(self.machine.execute(100000000))
+        low = low_memory(self.mem)
+        result = self.machine.execute(100000000)
+        check_low_memory(self.mem, low, method)
+        assert self.machine.was_exit(result)
         assert self.cpu.r_sp() == STACK
         return self.cpu.r_reg(0)
 

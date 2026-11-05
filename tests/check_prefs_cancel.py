@@ -9,6 +9,7 @@ from pathlib import Path
 from amitools.binfmt.BinFmt import BinFmt
 from amitools.binfmt.Relocate import Relocate
 from amitools.vamos.machine.machine import Machine
+from check_class_lifetime import low_memory, check_low_memory
 
 BASE, STACK = 0x10000, 0xf0000
 MASTER, INTUITION, NAME, PAGE = 0x68000, 0x69000, 0x70000, 0x71000
@@ -116,7 +117,9 @@ class PrefsHarness:
         for index, value in enumerate(args):
             self.mem.w32(STACK + index * 4, value)
         self.machine.prepare(self.symbols['_' + name], STACK)
+        low = low_memory(self.mem)
         result = self.machine.execute(100000)
+        check_low_memory(self.mem, low, name)
         assert self.machine.was_exit(result), name
         assert self.cpu.r_sp() == STACK, name
 

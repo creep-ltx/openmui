@@ -9,6 +9,7 @@ import struct
 import sys
 from pathlib import Path
 from check_class_lifetime import Harness, EXEC, INTUITION, MASTER, STACK
+from check_class_lifetime import low_memory, check_low_memory
 
 CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71100
 UTILITY, TAGS, MESSAGE, STORE = 0x72000, 0x73000, 0x73400, 0x73500
@@ -47,7 +48,10 @@ class StringHarness(Harness):
             self.mem.w32(STACK + 4 * i, value)
         self.cpu.w_reg(14, MASTER)
         self.machine.prepare(self.symbols['_' + name], STACK)
-        assert self.machine.was_exit(self.machine.execute(10000000)), name
+        low = low_memory(self.mem)
+        result = self.machine.execute(10000000)
+        check_low_memory(self.mem, low, name)
+        assert self.machine.was_exit(result), name
         assert self.cpu.r_sp() == STACK
         assert self.lock_depth == 0
         return self.cpu.r_reg(0)

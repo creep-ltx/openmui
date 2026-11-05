@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from check_notifications import NotifyHarness
 from check_class_lifetime import EXEC, STACK, MASTER
+from check_class_lifetime import low_memory, check_low_memory
 
 DOS = 0x79000
 
@@ -38,7 +39,10 @@ class TraceHarness(NotifyHarness):
             self.mem.w32(STACK + n * 4, value)
         self.cpu.w_reg(14, MASTER)
         self.machine.prepare(self.symbols['_' + name], STACK)
-        assert self.machine.was_exit(self.machine.execute(2000000))
+        low = low_memory(self.mem)
+        result = self.machine.execute(2000000)
+        check_low_memory(self.mem, low, name)
+        assert self.machine.was_exit(result)
         assert self.lock_depth == 0
         return self.cpu.r_reg(0)
 

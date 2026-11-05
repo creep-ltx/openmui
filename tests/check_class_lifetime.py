@@ -20,6 +20,24 @@ SUPER, ID, REFS, SUBS, OBJECTS, FLAGS = 24, 28, 36, 40, 44, 48
 OPEN_COUNT, LIB_FLAGS = 32, 14
 
 
+# The 68000's exception vectors, 0-1023. On an Amiga a write through a NULL
+# pointer lands here and takes the machine down; the emulator lets it
+# pass. Every call checks that it left them alone.
+LOW_MEMORY = 1024
+
+
+def low_memory(mem):
+    return bytes(mem.r_block(0, LOW_MEMORY))
+
+
+def check_low_memory(mem, before, name):
+    after = bytes(mem.r_block(0, LOW_MEMORY))
+    if after != before:
+        first = next(i for i in range(LOW_MEMORY) if after[i] != before[i])
+        raise AssertionError('%s wrote to low memory at %d (through a NULL '
+                             'pointer?)' % (name, first))
+
+
 class Harness:
     def __init__(self, path):
         image = BinFmt().load_image(str(path))
@@ -214,7 +232,9 @@ class Harness:
             self.mem.w32(STACK + 4 * i, value)
         self.cpu.w_reg(14, MASTER)
         self.machine.prepare(self.symbols['_' + name], STACK)
+        low = low_memory(self.mem)
         result = self.machine.execute(getattr(self, "cycle_budget", 100000))
+        check_low_memory(self.mem, low, name)
         assert self.machine.was_exit(result), name
         assert self.cpu.r_sp() == STACK, (name, 'stack')
         assert self.lock_depth == 0, (name, 'semaphore')

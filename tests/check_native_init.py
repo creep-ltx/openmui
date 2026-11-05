@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 from check_class_lifetime import Harness, EXEC, MASTER, STACK, BASE
+from check_class_lifetime import low_memory, check_low_memory
 
 GRAPHICS = 0x79000
 
@@ -103,7 +104,10 @@ class InitHarness(Harness):
     def call(self, name):
         self.mem.w32(STACK, MASTER)
         self.machine.prepare(self.symbols['_' + name], STACK)
-        assert self.machine.was_exit(self.machine.execute(200000))
+        low = low_memory(self.mem)
+        result = self.machine.execute(200000)
+        check_low_memory(self.mem, low, name)
+        assert self.machine.was_exit(result)
         return self.cpu.r_reg(0)
 
 
