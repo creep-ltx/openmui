@@ -12,9 +12,10 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 |---|---|---|---|---|---|
 | MUI 3.8 | 166 KB | 238 KB | 460 KB | 211-219 KB | 1.48-1.5 s |
 | Zune68 main | 429 KB | 535 KB | 832 KB | 334 KB | 1.9-2.0 s |
-| lean | 299 KB (+180 KB in 40 class files) | 310 KB | 519 KB | 223 KB | 1.5 s |
+| lean | 277 KB (+215 KB in 44 class and module files) | 289 KB | 497 KB | 222 KB | 1.5 s |
 
-(lean measured 2026-11-05 with GCC 16.2; the other rows 2026-11-04.)
+(lean measured 2026-11-05 with GCC 16.2, after the modules below; the other
+rows 2026-11-04.)
 
 perfbench (68EC020, same session): lean is faster than MUI 3.8 in seven of
 eight batches; "list active" is 4% slower (Zune68 main 7%).
@@ -124,18 +125,82 @@ runs on a second build with every class inside the library
 | 155c5539, d7c0325e, 89b40e94 Window, Zune prefs | the extra title bar gadgets as MUI 3.8 has them: Popup (window menu: Iconify, Snapshot, Unsnapshot, Settings..., About MUI...), Prefs, Snapshot (click stores position and size in ENV: and ENVARC:, double-click forgets), Iconify; 23 px boxes the height of the title bar, left of zoom and depth, in Intuition 3.1's style; no Snapshot without a window ID, none without a depth gadget; all off by default, switched on the Windows page. Written clean-room from a description of MUI 3.8's behaviour (studied running, not disassembled); the drawings are our own. Library +808 bytes |
 | fc7643d2 muimaster | runs on a 4 KB stack: MUI-Demo crashed after its Backfill window (Zune used 9.3 KB of stack, MUI 3.8 3.6 KB). Group's draw no longer keeps 1.1 KB of buffers per nesting level, big rarely used helpers are no longer inlined into the dispatchers (9.3 -> 4.9 KB), and with less than 6000 bytes left an application's input methods and window opening run on an 8 KB spare stack kept until the application is disposed. All demos on a 4 KB stack, no crash, memory as before |
 
+## Modules: non-class code loaded on demand (2026-11-05)
+
+Rarely used parts of the library that are not classes now live in files of
+their own too, `LIBS:Zune/Z<name>.mui`, loaded through the class-file loader
+the first time a program needs them (`modules.h`, `modules.c`,
+`classes/z*.c`). Each module is a private class (`Zmenu.zmod`, ...: names
+only Zune asks for, never looked for as external classes) whose
+dispatcher, called with no object, returns a table of the module's
+functions. The library keeps every function under its old name
+(`modules.c`); each looks the class up (`ZUNE_GetBuiltinClass`), calls the
+module's function, and gives the class reference back, so a module stays in
+memory while it runs and leaves with the library's expunge, as class files
+do. The module sources include the original files (`menu.c`,
+`dragndrop.c`, ...) with their exported names renamed; `datatypescache.c`,
+`requesters.c` and `mui_request.c` are built twice (library half, module
+half). `CLASSFILES=` builds the modules into the library, where the same
+lookup finds them among the built-in classes (`make check` runs on that
+build).
+
+| module | what moved | library code saved | glue in the library | file |
+|---|---|---|---|---|
+| Zmenu.mui | `menu.c`: Zune's own menus, used for context menus and `MUIM_Menustrip_Popup` | 7,720 | 346 (4%) | 9,596 |
+| Zpicture.mui | `datatypescache.c` minus the image containers, the masked blit and `dt_width`/`dt_height`: datatype pictures for brush (`4:`) and bitmap (`5:`) image specs, menu images, custom frames (`frame.config`) | 6,116 | 526 (9%) | 9,568 |
+| Zdragdrop.mui | `dragndrop.c`: the drag image of drag and drop | 3,836 | 560 (15%) | 5,536 |
+| Zrequest.mui | `requesters.c` (`MUI_AllocAslRequest`, `MUI_AslRequest`, `MUI_FreeAslRequest`) and `MUI_RequestA`'s requester window (`mui_request.c`; `MUI_RequestA` without an application stays: EasyRequest) | 4,688 | 276 (6%) | 6,888 |
+| Zgradient.mui | `imspec_gradientdraw.c`: gradients on a true colour screen (the planar start-pen fill stays in the library and needs no module) | 3,072 | 378 (12%) | 5,112 |
+| shared | lookup (`zune_module_get`), names, failure flags, 40 bytes of jump table | | ~250 | |
+
+Library file 301,904 -> 276,796 bytes, code (text) 282,900 -> 259,448.
+MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build, GCC 16.2,
+`measure.sh` twice, `libonly.sh`): library alone 312.2 -> 288.7 KB, first
+program 520.7 -> 497.2 KB, each further 222.3 -> 222.3 KB, first window
+1.46-1.48 -> 1.46 s. MUI-Demo loads none of the modules.
+
+- **If a module cannot be loaded** (file missing, no memory, a caller that
+  is not a process the first time), its feature fails as on low memory: no
+  context menu, no drag, `MUI_RequestA` returns 0, `MUI_AllocAslRequest`
+  NULL, no picture, gradients as the start-pen fill. A failure is not
+  retried while the library is in memory (a missing file would otherwise
+  be looked for on every draw), except one from a task that is not a
+  process or with `ERROR_NO_FREE_STORE`. Tested with the five files
+  deleted: no crash, the rest of every program as before.
+- **Checks:** `make check` (`check_resources.py` calls the picture module's
+  `zmod_load_custom_frame` and `zmod_put_on_rastport_tiled` directly);
+  fullcheck (19 demos + MUI-Demo's 8 sub-windows, no alert; lost bytes
+  MUI-Demo 128, AppWindow 112, Layout 24, Virtual -24, rest 0); `real.sh`
+  (NList, NListtree, TextEditor, TheBar 1-10, YAM) with the same windows,
+  lost bytes and pixel-identical screenshots as lean before; by hand,
+  pixel-identical to lean before: MUI-Demo's string context menu with its
+  Edit submenu, the About requester (`MUI_RequestA`), Popup's file
+  requester, a brush, a bitmap background and a gradient (`tests/lean/pictest.c`), NList
+  drag-sort (drag image, drop) and its title context menu, TextEditor
+  selection by dragging, TheBar demo1's buttons. Wasabi's mouse moves carry
+  no button qualifier, so Area's drag never starts from them; the drags
+  were done with `tests/lean/mdrag.c`, which sends the left button and
+  the moves with `IEQUALIFIER_LEFTBUTTON`. Gradients were drawn on AGA only
+  (start-pen fill, no module): not tested on an RTG screen.
+- **Not moved:** `pointer.c` (2.5 KB): String sets a text pointer on every
+  string gadget, so the module would load as soon as the mouse crosses one
+  in almost any program, and cost a file's overhead on top. Inside the big
+  classes (Window's title gadgets and snapshot ~3.5 KB, off by default;
+  List's edit and drag parts ~2.4 KB; String's context menu 0.35 KB) there
+  is no clean cut: the code works on the classes' private instance data,
+  which would have to move into shared headers, for a few KB.
+
 ## Left open
 
-- **Library code**: 315 KB against MUI 3.8's 166 KB. Compiler options do
-  not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
+- **Library code**: 259 KB (file 277 KB) against MUI 3.8's 166 KB.
+  Compiler options do not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
   switches within 0.3 KB, alignment none, `LTO=1` with bebbo's GCC 6.5
   -3.6 KB and it cannot link the class files: no `nm` plugin, fat LTO
   objects make the linker write nothing). What is left is Zune's own
   code: List 30 KB, Window 29 KB, String 21 KB, Group 20 KB, Area 16 KB,
-  Application 15 KB, frames 11 KB, text engine 9 KB. The next movable
-  parts are not classes (custom frames and datatype pictures 18 KB,
-  context menus 8 KB, pointer types 2.5 KB) and need a loader for
-  non-class code first.
+  Application 15 KB, frames 11 KB, text engine 9 KB. The rarely used
+  non-class parts are modules now (above); what is still movable sits
+  inside the big classes, on their private data (see "Not moved").
 - **First window** 1.72-1.76 s against MUI 3.8's 1.48 s. Loading is not
   the difference: the library opens in 57 ms cold (MUI 3.8: 209 ms with
   muigfx/muilowlevel), a small application and its window take the same
