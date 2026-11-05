@@ -153,6 +153,9 @@ def check(path):
     # but its public virtual dimensions must still cover the viewport.
     # This follows the grow/shrink sequence in native/relayout.c.
     h.mem.w32(OBJECT + 272 + 8, 1 << 6)  # GROUP_VIRTUAL
+    # Lean edition: a virtual group's state is a block of its own (68
+    # bytes), made at OM_NEW; its pointer is at offset 68 of Group's data.
+    h.mem.w32(OBJECT + 272 + 68, h.blob(bytes(68)))
     requested = [20, 10]
     def virtual_layout():
         msg = h.cpu.r_reg(9)

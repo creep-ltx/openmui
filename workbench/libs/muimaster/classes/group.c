@@ -79,6 +79,24 @@ struct layout2d_elem
 };
 
 
+/* Only virtual groups have this (MUIA_Group_Virtual at OM_NEW): the other
+ * groups, most of them, save 64 bytes each */
+struct GroupVirtual
+{
+    struct MUI_EventHandlerNode ehn;
+    LONG virt_offx, virt_offy;  /* diplay offsets */
+    LONG old_virt_offx, old_virt_offy;  /* Saved virtual positions,
+                                         * used for update == 2 */
+    LONG virt_mwidth, virt_mheight;     /* The complete width */
+    LONG told_mwidth, told_mheight;     /* Size last notified */
+    LONG saved_minwidth, saved_minheight;
+    APTR paint_clip;            /* previous clipping during virtual painting */
+};
+
+static const struct GroupVirtual group_novirt;
+#define GV(data) ((data)->virt ? (data)->virt \
+    : (struct GroupVirtual *)&group_novirt)
+
 struct MUI_GroupData
 {
     struct MinList *children;   /* &childlist; kept first so the other offsets stay */
@@ -97,23 +115,18 @@ struct MUI_GroupData
     ULONG vert_weight_sum;
     ULONG samesize_maxmin_horiz;
     ULONG samesize_maxmin_vert;
-    ULONG update;               /* for MUI_Redraw() 1 - do not redraw the frame
+    UBYTE update;               /* for MUI_Redraw() 1 - do not redraw the frame
                                  * 2 - the virtual pos has changed */
-    struct MUI_EventHandlerNode ehn;
-    LONG virt_offx, virt_offy;  /* diplay offsets */
-    LONG old_virt_offx, old_virt_offy;  /* Saved virtual positions,
-                                         * used for update == 2 */
-    LONG virt_mwidth, virt_mheight;     /* The complete width */
-    LONG told_mwidth, told_mheight;     /* Size last notified */
-    LONG saved_minwidth, saved_minheight;
-    LONG dont_forward_get;      /* Set temporarily to 1 so that the get method
+    UBYTE dont_forward_get;     /* Set temporarily to 1 so that the get method
                                  * is not forwarded */
-    LONG dont_forward_methods;  /* Set temporarily to 1, meaning that the
+    UBYTE dont_forward_methods; /* Set temporarily to 1, meaning that the
                                  * methods are not forwarded to the group's
                                  * children */
+    /* A virtual group's state, NULL for the others: read it through
+     * GV(data), which gives them zeroes */
+    struct GroupVirtual *virt;
     /* MUI4 group with tabs */
     Object *titlegroup;
-    APTR paint_clip;            /* previous clipping during virtual painting */
     /* The children. MUI keeps them in the group itself; Zune kept them in
      * a Family object of its own per group (54 bytes and a dispatch per
      * child operation). The list and the Family methods below work as
@@ -1063,6 +1076,18 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     if (data->flags & GROUP_VIRTUAL)
     {
+        if (!(data->virt = mui_alloc_struct(struct GroupVirtual)))
+        {
+            CoerceMethod(cl, obj, OM_DISPOSE);
+            return 0;
+        }
+        /* This is only used for virtual groups */
+        data->virt->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;  /* Will be filled on demand */
+        data->virt->ehn.ehn_Priority = 10;        /* Will hear the click before all
+                                                   * other normal objects */
+        data->virt->ehn.ehn_Flags = MUI_EHF_GUIMODE;
+        data->virt->ehn.ehn_Object = obj;
+        data->virt->ehn.ehn_Class = cl;
         /* This is used by MUI_Render() to determine if group is virtual.
          * It then installs a clip region.
          * Also MUI_Layout() uses this. Probably for speed up reason  */
@@ -1082,13 +1107,6 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     }
 #endif
 
-    /* This is only used for virtual groups */
-    data->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;  /* Will be filled on demand */
-    data->ehn.ehn_Priority = 10;        /* Will hear the click before all
-                                         * other normal objects */
-    data->ehn.ehn_Flags = MUI_EHF_GUIMODE;
-    data->ehn.ehn_Object = obj;
-    data->ehn.ehn_Class = cl;
     return (IPTR) obj;
 }
 
@@ -1109,6 +1127,8 @@ IPTR Group__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
         mui_free(data->row_infos);
     if (data->col_infos != NULL)
         mui_free(data->col_infos);
+    if (data->virt)
+        mui_free(data->virt);
     if (data->children)
     {
         Object *cstate = (Object *)data->childlist.mlh_Head;
@@ -1170,7 +1190,7 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
     BOOL need_recalc = FALSE;
     IPTR retval;
 
-    int virt_offx = data->virt_offx, virt_offy = data->virt_offy;
+    int virt_offx = GV(data)->virt_offx, virt_offy = GV(data)->virt_offy;
 
     /* There are many ways to find out what tag items provided by set()
      ** we do know. The best way should be using NextTagItem() and simply
@@ -1337,18 +1357,20 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
     if (data->flags & GROUP_VIRTUAL)
     {
         virt_offx = CLAMP(virt_offx, 0,
-            MAX(0, data->virt_mwidth - _mwidth(obj)));
+            MAX(0, GV(data)->virt_mwidth - _mwidth(obj)));
         virt_offy = CLAMP(virt_offy, 0,
-            MAX(0, data->virt_mheight - _mheight(obj)));
+            MAX(0, GV(data)->virt_mheight - _mheight(obj)));
     }
-    if (virt_offx != data->virt_offx || virt_offy != data->virt_offy)
+    /* only a virtual group scrolls its children */
+    if (data->virt
+        && (virt_offx != GV(data)->virt_offx || virt_offy != GV(data)->virt_offy))
     {
         BOOL shown = (_flags(obj) & MADF_CANDRAW) != 0;
-        LONG dx = virt_offx - data->virt_offx;
-        LONG dy = virt_offy - data->virt_offy;
+        LONG dx = virt_offx - GV(data)->virt_offx;
+        LONG dy = virt_offy - GV(data)->virt_offy;
 
-        data->virt_offx = virt_offx;
-        data->virt_offy = virt_offy;
+        data->virt->virt_offx = virt_offx;
+        data->virt->virt_offy = virt_offy;
         Group_ShiftChildren(cl, obj, dx, dy);
         if (shown)
         {
@@ -1405,22 +1427,22 @@ IPTR Group__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         STORE = data->num_children;
         return 1;
     case MUIA_Virtgroup_Left:
-        STORE = data->virt_offx;
+        STORE = GV(data)->virt_offx;
         return 1;
     case MUIA_Virtgroup_Top:
-        STORE = data->virt_offy;
+        STORE = GV(data)->virt_offy;
         return 1;
     case MUIA_Virtgroup_Width:
-        STORE = data->virt_mwidth;
+        STORE = GV(data)->virt_mwidth;
         return 1;
     case MUIA_Virtgroup_Height:
-        STORE = data->virt_mheight;
+        STORE = GV(data)->virt_mheight;
         return 1;
     case MUIA_Virtgroup_MinWidth:
-        STORE = data->saved_minwidth;
+        STORE = GV(data)->saved_minwidth;
         return 1;
     case MUIA_Virtgroup_MinHeight:
-        STORE = data->saved_minheight;
+        STORE = GV(data)->saved_minheight;
         return 1;
     }
 
@@ -2166,7 +2188,7 @@ IPTR Group__MUIM_Setup(struct IClass *cl, Object *obj,
     if (data->flags & GROUP_VIRTUAL)
     {
         DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-            (IPTR) & data->ehn);
+            (IPTR) &data->virt->ehn);
     }
 
     return TRUE;
@@ -2191,7 +2213,7 @@ IPTR Group__MUIM_Cleanup(struct IClass *cl, Object *obj, Msg msg)
     if (data->flags & GROUP_VIRTUAL)
     {
         DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-            (IPTR) & data->ehn);
+            (IPTR) &data->virt->ehn);
     }
 
     ChildList = group_children(data);
@@ -2422,7 +2444,7 @@ IPTR Group__MUIM_Virtgroup_BeginPaint(struct IClass *cl, Object *obj)
     struct Region *region;
     struct Rectangle rect;
 
-    if (data->flags & GROUP_PAINTING)
+    if ((data->flags & GROUP_PAINTING) || !data->virt)
         return FALSE;
     region = NewRegion();
     if (!region)
@@ -2433,8 +2455,8 @@ IPTR Group__MUIM_Virtgroup_BeginPaint(struct IClass *cl, Object *obj)
     rect.MaxY = _mbottom(obj);
     if (data->update == 2 && _mwidth(obj) > 0 && _mheight(obj) > 0)
     {
-        LONG dx = data->virt_offx - data->old_virt_offx;
-        LONG dy = data->virt_offy - data->old_virt_offy;
+        LONG dx = GV(data)->virt_offx - GV(data)->old_virt_offx;
+        LONG dy = GV(data)->virt_offy - GV(data)->old_virt_offy;
         struct Rectangle exposed = rect;
         BOOL okay = TRUE;
 
@@ -2467,8 +2489,8 @@ IPTR Group__MUIM_Virtgroup_BeginPaint(struct IClass *cl, Object *obj)
         DisposeRegion(region);
         return FALSE;
     }
-    data->paint_clip = MUI_AddClipRegion(muiRenderInfo(obj), region);
-    if (data->paint_clip == (APTR)-1)
+    data->virt->paint_clip = MUI_AddClipRegion(muiRenderInfo(obj), region);
+    if (GV(data)->paint_clip == (APTR)-1)
         return FALSE;
     data->flags |= GROUP_PAINTING;
     return TRUE;
@@ -2480,8 +2502,8 @@ IPTR Group__MUIM_Virtgroup_EndPaint(struct IClass *cl, Object *obj)
 
     if (data->flags & GROUP_PAINTING)
     {
-        MUI_RemoveClipping(muiRenderInfo(obj), data->paint_clip);
-        data->paint_clip = (APTR)-1;
+        MUI_RemoveClipping(muiRenderInfo(obj), GV(data)->paint_clip);
+        data->virt->paint_clip = (APTR)-1;
         data->flags &= ~GROUP_PAINTING;
     }
     return 0;
@@ -2538,8 +2560,8 @@ IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
      * until that callback computes the newly exposed content. */
     if (virtual && data->update == 2)
     {
-        LONG dx = data->virt_offx - data->old_virt_offx;
-        LONG dy = data->virt_offy - data->old_virt_offy;
+        LONG dx = GV(data)->virt_offx - GV(data)->old_virt_offx;
+        LONG dy = GV(data)->virt_offy - GV(data)->old_virt_offy;
         struct Rectangle *bounds = &muiRenderInfo(obj)->mri_ClipRect;
         LONG left = MAX(_mleft(obj), bounds->MinX);
         LONG top = MAX(_mtop(obj), bounds->MinY);
@@ -2618,8 +2640,8 @@ IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
         {
             /* The raster has already moved, even if the client declines
              * painting. Never apply that same scroll delta twice. */
-            data->old_virt_offx = data->virt_offx;
-            data->old_virt_offy = data->virt_offy;
+            data->virt->old_virt_offx = GV(data)->virt_offx;
+            data->virt->old_virt_offy = GV(data)->virt_offy;
             data->update = 0;
             return FALSE;
         }
@@ -2696,8 +2718,11 @@ finish:
     if (virtual)
         DoMethod(obj, MUIM_Virtgroup_EndPaint);
 
-    data->old_virt_offx = data->virt_offx;
-    data->old_virt_offy = data->virt_offy;
+    if (data->virt)
+    {
+        data->virt->old_virt_offx = GV(data)->virt_offx;
+        data->virt->old_virt_offy = GV(data)->virt_offy;
+    }
     data->update = 0;
 
     return TRUE;
@@ -3361,8 +3386,8 @@ IPTR Group__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
     if (data->flags & GROUP_VIRTUAL)
     {
-        data->saved_minwidth = msg->MinMaxInfo->MinWidth;
-        data->saved_minheight = msg->MinMaxInfo->MinHeight;
+        data->virt->saved_minwidth = msg->MinMaxInfo->MinWidth;
+        data->virt->saved_minheight = msg->MinMaxInfo->MinHeight;
         /* MUI 3.8/3.9 keep eight pixels of virtual content visible */
         msg->MinMaxInfo->MinWidth = super_minwidth + 8;
         msg->MinMaxInfo->MinHeight = super_minheight + 8;
@@ -4011,19 +4036,19 @@ static void group_layout_vert(struct IClass *cl, Object *obj,
     WORD layout_height;
 
     //kprintf("group_layout_vert: virtoff = %d,%d\n",
-    //    data->virt_offx, data->virt_offy);
+    //    GV(data)->virt_offx, GV(data)->virt_offy);
 
     if (data->flags & GROUP_VIRTUAL)
     {
-        data->virt_mwidth =
-            CLAMP(_mwidth(obj), data->saved_minwidth - _subwidth(obj),
+        data->virt->virt_mwidth =
+            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
             _maxwidth(obj) - _subwidth(obj));
-        data->virt_mheight =
-            CLAMP(_mheight(obj), data->saved_minheight - _subheight(obj),
+        data->virt->virt_mheight =
+            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
             _maxheight(obj) - _subheight(obj));
 
-        layout_width = data->virt_mwidth;
-        layout_height = data->virt_mheight;
+        layout_width = GV(data)->virt_mwidth;
+        layout_height = GV(data)->virt_mheight;
     }
     else
     {
@@ -4129,24 +4154,24 @@ static void group_layout_horiz(struct IClass *cl, Object *obj,
     WORD layout_height;
 
     //kprintf("group_layout_horiz: virtoff = %d,%d\n",
-    //    data->virt_offx, data->virt_offy);
+    //    GV(data)->virt_offx, GV(data)->virt_offy);
 
     if (data->flags & GROUP_VIRTUAL)
     {
-        data->virt_mwidth =
-            CLAMP(_mwidth(obj), data->saved_minwidth - _subwidth(obj),
+        data->virt->virt_mwidth =
+            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
             _maxwidth(obj) - _subwidth(obj));
-        data->virt_mheight =
-            CLAMP(_mheight(obj), data->saved_minheight - _subheight(obj),
+        data->virt->virt_mheight =
+            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
             _maxheight(obj) - _subheight(obj));
 
-        layout_width = data->virt_mwidth;
-        layout_height = data->virt_mheight;
+        layout_width = GV(data)->virt_mwidth;
+        layout_height = GV(data)->virt_mheight;
 
         //kprintf("group_layout_horiz: layoutsize %d x %d "
         //    " virtsize %d x %d  msize %d x %d\n",
-        //    layout_width, layout_height, data->virt_mwidth,
-        //    data->virt_mheight,
+        //    layout_width, layout_height, GV(data)->virt_mwidth,
+        //    GV(data)->virt_mheight,
         //    _mwidth(obj), _mheight(obj));
     }
     else
@@ -4488,19 +4513,19 @@ group_layout_2d(struct IClass *cl, Object *obj, struct MinList *children)
         return;
 
     //kprintf("group_layout_horiz: virtoff = %d,%d\n",
-    //    data->virt_offx, data->virt_offy);
+    //    GV(data)->virt_offx, GV(data)->virt_offy);
 
     if (data->flags & GROUP_VIRTUAL)
     {
-        data->virt_mwidth =
-            CLAMP(_mwidth(obj), data->saved_minwidth - _subwidth(obj),
+        data->virt->virt_mwidth =
+            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
             _maxwidth(obj) - _subwidth(obj));
-        data->virt_mheight =
-            CLAMP(_mheight(obj), data->saved_minheight - _subheight(obj),
+        data->virt->virt_mheight =
+            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
             _maxheight(obj) - _subheight(obj));
 
-        layout_width = data->virt_mwidth;
-        layout_height = data->virt_mheight;
+        layout_width = GV(data)->virt_mwidth;
+        layout_height = GV(data)->virt_mheight;
     }
     else
     {
@@ -4558,15 +4583,15 @@ static void group_layout_pagemode(struct IClass *cl, Object *obj,
 
     if (data->flags & GROUP_VIRTUAL)
     {
-        data->virt_mwidth =
-            CLAMP(_mwidth(obj), data->saved_minwidth - _subwidth(obj),
+        data->virt->virt_mwidth =
+            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
             _maxwidth(obj) - _subwidth(obj));
-        data->virt_mheight =
-            CLAMP(_mheight(obj), data->saved_minheight - _subheight(obj),
+        data->virt->virt_mheight =
+            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
             _maxheight(obj) - _subheight(obj));
 
-        layout_width = data->virt_mwidth;
-        layout_height = data->virt_mheight;
+        layout_width = GV(data)->virt_mwidth;
+        layout_height = GV(data)->virt_mheight;
     }
     else
     {
@@ -4641,8 +4666,8 @@ IPTR Group__MUIM_Layout(struct IClass *cl, Object *obj,
         {
             /* A layout hook may need less space than the viewport. Keep
              * the virtual extent large enough to cover its visible area. */
-            data->virt_mwidth = MAX(lm.lm_Layout.Width, _mwidth(obj));
-            data->virt_mheight = MAX(lm.lm_Layout.Height, _mheight(obj));
+            data->virt->virt_mwidth = MAX(lm.lm_Layout.Width, _mwidth(obj));
+            data->virt->virt_mheight = MAX(lm.lm_Layout.Height, _mheight(obj));
         }
     }
     else
@@ -4662,43 +4687,43 @@ IPTR Group__MUIM_Layout(struct IClass *cl, Object *obj,
     {
         WORD new_virt_offx, new_virt_offy;
 
-        new_virt_offx = data->virt_offx;
-        new_virt_offy = data->virt_offy;
+        new_virt_offx = GV(data)->virt_offx;
+        new_virt_offy = GV(data)->virt_offy;
 
-        if (new_virt_offx + _mwidth(obj) > data->virt_mwidth)
+        if (new_virt_offx + _mwidth(obj) > GV(data)->virt_mwidth)
         {
-            new_virt_offx = data->virt_mwidth - _mwidth(obj);
+            new_virt_offx = GV(data)->virt_mwidth - _mwidth(obj);
         }
         if (new_virt_offx < 0)
             new_virt_offx = 0;
 
-        if (new_virt_offy + _mheight(obj) > data->virt_mheight)
+        if (new_virt_offy + _mheight(obj) > GV(data)->virt_mheight)
         {
-            new_virt_offy = data->virt_mheight - _mheight(obj);
+            new_virt_offy = GV(data)->virt_mheight - _mheight(obj);
         }
         if (new_virt_offy < 0)
             new_virt_offy = 0;
 
-        if (new_virt_offx != data->virt_offx)
+        if (new_virt_offx != GV(data)->virt_offx)
         {
             nfset(obj, MUIA_Virtgroup_Left, new_virt_offx);
         }
 
-        if (new_virt_offy != data->virt_offy)
+        if (new_virt_offy != GV(data)->virt_offy)
         {
             nfset(obj, MUIA_Virtgroup_Top, new_virt_offy);
         }
 
         /* A relayout of the virtual group alone (a layout hook reporting
          * a new page size) must still reach a Scrollgroup's scrollers. */
-        if (data->virt_mwidth != data->told_mwidth ||
-            data->virt_mheight != data->told_mheight)
+        if (GV(data)->virt_mwidth != GV(data)->told_mwidth ||
+            GV(data)->virt_mheight != GV(data)->told_mheight)
         {
-            data->told_mwidth = data->virt_mwidth;
-            data->told_mheight = data->virt_mheight;
+            data->virt->told_mwidth = GV(data)->virt_mwidth;
+            data->virt->told_mheight = GV(data)->virt_mheight;
             SetAttrs(obj, MUIA_Group_Forward, FALSE,
-                MUIA_Virtgroup_Width, data->virt_mwidth,
-                MUIA_Virtgroup_Height, data->virt_mheight, TAG_DONE);
+                MUIA_Virtgroup_Width, GV(data)->virt_mwidth,
+                MUIA_Virtgroup_Height, GV(data)->virt_mheight, TAG_DONE);
         }
     }
 
@@ -5005,35 +5030,35 @@ IPTR Group__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                         _mbottom(obj)))
                 {
                     DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                        (IPTR) & data->ehn);
-                    data->ehn.ehn_Events |= IDCMP_INTUITICKS;
+                        (IPTR) &data->virt->ehn);
+                    data->virt->ehn.ehn_Events |= IDCMP_INTUITICKS;
                     DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                        (IPTR) & data->ehn);
+                        (IPTR) &data->virt->ehn);
                 }
             }
             else
             {
-                if (data->ehn.ehn_Events & IDCMP_INTUITICKS)
+                if (GV(data)->ehn.ehn_Events & IDCMP_INTUITICKS)
                 {
                     DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                        (IPTR) & data->ehn);
-                    data->ehn.ehn_Events &= ~IDCMP_INTUITICKS;
+                        (IPTR) &data->virt->ehn);
+                    data->virt->ehn.ehn_Events &= ~IDCMP_INTUITICKS;
                     DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                        (IPTR) & data->ehn);
+                        (IPTR) &data->virt->ehn);
                 }
             }
             break;
 
         case IDCMP_INTUITICKS:
-            if (!(data->ehn.ehn_Events & IDCMP_INTUITICKS))
+            if (!(GV(data)->ehn.ehn_Events & IDCMP_INTUITICKS))
                 break;
 
             if (!(_between(_mleft(obj), msg->imsg->MouseX, _mright(obj))
                     && _between(_mtop(obj), msg->imsg->MouseY,
                         _mbottom(obj))))
             {
-                LONG new_virt_offx = data->virt_offx;
-                LONG new_virt_offy = data->virt_offy;
+                LONG new_virt_offx = GV(data)->virt_offx;
+                LONG new_virt_offy = GV(data)->virt_offy;
 
                 if (msg->imsg->MouseX < _mleft(obj))
                 {
@@ -5047,8 +5072,8 @@ IPTR Group__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                 {
                     /* scroll right */
                     new_virt_offx += 4;
-                    if (new_virt_offx > data->virt_mwidth - _mwidth(obj))
-                        new_virt_offx = data->virt_mwidth - _mwidth(obj);
+                    if (new_virt_offx > GV(data)->virt_mwidth - _mwidth(obj))
+                        new_virt_offx = GV(data)->virt_mwidth - _mwidth(obj);
                     if (new_virt_offx < 0)
                         new_virt_offx = 0;
                 }
@@ -5065,14 +5090,14 @@ IPTR Group__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                 {
                     /* scroll bottom */
                     new_virt_offy += 4;
-                    if (new_virt_offy > data->virt_mheight - _mheight(obj))
-                        new_virt_offy = data->virt_mheight - _mheight(obj);
+                    if (new_virt_offy > GV(data)->virt_mheight - _mheight(obj))
+                        new_virt_offy = GV(data)->virt_mheight - _mheight(obj);
                     if (new_virt_offy < 0)
                         new_virt_offy = 0;
                 }
 
-                if (new_virt_offx != data->virt_offx
-                    || new_virt_offy != data->virt_offy)
+                if (new_virt_offx != GV(data)->virt_offx
+                    || new_virt_offy != GV(data)->virt_offy)
                 {
                     SetAttrs(obj,
                         MUIA_Virtgroup_Left, new_virt_offx,
@@ -5105,8 +5130,8 @@ IPTR Group__MUIM_DrawBackground(struct IClass *cl, Object *obj,
     {
         struct MUIP_DrawBackground msg2 = *msg;
 
-        msg2.xoffset += data->virt_offx;
-        msg2.yoffset += data->virt_offy;
+        msg2.xoffset += GV(data)->virt_offx;
+        msg2.yoffset += GV(data)->virt_offy;
 
         return DoSuperMethodA(cl, obj, (Msg) & msg2);
     }

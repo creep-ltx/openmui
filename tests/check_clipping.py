@@ -97,6 +97,9 @@ def check_virtual_paint(path):
         h = ClipHarness(path)
         cl = 0x70000
         h.mem.w16(cl + 32, 262)
+        # Lean edition: a virtual group's state is a block of its own,
+        # pointed to from offset 68 of Group's data
+        h.mem.w32(OBJECT + 262 + 68, h.blob(bytes(68)))
         outer = h.blob(bytes(12))
         h.mem.w32(LAYER + 126, outer)
         h.fail_region = failure == 'region'
@@ -141,11 +144,14 @@ def check_virtual_paint(path):
             h.mem.w16(cl + 32, 262)
             h.mem.w_block(OBJECT + 52, struct.pack('>4h', 10, 20, 100, 80))
             h.mem.w_block(OBJECT + 60, bytes([3, 4, 8, 10]))
-            h.mem.w32(data + 64, update)
-            h.mem.w32(data + 92, (100 + dx) & 0xffffffff)
-            h.mem.w32(data + 96, (100 + dy) & 0xffffffff)
-            h.mem.w32(data + 100, 100)
-            h.mem.w32(data + 104, 100)
+            # update is a byte; the offsets are in the virtual block
+            virt = h.blob(bytes(68))
+            h.mem.w32(data + 68, virt)
+            h.mem.w8(data + 64, update)
+            h.mem.w32(virt + 24, (100 + dx) & 0xffffffff)
+            h.mem.w32(virt + 28, (100 + dy) & 0xffffffff)
+            h.mem.w32(virt + 32, 100)
+            h.mem.w32(virt + 36, 100)
             if fail_second:
                 def rect():
                     h.rect()
