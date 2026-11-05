@@ -231,6 +231,19 @@ BOOPSI_DISPATCHER(IPTR, PopPublicScreen_Dispatcher, cl, obj, msg)
 }
 BOOPSI_DISPATCHER_END
 
+/* At the end: every run left these two classes behind, and as
+ * subclasses they kept the library's Slider and Popobject classes in use,
+ * so the library could never leave memory. */
+void delete_system_classes(void)
+{
+    if (BubbleSlider_CLASS)
+        MUI_DeleteCustomClass(BubbleSlider_CLASS);
+    BubbleSlider_CLASS = NULL;
+    if (PopPublicScreen_CLASS)
+        MUI_DeleteCustomClass(PopPublicScreen_CLASS);
+    PopPublicScreen_CLASS = NULL;
+}
+
 static int ensure_PopPublicScreen_CLASS(void)
 {
     if (PopPublicScreen_CLASS == NULL)

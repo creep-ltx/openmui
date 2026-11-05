@@ -125,6 +125,7 @@ char titlebuf[255];
 
 void close_classes(void)
 {
+    delete_system_classes();
     delete_prefswindow_class();
     delete_listview_class();
 }
@@ -346,17 +347,14 @@ void deinit_gui(void)
         if (main_page_entries[i].mcp_library)
         {
             main_page_entries[i].cl = NULL; /* Prevent MUI_DeleteCustomClass call below */
-           
-            if ((main_page_entries[i].group == NULL) ||
-                (main_page_entries[i].group != main_page_group_displayed))
-            {
-                /* Only close library if main_page_group_displayed is not this page,
-                   because in that case the object got automatically killed through
-                   MUI_DisposeObject(app) which also does the CloseLibrary()!! */
-                   
-                CloseLibrary(main_page_entries[i].mcp_library);
-                main_page_entries[i].mcp_library = NULL;
-            }
+
+            /* Its page group is disposed by now (above, or with the
+             * application if it was shown). Objects hold no open of
+             * their class's library, so this program's own open is
+             * closed here in both cases (the shown page's used to be
+             * closed by MUI_DisposeObject(app) as a side effect). */
+            CloseLibrary(main_page_entries[i].mcp_library);
+            main_page_entries[i].mcp_library = NULL;
         }
         
         main_page_entries[i].group = NULL;

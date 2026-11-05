@@ -24,6 +24,9 @@ extern struct MUI_CustomClass *ClassPrefsWindow_CLASS;
 struct MUI_CustomClass *create_prefswindow_class(void);
 void delete_prefswindow_class(void);
 
+/* the System page's own classes, made when the page is first built */
+void delete_system_classes(void);
+
 void main_test_pressed(void);
 void main_revert_pressed(void);
 void main_save_pressed(void);
