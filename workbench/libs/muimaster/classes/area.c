@@ -2260,7 +2260,7 @@ static BOOL area_parent_background_is_pen(Object *obj, LONG muipen);
  * FRAME_CORNER_* bevel corner pixels it painted with MPEN_BACKGROUND, so
  * that the frame need not paint them again.
  */
-static UBYTE Area_Draw_handle_background(Object *obj, struct MUI_AreaData *data,
+static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, struct MUI_AreaData *data,
                                          ULONG flags,
                                          const struct ZuneFrameGfx *zframe,
                                          BOOL drawframe)
@@ -2471,7 +2471,7 @@ static UBYTE Area_Draw_handle_background(Object *obj, struct MUI_AreaData *data,
  * clipping can leave the frame behind the title. AddClipRegion consumes the
  * region even on failure. This helper changes RastPort state.
  */
-static void Area_Draw_handle_frame(Object *obj, struct MUI_AreaData *data,
+static __attribute__((noinline)) void Area_Draw_handle_frame(Object *obj, struct MUI_AreaData *data,
                                    const struct ZuneFrameGfx *zframe,
                                    UBYTE corners)
 {
@@ -4291,7 +4291,7 @@ static IPTR Area__MUIM_DoDrag(struct IClass *cl, Object *obj,
 *       rerendered.
 *
 */
-static IPTR Area__MUIM_CreateDragImage(struct IClass *cl, Object *obj,
+static __attribute__((noinline)) IPTR Area__MUIM_CreateDragImage(struct IClass *cl, Object *obj,
                                        struct MUIP_CreateDragImage *msg)
 {
     struct MUI_DragImage *img = (struct MUI_DragImage *)AllocVec(

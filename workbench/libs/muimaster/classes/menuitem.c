@@ -1314,7 +1314,7 @@ BOOPSI_DISPATCHER(IPTR, PopupEvent, cl, obj, rawmsg)
 }
 BOOPSI_DISPATCHER_END
 
-static IPTR Menustrip_Popup(struct IClass *cl, Object *obj,
+static __attribute__((noinline)) IPTR Menustrip_Popup(struct IClass *cl, Object *obj,
     struct MUIP_Menustrip_Popup *msg)
 {
     struct PopupState state = {0};

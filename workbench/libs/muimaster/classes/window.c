@@ -2246,7 +2246,7 @@ static int TitleGadgetIndex(struct MUI_WindowData *data, APTR gadget)
 }
 
 /* A click on a title gadget, after its message has been replied */
-static void TitleGadgetUp(Object *win, struct MUI_WindowData *data,
+static __attribute__((noinline)) void TitleGadgetUp(Object *win, struct MUI_WindowData *data,
     int which, ULONG seconds, ULONG micros)
 {
     Object *app = _app(win);
@@ -2286,7 +2286,7 @@ static void TitleGadgetUp(Object *win, struct MUI_WindowData *data,
  * after local native-resource cleanup otherwise. Menu, image, gadget and
  * AppWindow failures are not all reported.
  */
-static BOOL DisplayWindow(Object *obj, struct MUI_WindowData *data)
+static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_WindowData *data)
 {
     struct Window *win;
     ULONG flags = data->wd_CrtFlags;
@@ -3232,7 +3232,7 @@ static void ActivateObject(struct MUI_WindowData *data)
  * releasing drag resources when finished, leaving the message for ordinary
  * event processing. The Lock report is not implemented.
  */
-static BOOL HandleDragging(Object *oWin, struct MUI_WindowData *data,
+static __attribute__((noinline)) BOOL HandleDragging(Object *oWin, struct MUI_WindowData *data,
     struct IntuiMessage *imsg)
 {
     struct Window *iWin;
@@ -3860,7 +3860,7 @@ static ULONG InvokeEventHandler(struct MUI_EventHandlerNode *ehn,
  * starts with the active object again; callbacks must not retain stack
  * event pointers or alter traversed lists.
  */
-static void HandleRawkey(Object *win, struct MUI_WindowData *data,
+static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_WindowData *data,
     struct IntuiMessage *event)
 {
     struct MinNode *mn;
@@ -4459,7 +4459,7 @@ static ULONG WindowClose(struct IClass *cl, Object *obj);
  * do nothing. Clear focus only when equal to the old root, not a
  * descendant. Return no status.
  */
-static void ChangeRootObject(struct MUI_WindowData *data, Object *obj,
+static __attribute__((noinline)) void ChangeRootObject(struct MUI_WindowData *data, Object *obj,
     Object *newRoot)
 {
     Object *oldRoot;
@@ -7419,6 +7419,14 @@ BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
     case OM_DISPOSE:
         return Window__OM_DISPOSE(cl, obj, msg);
     case OM_SET:
+#if defined(ZUNE68_GCC_NATIVE) && defined(__mc68000__)
+        /* Opening a window draws all of it: see zune_deep_call() */
+        if (muiNotifyData(obj)->mnd_GlobalInfo)
+            return zune_deep_call(
+                muiNotifyData(obj)->mnd_GlobalInfo->mgi_ApplicationObject,
+                (IPTR (*)(struct IClass *, Object *, Msg))Window__OM_SET,
+                cl, obj, msg);
+#endif
         return Window__OM_SET(cl, obj, (struct opSet *)msg);
     case OM_GET:
         return Window__OM_GET(cl, obj, (struct opGet *)msg);

@@ -113,6 +113,10 @@ extern struct Library *CyberGfxBase;
 BOOL ZUNE_FreeBuiltinClasses(struct Library *base);
 void ZUNE_ReleaseExternalClasses(struct Library *base);
 BOOL ZUNE_FreeExternalClass(Class *cl, struct Library *base);
+/* classes/application.c: run fn(cl, obj, msg) on a spare stack of app's
+ * when little stack is left (68k native builds) */
+IPTR zune_deep_call(Object *app, IPTR (*fn)(struct IClass *, Object *, Msg),
+    struct IClass *cl, Object *obj, Msg msg);
 #endif
 
 #endif /* MUIMASTER_INTERN_H */

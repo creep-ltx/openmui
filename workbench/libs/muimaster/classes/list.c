@@ -2841,7 +2841,7 @@ static void List_NeedClip(Object *obj, struct MUI_ListData *data,
  Draw an entry at entry_pos at the given row. To draw the title, set pos to
  ENTRY_TITLE. lc is the entry area's clip, NULL when one is installed.
 **************************************************************************/
-static VOID List_DrawEntry(struct IClass *cl, Object *obj, int entry_pos,
+static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *obj, int entry_pos,
     int y, struct ListClip *lc)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
@@ -5126,7 +5126,7 @@ IPTR List__MUIM_DragDrop(struct IClass *cl, Object *obj,
 *
 */
 
-static IPTR List__MUIM_CreateDragImage(struct IClass *cl, Object *obj,
+static __attribute__((noinline)) IPTR List__MUIM_CreateDragImage(struct IClass *cl, Object *obj,
     struct MUIP_CreateDragImage *msg)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);

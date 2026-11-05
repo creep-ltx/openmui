@@ -58,6 +58,9 @@ struct TrackingNode
     Object *tn_Application;
 };
 
+#define ZUNE_STACK_LOW   6000  /* see zune_deep_call() */
+#define ZUNE_STACK_SPARE 8192
+
 struct MUI_ApplicationData
 {
     struct MUI_GlobalInfo   app_GlobalInfo;
@@ -122,6 +125,8 @@ struct MUI_ApplicationData
     STRPTR                  app_CfgNotifyName;
     BOOL                    app_NotifyStarted;  /* file notifications set up */
     struct DateStamp        app_Created;        /* prefs older than this were read */
+    APTR                    app_SpareStack;     /* see zune_deep_call() */
+    BOOL                    app_SpareBusy;
 };
 
 #define WINPOS(data) ((struct windowpos *)((data)->app_WinPos + 1))
@@ -1993,6 +1998,10 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
     {
         DeleteRIDNode(data, rid);
     }
+
+    /* Never while running on it (a dispose from inside NewInput) */
+    if (data->app_SpareStack && !data->app_SpareBusy)
+        FreeMem(data->app_SpareStack, ZUNE_STACK_SPARE);
 
     return DoSuperMethodA(cl, obj, msg);
 }
@@ -4619,6 +4628,88 @@ static IPTR Application__MUIM_ShowHelp(struct IClass *cl, Object *obj,
 *
 */
 
+/* A program started with a small stack (4 KB, the Workbench and Shell
+ * default) can run out of it while Zune draws a window full of nested
+ * groups: the drawing passes through the ROM's gadget and layer code too.
+ * MUI 3.8 needs about 3.6 KB there, Zune about 4.9 KB. When little stack
+ * is left, the work runs on a spare stack the application keeps until it
+ * is disposed; programs with enough stack never get one. */
+
+#if defined(ZUNE68_GCC_NATIVE) && defined(__mc68000__)
+typedef IPTR (*ZuneDeepFunc)(struct IClass *, Object *, Msg);
+
+/* zune_stack_run(sss, fn, cl, obj, msg): StackSwap to sss, call
+ * fn(cl, obj, msg) there, swap back, return fn's result. */
+IPTR zune_stack_run(struct StackSwapStruct *sss, ZuneDeepFunc fn,
+    struct IClass *cl, Object *obj, Msg msg);
+__asm__(
+"   .text\n"
+"   .even\n"
+"   .globl _zune_stack_run\n"
+"_zune_stack_run:\n"
+"   movem.l d2-d4/a2-a3/a6,-(sp)\n"
+"   move.l  28(sp),a2\n"
+"   move.l  32(sp),a3\n"
+"   move.l  36(sp),d2\n"
+"   move.l  40(sp),d3\n"
+"   move.l  44(sp),d4\n"
+"   move.l  4.w,a6\n"
+"   move.l  a2,a0\n"
+"   jsr     -732(a6)\n"
+"   move.l  d4,-(sp)\n"
+"   move.l  d3,-(sp)\n"
+"   move.l  d2,-(sp)\n"
+"   jsr     (a3)\n"
+"   lea     12(sp),sp\n"
+"   move.l  d0,d2\n"
+"   move.l  4.w,a6\n"
+"   move.l  a2,a0\n"
+"   jsr     -732(a6)\n"
+"   move.l  d2,d0\n"
+"   movem.l (sp)+,d2-d4/a2-a3/a6\n"
+"   rts\n");
+
+/* Run fn(cl, obj, msg) with enough stack; data is the application's. */
+static IPTR deep_call(struct MUI_ApplicationData *data, ZuneDeepFunc fn,
+    struct IClass *cl, Object *obj, Msg msg)
+{
+    struct Task *me = SysBase->ThisTask;
+    struct StackSwapStruct sss;
+    IPTR result;
+
+    if (!me || !data || data->app_SpareBusy
+        || (ULONG)&sss - (ULONG)me->tc_SPLower >= ZUNE_STACK_LOW
+        || (ULONG)&sss > (ULONG)me->tc_SPUpper)
+        return fn(cl, obj, msg);
+    if (!data->app_SpareStack &&
+        !(data->app_SpareStack = AllocMem(ZUNE_STACK_SPARE, MEMF_ANY)))
+        return fn(cl, obj, msg);
+    sss.stk_Lower = data->app_SpareStack;
+    sss.stk_Upper = (ULONG)data->app_SpareStack + ZUNE_STACK_SPARE;
+    sss.stk_Pointer = (APTR)sss.stk_Upper;
+    data->app_SpareBusy = TRUE;
+    result = zune_stack_run(&sss, fn, cl, obj, msg);
+    data->app_SpareBusy = FALSE;
+    return result;
+}
+
+/* The same for code outside this class (window opening): app is the
+ * window's application object, NULL before it has one. */
+IPTR zune_deep_call(Object *app, ZuneDeepFunc fn, struct IClass *cl,
+    Object *obj, Msg msg)
+{
+    struct IClass *c = app ? OCLASS(app) : NULL;
+
+    while (c && !(c->cl_ID && !strcmp((char *)c->cl_ID, MUIC_Application)))
+        c = c->cl_Super;
+    return deep_call(c ? INST_DATA(c, app) : NULL, fn, cl, obj, msg);
+}
+#define DEEP(fn, cl, obj, msg) \
+    deep_call(INST_DATA(cl, obj), (ZuneDeepFunc)(fn), cl, obj, (Msg)(msg))
+#else
+#define DEEP(fn, cl, obj, msg) fn(cl, obj, (APTR)(msg))
+#endif
+
 /* Dispatch supported Application operations and inherited user-data/member
  * overrides, returning handler results. Forward unknown methods to Notify.
  * Header-only method IDs are not silently implemented here; messages must
@@ -4655,11 +4746,11 @@ BOOPSI_DISPATCHER(IPTR, Application_Dispatcher, cl, obj, msg)
     case MUIM_Application_ShowHelp:
         return Application__MUIM_ShowHelp(cl, obj, (APTR)msg);
     case MUIM_Application_Input:
-        return Application__MUIM_Input(cl, obj, (APTR) msg);
+        return DEEP(Application__MUIM_Input, cl, obj, msg);
     case MUIM_Application_InputBuffered:
-        return Application__MUIM_InputBuffered(cl, obj, (APTR) msg);
+        return DEEP(Application__MUIM_InputBuffered, cl, obj, msg);
     case MUIM_Application_NewInput:
-        return Application__MUIM_NewInput(cl, obj, (APTR) msg);
+        return DEEP(Application__MUIM_NewInput, cl, obj, msg);
     case MUIM_Application_PushMethod:
         return Application__MUIM_PushMethod(cl, obj, (APTR) msg);
     case MUIM_Application_UnpushMethod:

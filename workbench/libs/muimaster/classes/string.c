@@ -3679,7 +3679,7 @@ IPTR String__MUIM_FileNameStart(struct IClass *cl, Object *obj,
 
 /* Keep the default editing menu private; application-supplied menus retain
  * Area's normal ownership and notification rules. */
-static IPTR String_ContextBuild(struct IClass *cl, Object *obj, Msg msg)
+static __attribute__((noinline)) IPTR String_ContextBuild(struct IClass *cl, Object *obj, Msg msg)
 {
     struct MUI_StringData *data = INST_DATA(cl, obj);
     IPTR menu = 0;
