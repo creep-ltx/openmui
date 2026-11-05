@@ -23,21 +23,17 @@ extern struct Library *MUIMasterBase;
  * Must be called after Area's MUIM_Setup.
  */
 
-/* The fonts MUI 3.9 uses for a window that does not fit the screen,
- * stage by stage (tests/native/fontfallback.c) */
+/* The fonts MUI 3.8 uses for a window that does not fit the screen,
+ * stage by stage (measured: a column of buttons on a 640x256 screen):
+ * helvetica 9 for the first two stages, topaz 8 for the last; the fixed
+ * font is always topaz 8 */
 static CONST_STRPTR fallback_font_name(UWORD stage, SIPTR preset)
 {
     if (!stage)
         return NULL;
-    if (preset == (SIPTR) MUIV_Font_Fixed || stage >= 4)
+    if (preset == (SIPTR) MUIV_Font_Fixed || stage >= 3)
         return "topaz/8";
-    if (stage >= 2)
-        return "helvetica/9";
-    if (preset == (SIPTR) MUIV_Font_Big)
-        return "helvetica/13";
-    if (preset == (SIPTR) MUIV_Font_Tiny || preset == (SIPTR) MUIV_Font_Title)
-        return "helvetica/9";
-    return "helvetica/11";
+    return "helvetica/9";
 }
 
 /* A font in memory (ROM topaz, or one a program or Workbench already

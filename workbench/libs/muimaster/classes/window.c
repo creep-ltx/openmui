@@ -5478,8 +5478,10 @@ IPTR Window__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_Window_Height:
+        /* The whole window, borders included, as MUI 3.8 answers (and
+         * as the pixel value given at OM_NEW is taken) */
         if (data->wd_RenderInfo.mri_Window != NULL)
-            STORE = (IPTR) data->wd_RenderInfo.mri_Window->GZZHeight;
+            STORE = (IPTR) data->wd_RenderInfo.mri_Window->Height;
         else
             STORE = 0;
         return TRUE;
@@ -5523,8 +5525,10 @@ IPTR Window__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return (TRUE);
 
     case MUIA_Window_Width:
+        /* The whole window, borders included, as MUI 3.8 answers (and
+         * as the pixel value given at OM_NEW is taken) */
         if (data->wd_RenderInfo.mri_Window != NULL)
-            STORE = (IPTR) data->wd_RenderInfo.mri_Window->GZZWidth;
+            STORE = (IPTR) data->wd_RenderInfo.mri_Window->Width;
         else
             STORE = 0;
         return TRUE;
@@ -5727,10 +5731,7 @@ static void SetRootObjInnerSpacing(Object *obj,
 {
     UWORD wd_innerLeft, wd_innerRight, wd_innerTop, wd_innerBottom;
 
-    /* MUI 3.9 drops the window spacing in the last stage of fitting a
-     * window into the screen */
-    if ((data->wd_CrtFlags & WFLG_BORDERLESS)
-        || data->wd_RenderInfo.mri_Fallback >= 4)
+    if (data->wd_CrtFlags & WFLG_BORDERLESS)
     {
         wd_innerLeft = 0;
         wd_innerRight = 0;
@@ -5743,6 +5744,15 @@ static void SetRootObjInnerSpacing(Object *obj,
         wd_innerRight = muiGlobalInfo(obj)->mgi_Prefs->window_inner_right;
         wd_innerTop = muiGlobalInfo(obj)->mgi_Prefs->window_inner_top;
         wd_innerBottom = muiGlobalInfo(obj)->mgi_Prefs->window_inner_bottom;
+        /* MUI 3.8 keeps 1 pixel of window spacing in every stage of
+         * fitting a window into the screen */
+        if (data->wd_RenderInfo.mri_Fallback)
+        {
+            wd_innerLeft = MIN(wd_innerLeft, 1);
+            wd_innerRight = MIN(wd_innerRight, 1);
+            wd_innerTop = MIN(wd_innerTop, 1);
+            wd_innerBottom = MIN(wd_innerBottom, 1);
+        }
     }
 
     if (!(muiAreaData(data->wd_RootObject)->mad_Flags & MADF_INNERLEFT))
@@ -5962,16 +5972,17 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
     /* inquire about sizes */
     WindowMinMax(obj, data);
 
-    /* Like MUI 3.9, set a window larger than the screen up again with
-     * smaller fonts and spacing, stage by stage, and do not open it if it
-     * still does not fit (tests/native/fontfallback.c) */
+    /* Like MUI 3.8, set a window larger than the screen up again with
+     * smaller fonts and spacing, stage by stage (helvetica 9 and 1 pixel
+     * spacing; then no inner frame spacing; then topaz 8), and do not open
+     * it if it still does not fit */
     while (!WindowFits(data))
     {
         struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
 
         DoMethod(data->wd_RootObject, MUIM_Cleanup);
         CloseRenderInfoFonts(mri);
-        if (mri->mri_Fallback >= 4
+        if (mri->mri_Fallback >= 3
             || (++mri->mri_Fallback,
                 !DoSetupMethod(data->wd_RootObject, mri)))
         {
