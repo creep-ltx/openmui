@@ -454,6 +454,41 @@ agree within 0.1 KB) and `tally.sh` (second MUI-Demo's own blocks):
 - perfbench in the same session: create/dispose -5%, the rest within 0.3%.
 - Checks: `make check`, fullcheck and real.sh as on lean.
 
+## Instance sizes against MUI 3.8, and Group and Area (2026-11-05)
+
+`MUI_GetClass()` on both toolkits (a probe printing `cl_InstOffset +
+cl_InstSize`) shows where a further window's memory was: MUI 3.8's second
+MUI-Demo holds 138.9 KB (memtally: ten 8 KB object-pool puddles, 13 x 2 KB
+list pools), lean's 166 KB. Own instance data, bytes:
+
+| class | MUI 3.8 | lean before | lean now |
+|---|---:|---:|---:|
+| Area (every object) | 108 | 136 | 114 |
+| Group (Zune's List, Listview, Scrollbar too) | 42 | 168 | 96 |
+| Numeric | 60 | 98 | 98 |
+| List | 390 | 420 | 420 |
+
+- Group: the virtual-group state (event node, offsets, extents, the paint
+  clip; 68 bytes) is a block made at OM_NEW for virtual groups only; the
+  others read zeroes through `GV()`. Writes go through `data->virt`, so
+  one outside a virtual-only path writes through NULL: the one in
+  Group__MUIM_Draw's `finish:` did, overwrote the 68000 vectors at 32-39
+  and every program then failed without a window or took the machine
+  down. `make check` passed anyway (its emulator lets low memory be
+  written); fullcheck caught it.
+- Area: the selected background and MUIA_Timer are in the live block
+  (made at the first setup), FixWidthTxt/FixHeightTxt/ContextMenu/
+  PointerType in a block made when one is set, the disable count a WORD.
+  Offsets up to 108 unchanged.
+- MUI-Demo, OS 3.1 + 4 MB fast: first program 532.2 -> 518.9 KB, each
+  further window 237.4 -> 223.0 KB (MUI 3.8: 211-219), library alone
+  308.6 -> 309.8 KB (the accessors, +1.2 KB code).
+- perfbench, both builds side by side: create/dispose +2.3%, the other
+  batches +0.4 to +0.6%; "list active" moves by 3% between runs of the
+  same build when five instances run at once, so read it from paired runs.
+- Checks: `make check`, fullcheck, real.sh, listclip pixels and
+  list_repaint_probe as on lean.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,

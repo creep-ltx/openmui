@@ -12,7 +12,7 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 |---|---|---|---|---|---|
 | MUI 3.8 | 166 KB | 238 KB | 460 KB | 211-219 KB | 1.48-1.5 s |
 | Zune68 main | 429 KB | 535 KB | 832 KB | 334 KB | 1.9-2.0 s |
-| lean | 298 KB (+180 KB in 40 class files) | 309 KB | 532 KB | 237 KB | 1.5 s |
+| lean | 299 KB (+180 KB in 40 class files) | 310 KB | 519 KB | 223 KB | 1.5 s |
 
 (lean measured 2026-11-05 with GCC 16.2; the other rows 2026-11-04.)
 
@@ -77,6 +77,8 @@ before) and the Popasl case below on OS 3.1 and 3.2.1.
 | 4b8072cc Notify | 24-byte nodes; MUIV_EveryTime messages with up to 7 parameters built on the stack, not kept twice: -4.4 KB per MUI-Demo |
 | 92475b94 Image specs | built-in image and pattern spec strings shared, not copied per object |
 | e2205d20 class files | Register, Bitmap, Bodychunk, ChunkyImage as class files: library -11.8 KB |
+| 06caea05 Group | a virtual group's state in a block of its own: Group's data 168 -> 96 bytes (MUI 3.8: 42) |
+| 329644e9 Area | setup-only and rarely set fields out of every object: Area's data 136 -> 114 bytes (MUI 3.8: 108); with Group -14.4 KB per MUI-Demo window |
 
 Not changed, and why: Window's explicit cycle chain sorts in O(n^2) per added object (only programs that
 call MUIM_Window_SetCycleChain, short chains); a `.mui` in LIBS:MUI is
