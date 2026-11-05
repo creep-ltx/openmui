@@ -189,12 +189,48 @@ program 520.7 -> 497.2 KB, each further 222.3 -> 222.3 KB, first window
   List's edit and drag parts ~2.4 KB; String's context menu 0.35 KB) there
   is no clean cut: the code works on the classes' private instance data,
   which would have to move into shared headers, for a few KB.
+
+## MUI 3.8's sizes (2026-11-05)
+
+| commit | change |
+|---|---|
 | 1d7331d7 Window | windows larger than the screen are fitted in MUI 3.8's three stages (helvetica 9 and 1 pixel spacing; no inner frame spacing; topaz 8), measured with a column of buttons: same heights as MUI 3.8 for 17 to 22 buttons, NListtree-Demo now opens (it never did on Zune). MUIA_Window_Width/Height read back the whole window as on MUI 3.8 (Zune returned the inner size) |
 | 1fa6f196 Configdata | MUI 3.8's defaults, read from its settings program: frames with 1 pixel of top/bottom inner spacing (were 2), groups 6/3 (were 4/4), window spacing top/bottom 3, group titles above, cycle popup background shine, positions remembered on exit, bubble help after 2.0 s / 0.3 s from the settings (Zune ignored them). A column of buttons now gives MUI 3.8's window heights exactly. Redraw stays "without clear" (same pixels, drawn once) |
+| b3d303f3 Frames | MUI 3.8's "Frame thickness" (auto/thick/thin; auto, the default, is thick when the screen is at least twice as wide as tall; decided per window at setup through MUIMRI_THINFRAMES). Thick frames have 2-pixel left and right lines that count in the size: types 1 and 2 are 2 pixels wider, 3 and 9 4 pixels, 4 keeps its size and fills its gap ring. Setting `MUICFG_Frame_Thickness` (0x50b, Zune's own id, MUI's is unknown; old files give auto), cycle on the prefs Windows page. With the next two rows: library code +1.6 KB (file 276,900 -> 278,632 bytes), no memory per object |
+| 0898009f Frames | type 8 (round thin border) 3 pixels wide as in MUI 3.8 (was 4), with MUI 3.8's corner pixels |
+| d994c0d3 Text | the default width is the minimum, as MUI 3.8: Text added the frame and inner spacing a second time. SimpleButton "B" 16, "Abc"/"WWW"/"iii" 32, "_Ok" 24, "Button" 56, "ButtonText" 88 on a thick screen (2 less on a thin one), exactly MUI 3.8's; two buttons in a column 72x54 as MUI 3.8 (were 76x54) |
+
+How it was checked (FS-UAE, OS 3.1 + 4 MB fast, 68000 build, GCC 16.2), from a
+black-box description of MUI 3.8 (measured on MUI 3.8, not disassembled):
+
+- `tests/lean/framethick.c` opens a 16-colour screen with a pen of its own
+  for every MUI pen and draws a text button in every frame type, raised and
+  recessed; `tools/lean/framecmp.py` compares its pixels with MUI 3.8's
+  maps. Types 0-4, 8 and 9 are pixel for pixel MUI 3.8's (its 9 is MUI
+  3.8's 6), raised and recessed, on 640x256 and on 640x512 interlaced, with
+  auto, thick and thin (auto: thick on 640x256, thin on 640x512). Button
+  widths as in the table above in all six cases.
+- **Frame type numbers 5-10 are MUI 4/5's, not MUI 3.8's**, and stay so.
+  MUI 3.8's 5 is Zune's 6 raised, its 6 Zune's 9, its 7 Zune's 10; its 9
+  and 10 differ from Zune's 7 and 5 by a few corner pixels and the length
+  of two lines. A first try that drew 6 as MUI 3.8 does took the frames off
+  every TheBar button: TheBar's default button frame is "602222" (MUI 4/5's
+  xen look; MUI 3.8's 6 is in the half pens, which on a 4-colour Workbench
+  are the background). MUI 3.8 takes no frame spec in MUIA_Frame, so only
+  MUI 4/5 programs (and Zune's own settings files) ever name these numbers.
+- `make check` passes unchanged. fullcheck: 19 demos and MUI-Demo's 8
+  sub-windows (default button rows) open and close, no alert, memory as
+  before (each program writes its positions file once: 152-264 bytes,
+  MUI-Demo 608). `real.sh`: NList, NListtree, TextEditor, TheBar 1-10 and
+  YAM open and behave as before; screenshots differ only by the wider
+  frames and narrower buttons (TheBar's own bars pixel-identical).
+- Zune prefs: the cycle reads and writes the setting; "thin" + Use makes the
+  next window thin (two buttons 70x54), "auto" again 72x54.
+- Not done: the two small preview boxes MUI 3.8 shows beside each choice.
 
 ## Left open
 
-- **Library code**: 259 KB (file 277 KB) against MUI 3.8's 166 KB.
+- **Library code**: 261 KB (file 279 KB) against MUI 3.8's 166 KB.
   Compiler options do not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
   switches within 0.3 KB, alignment none, `LTO=1` with bebbo's GCC 6.5
   -3.6 KB and it cannot link the class files: no `nm` plugin, fat LTO
