@@ -439,8 +439,10 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         End),
         Child, (IPTR) (HGroup,
             MUIA_Group_HorizSpacing, 2,
+            /* An object is made only when its Child tag is used: one
+             * behind a TAG_IGNORE was made and never freed */
             (!colorwheelbase) ? TAG_IGNORE : Child,
-                (IPTR) (wheel = (Object *) BoopsiObject,
+                (IPTR) (wheel = !colorwheelbase ? NULL : (Object *) BoopsiObject,
                 MUIA_Boopsi_ClassID, (IPTR) "colorwheel.gadget",
                 MUIA_Boopsi_MinWidth, 16,
                 MUIA_Boopsi_MinHeight, 16,
@@ -456,7 +458,7 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 MUIA_FillArea, TRUE,
             End),
             (!gradientsliderbase) ? TAG_IGNORE : Child,
-                (IPTR) (grad = (Object *) BoopsiObject,
+                (IPTR) (grad = !gradientsliderbase ? NULL : (Object *) BoopsiObject,
                 MUIA_Boopsi_ClassID, (IPTR) "gradientslider.gadget",
                 MUIA_Boopsi_MinWidth, 16,
                 MUIA_Boopsi_MinHeight, 16,
@@ -474,7 +476,7 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 MUIA_FillArea, TRUE,
             End),
             (!colorwheelbase && !gradientsliderbase) ? Child : TAG_IGNORE,
-                (IPTR)HVSpace,
+                (!colorwheelbase && !gradientsliderbase) ? (IPTR)HVSpace : 0,
         End),
         TAG_MORE, (IPTR) msg->ops_AttrList);
 
