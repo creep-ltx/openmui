@@ -120,7 +120,9 @@ static const struct __MUIBuiltinClass *const builtins[] = {
     &_MUI_String_desc,
     ZUNE_BOOPSI_DESC & _MUI_Prop_desc,
     &_MUI_Scrollbar_desc,
+#if ZUNE_BUILTIN_REGISTER
     &_MUI_Register_desc,
+#endif
     &_MUI_Menuitem_desc,
     &_MUI_Menu_desc,
     &_MUI_Menustrip_desc,
@@ -134,9 +136,15 @@ static const struct __MUIBuiltinClass *const builtins[] = {
     &_MUI_Datamap_desc,
     &_MUI_Objectmap_desc,
 #endif
+#if ZUNE_BUILTIN_BITMAP
     &_MUI_Bitmap_desc,
+#endif
+#if ZUNE_BUILTIN_BODYCHUNK
     &_MUI_Bodychunk_desc,
+#endif
+#if ZUNE_BUILTIN_CHUNKYIMAGE
     &_MUI_ChunkyImage_desc,
+#endif
     &_MUI_Cycle_desc,
     &_MUI_Popstring_desc,
     &_MUI_Listview_desc,

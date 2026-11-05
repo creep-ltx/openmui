@@ -103,7 +103,7 @@ CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   numericbutton palette penadjust pendisplay popasl popframe popimage poppen \
   popscreen scale scrollgroup volumelist \
   fontpanel filepanel selectorpanel keyadjust title datamap textdata \
-  selectgroup process dtpic
+  selectgroup process dtpic register bitmap bodychunk chunkyimage
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
 CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
 CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/Zune/$(shell echo $(c) | sed 's/^./\U&/').mui)

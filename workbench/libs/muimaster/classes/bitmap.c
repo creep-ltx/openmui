@@ -758,6 +758,15 @@ IPTR Bitmap__MUIM_Setup(struct IClass *cl, Object *obj, Msg msg)
 
     if (!DoSuperMethodA(cl, obj, (Msg) msg))
         return FALSE;
+#ifdef ZUNE_CLASSFILE
+    {
+        /* As a class file (classfile.h): the window's setup has just
+         * opened cybergraphics.library for a deep screen, after this
+         * file copied the library bases */
+        void zune_cf_refresh(void);
+        zune_cf_refresh();
+    }
+#endif
 
     remap_bitmap(cl, obj);
 
