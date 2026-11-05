@@ -6,9 +6,10 @@
 
     The artwork of the extra window title bar gadgets (Popup, Prefs,
     Snapshot, Iconify), shared by Window.mui and the Zune prefs program.
-    Our own drawings in the style of Intuition 3.1's zoom and depth
-    gadgets: 13 pixels wide, lines in SHADOW, details in SHINE, areas in
-    FILL. Each gadget has a normal and a pressed drawing.
+    Our own drawings, drawn from a description of MUI 3.8's concepts and
+    proportions (no pixel map), in the style of Intuition 3.1's zoom and
+    depth gadgets: 13 pixels wide, lines in SHADOW, details in SHINE,
+    areas in FILL. Each gadget has a normal and a pressed drawing.
 
     A drawing is a list of filled rectangles, 3 bytes each: the pen, then
     x0 << 4 | x1, then y0 << 4 | y1. x counts 0..12 from the glyph's left
@@ -37,55 +38,78 @@
 #define TGB(n) (15 - (n))   /* n rows above the bottom row */
 
 static const unsigned char TitleGlyphData[] = {
-    /* Popup: a menu title with an arrow pointing down */
-    TGR(TG_SHADOW, 0, 0, 12, 2), TGR(TG_SHINE, 1, 1, 11, 1),
-    TGR(TG_SHADOW, 3, 4, 9, 4), TGR(TG_SHADOW, 4, 5, 8, 5),
-    TGR(TG_SHADOW, 5, 6, 7, 6), TGR(TG_SHADOW, 6, 7, 6, 7),
-    /* pressed: the menu has dropped down, one item highlighted */
-    TGR(TG_SHADOW, 0, 0, 12, 2), TGR(TG_SHINE, 1, 1, 11, 1),
-    TGR(TG_SHADOW, 2, 2, 10, 7), TGR(TG_SHINE, 3, 3, 9, 6),
-    TGR(TG_SHADOW, 4, 4, 8, 4), TGR(TG_FILL, 3, 6, 9, 6),
-    /* Prefs: two sliders */
-    TGR(TG_SHADOW, 0, 1, 12, 1), TGR(TG_SHADOW, 2, 0, 5, 2),
-    TGR(TG_SHINE, 3, 1, 4, 1),
-    TGR(TG_SHADOW, 0, 6, 12, 6), TGR(TG_SHADOW, 7, 5, 10, 7),
-    TGR(TG_SHINE, 8, 6, 9, 6),
-    /* pressed: both knobs moved */
-    TGR(TG_SHADOW, 0, 1, 12, 1), TGR(TG_SHADOW, 7, 0, 10, 2),
-    TGR(TG_SHINE, 8, 1, 9, 1),
-    TGR(TG_SHADOW, 0, 6, 12, 6), TGR(TG_SHADOW, 2, 5, 5, 7),
-    TGR(TG_SHINE, 3, 6, 4, 6),
-    /* Snapshot: a window with four corner marks around it */
-    TGR(TG_SHADOW, 3, 2, 9, 5), TGR(TG_SHINE, 4, 3, 8, 4),
-    TGR(TG_SHADOW, 0, 0, 2, 0), TGR(TG_SHADOW, 0, 1, 0, 1),
-    TGR(TG_SHADOW, 10, 0, 12, 0), TGR(TG_SHADOW, 12, 1, 12, 1),
-    TGR(TG_SHADOW, 0, 7, 2, 7), TGR(TG_SHADOW, 0, 6, 0, 6),
-    TGR(TG_SHADOW, 10, 7, 12, 7), TGR(TG_SHADOW, 12, 6, 12, 6),
-    /* pressed: the marks closed in on the window */
-    TGR(TG_SHADOW, 3, 2, 9, 5), TGR(TG_SHINE, 4, 3, 8, 4),
-    TGR(TG_SHADOW, 1, 1, 3, 1), TGR(TG_SHADOW, 1, 2, 1, 2),
-    TGR(TG_SHADOW, 9, 1, 11, 1), TGR(TG_SHADOW, 11, 2, 11, 2),
-    TGR(TG_SHADOW, 1, 6, 3, 6), TGR(TG_SHADOW, 1, 5, 1, 5),
-    TGR(TG_SHADOW, 9, 6, 11, 6), TGR(TG_SHADOW, 11, 5, 11, 5),
-    /* Iconify: a window with an icon in its lower left corner */
+    /* Popup: a hollow triangle pointing down, its tip on a flat bar */
+#define TG_TRIANGLE(d) \
+    TGR(TG_SHADOW, 2, 0 + d, 10, 0 + d), \
+    TGR(TG_SHADOW, 3, 1 + d, 3, 1 + d), TGR(TG_SHADOW, 9, 1 + d, 9, 1 + d), \
+    TGR(TG_SHADOW, 4, 2 + d, 4, 2 + d), TGR(TG_SHADOW, 8, 2 + d, 8, 2 + d), \
+    TGR(TG_SHADOW, 5, 3 + d, 5, 3 + d), TGR(TG_SHADOW, 7, 3 + d, 7, 3 + d), \
+    TGR(TG_SHADOW, 6, 4 + d, 6, 4 + d)
+    TG_TRIANGLE(0),
+    TGR(TG_SHADOW, 1, 5, 11, 7), TGR(TG_SHINE, 2, 6, 10, 6),
+    /* pressed: the triangle one row lower, the bar wider */
+    TG_TRIANGLE(1),
+    TGR(TG_SHADOW, 0, 5, 12, 7), TGR(TG_SHINE, 1, 6, 11, 6),
+#undef TG_TRIANGLE
+    /* Prefs: a panel leaning forward, a compartment at its right side, a
+     * smaller leaning shape with a highlight inside, the slanted left
+     * band dithered; pressed looks the same */
+    TGR(TG_SHADOW, 2, 0, 12, 0), TGR(TG_SHADOW, 0, 7, 10, 7),
+    TGR(TG_SHADOW, 2, 1, 2, 2), TGR(TG_SHADOW, 1, 3, 1, 4),
+    TGR(TG_SHADOW, 0, 5, 0, 6), TGR(TG_SHADOW, 12, 1, 12, 2),
+    TGR(TG_SHADOW, 11, 3, 11, 4), TGR(TG_SHADOW, 10, 5, 10, 6),
+    TGR(TG_SHADOW, 9, 1, 9, 2), TGR(TG_SHADOW, 8, 3, 8, 4),
+    TGR(TG_SHADOW, 7, 5, 7, 6),
+    TGR(TG_FILL, 3, 1, 4, 2), TGR(TG_FILL, 2, 3, 3, 4),
+    TGR(TG_FILL, 1, 5, 2, 6),
+    TGR(TG_BACK, 3, 1, 3, 1), TGR(TG_BACK, 4, 2, 4, 2),
+    TGR(TG_BACK, 3, 3, 3, 3), TGR(TG_BACK, 2, 4, 2, 4),
+    TGR(TG_BACK, 1, 5, 1, 5), TGR(TG_BACK, 2, 6, 2, 6),
+    TGR(TG_SHADOW, 5, 2, 7, 2), TGR(TG_SHADOW, 4, 3, 6, 4),
+    TGR(TG_SHADOW, 3, 5, 5, 5), TGR(TG_SHINE, 5, 3, 5, 4),
+    /* Snapshot: lines left and right, arrowheads pointing in at a small
+     * hollow block */
+#define TG_ARROWS(l, r) \
+    TGR(TG_SHADOW, l, 0, l, 7), \
+    TGR(TG_SHINE, l + 1, 2, l + 1, 5), TGR(TG_SHINE, l + 2, 3, l + 2, 4), \
+    TGR(TG_SHADOW, l + 1, 1, l + 1, 1), TGR(TG_SHADOW, l + 2, 2, l + 2, 2), \
+    TGR(TG_SHADOW, l + 3, 3, l + 3, 4), TGR(TG_SHADOW, l + 2, 5, l + 2, 5), \
+    TGR(TG_SHADOW, l + 1, 6, l + 1, 6), \
+    TGR(TG_SHADOW, r, 0, r, 7), \
+    TGR(TG_SHINE, r - 1, 2, r - 1, 5), TGR(TG_SHINE, r - 2, 3, r - 2, 4), \
+    TGR(TG_SHADOW, r - 1, 1, r - 1, 1), TGR(TG_SHADOW, r - 2, 2, r - 2, 2), \
+    TGR(TG_SHADOW, r - 3, 3, r - 3, 4), TGR(TG_SHADOW, r - 2, 5, r - 2, 5), \
+    TGR(TG_SHADOW, r - 1, 6, r - 1, 6)
+    TG_ARROWS(0, 12),
+    TGR(TG_SHADOW, 5, 2, 7, 5), TGR(TG_FILL, 6, 3, 6, 4),
+    /* pressed: the arrows touch the block, which is full height */
+    TG_ARROWS(1, 11),
+    TGR(TG_SHADOW, 5, 0, 7, 7), TGR(TG_FILL, 6, 1, 6, 6),
+#undef TG_ARROWS
+    /* Iconify: a window with a tiny window in its lower left corner */
     TGR(TG_SHADOW, 0, 0, 12, TGB(0)), TGR(TG_FILL, 1, 1, 11, TGB(1)),
-    TGR(TG_SHADOW, 0, TGB(3), 4, TGB(0)), TGR(TG_SHINE, 1, TGB(2), 3, TGB(1)),
-    /* pressed: only the icon is left */
-    TGR(TG_SHADOW, 0, TGB(3), 6, TGB(0)), TGR(TG_SHINE, 1, TGB(2), 5, TGB(1)),
+    TGR(TG_SHADOW, 2, TGB(4), 5, TGB(2)), TGR(TG_SHINE, 3, TGB(3), 4, TGB(3)),
+    /* pressed: the outline has shrunk around the tiny window */
+    TGR(TG_SHADOW, 0, TGB(6), 7, TGB(0)), TGR(TG_FILL, 1, TGB(5), 6, TGB(1)),
+    TGR(TG_SHADOW, 2, TGB(4), 5, TGB(2)), TGR(TG_SHINE, 3, TGB(3), 4, TGB(3)),
 };
 
-/* Start of each drawing in rectangles: gadget * 2 + pressed */
-static const unsigned char TitleGlyphStart[9] = {
-    0, 6, 12, 18, 24, 34, 44, 48, 50
+/* First rectangle and end of each drawing: gadget * 2 + pressed */
+static const unsigned char TitleGlyphRange[8][2] = {
+    { 0, 10 }, { 10, 20 },   /* Popup */
+    { 20, 44 }, { 20, 44 },  /* Prefs: pressed the same */
+    { 44, 62 }, { 62, 80 },  /* Snapshot */
+    { 80, 84 }, { 84, 88 }   /* Iconify */
 };
+typedef char TitleGlyphSizeCheck[sizeof(TitleGlyphData) == 3 * 88 ? 1 : -1];
 
 /* Draw a glyph with its left column at x, its rows top..bottom, clipped
  * to the rows clip0..clip1. pens[] maps TG_SHADOW..TG_BACK to pens. */
 static void DrawTitleGlyph(struct RastPort *rp, const UWORD *pens,
     int glyph, WORD x, WORD top, WORD bottom, WORD clip0, WORD clip1)
 {
-    const unsigned char *r = TitleGlyphData + 3 * TitleGlyphStart[glyph];
-    const unsigned char *end = TitleGlyphData + 3 * TitleGlyphStart[glyph + 1];
+    const unsigned char *r = TitleGlyphData + 3 * TitleGlyphRange[glyph][0];
+    const unsigned char *end = TitleGlyphData + 3 * TitleGlyphRange[glyph][1];
 
     for (; r < end; r += 3)
     {
