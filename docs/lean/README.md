@@ -88,6 +88,13 @@ retypeset ones: typesetting first and drawing once left the text empty,
 reverted); two programs starting at
 the same moment can get the same ARexx port name.
 
+## Settings and the image chooser (2026-11-05)
+
+| commit | change |
+|---|---|
+| 63da03c4 Configdata | an application's own settings file is laid over the global settings instead of replacing them, and quitting with remembered windows writes only the window positions into it (measured on MUI 5: a 102-byte positions-only file, global settings kept). Before, the first quit froze an application's settings: the Zune prefs program ignored a saved Cycle image |
+| dee49cc9 Imageadjust | the External page is a tree of the image drawers (double-click opens and closes a pack) with a preview of every image, names aligned; the chosen image's pack is open and the image centred when the page opens |
+
 ## `make check` (2026-11-05)
 
 The project's own checks (`tests/check_*.py`, linked 68000 code run in
