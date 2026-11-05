@@ -161,6 +161,8 @@ def check(path):
     h.call('DisposeImageContainer', image)
     h.finish()
     # A failed custom frame must never dispose uninitialized image pointers.
+    # Custom frames and pictures are the picture module's (modules.h): its
+    # functions are called directly, not through the library's lookup.
     h = ResourceHarness(path)
     h.mem.w32(h.symbols['_DOSBase'], 0x7e000)
     h.trap(0x7e000 - 870, lambda: h.cpu.w_reg(0, h.cpu.r_reg(1)))
@@ -173,7 +175,7 @@ def check(path):
         if address and not (flags & 0x10000):
             h.mem.w_block(address, b'\xa5' * h.allocations[address])
     h.trap(EXEC - 684, allocate_dirty)
-    assert not h.call('load_custom_frame', h.blob(b'frame.config\0'), SCREEN)
+    assert not h.call('zmod_load_custom_frame', h.blob(b'frame.config\0'), SCREEN)
     h.finish()
 
     # Failed tile bitmap allocation must not cache an unusable backfill.
@@ -188,7 +190,7 @@ def check(path):
     node = h.blob(bytes(192))
     for offset, value in [(12, 123), (16, 8), (20, 2), (24, SCREEN)]:
         h.mem.w32(node + offset, value)
-    h.call('dt_put_on_rastport_tiled', node, RP, 0, 0, 31, 31, 0, 0)
+    h.call('zmod_put_on_rastport_tiled', node, RP, 0, 0, 31, 31, 0, 0)
     assert h.mem.r32(node + 32) == 0
     h.finish()
 

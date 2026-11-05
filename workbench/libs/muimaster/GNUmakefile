@@ -60,9 +60,9 @@ BBB_CFLAGS := $(shell $(CC) -fbbb=abcefhlmnprsz0 -S -o /dev/null -x c /dev/null 
 LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(BBB_CFLAGS) $(LTO_CFLAGS) \
   -fno-common -fno-builtin -fno-strict-aliasing
 SOURCES = \
-  gcc/format.c gcc/runtime.c muimaster_init.c datatypescache.c dragndrop.c font.c \
+  gcc/format.c gcc/runtime.c muimaster_init.c datatypescache.c font.c \
   frame.c pointer.c imspec.c imspec_vector.c imspec_gradient.c muigfx.c \
-  imspec_gradientdraw.c menu.c penspec.c support.c support_amigaos.c \
+  modules.c penspec.c support.c support_amigaos.c \
   support_classes.c textengine.c bubbleengine.c clipboard.c locale.c \
   mui_addclipping.c mui_addclipregion.c mui_allocaslrequest.c \
   staticlib/mui_newobject.c staticlib/mui_makeobject.c staticlib/mui_request.c staticlib/mui_allocaslrequesttags.c mui_aslrequest.c \
@@ -93,17 +93,22 @@ SOURCES = \
   classes/scrollbar.c classes/scrollbutton.c classes/scrollgroup.c \
   classes/settings.c classes/settingsgroup.c classes/slider.c \
   classes/string.c classes/text.c classes/textdata.c classes/title.c classes/virtgroup.c \
-  classes/volumelist.c classes/window.c
+  classes/volumelist.c classes/window.c \
+  classes/zmenu.c classes/zpicture.c classes/zdragdrop.c classes/zrequest.c \
+  classes/zgradient.c
 # Classes built as files of their own, $(BUILD)/Zune/<Name>.mui, installed
 # in LIBS:Zune/ and loaded the first time a program makes one of their
 # objects, as MUI 3.8 does with MUI:Libs/mui (classfile.h). CLASSFILES=
-# (empty) builds every class into the library again.
+# (empty) builds every class into the library again. The z* entries are
+# modules (modules.h): rarely used parts of the library that are not
+# classes, each behind a private class.
 CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   frameadjust framedisplay gauge imageadjust imagedisplay knob levelmeter \
   numericbutton palette penadjust pendisplay popasl popframe popimage poppen \
   popscreen scale scrollgroup volumelist \
   fontpanel filepanel selectorpanel keyadjust title datamap textdata \
-  selectgroup process dtpic register bitmap bodychunk chunkyimage
+  selectgroup process dtpic register bitmap bodychunk chunkyimage \
+  zmenu zpicture zdragdrop zrequest zgradient
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
 CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
 CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/Zune/$(shell echo $(c) | sed 's/^./\U&/').mui)

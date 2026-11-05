@@ -20,6 +20,7 @@
 #include "mui.h"
 #include "support.h"
 #include "muimaster_intern.h"
+#include "requesters.h"
 
 extern struct Library *MUIMasterBase;
 
@@ -137,6 +138,21 @@ static void muiDataStreamFromFormat(CONST_STRPTR format, APTR dataStream,  ULONG
 {
     AROS_LIBFUNC_INIT
 
+#if defined(ZUNE68_GCC_NATIVE) && !defined(ZUNE_REQUEST_MODULE)
+    /* The requester window is made by a module (modules.h), which has
+     * this function in full */
+    if (!app)
+    {
+        struct EasyStruct es;
+        es.es_StructSize   = sizeof(struct EasyStruct);
+        es.es_Flags        = 0;
+        es.es_Title        = title;
+        es.es_TextFormat   = format;
+        es.es_GadgetFormat = gadgets;
+        return EasyRequestArgs(NULL,&es,NULL,params);
+    }
+    return ZuneRequestWindow(app, win, flags, title, gadgets, format, params);
+#else
     LONG result;
     char *reqtxt;
     LONG reqtxt_len;
@@ -357,6 +373,7 @@ static void muiDataStreamFromFormat(CONST_STRPTR format, APTR dataStream,  ULONG
         MUI_DisposeObject(req_wnd);
     }
     return result;
+#endif
 
     AROS_LIBFUNC_EXIT
 

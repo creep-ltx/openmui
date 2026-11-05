@@ -16,6 +16,9 @@
 #include "classes/selectorpanel.h"
 #include "requesters.h"
 
+/* Built twice: the library has ZuneFreeFileResult() only, the request
+ * module (modules.h, classes/zrequest.c) the rest */
+#ifdef ZUNE_REQUEST_MODULE
 struct Request
 {
     struct Request *next;
@@ -93,6 +96,7 @@ static struct Request *find_request(APTR public)
     ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
     return r;
 }
+#else
 /* Filepanel's result buffers, never storage allocated by asl.library.
  * Here rather than in Filepanel, which may be a class file of its own. */
 void ZuneFreeFileResult(struct FileRequester *r)
@@ -110,7 +114,9 @@ void ZuneFreeFileResult(struct FileRequester *r)
     r->fr_NumArgs = 0;
     r->fr_Drawer = r->fr_File = r->fr_Pattern = NULL;
 }
+#endif
 
+#ifdef ZUNE_REQUEST_MODULE
 static void free_result(struct Request *r)
 {
     if (r->owned)
@@ -406,3 +412,4 @@ BOOL ZuneAslRequest(APTR public, struct TagItem *tags)
     r->running = FALSE;
     return accepted;
 }
+#endif /* ZUNE_REQUEST_MODULE */

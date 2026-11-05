@@ -81,6 +81,8 @@ asm(
 #endif
 
 extern const struct __MUIBuiltinClass _MUI_Settings_desc;
+extern const struct __MUIBuiltinClass _MUI_Zmenu_desc, _MUI_Zpicture_desc,
+    _MUI_Zdragdrop_desc, _MUI_Zrequest_desc, _MUI_Zgradient_desc;
 
 static const struct __MUIBuiltinClass *const builtins[] = {
     &_MUI_Notify_desc,
@@ -183,6 +185,22 @@ static const struct __MUIBuiltinClass *const builtins[] = {
         ZUNE_PANELGROUP_DESC
         ZUNE_DRAGHANDLE_DESC
         ZUNE_PANELTITLE_DESC
+    /* Modules (modules.h): parts of the library that are not classes */
+#if ZUNE_BUILTIN_ZMENU
+    &_MUI_Zmenu_desc,
+#endif
+#if ZUNE_BUILTIN_ZPICTURE
+    &_MUI_Zpicture_desc,
+#endif
+#if ZUNE_BUILTIN_ZDRAGDROP
+    &_MUI_Zdragdrop_desc,
+#endif
+#if ZUNE_BUILTIN_ZREQUEST
+    &_MUI_Zrequest_desc,
+#endif
+#if ZUNE_BUILTIN_ZGRADIENT
+    &_MUI_Zgradient_desc,
+#endif
 };
 
 static BOOL zune_is_mui_file(CONST_STRPTR name)

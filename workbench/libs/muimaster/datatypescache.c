@@ -30,8 +30,24 @@
 
 extern struct Library *MUIMasterBase;
 
+/* Built twice in the native build: the library has the image containers,
+ * the masked blit and the size of a picture; the picture module
+ * (modules.h, classes/zpicture.c) loads and draws pictures and custom
+ * frames. Other builds have both halves in the library. */
+#if !defined(ZUNE68_GCC_NATIVE)
+#define DTC_LIBRARY 1
+#define DTC_PICTURES 1
+#elif defined(ZUNE_PICTURE_MODULE)
+#define DTC_LIBRARY 0
+#define DTC_PICTURES 1
+#else
+#define DTC_LIBRARY 1
+#define DTC_PICTURES 0
+#endif
+#if DTC_PICTURES
 static struct List dt_list;
 static int dt_initialized;
+#endif
 
 
 struct LayerHookMsg
@@ -89,6 +105,7 @@ struct BackFillInfo
     WORD OffsetY;
 };
 
+#if DTC_LIBRARY
 #ifndef __AROS__
 
 /* A BltBitMaskPort() replacement which blits masks for interleaved bitmaps
@@ -169,7 +186,9 @@ VOID MyBltMaskBitMapRastPort(struct BitMap *srcBitMap, LONG xSrc, LONG ySrc,
 }
 
 #endif
+#endif /* DTC_LIBRARY */
 
+#if DTC_PICTURES
 static Object *LoadDTPicture(CONST_STRPTR filename, struct Screen *scr, BOOL dtDoRemap, BOOL dtBMFree)
 {
     struct Process *myproc = (struct Process *)FindTask(NULL);
@@ -322,7 +341,9 @@ void GetIntegers(char *v, int *v1, int *v2)
         }
     }
 }
+#endif /* DTC_PICTURES */
 
+#if DTC_LIBRARY
 /* Function:   Create a new Image with the specified dimensions
  * Input:      UWORD   w, h:
     *                          width and height ofthe wished Image
@@ -374,7 +395,9 @@ void DisposeImageContainer(struct NewImage *ni)
         FreeVec(ni);
     }
 }
+#endif /* DTC_LIBRARY */
 
+#if DTC_PICTURES
 /* Function:   Load an Image from a file
  * Input:      char   name:
     *                          Filename of the Image to load
@@ -839,7 +862,9 @@ void dt_dispose_picture(struct dt_node *node)
     }
     ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
 }
+#endif /* DTC_PICTURES */
 
+#if DTC_LIBRARY
 int dt_width(struct dt_node *node)
 {
     if (node)
@@ -855,7 +880,9 @@ int dt_height(struct dt_node *node)
     else
         return 0;
 }
+#endif /* DTC_LIBRARY */
 
+#if DTC_PICTURES
 void dt_put_on_rastport(struct dt_node *node, struct RastPort *rp, int x,
     int y)
 {
@@ -1221,3 +1248,4 @@ void dt_put_on_rastport_tiled(struct dt_node *node, struct RastPort *rp,
     }
     ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
 }
+#endif /* DTC_PICTURES */

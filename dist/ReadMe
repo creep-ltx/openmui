@@ -43,7 +43,10 @@ explicit choice as upgrades. The default is Skip.
 
   Libs/Zune/*        -> LIBS:Zune/ (no question per file)
     The library's own rarely used classes as files (Balance.mui,
-    Floattext.mui, ...), loaded when a program first needs them, and
+    Floattext.mui, ...) and rarely used parts of the library (Zmenu.mui:
+    context menus, Zdragdrop.mui: drag and drop, Zrequest.mui:
+    requesters, Zpicture.mui: picture images and frames, Zgradient.mui:
+    gradients), loaded when a program first needs them, and
     Pixmap.mui. They belong to this release's library and work with no
     other: always install them with it.
 
