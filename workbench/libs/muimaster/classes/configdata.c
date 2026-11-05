@@ -224,11 +224,8 @@ const static struct def_ulval DefULValues[] = {
     PREF_DEFAULT(MUICFG_Window_Spacing_Left, 4, window_inner_left),
     PREF_DEFAULT(MUICFG_Window_Spacing_Right, 4, window_inner_right),
     PREF_DEFAULT(MUICFG_Window_Spacing_Top, 4, window_inner_top),
-#ifdef ZUNE68_GCC_NATIVE
-    PREF_DEFAULT(MUICFG_Window_Buttons, MUIV_Window_Button_MUI | MUIV_Window_Button_Iconify, window_buttons),
-#else
+    /* MUI 3.8: no extra title bar gadgets until switched on */
     PREF_DEFAULT(MUICFG_Window_Buttons, 0, window_buttons),
-#endif
     PREF_DEFAULT(MUICFG_Window_Spacing_Bottom, 4, window_inner_bottom),
     PREF_DEFAULT(MUICFG_Window_Positions, WINDOW_POSITION_FORGET_ON_EXIT, window_position),
     PREF_DEFAULT(MUICFG_Window_Redraw, WINDOW_REDRAW_WITHOUT_CLEAR, window_redraw),

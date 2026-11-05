@@ -1082,20 +1082,6 @@ struct IDNode
     UWORD id;
 };
 
-#ifdef ZUNE68_GCC_NATIVE
-/* Title gadgets are BOOPSI buttons like MUI 3.9's: their image paints the
- * whole box in the title bar colour before drawing its borders. */
-struct NativeTitleGadget
-{
-    struct Gadget *gadget;
-    Object *image;
-    ULONG id;
-    struct Border frame[2];
-    struct Border symbol[4];
-    WORD frame_xy[12];
-    WORD symbol_xy[4][12];
-};
-#endif
 
 struct MUI_ImageSpec_intern;
 
@@ -1183,12 +1169,9 @@ struct MUI_WindowData
     /* Public mri_Pens contains only UWORD pen numbers. Keep ownership bits. */
     LONG wd_PenHandles[MPEN_COUNT];
 #ifdef ZUNE68_GCC_NATIVE
-    struct NativeTitleGadget *wd_TitleGadgets;
-    UWORD wd_TitleGadgetCount;
+    struct Gadget *wd_TitleGadgets[4]; /* extra title gadgets, TG_* */
     ULONG wd_SnapshotSeconds, wd_SnapshotMicros;
     BOOL wd_SnapshotClick;
-    Class *wd_TitleImageClass;
-    WORD wd_TitleMinWidth;
 #endif
     struct WindowEventCursor *wd_EventCursors;
     struct ZuneWindowGuard *wd_Guards;
@@ -1892,326 +1875,406 @@ static void UndisplayWindow(Object *obj, struct MUI_WindowData *data);
 static struct ObjNode *FindObjNode(struct MinList *list, Object *obj);
 
 #ifdef ZUNE68_GCC_NATIVE
-static const ULONG NativeTitleActions[] = {
-    MUIV_Window_Button_MUI, MUIV_Window_Button_Iconify,
-    MUIV_Window_Button_Snapshot, MUIV_Window_Button_Popup
+#include "titleglyphs.h"
+
+/* The extra title bar gadgets as MUI 3.8 has them: Popup, Prefs, Snapshot
+ * and Iconify, left to right, left of the zoom and depth gadgets. Each box
+ * is 23 pixels wide and as tall as the title bar, on every screen. One
+ * private gadget class for all windows, made when the first window gets
+ * one; a window holds only its gadget objects. */
+
+/* Prefs bit of each gadget, in title bar order (TG_POPUP...) */
+static const UBYTE TitleButtons[4] = {
+    MUIV_Window_Button_Popup, MUIV_Window_Button_MUI,
+    MUIV_Window_Button_Snapshot, MUIV_Window_Button_Iconify
 };
-#define NATIVE_TITLE_COUNT (sizeof(NativeTitleActions) / sizeof(NativeTitleActions[0]))
+#define TITLE_BOX      23
+#define TITLE_LEFTMOST 4   /* in the gadget's UserData: draw the divider */
 
-static LONG NativeWindowMinWidth(struct MUI_WindowData *data, LONG borders)
-{
-    LONG width = data->wd_MinMax.MinWidth + borders;
-    return width < data->wd_TitleMinWidth ? data->wd_TitleMinWidth : width;
-}
+/* The actions, also the window menu's items in order */
+enum { TA_ICONIFY, TA_SNAPSHOT, TA_UNSNAPSHOT, TA_SETTINGS, TA_ABOUT };
+static const char *const TitleMenuLabels[] = {
+    "Iconify", "Snapshot", "Unsnapshot", "Settings...", "About MUI..."
+};
 
-static void NativeTitleRectangle(WORD *xy, WORD left, WORD top,
-    WORD right, WORD bottom)
-{
-    xy[0] = left;  xy[1] = top;
-    xy[2] = right; xy[3] = top;
-    xy[4] = right; xy[5] = bottom;
-    xy[6] = left;  xy[7] = bottom;
-    xy[8] = left;  xy[9] = top;
-}
+static Class *TitleGadgetClass;
 
-/* The title gadget image: its Border chain is the ImageData (IA_Data). */
-static BOOPSI_DISPATCHER(IPTR, NativeTitleImage_Dispatcher, cl, obj, msg)
+static void TitleGadgetRender(struct Gadget *g, struct GadgetInfo *gi,
+    struct RastPort *rp)
 {
-    if (msg->MethodID == IM_DRAW || msg->MethodID == IM_DRAWFRAME)
+    UWORD *dp = gi->gi_DrInfo->dri_Pens;
+    BOOL active = (gi->gi_Window->Flags & WFLG_WINDOWACTIVE) != 0;
+    BOOL pressed = (g->Flags & GFLG_SELECTED) != 0;
+    ULONG which = (ULONG)g->UserData & 3;
+    WORD x = gi->gi_Domain.Left + g->LeftEdge;
+    WORD y = gi->gi_Domain.Top + g->TopEdge;
+    WORD h = g->Height, top, bottom;
+    UWORD pens[4], back = dp[BACKGROUNDPEN];
+
+    if (g->Flags & GFLG_RELRIGHT)
+        x += gi->gi_Domain.Width - 1;
+    /* An inactive window: SHINE and FILL become BACKGROUND, the SHADOW
+     * lines stay; a pressed gadget stays FILL inside. */
+    pens[TG_SHADOW] = dp[SHADOWPEN];
+    pens[TG_SHINE] = active ? dp[SHINEPEN] : back;
+    pens[TG_FILL] = active ? dp[FILLPEN] : back;
+    pens[TG_BACK] = back;
+    SetDrMd(rp, JAM1);
+    SetAPen(rp, active || pressed ? dp[FILLPEN] : back);
+    RectFill(rp, x + 1, y + 1, x + TITLE_BOX - 2, y + h - 2);
+    /* the top and bottom rows run through the corners, as on
+     * Intuition's own gadgets */
+    SetAPen(rp, dp[pressed ? SHADOWPEN : SHINEPEN]);
+    RectFill(rp, x, y, x + TITLE_BOX - 1, y);
+    RectFill(rp, x, y + 1, x, y + h - 2);
+    SetAPen(rp, dp[pressed ? SHINEPEN : SHADOWPEN]);
+    RectFill(rp, x + TITLE_BOX - 1, y + 1, x + TITLE_BOX - 1, y + h - 2);
+    RectFill(rp, x, y + h - 1, x + TITLE_BOX - 1, y + h - 1);
+    if ((ULONG)g->UserData & TITLE_LEFTMOST)
     {
-        struct impDraw *draw = (struct impDraw *)msg;
-        struct Image *im = (struct Image *)obj;
-        struct RastPort *rp = draw->imp_RPort;
-        UWORD *pens = draw->imp_DrInfo->dri_Pens;
-        WORD x = draw->imp_Offset.X + im->LeftEdge;
-        WORD y = draw->imp_Offset.Y + im->TopEdge;
-        BOOL inactive = draw->imp_State == IDS_INACTIVENORMAL ||
-            draw->imp_State == IDS_INACTIVESELECTED ||
-            draw->imp_State == IDS_INACTIVEDISABLED;
+        SetAPen(rp, dp[SHADOWPEN]);
+        RectFill(rp, x - 1, y + 1, x - 1, y + h - 2);
+    }
+    if (which == TG_ICONIFY)
+    {
+        /* stretches with the title bar like the zoom gadget */
+        WORD m = (h + 2) / 7;
+        top = y + 1 + m;
+        bottom = y + h - 2 - m;
+    }
+    else
+    {
+        /* an 8-row drawing centred in the inner rows, odd row below */
+        top = y + 1 + ((h - 10) >> 1);
+        bottom = top + 7;
+    }
+    DrawTitleGlyph(rp, pens, which * 2 + pressed,
+        x + (TITLE_BOX - TG_WIDTH) / 2, top, bottom, y + 1, y + h - 2);
+}
 
-        SetDrMd(rp, JAM1);
-        SetAPen(rp, pens[inactive ? BACKGROUNDPEN : FILLPEN]);
-        RectFill(rp, x, y, x + im->Width - 1, y + im->Height - 1);
-        DrawBorder(rp, (struct Border *)im->ImageData, x, y);
-        return TRUE;
+static void TitleGadgetRefresh(struct Gadget *g, struct GadgetInfo *gi)
+{
+    struct RastPort *rp = ObtainGIRPort(gi);
+    if (rp)
+    {
+        TitleGadgetRender(g, gi, rp);
+        ReleaseGIRPort(rp);
+    }
+}
+
+static BOOPSI_DISPATCHER(IPTR, TitleGadget_Dispatcher, cl, obj, msg)
+{
+    struct Gadget *g = (struct Gadget *)obj;
+    struct gpInput *gpi = (struct gpInput *)msg;
+
+    switch (msg->MethodID)
+    {
+    case GM_RENDER:
+        TitleGadgetRender(g, ((struct gpRender *)msg)->gpr_GInfo,
+            ((struct gpRender *)msg)->gpr_RPort);
+        return 0;
+    case GM_GOACTIVE:
+        {
+            struct Window *win = gpi->gpi_GInfo->gi_Window;
+            /* a sleeping window's gadgets look normal and do nothing */
+            if (!gpi->gpi_IEvent || !win->UserData ||
+                muiWindowData((Object *)win->UserData)->wd_SleepCount)
+                return GMR_NOREUSE;
+            g->Flags |= GFLG_SELECTED;
+            TitleGadgetRefresh(g, gpi->gpi_GInfo);
+            return GMR_MEACTIVE;
+        }
+    case GM_HANDLEINPUT:
+        {
+            struct InputEvent *ie = gpi->gpi_IEvent;
+            BOOL in = gpi->gpi_Mouse.X >= 0 && gpi->gpi_Mouse.X < g->Width &&
+                gpi->gpi_Mouse.Y >= 0 && gpi->gpi_Mouse.Y < g->Height;
+
+            if (ie->ie_Class != IECLASS_RAWMOUSE)
+                return GMR_MEACTIVE;
+            if (ie->ie_Code == SELECTUP)
+            {
+                *gpi->gpi_Termination = 0;
+                return in ? GMR_NOREUSE | GMR_VERIFY : GMR_NOREUSE;
+            }
+            if (ie->ie_Code == MENUDOWN)
+                return GMR_NOREUSE;
+            if (in != ((g->Flags & GFLG_SELECTED) != 0))
+            {
+                g->Flags ^= GFLG_SELECTED;
+                TitleGadgetRefresh(g, gpi->gpi_GInfo);
+            }
+            return GMR_MEACTIVE;
+        }
+    case GM_GOINACTIVE:
+        g->Flags &= ~GFLG_SELECTED;
+        TitleGadgetRefresh(g, ((struct gpGoInactive *)msg)->gpgi_GInfo);
+        return 0;
     }
     return DoSuperMethodA(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 
+/* At library expunge: no window is left, so no gadget either. */
+void zune_title_gadgets_free(void)
+{
+    if (TitleGadgetClass && FreeClass(TitleGadgetClass))
+        TitleGadgetClass = NULL;
+}
+
 static void CreateNativeTitleGadgets(Object *obj, struct MUI_WindowData *data,
     struct Window *win)
 {
     ULONG buttons = muiGlobalInfo(obj)->mgi_Prefs->window_buttons;
-    struct Gadget *g;
-    struct NativeTitleGadget *items;
-    LONG right = win->BorderRight, left = win->BorderLeft;
-    LONG height = win->BorderTop, width = 2 * height + 1;
-    LONG count = !!(buttons & MUIV_Window_Button_MUI) +
-        !!(buttons & MUIV_Window_Button_Iconify) +
-        !!(buttons & MUIV_Window_Button_Snapshot) +
-        !!(buttons & MUIV_Window_Button_Popup);
-    LONG i, needed, added = 0;
+    struct Gadget *g, *leftmost = NULL;
+    LONG right = 0, height = win->BorderTop;
+    BOOL depth = FALSE;
+    int i;
 
-    /* MUI 3.9 adds them to untitled windows too (tests/native/notitle.c) */
-    if (!count ||
-        (win->Flags & (WFLG_BORDERLESS | WFLG_BACKDROP)) ||
-        (data->wd_Flags & MUIWF_TOOLBOX) || height < 8)
+    /* Snapshot needs a window ID; it is left out, not disabled */
+    if (!data->wd_ID)
+        buttons &= ~MUIV_Window_Button_Snapshot;
+    if (!(buttons & (MUIV_Window_Button_Popup | MUIV_Window_Button_MUI |
+        MUIV_Window_Button_Snapshot | MUIV_Window_Button_Iconify)) ||
+        (data->wd_Flags & MUIWF_TOOLBOX))
         return;
 
-    /* The system's actual gadgets account for font size and optional zoom. */
+    /* Left of the zoom and depth gadgets; none without a depth gadget */
     for (g = win->FirstGadget; g; g = g->NextGadget)
     {
-        if (!(g->GadgetType & GTYP_SYSGADGET))
+        UWORD type = g->GadgetType & GTYP_SYSTYPEMASK;
+        if (!(g->GadgetType & GTYP_SYSGADGET) ||
+            !(g->Flags & GFLG_RELRIGHT) || g->TopEdge >= height ||
+            type == GTYP_SIZING)
             continue;
-        if ((g->Flags & GFLG_RELRIGHT) && g->TopEdge < height &&
-            (g->GadgetType & GTYP_SYSTYPEMASK) != GTYP_SIZING)
-        {
-            if (-g->LeftEdge > right)
-                right = -g->LeftEdge;
-            if ((g->GadgetType & GTYP_SYSTYPEMASK) == GTYP_WDEPTH &&
-                g->Width > 1)
-                width = g->Width - 1;
-        }
-        else if ((g->GadgetType & GTYP_SYSTYPEMASK) == GTYP_CLOSE)
-            left = g->LeftEdge + g->Width;
+        if (type == GTYP_WDEPTH)
+            depth = TRUE;
+        if (-g->LeftEdge > right)
+            right = -g->LeftEdge;
     }
-    if (width < 15)
-        width = 15;
-    /* MUI 3.9 adds its gadgets however narrow the window is */
-    needed = left + right + count * width + 16;
-    data->wd_TitleImageClass = MakeClass(NULL, IMAGECLASS, NULL, 0, 0);
-    if (!data->wd_TitleImageClass)
+    if (!depth)
         return;
-    data->wd_TitleImageClass->cl_Dispatcher.h_Entry =
-        (HOOKFUNC)NativeTitleImage_Dispatcher;
-    data->wd_TitleGadgetCount = NATIVE_TITLE_COUNT;
-    while (!(buttons & NativeTitleActions[data->wd_TitleGadgetCount - 1]))
-        data->wd_TitleGadgetCount--;
-    items = AllocVec(data->wd_TitleGadgetCount * sizeof(*items),
-        MEMF_PUBLIC | MEMF_CLEAR);
-    if (!items)
-        return;
-    data->wd_TitleGadgets = items;
-    /* Keep the gadgets visible when resizing, unless they never fit */
-    data->wd_TitleMinWidth = needed <= win->Width ? needed : 0;
-    for (i = 0; i < data->wd_TitleGadgetCount; i++)
-    {
-        struct NativeTitleGadget *item = &items[i];
-        WORD *xy;
-        WORD center = width / 2, top;
-        WORD symbol_height = height < 10 ? 10 : height;
-        UWORD *pens = data->wd_RenderInfo.mri_DrawInfo->dri_Pens;
-        ULONG bit = NativeTitleActions[i];
-        ULONG id;
-        int part, parts;
-        if (!(buttons & bit))
-            continue;
-        id = DoMethod(obj, MUIM_Window_AllocGadgetID);
-        if (!id)
-            continue;
-        right += width;
-        item->id = id;
-        /* Title gadgets share the top/bottom frame lines with the system
-         * gadgets. An inset bevel adds an unwanted line inside the title. */
-        item->frame_xy[0] = 0;
-        item->frame_xy[1] = height - 2;
-        item->frame_xy[2] = 0;
-        item->frame_xy[3] = 0;
-        item->frame_xy[4] = width - 1;
-        item->frame_xy[5] = 0;
-        item->frame_xy[6] = width - 1;
-        item->frame_xy[7] = 1;
-        item->frame_xy[8] = width - 1;
-        item->frame_xy[9] = height - 1;
-        item->frame_xy[10] = 0;
-        item->frame_xy[11] = height - 1;
-        item->frame[0].FrontPen = pens[SHINEPEN];
-        item->frame[1].FrontPen = pens[SHADOWPEN];
-        for (part = 0; part < 2; part++)
-        {
-            item->frame[part].DrawMode = JAM1;
-            item->frame[part].Count = 3;
-            item->frame[part].XY = item->frame_xy + part * 6;
-        }
-        item->frame[0].NextBorder = &item->frame[1];
-        item->frame[1].NextBorder = &item->symbol[0];
 
-        if (!i)
+    if (!TitleGadgetClass)
+    {
+        struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
+        ObtainSemaphore(&base->ZuneSemaphore);
+        if (!TitleGadgetClass)
         {
-            /* Settings: a window containing a small raised gadget. */
-            top = (symbol_height - 7) / 2;
-            NativeTitleRectangle(item->symbol_xy[0], center - 6, top,
-                center + 6, top + 6);
-            NativeTitleRectangle(item->symbol_xy[1], center - 4, top + 2,
-                center - 1, top + 4);
-            xy = item->symbol_xy[2];
-            xy[0] = center - 3; xy[1] = top + 3;
-            xy[2] = center - 2; xy[3] = top + 3;
-            item->symbol[0].Count = item->symbol[1].Count = 5;
-            item->symbol[2].Count = 2;
-            item->symbol[2].FrontPen = pens[SHINEPEN];
-            parts = 3;
-        }
-        else if (i == 1)
-        {
-            /* Iconify: a downward arrow above the Workbench icon. */
-            top = (symbol_height - 8) / 2;
-            xy = item->symbol_xy[0];
-            xy[0] = center - 4; xy[1] = top;
-            xy[2] = center + 4; xy[3] = top;
-            xy[4] = center;     xy[5] = top + 4;
-            xy[6] = center - 4; xy[7] = top;
-            item->symbol[0].Count = 4;
-            NativeTitleRectangle(item->symbol_xy[1], center - 4, top + 5,
-                center + 4, top + 7);
-            item->symbol[1].Count = 5;
-            xy = item->symbol_xy[2];
-            xy[0] = center - 2; xy[1] = top + 1;
-            xy[2] = center + 2; xy[3] = top + 1;
-            xy[4] = center + 1; xy[5] = top + 2;
-            xy[6] = center - 1; xy[7] = top + 2;
-            xy[8] = center;     xy[9] = top + 3;
-            item->symbol[2].Count = 5;
-            item->symbol[2].FrontPen = pens[BACKGROUNDPEN];
-            xy = item->symbol_xy[3];
-            xy[0] = center - 3; xy[1] = top + 6;
-            xy[2] = center + 3; xy[3] = top + 6;
-            item->symbol[3].Count = 2;
-            item->symbol[3].FrontPen = pens[SHINEPEN];
-            parts = 4;
-        }
-        else
-        {
-            /* Snapshot: a framed position marker. Popup: three menu rows. */
-            top = (symbol_height - 7) / 2;
-            NativeTitleRectangle(item->symbol_xy[0], center - 5, top,
-                center + 5, top + 6);
-            item->symbol[0].Count = 5;
-            parts = i == 2 ? 3 : 4;
-            for (part = 1; part < parts; part++)
+            Class *cl = MakeClass(NULL, GADGETCLASS, NULL, 0, 0);
+            if (cl)
             {
-                xy = item->symbol_xy[part];
-                xy[0] = center - 3; xy[2] = center + 3;
-                xy[1] = xy[3] = top + (i == 2 ? 3 : part * 2 - 1);
-                if (i == 2 && part == 2)
-                {
-                    xy[0] = xy[2] = center;
-                    xy[1] = top + 1; xy[3] = top + 5;
-                }
-                item->symbol[part].Count = 2;
-                item->symbol[part].FrontPen = pens[TEXTPEN];
+                cl->cl_Dispatcher.h_Entry = (HOOKFUNC)TitleGadget_Dispatcher;
+                TitleGadgetClass = cl;
             }
         }
-        item->symbol[0].FrontPen = item->symbol[1].FrontPen = pens[TEXTPEN];
-        for (part = 0; part < parts; part++)
-        {
-            /* Fit small screen fonts without painting over the frame. */
-            if (height < symbol_height)
-            {
-                int point;
-                for (point = 0; point < item->symbol[part].Count; point++)
-                {
-                    WORD *y = &item->symbol_xy[part][2 * point + 1];
-                    *y = 1 + (*y - 1) * (height - 3) /
-                        (symbol_height - 3);
-                }
-            }
-            item->symbol[part].DrawMode = JAM1;
-            item->symbol[part].XY = item->symbol_xy[part];
-            item->symbol[part].NextBorder = part + 1 < parts ?
-                &item->symbol[part + 1] : NULL;
-        }
-        item->image = NewObject(data->wd_TitleImageClass, NULL,
-            IA_Width, width, IA_Height, height, IA_Data, &item->frame[0],
-            TAG_DONE);
-        g = item->image ? (struct Gadget *)NewObject(NULL, BUTTONGCLASS,
-            GA_RelRight, -right, GA_Top, 0, GA_Width, width,
-            GA_Height, height, GA_TopBorder, TRUE, GA_RelVerify, TRUE,
-            GA_Disabled, bit == MUIV_Window_Button_Snapshot && !data->wd_ID,
-            GA_Highlight, GFLG_GADGHNONE, GA_Image, item->image,
-            GA_ID, id, TAG_DONE) : NULL;
+        ReleaseSemaphore(&base->ZuneSemaphore);
+        if (!TitleGadgetClass)
+            return;
+    }
+
+    /* Right to left; switched off ones leave no gap. MUI 3.8 does not
+     * widen a narrow window for them. */
+    for (i = 4; i--; )
+    {
+        if (!(buttons & TitleButtons[i]))
+            continue;
+        g = (struct Gadget *)NewObject(TitleGadgetClass, NULL,
+            GA_RelRight, -(right + TITLE_BOX), GA_Top, 0,
+            GA_Width, TITLE_BOX, GA_Height, height, GA_TopBorder, TRUE,
+            GA_RelVerify, TRUE, GA_UserData, i, TAG_DONE);
         if (!g)
             continue;
-        item->gadget = g;
-        /* Before the system drag gadget, so this region remains clickable,
-         * in creation order like MUI 3.9. Like MUI 3.9, do not refresh the
-         * frame: Intuition would then cut the title at these gadgets,
-         * earlier than MUI 3.9's, which paint over it instead. */
-        AddGadget(win, g, added++);
-        RefreshGList(g, win, NULL, 1);
+        right += TITLE_BOX;
+        data->wd_TitleGadgets[i] = g;
+        leftmost = g;
+        /* Before the system drag gadget, so this region stays clickable */
+        AddGadget(win, g, 0);
+    }
+    if (leftmost)
+    {
+        leftmost->UserData = (APTR)((ULONG)leftmost->UserData | TITLE_LEFTMOST);
+        /* Draws the gadgets and cuts the title where they begin */
+        RefreshWindowFrame(win);
     }
 }
 
-static void NativeTitlePopup(Object *obj, struct MUI_WindowData *data)
+/* One window menu item: a FILL bar 2 pixels in from the side lines when
+ * highlighted, the label centred one row below the item's top. */
+static void TitleMenuItem(struct RastPort *rp, UWORD *pens,
+    struct TextFont *font, const char *s, WORD y, WORD w, WORD bw, BOOL hl)
 {
-    struct ZuneWindowGuard guard = {0};
-    Object *menu, *group, *item, *app = _app(obj);
-    static CONST_STRPTR labels[] = {
-        "Settings...", "Snapshot", "Unsnapshot", "Iconify", "Send to back"
-    };
-    ULONG i, choice;
-    menu = MUI_NewObject(MUIC_Menustrip, TAG_DONE);
-    group = MUI_NewObject(MUIC_Menu, MUIA_Menu_Title, "Window", TAG_DONE);
-    if (!menu || !group)
-    {
-        if (menu) MUI_DisposeObject(menu);
-        if (group) MUI_DisposeObject(group);
-        return;
-    }
-    DoMethod(menu, OM_ADDMEMBER, group);
+    WORD len = strlen(s), l = TextLength(rp, s, len);
+    SetAPen(rp, pens[hl ? FILLPEN : SHINEPEN]);
+    RectFill(rp, bw + 2, y, w - 3 - bw, y + font->tf_YSize);
+    SetAPen(rp, pens[TEXTPEN]);
+    Move(rp, bw + (w - 2 * bw - l) / 2, y + 1 + font->tf_Baseline);
+    Text(rp, s, len);
+}
+
+/* The window menu: an own drawn menu under the title bar, centred on the
+ * Popup gadget. Return the chosen TA_* or -1. */
+static int TitleMenu(struct MUI_WindowData *data)
+{
+    struct Window *pw = data->wd_RenderInfo.mri_Window, *mw;
+    struct Screen *scr = pw->WScreen;
+    struct DrawInfo *dri = data->wd_RenderInfo.mri_DrawInfo;
+    UWORD *pens = dri->dri_Pens;
+    struct TextFont *font = dri->dri_Font;
+    struct RastPort *rp, measure;
+    struct Gadget *popup = data->wd_TitleGadgets[TG_POPUP];
+    UBYTE items[5];
+    WORD n = 0, i, hit = -1, choice = -1, fh = font->tf_YSize + 1;
+    WORD tw = 0, w, h, bw, left, top;
+    BOOL down = FALSE, done = FALSE, deactivated = FALSE;
+
     for (i = 0; i < 5; i++)
     {
-        item = MUI_NewObject(MUIC_Menuitem, MUIA_Menuitem_Title, labels[i],
-            MUIA_UserData, i + 1, MUIA_Menuitem_Enabled,
-            (i != 1 && i != 2) || data->wd_ID != 0, TAG_DONE);
-        if (!item) { MUI_DisposeObject(menu); return; }
-        DoMethod(group, OM_ADDMEMBER, item);
+        if ((i == TA_SNAPSHOT || i == TA_UNSNAPSHOT) && !data->wd_ID)
+            continue;
+        items[n++] = i;
     }
-    ZuneWatchWindow(obj, &guard);
-    choice = DoMethod(menu, MUIM_Menustrip_Popup, data->wd_RootObject, 0,
-        data->wd_RenderInfo.mri_Window->MouseX - _left(data->wd_RootObject),
-        data->wd_RenderInfo.mri_Window->BorderTop - _top(data->wd_RootObject));
-    MUI_DisposeObject(menu);
-    if (guard.closed) return;
-    ZuneUnwatchWindow(obj, &guard);
-    switch (choice)
+    InitRastPort(&measure);
+    SetFont(&measure, font);
+    for (i = 0; i < n; i++)
     {
-    case 1: DoMethod(app, MUIM_Application_OpenConfigWindow); break;
-    case 2: DoMethod(obj, MUIM_Window_Snapshot, 1); break;
-    case 3: DoMethod(obj, MUIM_Window_Snapshot, 0); break;
-    case 4: set(app, MUIA_Application_Iconified, TRUE); break;
-    case 5: DoMethod(obj, MUIM_Window_ToBack); break;
+        const char *s = TitleMenuLabels[items[i]];
+        WORD l = TextLength(&measure, s, strlen(s));
+        if (l > tw)
+            tw = l;
+    }
+    /* Twice as wide side lines where pixels are twice as tall */
+    bw = dri->dri_Resolution.Y > dri->dri_Resolution.X ? 2 : 1;
+    w = tw + 28 + 2 * bw;
+    h = 4 + n * fh;
+    left = pw->LeftEdge + pw->Width - 1 + popup->LeftEdge + TITLE_BOX / 2
+        - w / 2;
+    if (left + w > scr->Width)
+        left = scr->Width - w;
+    if (left < 0)
+        left = 0;
+    top = pw->TopEdge + pw->BorderTop;
+    if (top + h > scr->Height)
+        top = scr->Height - h;
+    mw = OpenWindowTags(NULL, WA_CustomScreen, (IPTR)scr,
+        WA_Left, left, WA_Top, top, WA_Width, w, WA_Height, h,
+        WA_Borderless, TRUE, WA_Activate, TRUE, WA_RMBTrap, TRUE,
+        WA_ReportMouse, TRUE, WA_IDCMP, IDCMP_MOUSEMOVE | IDCMP_MOUSEBUTTONS |
+        IDCMP_RAWKEY | IDCMP_INACTIVEWINDOW, TAG_DONE);
+    if (!mw)
+        return -1;
+    rp = mw->RPort;
+    SetFont(rp, font);
+    SetDrMd(rp, JAM1);
+    SetAPen(rp, pens[SHADOWPEN]);
+    RectFill(rp, 0, 0, w - 1, h - 1);
+    SetAPen(rp, pens[SHINEPEN]);
+    RectFill(rp, bw, 1, w - 1 - bw, h - 2);
+    for (i = 0; i < n; i++)
+        TitleMenuItem(rp, pens, font, TitleMenuLabels[items[i]],
+            2 + i * fh, w, bw, FALSE);
+    while (!done)
+    {
+        struct IntuiMessage *im;
+        WaitPort(mw->UserPort);
+        while ((im = (struct IntuiMessage *)GetMsg(mw->UserPort)))
+        {
+            ULONG class = im->Class;
+            UWORD code = im->Code;
+            WORD mx = im->MouseX, my = im->MouseY, now = -1;
+            ReplyMsg((struct Message *)im);
+            if (class == IDCMP_INACTIVEWINDOW)
+            {
+                done = deactivated = TRUE;
+                continue;
+            }
+            if (class == IDCMP_RAWKEY)
+            {
+                if (code == 0x45)   /* Esc */
+                    done = TRUE;
+                continue;
+            }
+            if (mx >= bw && mx < w - bw && my >= 2 && my < h - 2)
+                now = (my - 2) / fh;
+            if (now != hit)
+            {
+                if (hit >= 0)
+                    TitleMenuItem(rp, pens, font, TitleMenuLabels[items[hit]],
+                        2 + hit * fh, w, bw, FALSE);
+                hit = now;
+                if (hit >= 0)
+                    TitleMenuItem(rp, pens, font, TitleMenuLabels[items[hit]],
+                        2 + hit * fh, w, bw, TRUE);
+            }
+            if (class == IDCMP_MOUSEBUTTONS)
+            {
+                if (code == SELECTDOWN)
+                    down = TRUE;
+                else if (code == SELECTUP && down && hit >= 0)
+                {
+                    choice = items[hit];
+                    done = TRUE;
+                }
+            }
+        }
+    }
+    CloseWindow(mw);
+    if (!deactivated)
+        ActivateWindow(pw);
+    return choice;
+}
+
+static void FreeNativeTitleGadgets(struct MUI_WindowData *data)
+{
+    int i;
+    /* the window is closed, so the gadgets are no longer attached */
+    for (i = 0; i < 4; i++)
+    {
+        if (data->wd_TitleGadgets[i])
+            DisposeObject(data->wd_TitleGadgets[i]);
+        data->wd_TitleGadgets[i] = NULL;
     }
 }
 
-static void FreeNativeTitleGadgets(Object *obj, struct MUI_WindowData *data)
+static int TitleGadgetIndex(struct MUI_WindowData *data, APTR gadget)
 {
-    if (data->wd_TitleGadgets)
-    {
-        int i;
-        /* the window is closed, so the gadgets are no longer attached */
-        for (i = 0; i < data->wd_TitleGadgetCount; i++)
-        {
-            struct NativeTitleGadget *item = &data->wd_TitleGadgets[i];
+    int i;
+    for (i = 0; i < 4; i++)
+        if (gadget && gadget == data->wd_TitleGadgets[i])
+            return i;
+    return -1;
+}
 
-            if (item->gadget)
-                DisposeObject(item->gadget);
-            if (item->image)
-                DisposeObject(item->image);
-            if (item->id)
-                DoMethod(obj, MUIM_Window_FreeGadgetID, item->id);
-        }
-        FreeVec(data->wd_TitleGadgets);
-        data->wd_TitleGadgets = NULL;
-    }
-    if (data->wd_TitleImageClass)
+/* A click on a title gadget, after its message has been replied */
+static void TitleGadgetUp(Object *win, struct MUI_WindowData *data,
+    int which, ULONG seconds, ULONG micros)
+{
+    Object *app = _app(win);
+    int action = TA_ICONIFY;
+
+    if (which == TG_POPUP)
+        action = TitleMenu(data);
+    else if (which == TG_PREFS)
+        action = TA_SETTINGS;
+    else if (which == TG_SNAPSHOT)
     {
-        FreeClass(data->wd_TitleImageClass);
-        data->wd_TitleImageClass = NULL;
+        /* a double-click forgets: the first click snapshots */
+        BOOL undo = data->wd_SnapshotClick && DoubleClick(
+            data->wd_SnapshotSeconds, data->wd_SnapshotMicros,
+            seconds, micros);
+        data->wd_SnapshotClick = !undo;
+        data->wd_SnapshotSeconds = seconds;
+        data->wd_SnapshotMicros = micros;
+        action = undo ? TA_UNSNAPSHOT : TA_SNAPSHOT;
     }
-    data->wd_TitleGadgetCount = 0;
-    data->wd_TitleMinWidth = 0;
+    switch (action)
+    {
+    case TA_ICONIFY: set(app, MUIA_Application_Iconified, TRUE); break;
+    case TA_SNAPSHOT: DoMethod(win, MUIM_Window_Snapshot, 1); break;
+    case TA_UNSNAPSHOT: DoMethod(win, MUIM_Window_Snapshot, 0); break;
+    case TA_SETTINGS: DoMethod(app, MUIM_Application_OpenConfigWindow, 0); break;
+    case TA_ABOUT: DoMethod(app, MUIM_Application_AboutMUI, (IPTR)win); break;
+    }
 }
 #endif
 
@@ -2392,11 +2455,7 @@ static BOOL DisplayWindow(Object *obj, struct MUI_WindowData *data)
         /* set window limits according to window contents */
         WindowLimits
             (win,
-#ifdef ZUNE68_GCC_NATIVE
-            NativeWindowMinWidth(data, hborders),
-#else
             data->wd_MinMax.MinWidth + hborders,
-#endif
             data->wd_MinMax.MinHeight + vborders,
             data->wd_MinMax.MaxWidth + hborders,
             data->wd_MinMax.MaxHeight + vborders);
@@ -2507,7 +2566,7 @@ static void UndisplayWindow(Object *obj, struct MUI_WindowData *data)
     }
 
 #ifdef ZUNE68_GCC_NATIVE
-    FreeNativeTitleGadgets(obj, data);
+    FreeNativeTitleGadgets(data);
 #endif
 
 #define DISPOSEGADGET(x) \
@@ -3432,11 +3491,7 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
             /* set window limits according to window contents */
             WindowLimits
                 (iWin,
-#ifdef ZUNE68_GCC_NATIVE
-                NativeWindowMinWidth(data, hborders),
-#else
                 data->wd_MinMax.MinWidth + hborders,
-#endif
                 data->wd_MinMax.MinHeight + vborders,
                 data->wd_MinMax.MaxWidth + hborders,
                 data->wd_MinMax.MaxHeight + vborders);
@@ -4351,16 +4406,18 @@ void _zune_window_message(struct IntuiMessage *imsg)
             HandleRawkey(oWin, data, imsg);
         else if (IDCMP_GADGETUP == imsg->Class)
         {
-            ULONG action = 0;
 #ifdef ZUNE68_GCC_NATIVE
-            if (data->wd_TitleGadgets && imsg->IAddress)
+            int title = TitleGadgetIndex(data, imsg->IAddress);
+            if (title >= 0)
             {
-                ULONG i;
-                for (i = 0; i < data->wd_TitleGadgetCount; i++)
-                    if (imsg->IAddress == data->wd_TitleGadgets[i].gadget)
-                        action = NativeTitleActions[i];
+                ULONG seconds = imsg->Seconds, micros = imsg->Micros;
+                /* Iconification can close this window and free its gadgets. */
+                ReplyMsg((struct Message *)imsg);
+                TitleGadgetUp(oWin, data, title, seconds, micros);
             }
-#elif defined(__AROS__)
+#else
+            ULONG action = 0;
+#if defined(__AROS__)
             if (imsg->IAddress)
             {
                 if (ETI_MUI == ((struct Gadget *)imsg->IAddress)->GadgetID)
@@ -4372,28 +4429,14 @@ void _zune_window_message(struct IntuiMessage *imsg)
             if (action)
             {
                 Object *app = _app(oWin);
-                ULONG seconds = imsg->Seconds, micros = imsg->Micros;
                 /* Iconification can close this window and free its gadgets. */
                 ReplyMsg((struct Message *)imsg);
                 if (action == MUIV_Window_Button_MUI)
                     DoMethod(app, MUIM_Application_OpenConfigWindow);
                 else if (action == MUIV_Window_Button_Iconify)
                     set(app, MUIA_Application_Iconified, TRUE);
-#ifdef ZUNE68_GCC_NATIVE
-                else if (action == MUIV_Window_Button_Snapshot)
-                {
-                    BOOL undo = data->wd_SnapshotClick && DoubleClick(
-                        data->wd_SnapshotSeconds, data->wd_SnapshotMicros,
-                        seconds, micros);
-                    data->wd_SnapshotClick = !undo;
-                    data->wd_SnapshotSeconds = seconds;
-                    data->wd_SnapshotMicros = micros;
-                    DoMethod(oWin, MUIM_Window_Snapshot, !undo);
-                }
-                else if (action == MUIV_Window_Button_Popup)
-                    NativeTitlePopup(oWin, data);
-#endif
             }
+#endif
             else
                 HandleInputEvent(oWin, data, imsg);
         }

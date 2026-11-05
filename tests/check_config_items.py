@@ -72,10 +72,11 @@ def check(path):
         assert h.query(0x12345678, direct) == (0, SENTINEL)
         assert h.query(7, direct, storage=0) == (0, SENTINEL)
 
-    assert h.query(0x50a) == (1, 5)
-    h.mem.w32(PAYLOAD, 0)
-    h.items[0x50a] = PAYLOAD
+    # Window buttons: none by default, as MUI 3.8 (was Settings + Iconify)
     assert h.query(0x50a) == (1, 0)
+    h.mem.w32(PAYLOAD, 9)
+    h.items[0x50a] = PAYLOAD
+    assert h.query(0x50a) == (1, 9)
 
     # Builtin numeric data is decoded, while custom numeric/binary prefs
     # keep the historical pointer contract used by external classes.
