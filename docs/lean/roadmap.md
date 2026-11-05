@@ -31,6 +31,7 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    rarely used code into files loaded on demand (window snapshot and
    title gadgets, list editing and drag, string extras, ...), then the
    largest classes made smaller where they do work MUI 3.8 does not.
+   Never at the cost of speed or features.
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.
