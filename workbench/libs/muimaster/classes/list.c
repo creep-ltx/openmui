@@ -2816,12 +2816,33 @@ IPTR List__MUIM_Hide(struct IClass *cl, Object *obj,
 }
 
 
+/* The entry area's clip. On OS 3.1 a clip costs about 1.5 ms
+ * (InstallClipRegion twice), more than repainting two rows of text, so
+ * a cursor move clips only when something drawn may leave the area.
+ * MUI 3.8 does not clip there either. */
+struct ListClip
+{
+    APTR handle;
+    BOOL done;
+};
+
+static void List_NeedClip(Object *obj, struct MUI_ListData *data,
+    struct ListClip *lc)
+{
+    if (lc && !lc->done)
+    {
+        lc->handle = MUI_AddClipping(muiRenderInfo(obj), _mleft(data->area),
+            _mtop(data->area), _mwidth(data->area), _mheight(data->area));
+        lc->done = TRUE;
+    }
+}
+
 /**************************************************************************
  Draw an entry at entry_pos at the given row. To draw the title, set pos to
- ENTRY_TITLE
+ ENTRY_TITLE. lc is the entry area's clip, NULL when one is installed.
 **************************************************************************/
 static VOID List_DrawEntry(struct IClass *cl, Object *obj, int entry_pos,
-    int y)
+    int y, struct ListClip *lc)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
     struct ListEntry *entry = data->entries[entry_pos];
@@ -2848,6 +2869,8 @@ static VOID List_DrawEntry(struct IClass *cl, Object *obj, int entry_pos,
         x2 = x1 + ColumnWidth(data, col);
         if (data->ci[col].is_object && entry_pos != ENTRY_TITLE)
         {
+            /* the cell clips only to its own rectangle */
+            List_NeedClip(obj, data, lc);
             DrawCellObject(obj, (Object *)data->strings[col], x1, y,
                 ColumnWidth(data, col), row_height);
             x1 = x2 + data->ci[col].delta + (data->ci[col].bar ? BAR_WIDTH : 0);
@@ -2870,6 +2893,16 @@ static VOID List_DrawEntry(struct IClass *cl, Object *obj, int entry_pos,
             y_offset = y + (row_height - text->height + 1) / 2;
             if (y_offset < y)
                 y_offset = y;
+            /* Plain text within the area needs no clip. Its width is
+             * TextLength's, as everywhere else in Zune; an italic font
+             * may paint past it. */
+            if (lc && !lc->done && !(borrowed
+                && x1 >= _mleft(data->area)
+                && x1 + text->width - 1 <= _mright(data->area)
+                && y_offset >= _mtop(data->area)
+                && y_offset + text->height - 1 <= _mbottom(data->area)
+                && !(_font(obj)->tf_Style & FSF_ITALIC)))
+                List_NeedClip(obj, data, lc);
             /* Note, this was MPEN_SHADOW before */
             SetAPen(_rp(obj), muiRenderInfo(obj)->mri_Pens[MPEN_TEXT]);
 
@@ -2948,7 +2981,7 @@ static void List_DrawTitleStrip(struct IClass *cl, Object *obj)
         Draw(rp, right, bottom);
         Draw(rp, right, top + 1);
     }
-    List_DrawEntry(cl, obj, ENTRY_TITLE, top + 2);
+    List_DrawEntry(cl, obj, ENTRY_TITLE, top + 2, NULL);
     MUI_RemoveClipping(muiRenderInfo(obj), clip);
 }
 
@@ -2959,7 +2992,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
     int entry_pos, y;
-    APTR clip;
+    struct ListClip clip = { (APTR)-1, FALSE };
     int start, end, exposed_start = 0, exposed_end = 0;
     BOOL scrolling = FALSE;
     BOOL scroll_caused_damage = FALSE;
@@ -3015,13 +3048,15 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             0, data->entries_first * data->entry_maxheight, 0);
     }
 
-    /* An empty list without a title draws nothing in the entry area;
-     * installing a clip there would only rebuild the layer's cliprects */
-    if (data->entries_num == 0 && !(data->title_height && data->title))
-        clip = (APTR)-1;
-    else
-        clip = MUI_AddClipping(muiRenderInfo(obj), _mleft(data->area),
-            _mtop(data->area), _mwidth(data->area), entries_height);
+    /* A full repaint or a scroll clips at once, as it nearly always
+     * draws a cut-off last row: a clip installed later would wait for
+     * the blitter to finish the rows queued so far. Other updates repaint
+     * a few rows and clip only when one needs it (List_NeedClip). An
+     * empty list without a title draws nothing in the entry area. */
+    if (((msg->flags & MADF_DRAWUPDATE) == 0
+            || (data->update & UPDATEMODE_ALL))
+        && (data->entries_num != 0 || (data->title_height && data->title)))
+        List_NeedClip(obj, data, &clip);
 
     if ((msg->flags & MADF_DRAWUPDATE) == 0 || data->update == UPDATEMODE_ALL)
     {
@@ -3030,7 +3065,9 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
          */
         if (data->title_height && data->title)
         {
-            List_DrawEntry(cl, obj, ENTRY_TITLE, y);
+            if (y + data->entries[ENTRY_TITLE]->height + 1 > entries_bottom)
+                List_NeedClip(obj, data, &clip);
+            List_DrawEntry(cl, obj, ENTRY_TITLE, y, &clip);
             y += data->entries[ENTRY_TITLE]->height;
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
             Move(_rp(obj), _mleft(data->area), y);
@@ -3083,6 +3120,8 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 
         top = y;
         bottom = y + (end - start) * data->entry_maxheight;
+        if (bottom > entries_bottom)
+            List_NeedClip(obj, data, &clip);
 
         DoMethod(obj, MUIM_DrawBackground, _mleft(data->area), top,
             _mwidth(data->area), bottom - top + 1, 0,
@@ -3111,6 +3150,11 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_NEEDED
                 && (entry->flags & ENTRY_RENDER)))
         {
+            /* a cut-off row: its highlight and background too */
+            if (y < _mtop(data->area)
+                || y + data->entry_maxheight - 1 > entries_bottom)
+                List_NeedClip(obj, data, &clip);
+
             /* Choose appropriate highlight image */
 
             if (entry_pos == data->entries_active
@@ -3157,7 +3201,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
                 RectFill(_rp(obj), _mleft(data->area), y,
                     _mright(data->area), y + data->entry_maxheight - 1);
             }
-            List_DrawEntry(cl, obj, entry_pos, y);
+            List_DrawEntry(cl, obj, entry_pos, y, &clip);
             entry->flags &= ~ENTRY_RENDER;
         }
         y += data->entry_maxheight;
@@ -3200,6 +3244,8 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 
             if (data->ci[col].bar)
             {
+                if (x1 < _mleft(data->area))
+                    List_NeedClip(obj, data, &clip);
                 /* MUI 3.9: shadow, then shine (tests/native/barfmt.c) */
                 SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
                 Move(_rp(obj), x1, y);
@@ -3230,6 +3276,8 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 
         if (data->ci[col].bar)
         {
+            if (x1 < _mleft(data->area) || y > entries_bottom)
+                List_NeedClip(obj, data, &clip);
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
             Move(_rp(obj), x1, y);
             Draw(_rp(obj), x1, entries_bottom);
@@ -3243,7 +3291,8 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         x1 += data->ci[col].delta - halfdelta;
     }
 
-    MUI_RemoveClipping(muiRenderInfo(obj), clip);
+    if (clip.done)
+        MUI_RemoveClipping(muiRenderInfo(obj), clip.handle);
 
     data->flags &= ~LIST_CHANGED;
 

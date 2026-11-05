@@ -369,6 +369,44 @@ boots differ by under 1%):
   graphics or FS-UAE), not investigated.
 - 68020 builds are 0-2% faster than 68000 ones in the same batches.
 
+## List selection: the clip (2026-11-05)
+
+Why "list active" is slower than MUI 3.8 on OS 3.1 (`perfbench` split into
+parts, OS calls counted with 12-byte `addq.l #1,count; jmp old` stubs,
+InstallClipRegion callers found by a frame-pointer walk; all FS-UAE, OS 3.1
++ 4 MB fast, 68000 builds):
+
+| part | MUI 3.8 | lean | lean, no clip at all (test only) |
+|---|---:|---:|---:|
+| list active x50 (perfbench) | 1063 ms | 1128 ms | 1051 ms |
+| cursor moves inside the view x50 | 208 ms | 278 ms | 192 ms |
+| cursor moves that scroll by 7 rows x24 | 507 ms | 598 ms | 562 ms |
+
+- Every List draw installed the entry area's clip: MUI_AddClipping, two
+  InstallClipRegion calls, 13 AllocMem/FreeMem pairs. On OS 3.1 that is
+  about 1.5 ms, more than repainting the two cursor rows. MUI 3.8 does not
+  clip a cursor move (no InstallClipRegion at all) and fits the text with
+  TextFit instead. Stefan's 3.2.3 measurement does not show this, so its
+  layers are presumably cheaper here.
+- Fix (`List_NeedClip`): a full repaint or a scroll still clips at once; a
+  cursor move clips only when a row is cut off at the bottom, has object
+  cells or formatted text, or its plain text leaves the area. Installing the
+  clip late in a full repaint was 5% slower: InstallClipRegion then waits
+  for the blitter to finish the queued rows.
+- Result, same session: cursor moves inside the view 288 -> 194 ms
+  (MUI 3.8: 208), list active x50 1142 -> 1119 ms (MUI 3.8: 1063), full
+  list redraw and insert within 1%. `tests/lean/listclip.c` (row checksums
+  of six lists with too-wide, styled, columned and cut-off rows through
+  cursor moves, redraw and relayout) gives identical output with and
+  without the change; `list_repaint_probe` passes (189 comparisons).
+- What is left (+5%) is in the scrolling moves: the scroll still needs the
+  clip because it repaints the cut-off last row (MUI 3.9 behaviour, see
+  `listvisible.c`), and Zune makes 7 SetAttrsA calls per step where MUI
+  3.8 makes 2. Intuition's own scroller refresh adds two InstallClipRegion
+  calls per step on both toolkits.
+- The host tests (`make check-core`) do not run on this PC: the installed
+  machine68k has no `Machine.from_name`.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
