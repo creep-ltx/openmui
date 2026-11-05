@@ -28,6 +28,9 @@ class NotifyHarness(Harness):
         self.mem.w16(CLASS + 32, 0)
         self.trap(UTILITY - 48, self.next_tag)
         self.trap(EXEC - 258, self.rem_head)
+        # notification nodes are AllocMem blocks freed with their size
+        self.trap(EXEC - 198, self.alloc_vec)
+        self.trap(EXEC - 210, self.free_mem_sized)
         self.trap(self.symbols['_DoSuperMethodA'], self.super_method)
         self.trap(self.symbols['_DoMethodA'], self.method)
         self.ret = self.blob(b'\x4e\x75')
@@ -60,6 +63,14 @@ class NotifyHarness(Harness):
             self.freed[address] = bytes([0xa5]) * size
             self.mem.w_block(address, self.freed[address])
             super().free_vec()
+
+    def free_mem_sized(self):
+        address, size = self.cpu.r_reg(9), self.cpu.r_reg(0)
+        assert self.allocations.get(address) == size, \
+            ('FreeMem size', hex(address), size, self.allocations.get(address))
+        self.freed[address] = bytes([0xa5]) * size
+        self.mem.w_block(address, self.freed[address])
+        del self.allocations[address]
 
     def rem_head(self):
         head = self.cpu.r_reg(8)
@@ -180,8 +191,8 @@ def check(path):
             assert h.mem.r32(storage) == value, (library, hex(attr), h.mem.r32(storage))
         h.finish()
 
-    # list header, node with its parameter copy (one block in the lean
-    # edition; upstream allocates the parameters separately)
+    # list header (AllocVec), node with its parameters (one AllocMem block
+    # in the lean edition; upstream allocates the parameters separately)
     for failed_call in [1, 2]:
         h = NotifyHarness(path)
         calls = [0]
@@ -190,9 +201,26 @@ def check(path):
             h.fail_alloc = calls[0] == failed_call
             h.alloc_vec()
         h.trap(EXEC - 684, allocate)
+        h.trap(EXEC - 198, allocate)
         assert not h.add(1)
         h.fire()
         assert not h.events
+        h.finish()
+
+    # EveryTime with up to 7 parameters builds the message on the stack;
+    # a longer one keeps a second copy after its parameters. Both must
+    # substitute the value afresh on every delivery.
+    for count in (3, 7, 9):
+        h = NotifyHarness(path)
+        fill = list(range(100, 100 + count - 3))
+        assert h.call('Notify__MUIM_Notify', CLASS, OBJECT,
+                      h.words(0, ATTR, EVERY, 0x123456, count, 1, TRIGGER,
+                              NOT_TRIGGER, *fill))
+        h.fire(value=7)
+        h.fire(value=0)
+        h.fire(value=9)
+        assert [e[1:] for e in h.events] == [(1, 7, 0), (1, 0, 1), (1, 9, 0)], \
+            (count, h.events)
         h.finish()
 
     h = NotifyHarness(path)

@@ -305,18 +305,26 @@ struct MUI_NotifyAttributes
 /*
  * Notification handler
  */
+/* One allocation: the node, then (for an input-event trigger) the parsed
+ * IX, then nn_NumParams + 1 parameter words (the last one 0). An
+ * MUIV_EveryTime node builds the message with the trigger value on the
+ * stack; only one with more than NN_STACKPARAMS - 1 parameters keeps a
+ * second copy for it after the first (NNF_OWNCOPY). */
 typedef struct NotifyNode
 {
     struct MinNode nn_Node;
-    BOOL nn_Active;     /* TRUE if notification is currently being handled */
+    UBYTE nn_Active;    /* TRUE if notification is currently being handled */
                         /* It's used to prevent loops */
+    UBYTE nn_Flags;
+    UWORD nn_NumParams;
     ULONG nn_TrigAttr;
     IPTR nn_TrigVal;
     APTR nn_DestObj;
-    ULONG nn_NumParams;
-    IPTR *nn_Params;    /* FIXME: use nn_Params[1] and tweak stuff below */
-    IPTR *nn_NewParams; /* For MUIV_EveryTime */
 } *NNode;
+
+#define NNF_IX      1
+#define NNF_OWNCOPY 2
+#define NN_STACKPARAMS 8
 
 typedef struct NotifyNodeIX
 {
@@ -345,6 +353,19 @@ struct NotifyList
 #define NN_RUNNING 1
 #define NN_REMOVED 2
 
+#define NN_HEADSIZE(n) (((n)->nn_Flags & NNF_IX) \
+    ? ((sizeof(struct NotifyNodeIX) + 3) & ~3) : sizeof(struct NotifyNode))
+#define NN_PARAMS(n) ((IPTR *)((UBYTE *)(n) + NN_HEADSIZE(n)))
+
+static ULONG NNodeSize(struct NotifyNode *nnode)
+{
+    ULONG words = nnode->nn_NumParams + 1;
+
+    if (nnode->nn_Flags & NNF_OWNCOPY)
+        words *= 2;
+    return NN_HEADSIZE(nnode) + words * sizeof(IPTR);
+}
+
 /* Allocate an owned notification node and copies of FollowParams message
  * words. Parse an input-event expression when required. Return NULL on
  * parse or allocation failure, releasing partial node storage. data is
@@ -357,10 +378,12 @@ static struct NotifyNode *CreateNNode(struct MUI_NotifyData *data,
     ULONG i, paramsize, nodesize = sizeof(struct NotifyNode);
     IX ix = { IX_VERSION };
     BOOL isix = FALSE;
+    UBYTE flags = 0;
+    IPTR *params;
 
     struct NotifyNode *nnode;
 
-    if (msg->FollowParams > ((ULONG)-1 / sizeof(IPTR) / 2) - 1)
+    if (msg->FollowParams > 0xfffe)
         return NULL;
 
     if ((msg->TrigAttr == MUIA_Window_InputEvent)
@@ -377,41 +400,37 @@ static struct NotifyNode *CreateNNode(struct MUI_NotifyData *data,
        like it can live with that (without crashing) */
 
     paramsize = (msg->FollowParams + 1);
-    if (msg->TrigVal == MUIV_EveryTime)
+    if (msg->TrigVal == MUIV_EveryTime && paramsize > NN_STACKPARAMS)
     {
         paramsize *= 2;
+        flags |= NNF_OWNCOPY;
     }
+    if (isix)
+        flags |= NNF_IX;
 
     /* The node and its parameters are one allocation: half the blocks
      * and their Exec overhead for every notification. */
     nodesize = (nodesize + sizeof(IPTR) - 1) & ~(sizeof(IPTR) - 1);
-    if (!(nnode = mui_alloc(nodesize + paramsize * sizeof(IPTR))))
+    if (!(nnode = AllocMem(nodesize + paramsize * sizeof(IPTR), MEMF_ANY)))
         return NULL;
     if (isix)
         ((struct NotifyNodeIX *)nnode)->ix = ix;
 
     nnode->nn_Active = FALSE;
+    nnode->nn_Flags = flags;
     nnode->nn_TrigAttr = msg->TrigAttr;
     nnode->nn_TrigVal = msg->TrigVal;
     nnode->nn_DestObj = msg->DestObj;
     nnode->nn_NumParams = msg->FollowParams;
-    nnode->nn_Params = (IPTR *)((UBYTE *)nnode + nodesize);
+    params = NN_PARAMS(nnode);
     {
         IPTR *par = (IPTR *) & msg->FollowParams;
 
         for (i = 0; i < msg->FollowParams; i++)
         {
-            nnode->nn_Params[i] = *(par + i + 1);
+            params[i] = *(par + i + 1);
         }
-
-        if (msg->TrigVal == MUIV_EveryTime)
-        {
-            nnode->nn_NewParams = nnode->nn_Params + msg->FollowParams + 1;
-            for (i = 0; i < msg->FollowParams; i++)
-            {
-                nnode->nn_NewParams[i] = *(par + i + 1);
-            }
-        }
+        params[i] = 0;
     }
     return nnode;
 }
@@ -440,7 +459,7 @@ static void DeleteNNode(struct MUI_NotifyData *data,
         nnode->nn_Active = NN_REMOVED;
     else
     {
-        mui_free(nnode); /* nn_Params is in the same block */
+        FreeMem(nnode, NNodeSize(nnode)); /* parameters included */
     }
 }
 
@@ -556,6 +575,8 @@ IPTR Notify__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
  */
 static void check_notify(NNode nnode, Object *obj, struct TagItem *tag)
 {
+    /* 32 bytes per nesting level; bigger messages use the node's copy */
+    IPTR stackparams[NN_STACKPARAMS];
     IPTR *params;
     APTR destobj;
     int i;
@@ -648,22 +669,28 @@ static void check_notify(NNode nnode, Object *obj, struct TagItem *tag)
         if (!destobj)
             return;
 
-        params = nnode->nn_Params;
+        params = NN_PARAMS(nnode);
         if (nnode->nn_TrigVal == MUIV_EveryTime)
         {
-            params = nnode->nn_NewParams;
+            IPTR *saved = params;
 
-            for (i = 1; i < nnode->nn_NumParams; i++)
+            params = (nnode->nn_Flags & NNF_OWNCOPY)
+                ? saved + nnode->nn_NumParams + 1 : stackparams;
+            /* the method (word 0) and the trailing 0 are copied too */
+            for (i = 0; i <= nnode->nn_NumParams; i++)
             {
-                switch (nnode->nn_Params[i])
+                switch (saved[i])
                 {
                 case MUIV_TriggerValue:
-                    params[i] = tag->ti_Data;
+                    params[i] = i ? tag->ti_Data : saved[i];
                     break;
 
                 case MUIV_NotTriggerValue:
-                    params[i] = !tag->ti_Data;
+                    params[i] = i ? !tag->ti_Data : saved[i];
                     break;
+
+                default:
+                    params[i] = saved[i];
                 }
             }
         }
@@ -675,7 +702,7 @@ static void check_notify(NNode nnode, Object *obj, struct TagItem *tag)
 
         if (nnode->nn_Active == NN_REMOVED)
         {
-            mui_free(nnode); /* nn_Params is in the same block */
+            FreeMem(nnode, NNodeSize(nnode)); /* parameters included */
         }
         else
             nnode->nn_Active = FALSE;
