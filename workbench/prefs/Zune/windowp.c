@@ -21,6 +21,8 @@
 #endif
 
 #include "zunestuff.h"
+#include "windowp.h"
+#include "../../libs/muimaster/titleglyphs.h"
 #include <string.h>
 
 extern struct Library *MUIMasterBase;
@@ -39,25 +41,91 @@ struct MUI_WindowPData
     Object *spacing_right_slider;
     Object *spacing_top_slider;
     Object *spacing_bottom_slider;
-    Object *mui;
-    Object *popup;
-    Object *iconify;
-    Object *snapshot;
+    Object *gadgets[4]; /* Popup, Prefs, Snapshot, Iconify */
 };
+
+/* The title bar gadgets' bits, in title bar order */
+static const ULONG gadget_bits[4] = {
+    MUIV_Window_Button_Popup, MUIV_Window_Button_MUI,
+    MUIV_Window_Button_Snapshot, MUIV_Window_Button_Iconify
+};
+
+static CONST_STRPTR gadget_help[4] = {
+    "Popup gadget: opens the window menu\n"
+    "(Iconify, Snapshot, Unsnapshot, Settings..., About MUI...).",
+    "Prefs gadget: opens the application's own settings window.",
+    "Snapshot gadget: a click remembers the window's position and size,\n"
+    "a double-click forgets them. Only on windows with an ID.",
+    "Iconify gadget: hides the application behind an icon on Workbench."
+};
+
+/* A toggle button showing a title bar gadget's own drawing: the normal
+ * one when off, the pressed one when on. MUIA_UserData is the TG_* number. */
+static struct MUI_CustomClass *TitleButton_CLASS;
+
+BOOPSI_DISPATCHER(IPTR, TitleButton_Dispatcher, cl, obj, msg)
+{
+    switch (msg->MethodID)
+    {
+    case MUIM_AskMinMax:
+        {
+            struct MUI_MinMax *mm;
+            DoSuperMethodA(cl, obj, msg);
+            /* after the super call: Zune's Area points it at its own */
+            mm = ((struct MUIP_AskMinMax *)msg)->MinMaxInfo;
+            mm->MinWidth += 23; mm->DefWidth += 23; mm->MaxWidth += 23;
+            mm->MinHeight += 10; mm->DefHeight += 10; mm->MaxHeight += 10;
+            return 0;
+        }
+    case MUIM_Draw:
+        {
+            UWORD *dp = _dri(obj)->dri_Pens, pens[4];
+            WORD top = _mtop(obj) + (_mheight(obj) - 8) / 2;
+            DoSuperMethodA(cl, obj, msg);
+            if (!(((struct MUIP_Draw *)msg)->flags & MADF_DRAWOBJECT))
+                return 0;
+            pens[TG_SHADOW] = dp[SHADOWPEN];
+            pens[TG_SHINE] = dp[SHINEPEN];
+            pens[TG_FILL] = dp[FILLPEN];
+            pens[TG_BACK] = dp[BACKGROUNDPEN];
+            SetDrMd(_rp(obj), JAM1);
+            DrawTitleGlyph(_rp(obj), pens, muiUserData(obj) * 2 +
+                (XGET(obj, MUIA_Selected) ? 1 : 0),
+                _mleft(obj) + (_mwidth(obj) - TG_WIDTH) / 2, top, top + 7,
+                _mtop(obj), _mbottom(obj));
+            return 0;
+        }
+    }
+    return DoSuperMethodA(cl, obj, msg);
+}
+BOOPSI_DISPATCHER_END
+
+void delete_window_classes(void)
+{
+    if (TitleButton_CLASS)
+        MUI_DeleteCustomClass(TitleButton_CLASS);
+    TitleButton_CLASS = NULL;
+}
+
+static Object *MakeTitleButton(int which)
+{
+    if (!TitleButton_CLASS)
+        TitleButton_CLASS = MUI_CreateCustomClass(NULL, MUIC_Area, NULL, 0,
+            TitleButton_Dispatcher);
+    if (!TitleButton_CLASS)
+        return NULL;
+    return NewObject(TitleButton_CLASS->mcc_Class, NULL,
+        ButtonFrame,
+        MUIA_Background, MUII_ButtonBack,
+        MUIA_InputMode, MUIV_InputMode_Toggle,
+        MUIA_UserData, which,
+        MUIA_ShortHelp, gadget_help[which],
+        TAG_DONE);
+}
 
 static CONST_STRPTR positions_labels[4];
 static CONST_STRPTR refresh_labels[3];
 static CONST_STRPTR redraw_labels[3];
-
-#define _Button(name)\
-    TextObject,\
-        ButtonFrame,\
-        MUIA_Font, MUIV_Font_Button,\
-        MUIA_Text_Contents, name,\
-        MUIA_Text_PreParse, "\33c",\
-        MUIA_InputMode    , MUIV_InputMode_Toggle,\
-        MUIA_Background   , MUII_ButtonBack,\
-        End
 
 static IPTR WindowP_New(struct IClass *cl, Object *obj, struct opSet *msg)
 {
@@ -91,21 +159,15 @@ static IPTR WindowP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                       Child, (IPTR) (d.refresh_cycle = MakeCycle(_(MSG_REFRESH), refresh_labels)),
                       Child, (IPTR) Label(_(MSG_REDRAW)),
                       Child, (IPTR) (d.redraw_cycle = MakeCycle(_(MSG_REDRAW), redraw_labels)),
-              Child, (IPTR) Label(_(MSG_BUTTONS)),
-                Child, HGroup,
-                    NoFrame,
-                    Child, ColGroup(8),
-                     NoFrame,
-                     Child, HVSpace,
-                     Child, d.mui = _Button("M"),
-                     Child, HVSpace,
-                     Child, d.snapshot = _Button("S"),
-                     Child, HVSpace,
-                     Child, d.popup = _Button("P"),
-                     Child, HVSpace,
-                     Child, d.iconify = _Button("I"),
-                    End,
-                End,
+                      Child, (IPTR) Label("Gadgets:"),
+                      Child, (IPTR) HGroup,
+                         MUIA_Group_Spacing, 0,
+                         Child, (IPTR) (d.gadgets[TG_POPUP] = MakeTitleButton(TG_POPUP)),
+                         Child, (IPTR) (d.gadgets[TG_PREFS] = MakeTitleButton(TG_PREFS)),
+                         Child, (IPTR) (d.gadgets[TG_SNAPSHOT] = MakeTitleButton(TG_SNAPSHOT)),
+                         Child, (IPTR) (d.gadgets[TG_ICONIFY] = MakeTitleButton(TG_ICONIFY)),
+                         Child, (IPTR) HSpace(0),
+                         End,
                       End,
                    Child, (IPTR) VSpace(0),
                    End,
@@ -160,12 +222,6 @@ static IPTR WindowP_New(struct IClass *cl, Object *obj, struct opSet *msg)
     data = INST_DATA(cl, obj);
     *data = d;
 
-    set(data->mui, MUIA_ShortHelp, "Show the application settings titlebar button.");
-    set(data->snapshot, MUIA_ShortHelp,
-        "Show the snapshot titlebar button. Click to save the window position;\n"
-        "double-click to forget it. Requires an application window ID.");
-    set(data->popup, MUIA_ShortHelp, "Show the window actions popup button.");
-    set(data->iconify, MUIA_ShortHelp, "Show the application iconify titlebar button.");
 
     return (IPTR)obj;
 }
@@ -177,6 +233,7 @@ static IPTR WindowP_ConfigToGadgets(struct IClass *cl, Object *obj,
     struct MUI_WindowPData *data = INST_DATA(cl, obj);
     STRPTR spec;
     ULONG buttons;
+    int i;
 
 /* Fonts */
     setstring(data->font_normal_string, (IPTR)FindFont(MUICFG_Font_Normal));
@@ -219,10 +276,8 @@ static IPTR WindowP_ConfigToGadgets(struct IClass *cl, Object *obj,
 
     buttons = DoMethod(msg->configdata, MUIM_Configdata_GetULong, MUICFG_Window_Buttons);
 
-    if ((buttons & MUIV_Window_Button_MUI) != 0) set(data->mui, MUIA_Selected, TRUE); else set(data->mui, MUIA_Selected, FALSE);
-    if ((buttons & MUIV_Window_Button_Popup) != 0) set(data->popup, MUIA_Selected, TRUE); else set(data->popup, MUIA_Selected, FALSE);
-    if ((buttons & MUIV_Window_Button_Iconify) != 0) set(data->iconify, MUIA_Selected, TRUE); else set(data->iconify, MUIA_Selected, FALSE);
-    if ((buttons & MUIV_Window_Button_Snapshot) != 0) set(data->snapshot, MUIA_Selected, TRUE); else set(data->snapshot, MUIA_Selected, FALSE);
+    for (i = 0; i < 4; i++)
+        set(data->gadgets[i], MUIA_Selected, (buttons & gadget_bits[i]) != 0);
 
     return 1;
 }
@@ -234,6 +289,7 @@ static IPTR WindowP_GadgetsToConfig(struct IClass *cl, Object *obj,
     struct MUI_WindowPData *data = INST_DATA(cl, obj);
     STRPTR str;
     ULONG buttons;
+    int i;
 
 /* Fonts */
     str = getstring(data->font_normal_string);
@@ -274,10 +330,9 @@ static IPTR WindowP_GadgetsToConfig(struct IClass *cl, Object *obj,
 
     buttons = 0;
 
-    if (XGET(data->mui, MUIA_Selected) != FALSE) buttons |= MUIV_Window_Button_MUI;
-    if (XGET(data->popup, MUIA_Selected) != FALSE) buttons |= MUIV_Window_Button_Popup;
-    if (XGET(data->snapshot, MUIA_Selected) != FALSE) buttons |= MUIV_Window_Button_Snapshot;
-    if (XGET(data->iconify, MUIA_Selected) != FALSE) buttons |= MUIV_Window_Button_Iconify;
+    for (i = 0; i < 4; i++)
+        if (XGET(data->gadgets[i], MUIA_Selected))
+            buttons |= gadget_bits[i];
 
     DoMethod(msg->configdata, MUIM_Configdata_SetULong, MUICFG_Window_Buttons, buttons);
     

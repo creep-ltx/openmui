@@ -126,6 +126,7 @@ char titlebuf[255];
 void close_classes(void)
 {
     delete_system_classes();
+    delete_window_classes();
     delete_prefswindow_class();
     delete_listview_class();
 }

@@ -13,5 +13,6 @@
 extern const struct __MUIBuiltinClass _MUIP_Windows_desc;
 
 Object *windowsclass_get_icon(void);
+void delete_window_classes(void);
 
 #endif
