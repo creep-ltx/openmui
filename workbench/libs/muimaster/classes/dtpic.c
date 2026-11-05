@@ -33,6 +33,7 @@
 #include "mui.h"
 #include "muimaster_intern.h"
 #include "support.h"
+#include "datatypescache.h"
 #include "support_classes.h"
 #include "dtpic_private.h"
 
@@ -402,10 +403,24 @@ IPTR Dtpic__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     return retval;
 }
 
+/* RECTFMT_ARGB is the bytes A, R, G, B in memory: read as a ULONG that
+ * is 0xAARRGGBB on 68k and the reverse on a little-endian AROS. */
+#if defined(__mc68000__) || defined(__BIG_ENDIAN__) \
+    || (defined(AROS_BIG_ENDIAN) && AROS_BIG_ENDIAN)
+#define ARGB_A 24
+#define ARGB_R 16
+#define ARGB_G 8
+#define ARGB_B 0
+#else
+#define ARGB_A 0
+#define ARGB_R 8
+#define ARGB_G 16
+#define ARGB_B 24
+#endif
+
 /*
  * Apply the selected/highlighted brightness offset to an ARGB pixel array
- * in place. Pixel format is RECTFMT_ARGB: low byte alpha, then red, green,
- * blue.
+ * in place. Pixel format is RECTFMT_ARGB (ARGB_* above).
  */
 static void dtpic_apply_state(ULONG *pixels, ULONG count, LONG offset)
 {
@@ -417,9 +432,9 @@ static void dtpic_apply_state(ULONG *pixels, ULONG count, LONG offset)
     for (i = 0; i < count; i++)
     {
         ULONG px = pixels[i];
-        LONG r = (px >> 8) & 0xff;
-        LONG g = (px >> 16) & 0xff;
-        LONG b = (px >> 24) & 0xff;
+        LONG r = (px >> ARGB_R) & 0xff;
+        LONG g = (px >> ARGB_G) & 0xff;
+        LONG b = (px >> ARGB_B) & 0xff;
 
         r += offset;
         g += offset;
@@ -431,8 +446,8 @@ static void dtpic_apply_state(ULONG *pixels, ULONG count, LONG offset)
         if (b > 255) b = 255;
         else if (b < 0) b = 0;
 
-        pixels[i] = (px & 0xff) | ((ULONG) r << 8) | ((ULONG) g << 16)
-            | ((ULONG) b << 24);
+        pixels[i] = (px & (0xffUL << ARGB_A)) | ((ULONG) r << ARGB_R)
+            | ((ULONG) g << ARGB_G) | ((ULONG) b << ARGB_B);
     }
 }
 
@@ -508,22 +523,23 @@ static BOOL Dtpic_alpha_draw(Object *obj, struct Dtpic_DATA *data,
     }
 
     /* Apply the state, then blend the image over the cached background with
-     * the global alpha value. Pixel format of all buffers is RECTFMT_ARGB:
-     * low byte alpha, then red, green, blue. */
+     * the global alpha value. Pixel format of all buffers is RECTFMT_ARGB
+     * (ARGB_* above). */
     dtpic_apply_state(img, w * h, data->state_offset);
     for (i = 0; i < w * h; i++)
     {
         ULONG s = img[i];
         ULONG d = data->bg[i];
-        ULONG sa = (s & 0xff) * (ULONG) data->currentalpha >> 8;
-        ULONG sr = (s >> 8) & 0xff;
-        ULONG sg = (s >> 16) & 0xff;
-        ULONG sb = (s >> 24) & 0xff;
+        ULONG sa = ((s >> ARGB_A) & 0xff) * (ULONG) data->currentalpha >> 8;
+        ULONG sr = (s >> ARGB_R) & 0xff;
+        ULONG sg = (s >> ARGB_G) & 0xff;
+        ULONG sb = (s >> ARGB_B) & 0xff;
 
-        data->comp[i] = (((sb * sa + ((d >> 24) & 0xff) * (255 - sa)) >> 8) << 24)
-            | (((sg * sa + ((d >> 16) & 0xff) * (255 - sa)) >> 8) << 16)
-            | (((sr * sa + ((d >> 8) & 0xff) * (255 - sa)) >> 8) << 8)
-            | 0xff;
+        data->comp[i] =
+            (((sb * sa + ((d >> ARGB_B) & 0xff) * (255 - sa)) >> 8) << ARGB_B)
+            | (((sg * sa + ((d >> ARGB_G) & 0xff) * (255 - sa)) >> 8) << ARGB_G)
+            | (((sr * sa + ((d >> ARGB_R) & 0xff) * (255 - sa)) >> 8) << ARGB_R)
+            | (0xffUL << ARGB_A);
     }
 
     WritePixelArray(data->comp, 0, 0, w * 4, _rp(obj), _mleft(obj),
@@ -602,7 +618,7 @@ IPTR Dtpic__MUIM_Draw(struct IClass *cl, Object *obj,
                     TAG_DONE);
 
                 if (mask)
-                    BltMaskBitMapRastPort(data->bm, 0, 0, _rp(obj),
+                    ZuneBltMaskBitMapRastPort(data->bm, 0, 0, _rp(obj),
                         _mleft(obj), _mtop(obj), _mwidth(obj),
                         _mheight(obj), 0xE0, (PLANEPTR) mask);
             }

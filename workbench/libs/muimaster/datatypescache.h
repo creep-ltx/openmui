@@ -109,6 +109,18 @@ struct dt_frame_image *load_custom_frame(CONST_STRPTR filename,
     struct Screen *scr);
 void dispose_custom_frame(struct dt_frame_image *fi);
 
+#ifndef __AROS__
+/* BltMaskBitMapRastPort() that also works with an interleaved source
+ * bitmap (the screen-friend bitmaps of OS 3.x), where the OS call takes
+ * the single-plane mask for every plane wrongly */
+VOID MyBltMaskBitMapRastPort(struct BitMap *srcBitMap, LONG xSrc, LONG ySrc,
+    struct RastPort *destRP, LONG xDest, LONG yDest, LONG xSize, LONG ySize,
+    ULONG minterm, APTR bltMask);
+#define ZuneBltMaskBitMapRastPort MyBltMaskBitMapRastPort
+#else
+#define ZuneBltMaskBitMapRastPort BltMaskBitMapRastPort
+#endif
+
 #if AROS_BIG_ENDIAN
 #define GET_A(rgb) ((rgb >> 24) & 0xff)
 #define GET_R(rgb) ((rgb >> 16) & 0xff)

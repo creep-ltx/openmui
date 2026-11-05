@@ -16,6 +16,7 @@
 #include "mui.h"
 #include "muimaster_intern.h"
 #include "support.h"
+#include "datatypescache.h"
 
 #include <string.h>
 
@@ -843,7 +844,7 @@ IPTR Bitmap__MUIM_Draw(struct IClass *cl, Object *obj,
              * No temporary truecolor buffers or software blending per draw. */
             if (data->mask)
             {
-                BltMaskBitMapRastPort(bm, 0, 0, _rp(obj), _mleft(obj),
+                ZuneBltMaskBitMapRastPort(bm, 0, 0, _rp(obj), _mleft(obj),
                     _mtop(obj), width, height, 0xE0, data->mask);
             }
             else

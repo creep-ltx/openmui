@@ -938,11 +938,19 @@ void dt_put_mim_on_rastport(struct dt_node *node, struct RastPort *rp,
     if (NULL == o)
         return;
     int width = dt_width(node) >> 1;
-    if (node->mask == mskHasAlpha)
+    BOOL doAlpha = TRUE;
+
+#ifdef __mc68000
+    /* As in dt_put_on_rastport: on a planar screen WritePixelArrayAlpha
+     * draws nothing (not a CyberGraphX bitmap), so every redraw read the
+     * whole picture for no result and the brush stayed invisible; the
+     * bitmap and mask below draw it. */
+    doAlpha = GetBitMapAttr(rp->BitMap, BMA_DEPTH) > 8;
+#endif
+    if (doAlpha && node->mask == mskHasAlpha)
     {
         img =
-            (ULONG *) AllocVec(dt_width(node) * dt_height(node) * 4,
-            MEMF_ANY);
+            (ULONG *) AllocVec(width * dt_height(node) * 4, MEMF_ANY);
         if (img)
         {
 
