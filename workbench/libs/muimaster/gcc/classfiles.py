@@ -92,14 +92,38 @@ def symbols(nm, objs, defined):
     return syms
 
 
+def register_functions():
+    """Library functions that take their arguments in registers (AROS_UFH
+    hooks, `name __asm("a0")` parameters). The jumps below load a0, so a
+    class file must never reach one of these through them."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    top = os.path.dirname(here)
+    names = set()
+    ufh = re.compile(r'AROS_UFH\d+S?\s*\(\s*[^,]+,\s*(\w+)')
+    asmarg = re.compile(r'\b(\w+)\s*\(([^;{}()]|\([^()]*\))*__asm\s*\(\s*"[ad]\d"',
+                        re.S)
+    for d in (top, os.path.join(top, 'classes')):
+        for f in os.listdir(d):
+            if f.endswith('.c'):
+                text = open(os.path.join(d, f), encoding='latin-1').read()
+                names.update(ufh.findall(text))
+                names.update(m.group(1) for m in asmarg.finditer(text))
+    return {'_' + n for n in names}
+
+
 def iface(nm, outdir, libobjs, cfobjs):
     lib = symbols(nm, libobjs, True)
+    regfuncs = register_functions()
     need = symbols(nm, cfobjs, False) if cfobjs else {}
     funcs = []
     for sym in sorted(need):
         if sym not in lib:
             continue                    # libnix, libgcc: linked into the file
         if lib[sym] in 'Tt':
+            if sym in regfuncs:
+                sys.exit('classfiles.py: class files call %s, which takes '
+                         'its arguments in registers: the jump to it uses '
+                         'a0; keep the caller built in' % sym)
             funcs.append(sym)
         elif sym[1:] not in BASES:
             sys.exit('classfiles.py: class files use library data %s' % sym)
