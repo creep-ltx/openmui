@@ -1217,8 +1217,15 @@ struct MUI_WindowData
                                          * ToolBox */
 #define MUIWF_ACTIVEEVENT       (1<<18) /* Reporting IDCMP_ACTIVEWINDOW */
 
-#define BUBBLEHELP_TICKER_FIRST 10
-#define BUBBLEHELP_TICKER_LATER 3
+/* Bubble help delays in IntuiTicks (1/10 s), from the settings as on
+ * MUI 3.8 (2.0 s and 0.3 s by default); Zune used fixed 1.0 and 0.3 s */
+#define BUBBLEHELP_TICKER_DEFAULT 20
+#define BUBBLEHELP_PREFS(data) \
+    (muiGlobalInfo((data)->wd_RenderInfo.mri_WindowObject)->mgi_Prefs)
+#define BUBBLEHELP_TICKER_FIRST \
+    MAX(BUBBLEHELP_PREFS(data)->bubblehelp_first_delay, 1)
+#define BUBBLEHELP_TICKER_LATER \
+    MAX(BUBBLEHELP_PREFS(data)->bubblehelp_next_delay, 1)
 
 struct __dummyXFC3__
 {
@@ -4943,7 +4950,7 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data->wd_ReqX = MUIV_Window_LeftEdge_Centered;
     data->wd_ReqY = MUIV_Window_TopEdge_Centered;
     data->wd_DisabledKeys = 0L;
-    data->wd_HelpTicker = BUBBLEHELP_TICKER_FIRST;
+    data->wd_HelpTicker = BUBBLEHELP_TICKER_DEFAULT;
 
     /* parse initial taglist */
 

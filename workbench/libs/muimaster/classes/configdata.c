@@ -95,7 +95,7 @@ const static struct spec_cfg DefImspecValues[] =
     { MUII_ListBack,      MUICFG_Background_List,       "0:128" },
     { MUII_TextBack,      MUICFG_Background_Text,       "0:128" },
     { MUII_PropBack,      MUICFG_Background_Prop,       "0:128" },
-    { MUII_PopupBack,     MUICFG_Background_PopUp,      "0:128" },
+    { MUII_PopupBack,     MUICFG_Background_PopUp,      "0:130" },
     { MUII_SelectedBack,  MUICFG_Background_Selected,   "0:131" },
     { MUII_ListCursor,    MUICFG_Background_ListCursor, "0:131" },
     { MUII_ListSelect,    MUICFG_Background_ListSelect, "0:135" },
@@ -168,19 +168,19 @@ static void init_imspecs(struct IClass *cl, Object *obj,
 const static struct spec_cfg DefFramespecValues[] =
 {
     { MUIV_Frame_None,        MUICFG_Invalid,           "000000" }, /* invisible frame          */
-    { MUIV_Frame_Button,      MUICFG_Frame_Button,      "202222" }, /* text button              */
-    { MUIV_Frame_ImageButton, MUICFG_Frame_ImageButton, "202222" }, /* image button             */
-    { MUIV_Frame_Text,        MUICFG_Frame_Text,        "212222" }, /* textfield without input  */
-    { MUIV_Frame_String,      MUICFG_Frame_String,      "302222" }, /* string gadget            */
-    { MUIV_Frame_ReadList,    MUICFG_Frame_ReadList,    "212222" }, /* list without input       */
-    { MUIV_Frame_InputList,   MUICFG_Frame_InputList,   "202222" }, /* list with input          */
-    { MUIV_Frame_Prop,        MUICFG_Frame_Prop,        "202222" }, /* scrollbar container      */
+    { MUIV_Frame_Button,      MUICFG_Frame_Button,      "202211" }, /* text button              */
+    { MUIV_Frame_ImageButton, MUICFG_Frame_ImageButton, "202211" }, /* image button             */
+    { MUIV_Frame_Text,        MUICFG_Frame_Text,        "212211" }, /* textfield without input  */
+    { MUIV_Frame_String,      MUICFG_Frame_String,      "302211" }, /* string gadget            */
+    { MUIV_Frame_ReadList,    MUICFG_Frame_ReadList,    "212211" }, /* list without input       */
+    { MUIV_Frame_InputList,   MUICFG_Frame_InputList,   "202211" }, /* list with input          */
+    { MUIV_Frame_Prop,        MUICFG_Frame_Prop,        "202211" }, /* scrollbar container      */
     { MUIV_Frame_Gauge,       MUICFG_Frame_Gauge,       "210000" }, /* gauge                    */
     { MUIV_Frame_Group,       MUICFG_Frame_Group,       "314444" }, /* normal group             */
-    { MUIV_Frame_PopUp,       MUICFG_Frame_PopUp,       "112222" }, /* cycle menu, popup window */
-    { MUIV_Frame_Virtual,     MUICFG_Frame_Virtual,     "212222" }, /* virt group               */
+    { MUIV_Frame_PopUp,       MUICFG_Frame_PopUp,       "112211" }, /* cycle menu, popup window */
+    { MUIV_Frame_Virtual,     MUICFG_Frame_Virtual,     "212211" }, /* virt group               */
     { MUIV_Frame_Slider,      MUICFG_Frame_Slider,      "400000" }, /* slider container         */
-    { MUIV_Frame_Knob,        MUICFG_Frame_Knob,        "202211" }, /* slider knob              */
+    { MUIV_Frame_Knob,        MUICFG_Frame_Knob,        "202200" }, /* slider knob              */
     { MUIV_Frame_Drag,        MUICFG_Frame_Drag,        "300000" }, /* dnd frame                */
     { -1,                     -1,                       NULL     },
 };
@@ -220,14 +220,19 @@ struct def_ulval
     {id, value, offsetof(struct ZunePrefsNew, field), \
      sizeof(((struct ZunePrefsNew *)0)->field)}
 
+/* The defaults are MUI 3.8's, read from its settings program (frames:
+ * top and bottom inner spacing 1; groups 6/3; window 4/3; titles above;
+ * positions remembered; bubbles after 2.0 s, then 0.3 s). Redraw stays
+ * "without clear": the same pixels as MUI 3.8's "with clear", drawn once
+ * instead of cleared and drawn. */
 const static struct def_ulval DefULValues[] = {
     PREF_DEFAULT(MUICFG_Window_Spacing_Left, 4, window_inner_left),
     PREF_DEFAULT(MUICFG_Window_Spacing_Right, 4, window_inner_right),
-    PREF_DEFAULT(MUICFG_Window_Spacing_Top, 4, window_inner_top),
+    PREF_DEFAULT(MUICFG_Window_Spacing_Top, 3, window_inner_top),
     /* MUI 3.8: no extra title bar gadgets until switched on */
     PREF_DEFAULT(MUICFG_Window_Buttons, 0, window_buttons),
-    PREF_DEFAULT(MUICFG_Window_Spacing_Bottom, 4, window_inner_bottom),
-    PREF_DEFAULT(MUICFG_Window_Positions, WINDOW_POSITION_FORGET_ON_EXIT, window_position),
+    PREF_DEFAULT(MUICFG_Window_Spacing_Bottom, 3, window_inner_bottom),
+    PREF_DEFAULT(MUICFG_Window_Positions, WINDOW_POSITION_REMEMBER_ON_EXIT, window_position),
     PREF_DEFAULT(MUICFG_Window_Redraw, WINDOW_REDRAW_WITHOUT_CLEAR, window_redraw),
     /* MUI 3.8's default; MUI 3.9 changed to simple refresh, which loses
      * covered contents of applications that draw outside MUIM_Draw
@@ -235,8 +240,8 @@ const static struct def_ulval DefULValues[] = {
     PREF_DEFAULT(MUICFG_Window_Refresh, WINDOW_REFRESH_SMART, window_refresh),
     PREF_DEFAULT(MUICFG_Radio_HSpacing, 4, radiobutton_hspacing),
     PREF_DEFAULT(MUICFG_Radio_VSpacing, 1, radiobutton_vspacing),
-    PREF_DEFAULT(MUICFG_Group_HSpacing, 4, group_hspacing),
-    PREF_DEFAULT(MUICFG_Group_VSpacing, 4, group_vspacing),
+    PREF_DEFAULT(MUICFG_Group_HSpacing, 6, group_hspacing),
+    PREF_DEFAULT(MUICFG_Group_VSpacing, 3, group_vspacing),
     PREF_DEFAULT(MUICFG_Cycle_MenuCtrl_Position, CYCLE_MENU_POSITION_BELOW, cycle_menu_position),
     PREF_DEFAULT(MUICFG_Cycle_MenuCtrl_Level, 2, cycle_menu_min_entries),
     PREF_DEFAULT(MUICFG_Cycle_MenuCtrl_Speed, 0, cycle_menu_speed),
@@ -246,7 +251,7 @@ const static struct def_ulval DefULValues[] = {
     PREF_DEFAULT(MUICFG_Listview_SmoothVal, 0, list_smoothval),
     PREF_DEFAULT(MUICFG_Listview_Refresh, LISTVIEW_REFRESH_MIXED, list_refresh),
     PREF_DEFAULT(MUICFG_Listview_Multi, LISTVIEW_MULTI_SHIFTED, list_multi),
-    PREF_DEFAULT(MUICFG_GroupTitle_Position, GROUP_TITLE_POSITION_CENTERED, group_title_position),
+    PREF_DEFAULT(MUICFG_GroupTitle_Position, GROUP_TITLE_POSITION_ABOVE, group_title_position),
     PREF_DEFAULT(MUICFG_GroupTitle_Color, GROUP_TITLE_COLOR_HILITE, group_title_color),
     PREF_DEFAULT(MUICFG_Scrollbar_Type, SCROLLBAR_TYPE_STANDARD, scrollbar_type),
     PREF_DEFAULT(MUICFG_Scrollbar_Arrangement, SCROLLBAR_ARRANGEMENT_TOP, scrollbar_arrangement),
@@ -266,8 +271,8 @@ const static struct def_ulval DefULValues[] = {
     PREF_DEFAULT(MUICFG_Iconification_ShowMenu, FALSE, iconification_show_menu),
     PREF_DEFAULT(MUICFG_Iconification_OnStartup, FALSE, iconification_on_startup),
     PREF_DEFAULT(MUICFG_Interfaces_EnableARexx, TRUE, interfaces_enable_arexx),
-    PREF_DEFAULT(MUICFG_BubbleHelp_FirstDelay, 30, bubblehelp_first_delay),
-    PREF_DEFAULT(MUICFG_BubbleHelp_NextDelay, 10, bubblehelp_next_delay),
+    PREF_DEFAULT(MUICFG_BubbleHelp_FirstDelay, 20, bubblehelp_first_delay),
+    PREF_DEFAULT(MUICFG_BubbleHelp_NextDelay, 3, bubblehelp_next_delay),
     {0, 0, 0, 0},
 };
 
@@ -297,7 +302,7 @@ const static struct def_strval DefStrValues[] = {
     {MUICFG_Font_Knob, ""},
     {MUICFG_String_Background, "2:m2"},
     {MUICFG_String_Text, "m5"},
-    {MUICFG_String_ActiveBackground, "2:m1"},
+    {MUICFG_String_ActiveBackground, "2:m2"},
     {MUICFG_String_ActiveText, "m5"},
     {MUICFG_String_Cursor, "m7"},
     {MUICFG_String_MarkedBackground, "m6"},
