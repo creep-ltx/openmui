@@ -33,10 +33,12 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    largest classes made smaller where they do work MUI 3.8 does not.
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
-   Text contents.
+   Text contents. Same rule: never at the cost of speed or features.
 5. **Speed** (target: faster than MUI 3.8): start-up, window opening,
    redraw, list scrolling; measured on real 68000/68020 hardware, not
-   only in the emulator, and never PiStorm figures as Amiga speeds.
+   only in the emulator, and never PiStorm figures as Amiga speeds. The
+   real-hardware measurements are done by our partner on a spare A1200
+   when one is available; until then emulator figures, labelled as such.
 6. **MUI 3 behaviour exactly as MUI 3.8** and **MUI 4/5 programs run**:
    whatever the suite and the demo comparison find, fixed in order of
    how many programs it affects; MUI 4/5 features only as files loaded
