@@ -344,212 +344,392 @@ static VOID Vector_Select_Function(struct Hook *hook, Object *obj,
 }
 
 
+/* The External page shows the image drawers as a tree, as MUI 3.8 does:
+ * each drawer (an image pack) is a row that a double-click opens and
+ * closes, with its images indented under it, each with a preview. The
+ * drawers start closed, so opening one loads only that pack's pictures:
+ * the previews are images made with MUIM_List_CreateImage when the entry
+ * is inserted and deleted with it, not text engine specs, which would
+ * load the picture again at every redraw. */
 struct ExternalListEntry
 {
-    STRPTR reldir;
+    STRPTR reldir;      /* drawer it is in, relative to the root ("" top) */
     ULONG dirlen;
-    STRPTR filename;
+    STRPTR filename;    /* file or drawer name */
     ULONG namelen;
-    LONG type;
+    LONG type;          /* ExAll ed_Type: > 0 drawer */
+    UBYTE depth;        /* nesting, 0 at the top */
+    UBYTE open;         /* drawer: its entries follow */
+    UBYTE root;         /* which of the image roots (IMSPEC_EXTERNAL_PREFIX*) */
+    UBYTE pad;
+    Object *preview;    /* file: the preview image and its list handle */
+    APTR listimage;
 };
 
+static CONST_STRPTR const external_roots[] = {
+    IMSPEC_EXTERNAL_PREFIX,
+#ifdef IMSPEC_EXTERNAL_PREFIX2
+    IMSPEC_EXTERNAL_PREFIX2,
+#endif
+};
+#define EXTERNAL_ROOTS (sizeof(external_roots) / sizeof(external_roots[0]))
+
+#define EXTERNAL_IS_DRAWER(e) ((e)->type > 0)
+
+/* The name as shown: the file name without its MUI image suffix */
+static void external_name(char *buf, int size, CONST_STRPTR name)
+{
+    int len;
+
+    snprintf(buf, size, "%s", name);
+    len = strlen(buf);
+    if (len > 4 && (!strcmp(buf + len - 4, ".mf0")
+            || !strcmp(buf + len - 4, ".mb0")
+            || !strcmp(buf + len - 4, ".mbr")))
+        buf[len - 4] = 0;
+    else if (len > 6 && !strcmp(buf + len - 6, ".image"))
+        buf[len - 6] = 0;
+}
+
 /*
- * Format borrowed entry basename into shared static 256-byte buffer and
- * strip supported lowercase suffix. Requires non-NULL entry and valid
- * display slot; NULL filename leaves slot unchanged. Buffer is overwritten
- * by next call and must be consumed synchronously; no ownership transfer.
+ * One row, two columns: the tree (indentation by depth, then a drawer's
+ * open/closed arrow and its name in bold, or a file's preview) and a
+ * file's name. The file names line up whatever the previews' widths.
+ * Shared static buffers, consumed synchronously by List.
  */
 static void Imageadjust_External_Display(struct Hook *h, char **strings,
     struct ExternalListEntry *entry)
 {
-    static char buf[256];
+    static char tree[300], name[210];
+    int n;
 
-    if (entry->filename)
+    if (!entry || !entry->filename)
+        return;
+    strings[0] = tree;
+    strings[1] = name;
+    n = 0;
+    while (n < entry->depth * 3 && n < 60)
+        tree[n++] = ' ';
+    tree[n] = 0;
+    if (EXTERNAL_IS_DRAWER(entry))
     {
-        int len;
-        *strings = buf;
-        snprintf(buf, 256, "%s", FilePart(entry->filename));
-        buf[255] = 0;
-        len = strlen(buf);
-        if (len > 4 && !strcmp(buf + len - 4, ".mf0"))
-            buf[len - 4] = 0;
-        else if (len > 4 && !strcmp(buf + len - 4, ".mb0"))
-            buf[len - 4] = 0;
-        else if (len > 4 && !strcmp(buf + len - 4, ".mbr"))
-            buf[len - 4] = 0;
-        else if (len > 6 && !strcmp(buf + len - 6, ".image"))
-            buf[len - 6] = 0;
+        /* a drawer's name next to its arrow, in the tree column */
+        snprintf(tree + n, sizeof(tree) - n, "\33I[6:%ld] \33b%s",
+            (long)(entry->open ? MUII_ArrowDown : MUII_ArrowRight),
+            entry->filename);
+        name[0] = 0;
+    }
+    else
+    {
+        if (entry->listimage)
+            snprintf(tree + n, sizeof(tree) - n, "\33O[%08lx]",
+                (unsigned long)(IPTR)entry->listimage);
+        external_name(name, sizeof(name), entry->filename);
     }
 }
 
 /*
- * Allocate pooled entry and duplicate filename/reldir from source. Return
- * NULL for NULL input, missing filename or entry allocation failure.
- * String-copy failures leave a partially populated returned entry; no
- * rollback. Caller/List owns entry and copied strings with recorded
- * original lengths.
+ * Copy the entry into the pool; a file gets its preview image (the list
+ * is the hook's h_Data). Return NULL without memory; a preview that
+ * cannot be made leaves the name alone.
  */
 static struct ExternalListEntry *Imageadjust_External_Construct(struct Hook
     *h, APTR pool, struct ExternalListEntry *ele)
 {
-    struct ExternalListEntry *entry = NULL;
+    struct ExternalListEntry *entry;
+    Object *list = (Object *)h->h_Data;
 
-    if (NULL == ele)
+    if (NULL == ele || NULL == ele->filename)
         return NULL;
-
-    if (NULL != ele->filename)
+    entry = AllocPooled(pool, sizeof(struct ExternalListEntry));
+    if (NULL == entry)
+        return NULL;
+    *entry = *ele;
+    entry->filename = StrDupPooled(pool, ele->filename);
+    entry->reldir = StrDupPooled(pool, ele->reldir);
+    entry->preview = NULL;
+    entry->listimage = NULL;
+    if (!entry->filename || !entry->reldir)
     {
-        entry = AllocPooled(pool, sizeof(struct ExternalListEntry));
-        if (NULL != entry)
+        if (entry->filename)
+            FreePooled(pool, entry->filename, entry->namelen + 1);
+        if (entry->reldir)
+            FreePooled(pool, entry->reldir, entry->dirlen + 1);
+        FreePooled(pool, entry, sizeof(struct ExternalListEntry));
+        return NULL;
+    }
+    if (!EXTERNAL_IS_DRAWER(entry))
+    {
+        char spec[300];
+
+        snprintf(spec, sizeof(spec), "3:%s%s%s", entry->reldir,
+            *entry->reldir ? "/" : "", entry->filename);
+        entry->preview = ImageObject,
+            MUIA_Image_Spec, (IPTR)spec,
+            MUIA_Image_FreeHoriz, FALSE,
+            MUIA_Image_FreeVert, FALSE,
+            End;
+        if (entry->preview)
         {
-            *entry = *ele;
-            entry->filename = StrDupPooled(pool, entry->filename);
-            entry->reldir = StrDupPooled(pool, entry->reldir);
-            return entry;
+            entry->listimage = (APTR)DoMethod(list, MUIM_List_CreateImage,
+                (IPTR)entry->preview, 0);
+            if (!entry->listimage)
+            {
+                MUI_DisposeObject(entry->preview);
+                entry->preview = NULL;
+            }
         }
     }
-    return NULL;
+    return entry;
 }
 
 /*
- * Free non-NULL entry strings with recorded lengths plus one and then entry
- * from the supplied pool. Requires matching pool and unchanged allocation-
- * length metadata. Accept NULL entry; no return or ownership retained.
+ * Delete the preview, then free the strings with their recorded lengths
+ * and the entry. Accepts NULL.
  */
 static void Imageadjust_External_Destruct(struct Hook *h, APTR pool,
     struct ExternalListEntry *entry)
 {
-    if (entry != NULL)
-    {
-        if (entry->filename != NULL)
-            FreePooled(pool, entry->filename, entry->namelen + 1);
-        if (entry->reldir != NULL)
-            FreePooled(pool, entry->reldir, entry->dirlen + 1);
-        FreePooled(pool, entry, sizeof(struct ExternalListEntry));
-    }
+    Object *list = (Object *)h->h_Data;
+
+    if (entry == NULL)
+        return;
+    if (entry->listimage)
+        DoMethod(list, MUIM_List_DeleteImage, (IPTR)entry->listimage);
+    if (entry->preview)
+        MUI_DisposeObject(entry->preview);
+    if (entry->filename != NULL)
+        FreePooled(pool, entry->filename, entry->namelen + 1);
+    if (entry->reldir != NULL)
+        FreePooled(pool, entry->reldir, entry->dirlen + 1);
+    FreePooled(pool, entry, sizeof(struct ExternalListEntry));
 }
 
-
-/**************************************************************************
- Adds a directory to the list
-**************************************************************************/
-/*
- * Recursively enumerate ExAll ED_TYPE into live List from a readable path
- * under IMSPEC_EXTERNAL_PREFIX; parent argument is unused. Return zero on
- * initial lock/control/buffer failure, otherwise one even after enumeration
- * errors or partial inserts. Frees local buffers/control/lock; no input
- * pumping, recursion/cycle guard or aggregate error propagation.
- */
-static int AddDirectory(Object *list, STRPTR dir, LONG parent, int rootlen)
+/* A drawer's entries, drawers first, then by name (no case) */
+struct external_name
 {
-    BPTR lock = Lock(dir, ACCESS_READ);
+    char *name;
+    LONG type;
+};
+
+static int external_before(struct external_name *a, struct external_name *b)
+{
+    if ((a->type > 0) != (b->type > 0))
+        return a->type > 0;
+    return Stricmp(a->name, b->name) < 0;
+}
+
+/*
+ * Insert the entries of root/reldir after list position pos, one level
+ * deeper than depth, closed. Returns how many were inserted.
+ */
+static LONG AddDirectory(Object *list, UBYTE root, CONST_STRPTR reldir,
+    LONG pos, UBYTE depth)
+{
+    CONST_STRPTR prefix = external_roots[root];
+    char *path;
+    BPTR lock;
     struct ExAllControl *eac;
-    struct ExAllData *ead, *EAData;
-    LONG more;
-    int dir_len = strlen(dir);
+    struct ExAllData *ead, *buffer;
+    struct external_name *names = NULL;
+    LONG count = 0, size = 0, more, i, j, inserted = 0;
+    ULONG pathlen = strlen(prefix) + strlen(reldir) + 2;
+
+    if (!(path = AllocVec(pathlen, MEMF_ANY)))
+        return 0;
+    snprintf(path, pathlen, "%s%s", prefix, reldir);
+    lock = Lock(path, ACCESS_READ);
+    FreeVec(path);
     if (!lock)
         return 0;
-
-    //bug("AddDirectory: locked %s\n", dir);
-
     eac = (struct ExAllControl *)AllocDosObject(DOS_EXALLCONTROL, NULL);
-    if (!eac)
-    {
-        UnLock(lock);
-        return 0;
-    }
-
-    EAData = AllocVec(1024, 0);
-    if (!EAData)
-    {
-        FreeDosObject(DOS_EXALLCONTROL, eac);
-        UnLock(lock);
-        return 0;
-    }
-
+    buffer = AllocVec(1024, MEMF_ANY);
+    if (!eac || !buffer)
+        goto done;
     eac->eac_LastKey = 0;
-
     do
     {
-        //DoMethod(_app(list), MUIM_Application_InputBuffered);
-
-        more = ExAll(lock, EAData, 1024, ED_TYPE, eac);
-        if ((!more) && (IoErr() != ERROR_NO_MORE_ENTRIES))
+        more = ExAll(lock, buffer, 1024, ED_TYPE, eac);
+        if (!more && IoErr() != ERROR_NO_MORE_ENTRIES)
             break;
-        if (eac->eac_Entries == 0)
-            continue;
-
-        ead = EAData;
-        do
+        for (ead = eac->eac_Entries ? buffer : NULL; ead; ead = ead->ed_Next)
         {
-            size_t namelen = strlen(ead->ed_Name);
-            int len = dir_len + namelen + 10;
-            char *buf;
+            ULONG len = strlen(ead->ed_Name);
 
-            //DoMethod(_app(list), MUIM_Application_InputBuffered);
-
-            buf = AllocVec(len, 0);
-            if (buf)
+            /* the second (selected) states of frames and brushes */
+            if (ead->ed_Type <= 0 && len > 4
+                && (!strcmp(ead->ed_Name + len - 4, ".mf1")
+                    || !strcmp(ead->ed_Name + len - 4, ".mb1")))
+                continue;
+            if (count == size)
             {
-                LONG num = 0;
-                int is_directory;
-                BOOL add_me = TRUE;
+                struct external_name *grown =
+                    AllocVec((size + 32) * sizeof(*grown), MEMF_ANY);
 
-                if (ead->ed_Type > 0)
+                if (!grown)
+                    break;
+                if (names)
                 {
-                    is_directory = 1;
-                    if (ead->ed_Type == ST_SOFTLINK)
-                    {
-                        /* TODO: Determine whether ST_SOFTLINK targets a file or directory. */
-                    }
+                    CopyMem(names, grown, count * sizeof(*grown));
+                    FreeVec(names);
                 }
-                else
-                    is_directory = 0;
-
-                strcpy(buf, dir);
-                AddPart(buf, ead->ed_Name, len);
-
-                if (!is_directory && namelen > 4
-                    && !strcmp(ead->ed_Name + namelen - 4, ".mf1"))
-                    add_me = FALSE;
-                if (!is_directory && namelen > 4
-                    && !strcmp(ead->ed_Name + namelen - 4, ".mb1"))
-                    add_me = FALSE;
-
-                if (add_me)
-                {
-                    struct ExternalListEntry ele;
-                    //bug("AddDirectory: adding image %s\n", buf);
-
-
-                    ele.reldir = dir + rootlen;
-                    ele.dirlen = strlen(ele.reldir);
-                    ele.filename = ead->ed_Name;
-                    ele.namelen = strlen(ele.filename);
-                    ele.type = ead->ed_Type;
-
-                    if (!is_directory)
-                    {
-                        num = DoMethod(list, MUIM_List_InsertSingle,
-                            (IPTR) & ele, MUIV_List_Insert_Bottom);
-                    }
-                }
-                if (num != -1 && is_directory)
-                {
-                    AddDirectory(list, buf, num, rootlen);
-                }
-                FreeVec(buf);
+                names = grown;
+                size += 32;
             }
-            ead = ead->ed_Next;
+            if (!(names[count].name = StrDup(ead->ed_Name)))
+                break;
+            names[count++].type = ead->ed_Type;
         }
-        while (ead);
     }
     while (more);
 
-    FreeVec(EAData);
-    FreeDosObject(DOS_EXALLCONTROL, eac);
+    /* insertion sort: a drawer holds tens of entries */
+    for (i = 1; i < count; i++)
+        for (j = i; j > 0 && external_before(&names[j], &names[j - 1]); j--)
+        {
+            struct external_name t = names[j];
+            names[j] = names[j - 1];
+            names[j - 1] = t;
+        }
+
+    for (i = 0; i < count; i++)
+    {
+        struct ExternalListEntry ele;
+
+        memset(&ele, 0, sizeof(ele));
+        ele.reldir = (STRPTR)reldir;
+        ele.dirlen = strlen(reldir);
+        ele.filename = names[i].name;
+        ele.namelen = strlen(names[i].name);
+        ele.type = names[i].type;
+        ele.depth = depth;
+        ele.root = root;
+        if ((LONG)DoMethod(list, MUIM_List_InsertSingle, (IPTR)&ele,
+                pos + 1 + inserted) >= 0)
+            inserted++;
+    }
+
+done:
+    for (i = 0; i < count; i++)
+        FreeVec(names[i].name);
+    FreeVec(names);
+    FreeVec(buffer);
+    if (eac)
+        FreeDosObject(DOS_EXALLCONTROL, eac);
     UnLock(lock);
-    return 1;
+    return inserted;
+}
+
+/* Open or close the drawer at list position pos */
+static void external_toggle(Object *list, LONG pos)
+{
+    struct ExternalListEntry *entry = NULL, *next;
+    char *rel;
+    ULONG len;
+
+    DoMethod(list, MUIM_List_GetEntry, pos, (IPTR)&entry);
+    if (!entry || !EXTERNAL_IS_DRAWER(entry))
+        return;
+    set(list, MUIA_List_Quiet, TRUE);
+    if (entry->open)
+    {
+        for (;;)
+        {
+            next = NULL;
+            DoMethod(list, MUIM_List_GetEntry, pos + 1, (IPTR)&next);
+            if (!next || next->depth <= entry->depth)
+                break;
+            DoMethod(list, MUIM_List_Remove, pos + 1);
+        }
+        entry->open = FALSE;
+    }
+    else
+    {
+        len = entry->dirlen + entry->namelen + 2;
+        if ((rel = AllocVec(len, MEMF_ANY)))
+        {
+            snprintf(rel, len, "%s%s%s", entry->reldir,
+                *entry->reldir ? "/" : "", entry->filename);
+            AddDirectory(list, entry->root, rel, pos, entry->depth + 1);
+            FreeVec(rel);
+        }
+        entry->open = TRUE;
+    }
+    DoMethod(list, MUIM_List_Redraw, pos);
+    set(list, MUIA_List_Quiet, FALSE);
+}
+
+/*
+ * Find the entry for spec text "dir/dir/file" (a "3:"/"4:" spec without
+ * its prefix): open the drawers on its way and return its position, or
+ * -1.
+ */
+static LONG external_find(Object *list, CONST_STRPTR path)
+{
+    LONG pos = -1, i, entries = 0;
+    UBYTE depth = 0;
+    CONST_STRPTR part = path;
+
+    while (*part)
+    {
+        CONST_STRPTR end = strchr(part, '/');
+        ULONG partlen = end ? (ULONG)(end - part) : strlen(part);
+        LONG found = -1;
+
+        get(list, MUIA_List_Entries, &entries);
+        for (i = pos + 1; i < entries; i++)
+        {
+            struct ExternalListEntry *e = NULL;
+
+            DoMethod(list, MUIM_List_GetEntry, i, (IPTR)&e);
+            if (!e || e->depth < depth)
+                break;
+            if (e->depth == depth && e->namelen == partlen
+                && !strncmp(e->filename, part, partlen)
+                && (end ? EXTERNAL_IS_DRAWER(e) : !EXTERNAL_IS_DRAWER(e)))
+            {
+                found = i;
+                break;
+            }
+        }
+        if (found < 0)
+            return -1;
+        pos = found;
+        if (!end)
+            return pos;
+        {
+            struct ExternalListEntry *e = NULL;
+
+            DoMethod(list, MUIM_List_GetEntry, pos, (IPTR)&e);
+            if (e && !e->open)
+                external_toggle(list, pos);
+        }
+        depth++;
+        part = end + 1;
+    }
+    return -1;
+}
+
+/* Double-click: a drawer opens or closes; an image is chosen (the popup
+ * closes, as before) */
+static void Imageadjust_External_DoubleClick(struct Hook *h, Object *obj,
+    APTR msg)
+{
+    struct Imageadjust_DATA *data = (struct Imageadjust_DATA *)h->h_Data;
+    struct ExternalListEntry *entry = NULL;
+    LONG active = MUIV_List_Active_Off;
+
+    get(data->external_list, MUIA_List_Active, &active);
+    if (active < 0)
+        return;
+    DoMethod(data->external_list, MUIM_List_GetEntry, active, (IPTR)&entry);
+    if (!entry)
+        return;
+    if (EXTERNAL_IS_DRAWER(entry))
+        external_toggle(data->external_list, active);
+    else if (data->originator)
+        DoMethod(_app(obj), MUIM_Application_PushMethod,
+            (IPTR)data->originator, 2, MUIM_Popimage_CloseWindow, TRUE);
 }
 
 
@@ -624,35 +804,18 @@ STATIC VOID Imageadjust_SetImagespec(Object *obj,
     case '3':
     case '4':
         {
-            struct ExternalListEntry *entry = NULL;
-            LONG entries = 0;
-            int i;
+            LONG pos;
 
+            /* The page reads the drawers when shown; the drawers on the
+             * way to the image are opened */
             set(obj, MUIA_Group_ActivePage, 3);
-
-            get(data->external_list, MUIA_List_Entries, &entries);
-            for (i = 0; i < entries; i++)
+            pos = external_find(data->external_list, s + 2);
+            /* Centred in the list when it is shown (it has no size
+             * yet) */
+            if (pos >= 0)
             {
-                DoMethod(data->external_list, MUIM_List_GetEntry, i,
-                    (IPTR) & entry);
-                if (entry != NULL
-                    && entry->reldir != NULL && entry->filename != NULL)
-                {
-                    STRPTR file = FilePart(s + 2);
-                    //bug("entry->reldir = %s, s + 2 = %s, len=%d\n",
-                    //entry->reldir, s + 2, strlen(s + 2) - strlen(file) - 1);
-                    if (!strncmp(entry->reldir, s + 2,
-                            strlen(s + 2) - strlen(file) - 1))
-                    {
-                        //bug("entry->filename = %s, file = %s\n",
-                        //entry->filename, file);
-                        if (!strcmp(entry->filename, file))
-                        {
-                            set(data->external_list, MUIA_List_Active, i);
-                            break;
-                        }
-                    }
-                }
+                set(data->external_list, MUIA_List_Active, pos);
+                data->external_center = pos;
             }
         }
         break;
@@ -792,6 +955,10 @@ IPTR Imageadjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 (Object *) ListObject, InputListFrame,
                 MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
                 MUIA_List_DestructHook, MUIV_List_DestructHook_String,
+                /* the tree (arrow or preview), the name */
+                MUIA_List_Format, (IPTR) ",",
+                /* the chosen image is in view when the page opens */
+                MUIA_List_AutoVisible, TRUE,
                 End),
             End;
     }
@@ -925,6 +1092,7 @@ IPTR Imageadjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     data = INST_DATA(cl, obj);
     data->adjust_type = adjust_type;
+    data->external_center = -1;
     data->color_group = color_group;
     data->originator =
         (APTR) GetTagData(MUIA_Imageadjust_Originator, 0,
@@ -1092,12 +1260,14 @@ IPTR Imageadjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         data->external_construct_hook.h_Entry = HookEntry;
         data->external_construct_hook.h_SubEntry =
             (HOOKFUNC) Imageadjust_External_Construct;
+        data->external_construct_hook.h_Data = data->external_list;
         set(data->external_list, MUIA_List_ConstructHook,
             (IPTR) & data->external_construct_hook);
 
         data->external_destruct_hook.h_Entry = HookEntry;
         data->external_destruct_hook.h_SubEntry =
             (HOOKFUNC) Imageadjust_External_Destruct;
+        data->external_destruct_hook.h_Data = data->external_list;
         set(data->external_list, MUIA_List_DestructHook,
             (IPTR) & data->external_destruct_hook);
 
@@ -1107,12 +1277,14 @@ IPTR Imageadjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             MUIA_Group_ActivePage, 3, (IPTR) obj, 1,
             MUIM_Imageadjust_ReadExternal);
 
-        if (data->originator)
-            DoMethod(data->external_list, MUIM_Notify,
-                MUIA_Listview_DoubleClick, TRUE,
-                MUIV_Notify_Application, 5, MUIM_Application_PushMethod,
-                (IPTR) data->originator, 2, MUIM_Popimage_CloseWindow,
-                TRUE);
+        /* A drawer opens or closes; an image closes the popup */
+        data->external_dclick_hook.h_Entry = HookEntry;
+        data->external_dclick_hook.h_SubEntry =
+            (HOOKFUNC) Imageadjust_External_DoubleClick;
+        data->external_dclick_hook.h_Data = data;
+        DoMethod(data->external_list, MUIM_Notify,
+            MUIA_Listview_DoubleClick, TRUE, (IPTR) obj, 2,
+            MUIM_CallHook, (IPTR) &data->external_dclick_hook);
     }
     Imageadjust_SetImagespec(obj, data, spec);
     return (IPTR) obj;
@@ -1259,16 +1431,21 @@ IPTR Imageadjust__OM_GET(struct IClass *cl, Object *obj,
                         DoMethod(data->external_list, MUIM_List_GetEntry,
                             MUIV_List_GetEntry_Active, (IPTR) & entry);
                         if (entry != NULL && entry->filename != NULL
-                            && entry->reldir != NULL)
+                            && entry->reldir != NULL
+                            && !EXTERNAL_IS_DRAWER(entry))
                         {
                             LONG len;
                             len =
                                 2 + strlen(entry->reldir) + 1 +
                                 strlen(entry->filename) + 1;
+                            /* no "/" for a file at the top: "3:/x" named
+                             * the root's parent drawer */
                             if ((data->imagespec = AllocVec(len, 0)))
                             {
-                                snprintf(data->imagespec, len, "3:%s/%s",
-                                    entry->reldir, entry->filename);
+                                snprintf(data->imagespec, len, "3:%s%s%s",
+                                    entry->reldir,
+                                    *entry->reldir ? "/" : "",
+                                    entry->filename);
                                 D(bug("Imageadjust_OM_GET: imspec=%s\n",
                                         data->imagespec));
                             }
@@ -1320,7 +1497,14 @@ IPTR Imageadjust__MUIM_Imageadjust_ReadExternal(struct IClass *cl,
     struct Process *me = (struct Process *)FindTask(NULL);
     APTR oldwinptr = NULL;
 
-    DoMethod(data->external_list, MUIM_List_Clear);
+    LONG entries = 0;
+    UBYTE root;
+
+    /* Read once: the drawers the user opened stay open when the page is
+     * shown again */
+    get(data->external_list, MUIA_List_Entries, &entries);
+    if (entries)
+        return 0;
     set(data->external_list, MUIA_List_Quiet, TRUE);
     /* Without MUI installed there is no MUI: assign; scanning it must not
      * ask the user to insert a volume. */
@@ -1329,12 +1513,11 @@ IPTR Imageadjust__MUIM_Imageadjust_ReadExternal(struct IClass *cl,
         oldwinptr = me->pr_WindowPtr;
         me->pr_WindowPtr = (APTR) - 1;
     }
-    AddDirectory(data->external_list, IMSPEC_EXTERNAL_PREFIX, -1,
-        strlen(IMSPEC_EXTERNAL_PREFIX));
-#ifdef IMSPEC_EXTERNAL_PREFIX2
-    AddDirectory(data->external_list, IMSPEC_EXTERNAL_PREFIX2, -1,
-        strlen(IMSPEC_EXTERNAL_PREFIX2));
-#endif
+    for (root = 0; root < EXTERNAL_ROOTS; root++)
+    {
+        get(data->external_list, MUIA_List_Entries, &entries);
+        AddDirectory(data->external_list, root, "", entries - 1, 0);
+    }
     if (me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
         me->pr_WindowPtr = oldwinptr;
     set(data->external_list, MUIA_List_Quiet, FALSE);
@@ -1386,6 +1569,26 @@ BOOPSI_DISPATCHER(IPTR, Imageadjust_Dispatcher, cl, obj, msg)
     case MUIM_Imageadjust_ReadExternal:
         return Imageadjust__MUIM_Imageadjust_ReadExternal(cl, obj,
             (APTR) msg);
+
+    case MUIM_Show:
+        {
+            struct Imageadjust_DATA *data = INST_DATA(cl, obj);
+            IPTR res = DoSuperMethodA(cl, obj, msg);
+
+            /* The chosen external image in the middle of the list, now
+             * that the list knows how many rows it shows */
+            if (res && data->external_list && data->external_center >= 0)
+            {
+                LONG visible = 0, first;
+
+                get(data->external_list, MUIA_List_Visible, &visible);
+                first = data->external_center - visible / 2;
+                set(data->external_list, MUIA_List_First,
+                    first > 0 ? first : 0);
+                data->external_center = -1;
+            }
+            return res;
+        }
 
     //case MUIM_Imageadjust_ExternalSelected:
     //    return Imageadjust__MUIM_Imageadjust_ExternalSelected(cl, obj,

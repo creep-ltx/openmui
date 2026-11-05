@@ -35,6 +35,8 @@ struct Imageadjust_DATA
     struct Hook external_display_hook;
     struct Hook external_construct_hook;
     struct Hook external_destruct_hook;
+    struct Hook external_dclick_hook;   /* drawer open/close, choose */
+    LONG external_center;   /* entry to centre at the next Show, or -1 */
 
     char *imagespec;
     LONG adjust_type;
