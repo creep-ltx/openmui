@@ -262,26 +262,28 @@ static void ReadDirectory(Object *obj, struct Dirlist_DATA *data)
 
                     } /* standard filters */
 
+                    /* Counted here, set (and notified) once below: four
+                     * sets per file were four notification passes each */
                     if (isdir)
-                    {
-                        set(obj, MUIA_Dirlist_NumDrawers,
-                            ++data->numdrawers);
-                    }
+                        ++data->numdrawers;
                     else
                     {
-                        set(obj, MUIA_Dirlist_NumFiles,
-                            ++data->numfiles);
+                        ++data->numfiles;
                         data->numbytes64 += (ULONG)fib->fib_Size;
                         data->numbytes = data->numbytes64 > 0x7fffffffULL ?
                             0x7fffffff : (ULONG)data->numbytes64;
-                        set(obj, MUIA_Dirlist_NumBytes, data->numbytes);
-                        set(obj, MUIA_Dirlist_NumBytes64, &data->numbytes64);
                     }
 
                     DoMethod(obj, MUIM_List_InsertSingle, (IPTR) fib,
                         MUIV_List_Insert_Bottom);
                 }               /* for(;;) */
 
+                SetAttrs(obj,
+                    MUIA_Dirlist_NumDrawers, data->numdrawers,
+                    MUIA_Dirlist_NumFiles, data->numfiles,
+                    MUIA_Dirlist_NumBytes, data->numbytes,
+                    MUIA_Dirlist_NumBytes64, (IPTR) &data->numbytes64,
+                    TAG_DONE);
                 set(obj, MUIA_Dirlist_Status, MUIV_Dirlist_Status_Valid);
 
 

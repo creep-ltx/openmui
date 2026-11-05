@@ -222,6 +222,16 @@ static BOOL DitherImage(struct IClass *cl, Object *obj)
     LONG x, y;
     ULONG stride = RAWIDTH(data->width);
     struct TagItem tags[] = {{OBP_Precision, PRECISION_IMAGE}, {TAG_DONE, 0}};
+    /* A row of pens drawn with one WritePixelLine8 (one SetAPen and
+     * WritePixel per pixel before); NULL without memory: WritePixel */
+    struct RastPort temprp;
+    struct BitMap *tempbm = NULL;
+    UBYTE *row = NULL;
+    ULONG rowsize = (data->width + 15) & ~15UL;
+    /* The last colours matched against the CLUT, by a hash of the colour:
+     * the search is 256 colours with three multiplies each */
+    struct { ULONG rgb; WORD index; } match[64];
+    BOOL ok = FALSE;
 
     data->colorMap = _screen(obj)->ViewPort.ColorMap;
     data->ditheredBitmap = AllocBitMap(data->width, data->height,
@@ -235,10 +245,26 @@ static BOOL DitherImage(struct IClass *cl, Object *obj)
     }
     InitRastPort(&rp);
     rp.BitMap = data->ditheredBitmap;
+    for (x = 0; x < 64; x++)
+        match[x].index = -1;
+    if ((row = AllocVec(rowsize, MEMF_ANY))
+        && (tempbm = AllocBitMap(rowsize, 1, data->screenDepth, 0, NULL)))
+    {
+        temprp = rp;
+        temprp.Layer = NULL;
+        temprp.BitMap = tempbm;
+    }
+    else
+    {
+        FreeVec(row);
+        row = NULL;
+    }
     for (y = 0; y < data->height; y++)
     {
         UBYTE *mask = data->ditheredMask ?
             (UBYTE *)data->ditheredMask + y * stride : NULL;
+        if (row)
+            memset(row, 0, rowsize); /* pen 0: the cleared bitmap */
         for (x = 0; x < data->width; x++)
         {
             ULONG index, rgb, alpha = 255;
@@ -254,16 +280,25 @@ static BOOL DitherImage(struct IClass *cl, Object *obj)
                 red = *source++; green = *source++; blue = *source++;
                 if (data->clut)
                 {
-                    ULONG i, best = ~0UL;
-                    index = 0;
-                    for (i = 0; i < 256; i++)
+                    ULONG i, best = ~0UL, key = (red << 16) | (green << 8)
+                        | blue, h = (red ^ (green >> 2) ^ (blue >> 4)) & 63;
+
+                    if (match[h].index >= 0 && match[h].rgb == key)
+                        index = match[h].index;
+                    else
                     {
-                        LONG dr = (LONG)((colors[i] >> 16) & 255) - red;
-                        LONG dg = (LONG)((colors[i] >> 8) & 255) - green;
-                        LONG db = (LONG)(colors[i] & 255) - blue;
-                        ULONG error = dr * dr + dg * dg + db * db;
-                        if (error < best) { best = error; index = i; }
-                        if (!error) break;
+                        index = 0;
+                        for (i = 0; i < 256; i++)
+                        {
+                            LONG dr = (LONG)((colors[i] >> 16) & 255) - red;
+                            LONG dg = (LONG)((colors[i] >> 8) & 255) - green;
+                            LONG db = (LONG)(colors[i] & 255) - blue;
+                            ULONG error = dr * dr + dg * dg + db * db;
+                            if (error < best) { best = error; index = i; }
+                            if (!error) break;
+                        }
+                        match[h].rgb = key;
+                        match[h].index = index;
                     }
                 }
                 else
@@ -287,14 +322,28 @@ static BOOL DitherImage(struct IClass *cl, Object *obj)
                     (rgb & 255) * 0x01010101UL, tags);
                 if (data->ditheredPenMap[index] < 0) goto failed;
             }
-            SetAPen(&rp, data->ditheredPenMap[index]);
-            WritePixel(&rp, x, y);
+            if (row)
+                row[x] = data->ditheredPenMap[index];
+            else
+            {
+                SetAPen(&rp, data->ditheredPenMap[index]);
+                WritePixel(&rp, x, y);
+            }
         }
+        if (row)
+            WritePixelLine8(&rp, 0, y, data->width, row, &temprp);
     }
-    return TRUE;
+    ok = TRUE;
 failed:
-    FreeRendered(data);
-    return FALSE;
+    if (tempbm)
+    {
+        WaitBlit();
+        FreeBitMap(tempbm);
+    }
+    FreeVec(row);
+    if (!ok)
+        FreeRendered(data);
+    return ok;
 }
 
 static BOOL DecompressRLE(struct IClass *cl, Object *obj,

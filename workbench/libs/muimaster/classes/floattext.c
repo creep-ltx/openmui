@@ -269,7 +269,29 @@ static UWORD FitParagraphLine(STRPTR text, ULONG length, WORD width,
  * SkipChars and live window geometry. Own and release temporary buffers;
  * an allocation failure stops typesetting with the lines laid out so far.
  */
+static void SetTextLines(struct IClass *cl, Object *obj,
+    struct Floattext_DATA *data);
+
+/* Typeset with the list quiet: each inserted line otherwise updated the
+ * entry count and scroller and asked for a redraw. */
 static void SetText(struct IClass *cl, Object *obj,
+    struct Floattext_DATA *data)
+{
+    if (!data->quiet)
+        SetSuperAttrs(cl, obj, MUIA_List_Quiet, TRUE, TAG_DONE);
+    SetTextLines(cl, obj, data);
+    if (!data->quiet)
+    {
+        /* Still typesetting: List's redraw at the end of quiet is not
+         * drawn, the one below is */
+        data->typesetting = TRUE;
+        SetSuperAttrs(cl, obj, MUIA_List_Quiet, FALSE, TAG_DONE);
+    }
+    data->typesetting = FALSE;
+    DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
+}
+
+static void SetTextLines(struct IClass *cl, Object *obj,
     struct Floattext_DATA *data)
 {
     WORD width;
@@ -632,8 +654,6 @@ static void SetText(struct IClass *cl, Object *obj,
     }
 
     data->typesetting = FALSE;
-
-    DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
 }
 
 /*
@@ -752,6 +772,9 @@ IPTR Floattext__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
     {
         switch (tag->ti_Tag)
         {
+        case MUIA_List_Quiet:
+            data->quiet = tag->ti_Data != 0;
+            break;
         case MUIA_Floattext_Justify:
             data->justify = tag->ti_Data != 0;
             changed = TRUE;

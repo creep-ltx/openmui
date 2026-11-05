@@ -16,6 +16,7 @@ struct Floattext_DATA
     STRPTR       skipchars;
     ULONG        tabsize;
     ULONG        oldwidth;
+    BOOL         quiet;         /* the program set MUIA_List_Quiet */
 };
 
 #endif /* _FLOATTEXT_PRIVATE_H_ */
