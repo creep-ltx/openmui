@@ -338,6 +338,37 @@ average). After step 13: +85 KB library alone (code 315 KB), +93 KB first
 program, +24-32 KB each further one (17 KB of it backing store), first
 window +0.25 s.
 
+## perfbench: main, lean and MUI 3.8 in one session (2026-11-05)
+
+Unchanged main (origin/main 3b9299d5, rexxsyslib 36 for OS 3.1) against lean
+4f22a12f, both built with GCC 16.2 for 68000 and 68020 (`bld.sh` flags as
+in `build.sh`), and MUI 3.8, all with `bench.sh` on OS 3.1 + 4 MB fast,
+the same 68000 perfbench, two cold boots each (all five instances in
+parallel per round). ms per batch, mean of the two boots' medians (the two
+boots differ by under 1%):
+
+| batch | MUI 3.8 | main 68000 | lean 68000 | lean vs 3.8 | lean vs main (68000 / 68020) |
+|---|---:|---:|---:|---:|---:|
+| create/dispose tree | 171.4 | 131.3 | 107.0 | -37.5% | -18.4% / -19.2% |
+| open/close window | 478.6 | 400.0 | 400.0 | -16.4% | 0 / -0.1% |
+| redraw x10 | 1292.1 | 1238.8 | 1226.5 | -5.1% | -1.0% / -0.9% |
+| relayout x5 | 939.6 | 853.9 | 845.9 | -10.0% | -0.9% / -0.9% |
+| insert 200 | 1500.9 | 937.5 | 904.1 | -39.8% | -3.6% / -3.4% |
+| list active x50 | 1063.3 | 1134.1 | 1129.4 | +6.2% | -0.4% / +0.2% |
+| notify x100 | 783.8 | 597.2 | 601.0 | -23.3% | +0.6% / +0.6% |
+| text set x100 | 250.7 | 239.4 | 240.5 | -4.1% | +0.5% / +0.5% |
+
+- The lean steps win on creating objects (-18%) and inserting list entries
+  (-3.5%); everything else is within 1% of main.
+- Against MUI 3.8, main is already -16% on open/close and -24% on
+  notifications here, where `tests/native/PERFORMANCE.md` (WinUAE, OS
+  3.2.3, 68020, GCC 13.4) has 0% and -6%: the gap to that table is the
+  machine and OS, not the lean edition.
+- "list active" is 6-7% slower than MUI 3.8 on both main and lean here,
+  but 8% faster in PERFORMANCE.md: something in this setup (OS 3.1's
+  graphics or FS-UAE), not investigated.
+- 68020 builds are 0-2% faster than 68000 ones in the same batches.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
