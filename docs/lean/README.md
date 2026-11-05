@@ -49,6 +49,36 @@ apply alone, the others on top of what "depends" names.
 The tools and reports (`tests/lean/`, `tools/lean/`, `docs/lean/`) are
 for measuring only; they are not part of any of these changes.
 
+## Audit fixes (2026-11-05)
+
+A code review of the lean changes and of the unchanged Zune code, one
+commit per area. Most are upstream bugs (every commit but the first and
+the class-file check applies to main as well). Checked in FS-UAE: a clean
+build, fullcheck (19 demos + MUI-Demo's 8 sub-windows, no alert, memory as
+before) and the Popasl case below on OS 3.1 and 3.2.1.
+
+| commit | fix |
+|---|---|
+| 60254ec4 Dataspace | ReadIFF/WriteIFF with the program's own IFF handle called iffparse through a NULL base (lean's lazy libraries) |
+| 532b1ef9 List | a failed MUIA_List_Format no longer leaves the list without a format (crash at the next redraw); entries sized for the allocated columns; list images cleaned up at Cleanup (leak per reopen) and DeleteImage safe before setup; StringArray rows read only the columns they have (strlen() past short arrays); Remove_Selected in one pass; no ZText allocation per measured column |
+| 1738c596, 4f22a12f Popasl | quitting with a requester open freed it under the requester's process; OS 3.0/3.1's asl.library has no AbortAslRequest (V44), Cleanup called it anyway. `tests/lean/popaslquit.c`: old library on 3.1 resets the machine, fixed one waits for Cancel (3.1) or aborts (3.2.1) |
+| 1f9333ae Application | failed timer allocation left a stale pointer for RemInputHandler; timers a class forgot are aborted at dispose |
+| ec22e098 Cycle | popup texts leaked when the popup window did not open |
+| beee6061 Dtpic, Bitmap, brushes | ARGB read in little-endian order (wrong colours on RTG); masked blits through MyBltMaskBitMapRastPort (interleaved bitmaps); alpha brushes on planar screens read the picture on every draw and drew nothing |
+| cd8c2341 Floattext, Dirlist, Pixmap | quiet list while typesetting; one notification per directory instead of four per file; CLUT matches remembered, rows written with WritePixelLine8 |
+| cfb5ddda String, Slider | BufferPos clamped; new buffer starts empty; no strlen(NULL) |
+| cf83a36e class files | the generator refuses register-argument functions in the jump table (the jumps use a0) |
+| 1ceed3ab lean tests | REALDIR instead of a test machine's volume name |
+| 78f0145e Group | 2-D groups keep their row and column arrays between AskMinMax passes (freed and allocated again every pass) |
+
+Not changed, and why: Window's explicit cycle chain sorts in O(n^2) per added object (only programs that
+call MUIM_Window_SetCycleChain, short chains); a `.mui` in LIBS:MUI is
+read twice the first time (once to check its id, once by OpenLibrary);
+Floattext still draws twice on a width change (old lines, then the
+retypeset ones: typesetting first and drawing once left the text empty,
+reverted); two programs starting at
+the same moment can get the same ARexx port name.
+
 ## Left open
 
 - **Library code**: 315 KB against MUI 3.8's 166 KB. Compiler options do
