@@ -1053,10 +1053,32 @@ void zune_imspec_draw_at(struct MUI_ImageSpec_intern *spec,
  in the future it might be that the MUII_#? stuff is not converted to
  a string
 **************************************************************************/
+/* The built-in images and patterns as strings: nearly every object gets
+ * one as its background, so they are shared instead of copied (205
+ * copies in MUI-Demo). Read-only; zune_image_spec_free() leaves them. */
+static const char builtin_spec_window[][5] = {
+    "6:0", "6:1", "6:2", "6:3", "6:4", "6:5", "6:6", "6:7", "6:8", "6:9",
+    "6:10", "6:11", "6:12", "6:13", "6:14", "6:15", "6:16", "6:17", "6:18",
+    "6:19", "6:20", "6:21", "6:22", "6:23", "6:24", "6:25", "6:26", "6:27",
+    "6:28", "6:29", "6:30", "6:31", "6:32", "6:33", "6:34", "6:35", "6:36",
+    "6:37", "6:38", "6:39", "6:40", "6:41", "6:42"
+};
+static const char builtin_spec_pattern[][6] = {
+    "0:128", "0:129", "0:130", "0:131", "0:132", "0:133", "0:134", "0:135",
+    "0:136", "0:137", "0:138", "0:139", "0:140", "0:141", "0:142", "0:143",
+    "0:144", "0:145"
+};
+
 STRPTR zune_image_spec_duplicate(IPTR in)
 {
     char *spec;
     char spec_buf[20];
+
+    if (in < sizeof(builtin_spec_window) / sizeof(builtin_spec_window[0]))
+        return (STRPTR)builtin_spec_window[in];
+    if (in >= MUII_BACKGROUND && in - MUII_BACKGROUND
+        < sizeof(builtin_spec_pattern) / sizeof(builtin_spec_pattern[0]))
+        return (STRPTR)builtin_spec_pattern[in - MUII_BACKGROUND];
 
     if (in >= MUII_WindowBack && in < MUII_BACKGROUND)
     {
@@ -1082,6 +1104,12 @@ STRPTR zune_image_spec_duplicate(IPTR in)
 **************************************************************************/
 void zune_image_spec_free(CONST_STRPTR spec)
 {
-    if (spec)
+    if (spec
+        && !(spec >= (CONST_STRPTR)builtin_spec_window
+            && spec < (CONST_STRPTR)builtin_spec_window
+                + sizeof(builtin_spec_window))
+        && !(spec >= (CONST_STRPTR)builtin_spec_pattern
+            && spec < (CONST_STRPTR)builtin_spec_pattern
+                + sizeof(builtin_spec_pattern)))
         FreeVec((APTR) spec);
 }
