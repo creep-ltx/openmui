@@ -218,6 +218,7 @@ static BOOL Buffer_Alloc(struct MUI_StringData *data)
             data->BufferSize * sizeof(char));
         return FALSE;
     }
+    data->Buffer[0] = 0;    /* Buffer_SetNewContents compares with it */
     if (data->msd_useSecret)
     {
         data->SecBuffer =
@@ -982,6 +983,8 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     if (Buffer_Alloc(data))
     {
         Buffer_SetNewContents(data, str);
+        if (data->BufferPos > data->NumChars) /* MUIA_String_BufferPos */
+            data->BufferPos = data->NumChars;
         if (data->NumChars)
             data->msd_Flags |= MSDF_CHANGED;
         /* Marks given at creation refer to the initial contents */
@@ -1181,7 +1184,9 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_String_BufferPos:
-            data->BufferPos = (ULONG) tag->ti_Data;
+            /* Inside the text, as Textinput_CursorPos: Delete and
+             * Backspace move NumChars - BufferPos bytes */
+            data->BufferPos = MIN((ULONG)tag->ti_Data, data->NumChars);
             data->msd_Flags &= ~(MSDF_MARKING | MSDF_TIMARK);
             data->msd_RedrawReason = MOVE_CURSOR;
             MUI_Redraw(obj, MADF_DRAWUPDATE);
