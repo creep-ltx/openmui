@@ -399,13 +399,29 @@ InstallClipRegion callers found by a frame-pointer walk; all FS-UAE, OS 3.1
   of six lists with too-wide, styled, columned and cut-off rows through
   cursor moves, redraw and relayout) gives identical output with and
   without the change; `list_repaint_probe` passes (189 comparisons).
-- What is left (+5%) is in the scrolling moves: the scroll still needs the
-  clip because it repaints the cut-off last row (MUI 3.9 behaviour, see
-  `listvisible.c`), and Zune makes 7 SetAttrsA calls per step where MUI
-  3.8 makes 2. Intuition's own scroller refresh adds two InstallClipRegion
-  calls per step on both toolkits.
-- The host tests (`make check-core`) do not run on this PC: the installed
-  machine68k has no `Machine.from_name`.
+- Scroller (`Scrollbar_PropOnly`): each scroll step made 7 SetAttrsA
+  calls (MUI 3.8: 2). Four of them set MUIA_Prop_First: on the Scrollbar,
+  then Group forwarded it to the prop and to both arrow buttons, which
+  ignore it. Scrollbar now hands a tag list of only Prop_First/Entries/
+  Visible/NoNotify to the prop alone (the Scrollbar's own notifications
+  still see it). Per step 7 -> 5 calls.
+- Both changes, against lean b95f0a40 in one session: list active x50
+  1143 -> 1108 ms (MUI 3.8: 1063, so +4% left), cursor moves inside the
+  view 287 -> 194 ms, scrolling moves x24 606 -> 595 ms; the other perfbench
+  batches within 0.3%, the list-only redraw +1% (474 -> 479 ms). `make
+  check` passes; fullcheck (19 demos + 8 MUI-Demo windows) and `real.sh`
+  (with `REALDIR=DH0:Real`) give the same results as lean.
+- What is left is in the scrolling moves: the scroll still needs the clip
+  because it repaints the cut-off last row (MUI 3.9 behaviour, see
+  `listvisible.c`), and List sets MUIA_List_First and
+  MUIA_List_VertProp_First as two separate calls. Intuition's own
+  scroller refresh adds two InstallClipRegion calls per step on both
+  toolkits.
+- `make check` needs the toolchain's Python, an unstripped build and the
+  toolchain's FlexCat first on PATH: `PATH=~/opt/amiga-gcc16/bin:$PATH make
+  check PYTHON=~/opt/amiga-gcc16/libexec/amitools/bin/python` (the system
+  machine68k has no `Machine.from_name`; the FlexCat stand-in cannot make
+  catalogs).
 
 ## Tools
 
