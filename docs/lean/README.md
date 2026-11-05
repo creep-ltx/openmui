@@ -79,6 +79,24 @@ retypeset ones: typesetting first and drawing once left the text empty,
 reverted); two programs starting at
 the same moment can get the same ARexx port name.
 
+## `make check` (2026-11-05)
+
+The project's own checks (`tests/check_*.py`, linked 68000 code run in
+amitools/vamos) need the Python that comes with the toolchain:
+`make check PYTHON=~/opt/amiga-gcc16/libexec/amitools/bin/python` (the
+system Python's amitools is too old: `Machine.from_name`). Until
+2026-11-05 they had not been run on this branch; they then failed in 8
+places, all where the checks fake an object or the library base at fixed
+byte offsets that the lean edition moved (Area 238 -> 136 bytes, the
+Application's window positions, the library base's new fields), or test a
+behaviour the lean edition changed on purpose (screen font by default, one
+block per notification, graphics.library asked before diskfont), plus two
+from the audit fixes (Pixmap's row drawing, the BMA_FLAGS query). The
+checks were updated, the library base keeps its class list and default
+pens last as the checks expect, and with class files on, `check-core`
+runs on a second build with every class inside the library
+(`$(BUILD)/check-builtin`). Upstream main passes all of them unchanged.
+
 ## Left open
 
 - **Library code**: 315 KB against MUI 3.8's 166 KB. Compiler options do
@@ -101,7 +119,5 @@ the same moment can get the same ARexx port name.
   14 KB of 1 KB puddles, MUI's own default is 2 KB, Text contents and
   text engine 8.5 KB, Group's virtual-only fields ~4 KB).
 - NListtree-Demo opens no window (Zune68 main too).
-- `make check` (the amitools-based harness) was not run: the installed
-  amitools is too old (`Machine.from_name`); check_group_parent.py and
-  check_virtual_scroll.py were updated for the Group change unrun.
+
 - Tested in FS-UAE only, not on real hardware; Dtpic not on an RTG screen.

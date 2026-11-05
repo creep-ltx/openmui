@@ -122,6 +122,9 @@ def check(path):
     hook, entry = h.blob(bytes(20)), h.blob(bytes(4))
     h.mem.w32(children, children + 4)
     h.mem.w32(children + 8, children)
+    # Lean edition: Group keeps its children itself; the first field of
+    # its data points to the list (upstream asked its Family object).
+    h.mem.w32(OBJECT + 272, children)
     h.mem.w32(OBJECT + 272 + 4, hook)
     h.mem.w32(hook + 8, entry)
     h.mem.w16(OBJECT + 28 + 28, 100)  # mad_Box.Width

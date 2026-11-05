@@ -62,10 +62,10 @@ def check(path):
         for item, expected in frames.items():
             ok, ptr = h.query(item, direct)
             assert ok and bytes(h.mem.r_block(ptr, 7)) == expected.encode() + b'\0'
-        # Presets remain distinct even without saved preferences.
-        for item, expected in ((0x20, b'helvetica/9\0'),
-                               (0x22, b'helvetica/9\0'),
-                               (0x23, b'helvetica/15\0'),
+        # Lean edition: without saved preferences every font preset is the
+        # screen's, as in MUI 3.8 (upstream: Tiny/Title helvetica/9, Big
+        # helvetica/15, which load diskfont.library and the font).
+        for item, expected in ((0x20, b'\0'), (0x22, b'\0'), (0x23, b'\0'),
                                (0x1e, b'\0'), (0x80, b'\0')):
             ok, ptr = h.query(item, direct)
             assert ok and bytes(h.mem.r_block(ptr, len(expected))) == expected
@@ -125,6 +125,11 @@ def check_font_fallback(path):
     h.mem.w32(mri + 52 + 4, normal)  # Normal owns its cached font.
     h.mem.w32(h.symbols['_DOSBase'], dos)
     h.mem.w32(h.symbols['_DiskfontBase'], diskfont)
+    # Lean edition: graphics.library's OpenFont is asked first (a font in
+    # memory needs no diskfont.library); here no font is in memory.
+    graphics = 0x7c000
+    h.mem.w32(h.symbols['_GfxBase'], graphics)
+    h.trap(graphics - 72, lambda: h.cpu.w_reg(0, 0))
     disk_calls = []
     disk_result = 0
 

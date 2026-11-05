@@ -180,7 +180,9 @@ def check(path):
             assert h.mem.r32(storage) == value, (library, hex(attr), h.mem.r32(storage))
         h.finish()
 
-    for failed_call in [1, 2, 3]:  # list header, node, parameter copy
+    # list header, node with its parameter copy (one block in the lean
+    # edition; upstream allocates the parameters separately)
+    for failed_call in [1, 2]:
         h = NotifyHarness(path)
         calls = [0]
         def allocate():

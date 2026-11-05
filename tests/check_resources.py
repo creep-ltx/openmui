@@ -76,7 +76,10 @@ class ResourceHarness(NotifyHarness):
 
     def bitmap_attr(self):
         width, height, depth = self.bitmaps[self.cpu.r_reg(8)]
-        self.cpu.w_reg(0, {0: height, 4: depth, 8: width}[self.cpu.r_reg(1)])
+        # BMA_FLAGS (12): not interleaved, so the masked blit goes to the
+        # OS BltMaskBitMapRastPort
+        self.cpu.w_reg(0, {0: height, 4: depth, 8: width,
+                           12: 0}[self.cpu.r_reg(1)])
 
     def alloc_mask(self):
         self.cpu.w_reg(0, 0 if self.fail_mask else self.alloc(4))

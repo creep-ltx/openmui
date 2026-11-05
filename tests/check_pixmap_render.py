@@ -81,8 +81,17 @@ class PlanarPixmap(Pixmap):
         self.trap(0x7c000 - 948, self.release_pen)
         self.trap(0x7c000 - 342, lambda: None)
         self.trap(0x7c000 - 324, self.write_pixel)
+        self.trap(0x7c000 - 774, self.write_pixel_line8)
+        self.rowbitmap = False
 
     def alloc_bitmap(self):
+        # The image, then a one-row bitmap for WritePixelLine8 (its height,
+        # d1, is 1)
+        if self.bitmap and self.cpu.r_reg(1) == 1:
+            assert not self.rowbitmap
+            self.rowbitmap = not self.bitmap_fail
+            self.cpu.w_reg(0, 0x77800 if self.rowbitmap else 0)
+            return
         assert not self.bitmap
         self.bitmap = not self.bitmap_fail
         self.cpu.w_reg(0, 0x77000 if self.bitmap else 0)
@@ -91,6 +100,10 @@ class PlanarPixmap(Pixmap):
         self.waited = True
 
     def free_bitmap(self):
+        if self.cpu.r_reg(8) == 0x77800:
+            assert self.rowbitmap and self.waited
+            self.rowbitmap = self.waited = False
+            return
         assert self.bitmap and self.waited and self.cpu.r_reg(8) == 0x77000
         self.bitmap = self.waited = False
 
@@ -107,13 +120,23 @@ class PlanarPixmap(Pixmap):
         assert self.cpu.r_reg(8) == 0x76500
         self.pens.remove(self.cpu.r_reg(0))
 
+    def write_pixel_line8(self):
+        # rp a0, x d0, y d1, width d2, pens a2, temprp a1: pen 0 is the
+        # cleared bitmap, a pixel left out
+        x, y, width = self.cpu.r_reg(0), self.cpu.r_reg(1), self.cpu.r_reg(2)
+        pens = self.mem.r_block(self.cpu.r_reg(10), width)
+        assert self.rowbitmap and self.mem.r32(self.cpu.r_reg(9) + 4) == 0x77800
+        self.points += [(x + i, y) for i in range(width) if pens[i]]
+        self.cpu.w_reg(0, width)
+
     def write_pixel(self):
         self.points.append((self.cpu.r_reg(0), self.cpu.r_reg(1)))
         self.cpu.w_reg(0, 0)
 
     def clean(self):
         self.call('MUIM_Cleanup', MESSAGE)
-        assert not self.bitmap and not self.pens and not self.allocated
+        assert not self.bitmap and not self.rowbitmap
+        assert not self.pens and not self.allocated
         assert not self.mem.r32(DATA + 52)  # no retained ColorMap
 
 

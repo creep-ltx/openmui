@@ -71,6 +71,9 @@ def check_group(path):
     h.mem.w32(childlist, node)
     h.mem.w32(node, childlist + 4)
     h.mem.w32(childlist + 4, 0)
+    # Lean edition: Group keeps its children itself; the first field of
+    # its data points to the list (upstream asked its Family object).
+    h.mem.w32(OBJECT + 262, childlist)
     def get_children():
         h.mem.w32(h.cpu.r_reg(9), childlist)
         h.cpu.w_reg(0, 1)

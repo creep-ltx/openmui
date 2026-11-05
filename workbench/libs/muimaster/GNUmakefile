@@ -178,6 +178,15 @@ $(BUILD)/config-init-probe: ../../../tests/native/config_init_probe.c $(GENERATE
 	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(PROGRAM_DEPS) -I$(BUILD)/include -Iinclude -I. \
 	  -Wl,-u,___stkinit -o $@ $< -lmui
 
+# The checks look into the library for each class's code. With classes in
+# files of their own (CLASSFILES) they run on a second build in
+# $(BUILD)/check-builtin with every class inside the library: the class
+# files hold the same code. The class files themselves are tested on an
+# Amiga (tests/lean/scripts/fullcheck.sh).
+ifneq ($(strip $(CLASSFILES)),)
+check-core:
+	$(MAKE) check-core CLASSFILES= BUILD=$(BUILD)/check-builtin
+else
 check-core: $(BUILD)/list-repaint-probe $(BUILD)/config-init-probe $(MUI5_PROBE_BINS) $(BUILD)/mui5-version_gate-probe core $(BUILD)/compatcheck $(BUILD)/mui5-layout-probe $(BUILD)/mui5-pointer-probe
 	$(PYTHON) ../../../tests/check_native_init.py $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_gcc_library.py \
@@ -246,6 +255,7 @@ check-core: $(BUILD)/list-repaint-probe $(BUILD)/config-init-probe $(MUI5_PROBE_
 	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_release.py
 	$(PYTHON) ../../../tests/check_opentest_stack.py $(BUILD)/opentest $(BUILD)/compatcheck
+endif
 
 # Changing TRACE in an existing build must also recompile the callers.
 $(BUILD)/trace-config.h: FORCE

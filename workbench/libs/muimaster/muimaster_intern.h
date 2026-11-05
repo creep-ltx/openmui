@@ -86,12 +86,14 @@ struct MUIMasterBase_intern
 
     /* Borrowed built-in classes, cleared before any expunge attempt. */
     Class                       *BuiltinClassCache[32];
-    struct MinList              BuiltinClasses;
-    struct MinList              Applications;
-    struct MUI_PenSpec          *defaultPens;
     struct SignalSemaphore      LazyLibSemaphore; /* zune_lazylib_open() */
     ULONG                       LazyLibFailed;    /* 1 << ZUNE_LIB_* */
     BPTR                        ClassFiles[ZUNE_CLASSFILE_NFILES + 1]; /* classfile.h: private LoadSeg copies */
+    /* The last three stay last: the checks in tests/ find them from the
+     * end of the base (class list at -28, default pens at -4) */
+    struct MinList              BuiltinClasses;
+    struct MinList              Applications;
+    struct MUI_PenSpec          *defaultPens;
 };
 
 
