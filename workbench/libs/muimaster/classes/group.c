@@ -119,7 +119,26 @@ struct MUI_GroupData
      * child operation). The list and the Family methods below work as
      * Family's did (family.c). */
     struct MinList childlist;
+    /* Entries row_infos and col_infos have room for: kept between
+     * AskMinMax passes, which reallocated both every time */
+    ULONG row_cap, col_cap;
 };
+
+/* *infos with room for n entries, cleared; NULL without memory */
+static struct layout2d_elem *group_infos(struct layout2d_elem **infos,
+    ULONG *cap, ULONG n)
+{
+    if (*infos && *cap >= n)
+    {
+        memset(*infos, 0, n * sizeof(**infos));
+        return *infos;
+    }
+    if (*infos)
+        mui_free(*infos);
+    *infos = mui_alloc(n * sizeof(**infos));
+    *cap = *infos ? n : 0;
+    return *infos;
+}
 
 static inline struct MinList *group_children(struct MUI_GroupData *data)
 {
@@ -3099,19 +3118,9 @@ group_minmax_2d(struct IClass *cl, Object *obj,
     if (data->rows < 1)
         data->rows = 1;
 
-    if (data->row_infos != NULL)
-        mui_free(data->row_infos);
-
-    data->row_infos = mui_alloc(data->rows * sizeof(struct layout2d_elem));
-    if (NULL == data->row_infos)
+    if (!group_infos(&data->row_infos, &data->row_cap, data->rows))
         return;
-
-    if (data->col_infos != NULL)
-        mui_free(data->col_infos);
-
-    data->col_infos =
-        mui_alloc(data->columns * sizeof(struct layout2d_elem));
-    if (NULL == data->col_infos)
+    if (!group_infos(&data->col_infos, &data->col_cap, data->columns))
         return;
 
     data->horiz_weight_sum = 0;
