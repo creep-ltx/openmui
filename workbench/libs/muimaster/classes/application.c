@@ -5,6 +5,7 @@
 
 */
 
+#include <stddef.h>
 #include <exec/types.h>
 #include <devices/timer.h>
 #include <dos/dostags.h>
@@ -85,7 +86,7 @@ struct MUI_ApplicationData
     STRPTR                  app_Version_Number;
     STRPTR                  app_Version_Date;
     STRPTR                  app_Version_Extra;
-    ULONG                   app_TimerOutstanding;
+    struct MinList          app_Timers;     /* timerequest_ext.link */
     ULONG                   app_MenuAction; /* Remember last action */
     BOOL                    app_ForceQuit;
     BOOL                    app_Iconified;
@@ -154,6 +155,7 @@ struct timerequest_ext
 {
     struct timerequest treq;
     struct MUI_InputHandlerNode *ihn;
+    struct MinNode link;    /* in app_Timers until RemInputHandler */
 };
 
 /****** Application.mui/MUIC_Application ************
@@ -1344,6 +1346,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
 
     /* init input handler list */
     NewList((struct List *)&(data->app_IHList));
+    NewList((struct List *)&data->app_Timers);
 
     /* init input queue */
     NewList((struct List *)&(data->app_MethodQueue));
@@ -1910,12 +1913,21 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
     {
         if (data->app_TimerReq->tr_node.io_Device)
         {
-            while (data->app_TimerOutstanding)
+            /* Timers a class did not remove would otherwise stay with
+             * timer.device and later be replied to the deleted port */
+            struct MinNode *n;
+
+            while ((n = (struct MinNode *)RemHead(
+                    (struct List *)&data->app_Timers)))
             {
-                if (Wait(1L << data->app_TimerPort->
-                        mp_SigBit | 4096) & 4096)
-                    break;
-                data->app_TimerOutstanding--;
+                struct timerequest_ext *time_ext = (struct timerequest_ext *)
+                    ((UBYTE *)n - offsetof(struct timerequest_ext, link));
+
+                if (!CheckIO((struct IORequest *)time_ext))
+                    AbortIO((struct IORequest *)time_ext);
+                WaitIO((struct IORequest *)time_ext);
+                time_ext->ihn->ihn_Node.mln_Pred = NULL;
+                FreeVec(time_ext);
             }
             CloseDevice((struct IORequest *)data->app_TimerReq);
         }
@@ -2586,7 +2598,16 @@ static IPTR Application__MUIM_AddInputHandler(struct IClass *cl,
             time_ext->treq.tr_time.tv_micro =
                 (msg->ihnode->ihn_Millis % 1000) * 1000;
             time_ext->ihn = msg->ihnode;
+            AddTail((struct List *)&data->app_Timers,
+                (struct Node *)&time_ext->link);
             SendIO((struct IORequest *)time_ext);
+        }
+        else
+        {
+            /* No request: RemInputHandler must not take the stale link
+             * for one */
+            msg->ihnode->ihn_Node.mln_Pred = NULL;
+            return FALSE;
         }
     }
     else
@@ -2630,15 +2651,19 @@ static IPTR Application__MUIM_AddInputHandler(struct IClass *cl,
 static IPTR Application__MUIM_RemInputHandler(struct IClass *cl,
     Object *obj, struct MUIP_Application_RemInputHandler *msg)
 {
-    //struct MUI_ApplicationData *data = INST_DATA(cl, obj);
     if (msg->ihnode->ihn_Flags & MUIIHNF_TIMER)
     {
         struct timerequest_ext *time_ext =
             (struct timerequest_ext *)msg->ihnode->ihn_Node.mln_Pred;
+        /* NULL: AddInputHandler had no memory, or already removed */
+        if (!time_ext)
+            return TRUE;
         if (!CheckIO((struct IORequest *)time_ext))
             AbortIO((struct IORequest *)time_ext);
         WaitIO((struct IORequest *)time_ext);
+        Remove((struct Node *)&time_ext->link);
         FreeVec(time_ext);
+        msg->ihnode->ihn_Node.mln_Pred = NULL;
     }
     else
         Remove((struct Node *)msg->ihnode);
