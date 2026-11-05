@@ -250,6 +250,26 @@ IPTR Scrollbar__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
  * values are not rejected. Requires live child targets and writable tag
  * list; Group can mutate forwarded tags.
  */
+static BOOL Scrollbar_PropOnly(struct TagItem *tags)
+{
+    struct TagItem *tag;
+
+    while ((tag = NextTagItem(&tags)) != NULL)
+    {
+        switch (tag->ti_Tag)
+        {
+        case MUIA_NoNotify:
+        case MUIA_Prop_First:
+        case MUIA_Prop_Entries:
+        case MUIA_Prop_Visible:
+            break;
+        default:
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
 IPTR Scrollbar__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct Scrollbar_DATA *data = INST_DATA(cl, obj);
@@ -276,6 +296,25 @@ IPTR Scrollbar__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                     MUIM_Prop_Increase, data->incdec);
             }
         }
+    }
+
+    /* The scroller position (List and Listview set it on every scroll)
+     * matters to the prop only: give it to the prop and keep Group from
+     * passing it to both arrows as well. The Scrollbar's own
+     * notifications still see the tags. */
+    if (data->prop && Scrollbar_PropOnly(msg->ops_AttrList))
+    {
+        struct TagItem noforward[2] = {
+            { MUIA_Group_Forward, FALSE },
+            { TAG_MORE, (IPTR)msg->ops_AttrList }
+        };
+        struct opSet m = *msg;
+        IPTR rc;
+
+        m.ops_AttrList = noforward;
+        rc = DoSuperMethodA(cl, obj, (Msg) &m);
+        DoMethodA(data->prop, (Msg) msg);
+        return rc;
     }
 
     return DoSuperMethodA(cl, obj, (Msg) msg);
