@@ -423,6 +423,37 @@ InstallClipRegion callers found by a frame-pointer walk; all FS-UAE, OS 3.1
   machine68k has no `Machine.from_name`; the FlexCat stand-in cannot make
   catalogs).
 
+## Memory, 2026-11-05: notifications, image specs, four more class files
+
+MUI-Demo cold, OS 3.1 + 4 MB fast, 68000, GCC 16.2, `m.sh` (two runs each
+agree within 0.1 KB) and `tally.sh` (second MUI-Demo's own blocks):
+
+| | library alone | first program | each further | tally | notifications |
+|---|---:|---:|---:|---:|---:|
+| lean c8c3a0d2 | 319.5 KB | 550.0 KB | 244.3 KB | 170.8 KB / 1,179 | 13.0 KB / 268 |
+| + Notify (4b8072cc) | 319.6 KB | 545.8 KB | 240.0 KB | 166.4 KB / 1,180 | 8.6 KB / 268 |
+| + image specs, class files (e2205d20) | 308.6 KB | 532.2 KB | 237.4 KB | | |
+| MUI 3.8 (2026-11-04) | 238 KB | 460 KB | 211-219 KB | | |
+
+- **Notify**: a node was 32 bytes + parameters, and an MUIV_EveryTime node
+  kept the parameters twice so the trigger value could be put in. Now 24
+  bytes (no pointers to its own parameters, flags packed), the message with
+  the trigger value is built in a 32-byte buffer on the stack, and only a
+  node with more than 7 parameters keeps a second copy. AllocMem with the
+  size known at free. `check_notifications.py` covers 3, 7 and 9 parameters.
+- **Image specs**: 205 StrDup copies of "6:N"/"0:N" strings per MUI-Demo,
+  one per object background; the built-in ones are now shared constants.
+- **Class files**: Register, Bitmap, Bodychunk, ChunkyImage (11.8 KB of
+  code); the Pages demo (Register) and MUI-Demo's images load them.
+- Where a further window's memory is now (tally): objects 100.4 KB / 340
+  (Group 58 x 344 bytes, Text 72 x 226, Image 75 x 212, Rectangle 45 x 188,
+  List 11 x ~766, Prop 21 x 300, Scrollbar 14 x 364, Listview 13 x 348;
+  every object pays 12 + 28 + 136 bytes for BOOPSI, Notify and Area), lists
+  20.5 KB (two 1 KB pool puddles in each of 7 filled lists), smart refresh
+  backing store 17.1 KB, notifications 8.6 KB.
+- perfbench in the same session: create/dispose -5%, the rest within 0.3%.
+- Checks: `make check`, fullcheck and real.sh as on lean.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,

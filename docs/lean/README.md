@@ -12,10 +12,12 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 |---|---|---|---|---|---|
 | MUI 3.8 | 166 KB | 238 KB | 460 KB | 211-219 KB | 1.48-1.5 s |
 | Zune68 main | 429 KB | 535 KB | 832 KB | 334 KB | 1.9-2.0 s |
-| lean | 315 KB (+163 KB in 36 class files) | 323 KB | 553 KB | 243 KB | 1.72-1.76 s |
+| lean | 298 KB (+180 KB in 40 class files) | 309 KB | 532 KB | 237 KB | 1.5 s |
+
+(lean measured 2026-11-05 with GCC 16.2; the other rows 2026-11-04.)
 
 perfbench (68EC020, same session): lean is faster than MUI 3.8 in seven of
-eight batches; "list active" is 6% slower (Zune68 main too).
+eight batches; "list active" is 4% slower (Zune68 main 7%).
 
 Details: [measurements.md](measurements.md), the class split:
 [class-split.md](class-split.md), GCC 16.2 against GCC 6.5 (16.2 is 6 KB
@@ -70,6 +72,11 @@ before) and the Popasl case below on OS 3.1 and 3.2.1.
 | cf83a36e class files | the generator refuses register-argument functions in the jump table (the jumps use a0) |
 | 1ceed3ab lean tests | REALDIR instead of a test machine's volume name |
 | 78f0145e Group | 2-D groups keep their row and column arrays between AskMinMax passes (freed and allocated again every pass) |
+| 00739c0a List | a cursor move clips only when a row needs it (on OS 3.1 a clip costs ~1.5 ms): cursor moves inside the view -33% |
+| 8a36e810 Scrollbar | the scroller position goes to the prop only, not to both arrow buttons as well |
+| 4b8072cc Notify | 24-byte nodes; MUIV_EveryTime messages with up to 7 parameters built on the stack, not kept twice: -4.4 KB per MUI-Demo |
+| 92475b94 Image specs | built-in image and pattern spec strings shared, not copied per object |
+| e2205d20 class files | Register, Bitmap, Bodychunk, ChunkyImage as class files: library -11.8 KB |
 
 Not changed, and why: Window's explicit cycle chain sorts in O(n^2) per added object (only programs that
 call MUIM_Window_SetCycleChain, short chains); a `.mui` in LIBS:MUI is

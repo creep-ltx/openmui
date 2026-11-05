@@ -8,7 +8,7 @@ used classes in `MUI:Libs/mui/`.
 
 ## The split
 
-**Files (`LIBS:Zune/<Name>.mui`, 36 files, 163 KB on disk):**
+**Files (`LIBS:Zune/<Name>.mui`, 40 files, 180 KB on disk):**
 
 - MUI 3.8's own external set: Boopsi, Coloradjust, Colorfield, Dirlist,
   Floattext, Frameadjust, Framedisplay, Gauge, Imageadjust, Imagedisplay,
@@ -16,14 +16,16 @@ used classes in `MUI:Libs/mui/`.
   Popframe, Popimage, Poppen, Popscreen, Scale, Scrollgroup, Volumelist,
   Dtpic (since 08e1f52e).
 - Balance (inside MUI 3.8; 5 KB of floating point, rarely used).
+- Register, Bitmap, Bodychunk, ChunkyImage (inside MUI 3.8; 11.8 KB of
+  code most programs do not use; since e2205d20).
 - MUI 4/5 classes: Fontpanel (with Fontdisplay), Filepanel, Selectorpanel
   (class `Panel.mui`), Keyadjust, Title, Datamap (with Objectmap), Textdata,
   Selectgroup, Process.
 
 **Inside the library:** Notify, Family, Application, Window, Area, Rectangle,
 Group, Virtgroup, Image, Configdata, Text, Numeric, Slider, String, Prop,
-Scrollbar, Scrollbutton, Register, Menuitem/Menu/Menustrip, Semaphore,
-Dataspace, Bitmap, Bodychunk, ChunkyImage, Cycle, Radio, Popstring,
+Scrollbar, Scrollbutton, Menuitem/Menu/Menustrip, Semaphore,
+Dataspace, Cycle, Radio, Popstring,
 Popobject, Poplist, Listview, List, Mccprefs, Settings, Settingsgroup,
 Aboutmui, Crawling. Aboutmui, Settings, Settingsgroup and Virtgroup
 are external in MUI 3.8 but a few hundred bytes each here, less than a
