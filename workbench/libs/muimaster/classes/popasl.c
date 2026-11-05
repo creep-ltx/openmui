@@ -522,12 +522,13 @@ IPTR Popasl__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
  * Requires worker and all deferred callbacks finished; does not abort, join
  * or cancel queued work here. Disposing an active requester is unsafe.
  */
-/* AbortAslRequest() came with asl.library 45 (OS 3.5): on 3.0/3.1 its
- * vector is past the end of the library's jump table. Nothing to do
- * there: the requester stays until the user closes it. */
+/* AbortAslRequest() came with asl.library 44 (OS 3.5, asl.doc): on
+ * 3.0/3.1 (asl 39/40) its vector is past the end of the library's jump
+ * table. Nothing to do there: the requester stays until the user closes
+ * it. */
 static void popasl_abort(struct Popasl_DATA *data)
 {
-    if (AslBase && AslBase->lib_Version >= 45)
+    if (AslBase && AslBase->lib_Version >= 44)
         AbortAslRequest(data->asl_req);
 }
 
@@ -542,7 +543,7 @@ IPTR Popasl__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
     {
         /* Abort again until it is gone: the worker may not have opened
          * the requester yet when the first abort comes. Without
-         * AbortAslRequest (asl.library before 45) wait until the user
+         * AbortAslRequest (asl.library before 44) wait until the user
          * closes the requester. */
         data->asl_waiter = FindTask(NULL);
         while (data->asl_running)
