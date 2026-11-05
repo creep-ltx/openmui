@@ -1812,26 +1812,21 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
                 }
             }
 
+            /* Only the window positions go into the application's own
+             * file, as with MUI: writing the settings in use there made
+             * the application ignore every later change of the global
+             * settings. */
             snprintf(filename, 255, "ENV:zune/%s.prefs", data->app_Base);
             DoMethod(data->app_GlobalInfo.mgi_Configdata,
-                MUIM_Configdata_Save, (IPTR) filename);
+                MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
         }
         if (positionmode == 2)
         {
-            /*
-             * ENVARC holds the settings that survive a reboot, i.e. the
-             * ones from the last "Save" in the config window. "Use" only
-             * applies the settings for the current session, so do not
-             * write the session settings here. Reload the persistent
-             * ENVARC content and save it again, which updates only the
-             * window positions (Configdata_SetWindowPos re-adds them
-             * during Save).
-             */
+            /* ENVARC: the same, so the positions survive a reboot; the
+             * settings saved there are left as they are. */
             snprintf(filename, 255, "ENVARC:zune/%s.prefs", data->app_Base);
             DoMethod(data->app_GlobalInfo.mgi_Configdata,
-                MUIM_Configdata_Load, (IPTR) filename);
-            DoMethod(data->app_GlobalInfo.mgi_Configdata,
-                MUIM_Configdata_Save, (IPTR) filename);
+                MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
         }
     }
 

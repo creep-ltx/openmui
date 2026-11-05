@@ -675,6 +675,9 @@ static IPTR Configdata__MUIM_SetupNotify(struct IClass *cl, Object *obj,
     return data->fsNotifyPort != NULL;
 }
 
+static BOOL prefs_read(Object *ds, CONST_STRPTR filename, BOOL clear);
+static void prefs_write(Object *ds, CONST_STRPTR filename);
+
 IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct MUI_ConfigdataData *data;
@@ -730,27 +733,33 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             res = -1;
     }
 
-    if (data->appbase && res == 0)
-    {
-        char filename[255];
-        snprintf(filename, 255, "ENV:zune/%s.prefs", data->appbase);
-        res = DoMethod(obj, MUIM_Configdata_Load, (IPTR) filename);
-        if (!res)
-        {
-            snprintf(filename, 255, "ENVARC:zune/%s.prefs", data->appbase);
-            res = DoMethod(obj, MUIM_Configdata_Load, (IPTR) filename);
-        }
-    }
-
-    // load only global prefs if no local app pref is found
+    /* As MUI does: the global settings first, then the application's
+     * own file on top of them. That file may hold only the window
+     * positions remembered when the application quit; it must not hide
+     * the global settings (it did: an application that once remembered
+     * a window kept the settings of that moment for ever). */
     if (res == 0)
     {
-        if (!DoMethod(obj, MUIM_Configdata_Load,
-                (IPTR) "ENV:zune/global.prefs"))
+        BOOL loaded = prefs_read(obj, "ENV:zune/global.prefs", FALSE)
+            || prefs_read(obj, "ENVARC:zune/global.prefs", FALSE);
+
+        if (data->appbase && Stricmp(data->appbase, "global"))
         {
-            DoMethod(obj, MUIM_Configdata_Load,
-                (IPTR) "ENVARC:zune/global.prefs");
+            char filename[255];
+
+            snprintf(filename, 255, "ENV:zune/%s.prefs", data->appbase);
+            if (prefs_read(obj, filename, FALSE))
+                loaded = TRUE;
+            else
+            {
+                snprintf(filename, 255, "ENVARC:zune/%s.prefs",
+                    data->appbase);
+                if (prefs_read(obj, filename, FALSE))
+                    loaded = TRUE;
+            }
         }
+        if (loaded)
+            DoMethod(obj, MUIM_Configdata_LoadPubScreens);
     }
 
     /* The public screen file notification starts when the application
@@ -1286,61 +1295,140 @@ static int SavePrefsHeader(struct IFFHandle *iff)
     return 0;
 }
 
+/* Read the MUIC chunk of a preferences file into a Dataspace object (a
+ * Configdata or a plain Dataspace). clear: forget what it held first,
+ * once the file is open (MUIM_Configdata_Load); else the file's items are
+ * laid over the ones it has. FALSE if the file cannot be read. */
+static BOOL prefs_read(Object *ds, CONST_STRPTR filename, BOOL clear)
+{
+    struct IFFHandle *iff;
+    BOOL res = FALSE;
+
+    if (!ZUNE_IFFPARSE() || !(iff = AllocIFF()))
+        return FALSE;
+    D(bug("loading prefs from %s\n", filename));
+    if ((iff->iff_Stream = (IPTR) Open(filename, MODE_OLDFILE)))
+    {
+        InitIFFasDOS(iff);
+        if (!OpenIFF(iff, IFFF_READ))
+        {
+            StopChunk(iff, MAKE_ID('P', 'R', 'E', 'F'), MAKE_ID('M',
+                    'U', 'I', 'C'));
+            if (clear)
+                DoMethod(ds, MUIM_Dataspace_Clear);
+            while (!ParseIFF(iff, IFFPARSE_SCAN))
+            {
+                struct ContextNode *cn;
+                if (!(cn = CurrentChunk(iff)))
+                    continue;
+                if (cn->cn_ID == MAKE_ID('M', 'U', 'I', 'C'))
+                    DoMethod(ds, MUIM_Dataspace_ReadIFF, (IPTR) iff);
+            }
+            CloseIFF(iff);
+            res = TRUE;
+        }
+        Close((BPTR) iff->iff_Stream);
+    }
+    FreeIFF(iff);
+    return res;
+}
+
+/* Write a Dataspace object as a preferences file (FORM PREF, PRHD, MUIC),
+ * making the file's drawer if it is missing. */
+static void prefs_write(Object *ds, CONST_STRPTR filename)
+{
+    struct IFFHandle *iff;
+
+    if (!ZUNE_IFFPARSE() || !(iff = AllocIFF()))
+        return;
+    if (!(iff->iff_Stream = (IPTR) Open(filename, MODE_NEWFILE)))
+    {
+        /* Try to Create the directory where the file is located */
+        char *path = StrDup(filename);
+        if (path)
+        {
+            char *path_end = PathPart(path);
+            if (path_end != path)
+            {
+                BPTR lock;
+                *path_end = 0;
+                if ((lock = CreateDir(path)))
+                {
+                    UnLock(lock);
+                    iff->iff_Stream = (IPTR) Open(filename, MODE_NEWFILE);
+                }
+            }
+            FreeVec(path);
+        }
+    }
+    if (iff->iff_Stream)
+    {
+        InitIFFasDOS(iff);
+        if (!OpenIFF(iff, IFFF_WRITE))
+        {
+            if (!PushChunk(iff, MAKE_ID('P', 'R', 'E', 'F'), ID_FORM,
+                    IFFSIZE_UNKNOWN))
+            {
+                if (SavePrefsHeader(iff))
+                {
+                    DoMethod(ds, MUIM_Dataspace_WriteIFF, (IPTR) iff,
+                        0, MAKE_ID('M', 'U', 'I', 'C'));
+                }
+                PopChunk(iff);
+            }
+            CloseIFF(iff);
+        }
+        Close((BPTR) iff->iff_Stream);
+    }
+    FreeIFF(iff);
+}
+
 /**************************************************************************
  MUIM_Configdata_Save
 **************************************************************************/
 IPTR Configdata__MUIM_Save(struct IClass *cl, Object *obj,
     struct MUIP_Configdata_Save *msg)
 {
-    struct IFFHandle *iff;
-    if (ZUNE_IFFPARSE() && (iff = AllocIFF()))
+    Configdata_SetWindowPos(cl, obj, (APTR) msg);
+    prefs_write(obj, msg->filename);
+    return 0;
+}
+
+/**************************************************************************
+ MUIM_Configdata_SaveWindowPositions
+ What an application writes when it quits and remembers its windows: its
+ own file as it was, with only the window positions replaced, as MUI does.
+ The settings in use (global and its own merged) are not written: they
+ would hide later changes of the global settings from this application.
+**************************************************************************/
+static IPTR Configdata_SaveWindowPositions(struct IClass *cl, Object *obj,
+    struct MUIP_Configdata_Save *msg)
+{
+    struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
+    Object *own;
+    IPTR addr = 0, size = 0;
+
+    if (!data->app)
+        return 0;
+    if (!(own = MUI_NewObject(MUIC_Dataspace, TAG_DONE)))
+        return 0;
+    prefs_read(own, msg->filename, FALSE);
+    get(data->app, MUIA_Application_GetWinPosAddr, &addr);
+    get(data->app, MUIA_Application_GetWinPosSize, &size);
+    if (addr && size)
     {
-        if (!(iff->iff_Stream = (IPTR) Open(msg->filename, MODE_NEWFILE)))
-        {
-            /* Try to Create the directory where the file is located */
-            char *path = StrDup(msg->filename);
-            if (path)
-            {
-                char *path_end = PathPart(path);
-                if (path_end != path)
-                {
-                    BPTR lock;
-                    *path_end = 0;
-                    if ((lock = CreateDir(path)))
-                    {
-                        UnLock(lock);
-                        iff->iff_Stream =
-                            (IPTR) Open(msg->filename, MODE_NEWFILE);
-                    }
-                }
-                FreeVec(path);
-            }
-        }
-
-        if (iff->iff_Stream)
-        {
-            InitIFFasDOS(iff);
-
-            if (!OpenIFF(iff, IFFF_WRITE))
-            {
-                if (!PushChunk(iff, MAKE_ID('P', 'R', 'E', 'F'), ID_FORM,
-                        IFFSIZE_UNKNOWN))
-                {
-                    Configdata_SetWindowPos(cl, obj, (APTR) msg);
-                    if (SavePrefsHeader(iff))
-                    {
-                        DoMethod(obj, MUIM_Dataspace_WriteIFF, (IPTR) iff,
-                            0, MAKE_ID('M', 'U', 'I', 'C'));
-                    }
-                    PopChunk(iff);
-                }
-
-                CloseIFF(iff);
-            }
-            Close((BPTR) iff->iff_Stream);
-        }
-        FreeIFF(iff);
+#if (!AROS_BIG_ENDIAN)
+        windowpos_swapbytes(addr, size);
+#endif
+        DoMethod(own, MUIM_Dataspace_Add, addr, size, MUICFG_WindowPos);
+#if (!AROS_BIG_ENDIAN)
+        windowpos_swapbytes(addr, size);
+#endif
     }
+    else
+        DoMethod(own, MUIM_Dataspace_Remove, MUICFG_WindowPos);
+    prefs_write(own, msg->filename);
+    MUI_DisposeObject(own);
     return 0;
 }
 
@@ -1352,50 +1440,7 @@ IPTR Configdata__MUIM_Save(struct IClass *cl, Object *obj,
 IPTR Configdata__MUIM_Load(struct IClass *cl, Object *obj,
     struct MUIP_Configdata_Load *msg)
 {
-    struct IFFHandle *iff;
-    IPTR res = TRUE;
-
-    if (ZUNE_IFFPARSE() && (iff = AllocIFF()))
-    {
-        D(bug("loading prefs from %s\n", msg->filename));
-        if ((iff->iff_Stream = (IPTR) Open(msg->filename, MODE_OLDFILE)))
-        {
-            InitIFFasDOS(iff);
-
-            if (!OpenIFF(iff, IFFF_READ))
-            {
-                StopChunk(iff, MAKE_ID('P', 'R', 'E', 'F'), MAKE_ID('M',
-                        'U', 'I', 'C'));
-
-                DoMethod(obj, MUIM_Dataspace_Clear);
-
-                while (!ParseIFF(iff, IFFPARSE_SCAN))
-                {
-                    struct ContextNode *cn;
-                    if (!(cn = CurrentChunk(iff)))
-                        continue;
-                    if (cn->cn_ID == MAKE_ID('M', 'U', 'I', 'C'))
-                        DoMethod(obj, MUIM_Dataspace_ReadIFF, (IPTR) iff);
-                }
-
-                CloseIFF(iff);
-            }
-            else
-            {
-                res = FALSE;
-            }
-            Close((BPTR) iff->iff_Stream);
-        }
-        else
-        {
-            res = FALSE;
-        }
-        FreeIFF(iff);
-    }
-    else
-    {
-        res = FALSE;
-    }
+    IPTR res = prefs_read(obj, msg->filename, TRUE);
 
     if (res) {
         DoMethod(obj, MUIM_Configdata_LoadPubScreens);
@@ -1504,6 +1549,8 @@ BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
         return Configdata__MUIM_SetFont(cl, obj, (APTR) msg);
     case MUIM_Configdata_SetString:
         return Configdata__MUIM_SetString(cl, obj, (APTR) msg);
+    case MUIM_Configdata_SaveWindowPositions:
+        return Configdata_SaveWindowPositions(cl, obj, (APTR) msg);
     case MUIM_Configdata_Save:
         return Configdata__MUIM_Save(cl, obj, (APTR) msg);
     case MUIM_Configdata_Load:

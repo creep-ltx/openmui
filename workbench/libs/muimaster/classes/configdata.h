@@ -276,6 +276,8 @@ struct MUIP_Configdata_SetString
     (MUIB_Configdata | 0x0000002D)
 #define MUIM_Configdata_PubScreensChanged  /* PRIV */ \
     (MUIB_Configdata | 0x0000002C)
+#define MUIM_Configdata_SaveWindowPositions  /* PRIV: positions only */ \
+    (MUIB_Configdata | 0x0000002E)  /* STRPTR filename */
 
 
 extern const struct __MUIBuiltinClass _MUI_Configdata_desc;     /* PRIV */
