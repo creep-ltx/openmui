@@ -207,8 +207,8 @@
 *
 *   NOTES
 *       When TRUE and Shorten is not set, AskMinMax adds measured text width to
-*       the superclass minimum width, and text width plus the frame and inner
-*       spacing once more to the default width. Otherwise the minimum keeps
+*       the superclass minimum and default widths, as MUI 3.8 does (the
+*       default is the minimum). Otherwise the minimum keeps
 *       only the superclass contribution and the default adds the width of
 *       three W characters. Height constraints are unaffected. This permits a
 *       narrower allocation; it does not enable line wrapping.
@@ -813,13 +813,15 @@ IPTR Text__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 /*      D(bug("YSize=%ld\n", _font(obj)->tf_YSize)); */
 
 
-    /* Area supplied the frame and inner spacing. MUI 3.8/3.9 pad the
-     * default width with that spacing once more; without a minimum, the
-     * default content width is three 'W' glyphs. */
+    /* Area supplied the frame and inner spacing. MUI 3.8 adds the text
+     * and nothing else, so the default width is the minimum (measured:
+     * SimpleButton "Button" in topaz 8 is 56 = 48 + 2+2 thick frame +
+     * 2+2 spacing). Without a minimum, the default content width is
+     * three 'W' glyphs. */
     if ((data->mtd_Flags & MTDF_SETMIN) && !data->shorten)
     {
         msg->MinMaxInfo->MinWidth += data->ztext->width;
-        msg->MinMaxInfo->DefWidth += data->ztext->width + _subwidth(obj);
+        msg->MinMaxInfo->DefWidth += data->ztext->width;
     }
     else
     {
