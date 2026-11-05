@@ -253,8 +253,74 @@ static BOOL zune_mui_file_is_own(CONST_STRPTR path)
     return own;
 }
 
-Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
-    struct Library *MUIMasterBase)
+/* External classes (.mcc, .mcp, .mui files) stay loaded once they are
+ * used, as with MUI: this library opens each one once, keeps it in
+ * ExternalClasses, and closes it when memory is flushed and the class has
+ * no objects and no subclasses (ZUNE_ReleaseExternalClasses). Objects
+ * hold no open of their class's library: a program that frees them with
+ * DisposeObject() instead of MUI_DisposeObject() (the Zune prefs program
+ * did) used to leave an open behind each time, and the class library and
+ * this library could then never leave memory. */
+/* A base whose list was never set up (all zero) has none */
+#define EXTERNAL_LIST_READY(base) ((base)->ExternalClasses.mlh_Head != NULL)
+
+struct ExternalClass
+{
+    struct MinNode node;
+    Class *cl;
+    struct Library *lib;
+    ULONG refs;                 /* MUI_GetClass()s not yet freed */
+    char name[1];               /* the name it was asked for */
+};
+
+/* A loaded external class by name, with a new reference */
+static Class *external_find(struct MUIMasterBase_intern *base,
+    CONST_STRPTR classname)
+{
+    struct ExternalClass *ec;
+    Class *cl = NULL;
+
+    if (!EXTERNAL_LIST_READY(base))
+        return NULL;
+    Forbid();
+    ForeachNode(&base->ExternalClasses, ec)
+        if (!strcmp(ec->name, classname))
+        {
+            ec->refs++;
+            cl = ec->cl;
+            break;
+        }
+    Permit();
+    return cl;
+}
+
+/* MUI_FreeClass() of a loaded external class: drop one reference, TRUE.
+ * FALSE if cl is not one. Under Forbid, not the semaphore: MUI_FreeClass
+ * runs inside expunges (a class library deleting its class), where
+ * waiting is not allowed. The list changes under Forbid too. */
+BOOL ZUNE_FreeExternalClass(Class *cl, struct Library *MUIMasterBase)
+{
+    struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
+    struct ExternalClass *ec;
+    BOOL found = FALSE;
+
+    if (!EXTERNAL_LIST_READY(base))
+        return FALSE;
+    Forbid();
+    ForeachNode(&base->ExternalClasses, ec)
+        if (ec->cl == cl)
+        {
+            if (ec->refs)
+                ec->refs--;
+            found = TRUE;
+            break;
+        }
+    Permit();
+    return found;
+}
+
+static Class *external_load(CONST_STRPTR classname,
+    struct Library **libp, struct Library *MUIMasterBase)
 {
     struct Library *mcclib = NULL;
     struct MUI_CustomClass *mcc = NULL;
@@ -298,7 +364,7 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
                     mcc->mcc_Module = mcclib;
                     D(bug("Successfully opened %s as external class\n",
                             classname));
-
+                    *libp = mcclib;
                     return mcc->mcc_Class;
                 }
             }
@@ -309,6 +375,88 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
 
     D(bug("Failed to open external class %s\n", classname));
     return NULL;
+}
+
+Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
+    struct Library *MUIMasterBase)
+{
+    struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
+    struct ExternalClass *ec;
+    struct Library *lib = NULL;
+    Class *cl;
+
+    ObtainSemaphore(&base->ZuneSemaphore);
+    cl = external_find(base, classname);
+    ReleaseSemaphore(&base->ZuneSemaphore);
+    if (cl)
+        return cl;
+
+    /* Not under the semaphore: the class library's init makes its class
+     * through this library from ramlib's task. */
+    if (!(cl = external_load(classname, &lib, MUIMasterBase)))
+        return NULL;
+
+    ObtainSemaphore(&base->ZuneSemaphore);
+    if (external_find(base, classname))
+    {
+        /* Another task loaded it meanwhile (its reference is ours now):
+         * one open is enough */
+        ReleaseSemaphore(&base->ZuneSemaphore);
+        CloseLibrary(lib);
+        return cl;
+    }
+    if (!(ec = AllocVec(sizeof(*ec) + strlen(classname), MEMF_ANY)))
+    {
+        ReleaseSemaphore(&base->ZuneSemaphore);
+        CloseLibrary(lib);
+        return NULL;
+    }
+    if (!EXTERNAL_LIST_READY(base))
+        NewList((struct List *)&base->ExternalClasses);
+    ec->cl = cl;
+    ec->lib = lib;
+    ec->refs = 1;
+    strcpy(ec->name, classname);
+    Forbid();
+    AddTail((struct List *)&base->ExternalClasses, (struct Node *)ec);
+    Permit();
+    ReleaseSemaphore(&base->ZuneSemaphore);
+    return cl;
+}
+
+/* Close the external classes nobody uses (no references from
+ * MUI_GetClass, which subclasses made by name hold too, and no objects;
+ * a class library's own private subclasses do not count, it removes them
+ * itself when it leaves memory):
+ * called when memory is flushed (LibExpunge), under Forbid. Closing one
+ * may expunge its library, which closes this library; LibClose must not
+ * expunge it meanwhile (ReleasingExternal). Repeated while it frees
+ * something: a class can be the superclass of another external class. */
+void ZUNE_ReleaseExternalClasses(struct Library *MUIMasterBase)
+{
+    struct MUIMasterBase_intern *base = MUIMB(MUIMasterBase);
+    struct ExternalClass *ec, *next;
+    BOOL again = TRUE;
+
+    if (!EXTERNAL_LIST_READY(base) || base->ReleasingExternal
+        || !AttemptSemaphore(&base->ZuneSemaphore))
+        return;
+    base->ReleasingExternal = TRUE;
+    while (again)
+    {
+        again = FALSE;
+        ForeachNodeSafe(&base->ExternalClasses, ec, next)
+        {
+            if (ec->refs || ec->cl->cl_ObjectCount)
+                continue;
+            Remove((struct Node *)ec);  /* under the caller's Forbid */
+            CloseLibrary(ec->lib);
+            FreeVec(ec);
+            again = TRUE;
+        }
+    }
+    base->ReleasingExternal = FALSE;
+    ReleaseSemaphore(&base->ZuneSemaphore);
 }
 
 /**************************************************************************/

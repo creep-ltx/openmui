@@ -61,6 +61,10 @@
         return;
     }
     Permit();
+    /* A loaded external class: one reference less; the library keeps it
+     * open until a flush finds it unused (ZUNE_ReleaseExternalClasses) */
+    if (ZUNE_FreeExternalClass(cl, MUIMasterBase))
+        return;
     ObtainSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
     if (cl->cl_Flags & CLF_INLIST) {
         if (cl->cl_UserData) --cl->cl_UserData;

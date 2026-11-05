@@ -89,6 +89,10 @@ struct MUIMasterBase_intern
     struct SignalSemaphore      LazyLibSemaphore; /* zune_lazylib_open() */
     ULONG                       LazyLibFailed;    /* 1 << ZUNE_LIB_* */
     BPTR                        ClassFiles[ZUNE_CLASSFILE_NFILES + 1]; /* classfile.h: private LoadSeg copies */
+    /* External classes (.mcc/.mcp/.mui) this library opened, one open
+     * each, kept while loaded as MUI does (support_classes.c) */
+    struct MinList              ExternalClasses;
+    BOOL                        ReleasingExternal; /* LibClose: no expunge now */
     /* The last three stay last: the checks in tests/ find them from the
      * end of the base (class list at -28, default pens at -4) */
     struct MinList              BuiltinClasses;
@@ -106,6 +110,8 @@ extern struct Library *MUIMasterBase;
 extern struct Library *MUIScreenBase;
 extern struct Library *CyberGfxBase;
 BOOL ZUNE_FreeBuiltinClasses(struct Library *base);
+void ZUNE_ReleaseExternalClasses(struct Library *base);
+BOOL ZUNE_FreeExternalClass(Class *cl, struct Library *base);
 #endif
 
 #endif /* MUIMASTER_INTERN_H */

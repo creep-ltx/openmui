@@ -35,7 +35,13 @@ struct Library *LibOpen(struct MUIMasterBase_intern *base __asm("a6"))
 BPTR LibExpunge(struct MUIMasterBase_intern *base __asm("a6"))
 {
     BPTR segment;
-    if (base->library.lib_OpenCnt || !ZUNE_FreeBuiltinClasses(&base->library)) {
+    /* Unused external classes go first, as MUI's do on a flush: they
+     * hold this library open and keep its classes in use */
+    ZUNE_ReleaseExternalClasses(&base->library);
+    if (base->library.lib_OpenCnt || base->ReleasingExternal
+        || (base->ExternalClasses.mlh_Head
+            && !IsListEmpty((struct List *)&base->ExternalClasses))
+        || !ZUNE_FreeBuiltinClasses(&base->library)) {
         base->library.lib_Flags |= LIBF_DELEXP;
         return 0;
     }
@@ -48,8 +54,17 @@ BPTR LibExpunge(struct MUIMasterBase_intern *base __asm("a6"))
 }
 BPTR LibClose(struct MUIMasterBase_intern *base __asm("a6"))
 {
-    if (!--base->library.lib_OpenCnt &&
-        (base->library.lib_Flags & LIBF_DELEXP))
+    --base->library.lib_OpenCnt;
+    /* A program closing the library gives up the external classes nobody
+     * uses any more: they hold this library open (each class library
+     * opens it), so waiting for this library's expunge would wait for
+     * ever. Closed, they leave memory at the next flush and close this
+     * library, which then releases those that only they used. */
+    ZUNE_ReleaseExternalClasses(&base->library);
+    /* Not while external classes are being closed: one of them closing
+     * this library ends inside that release, whose caller goes on */
+    if (!base->library.lib_OpenCnt &&
+        (base->library.lib_Flags & LIBF_DELEXP) && !base->ReleasingExternal)
         return LibExpunge(base);
     return 0;
 }

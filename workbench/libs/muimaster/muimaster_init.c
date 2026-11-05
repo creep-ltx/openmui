@@ -132,6 +132,7 @@ ULONG L_InitLib(struct Library *library)
     InitSemaphore(&base->LazyLibSemaphore);
     NewList((struct List *)&base->BuiltinClasses);
     NewList((struct List *)&base->Applications);
+    NewList((struct List *)&base->ExternalClasses);
     for (i = 0; i < sizeof(dependencies) / sizeof(dependencies[0]); ++i) {
         *dependencies[i].base = OpenLibrary(dependencies[i].name,
             dependencies[i].version);

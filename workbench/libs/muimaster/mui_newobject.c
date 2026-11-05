@@ -62,16 +62,15 @@
     {
         Object *obj = NewObjectA(cl, NULL, tags);
 
-        /* A built-in class stays alive while it has objects (expunge
-         * checks cl_ObjectCount), so its objects keep no reference, like
-         * MUI 3.9: one freed with DisposeObject() instead of
-         * MUI_DisposeObject() must not keep the library resident. */
-        if (obj && (cl->cl_Flags & CLF_INLIST))
-            MUI_FreeClass(cl);
+        /* Objects keep no reference to their class, like MUI 3.9: a
+         * built-in class stays while it has objects (expunge checks
+         * cl_ObjectCount), and so does a loaded external class
+         * (ZUNE_ReleaseExternalClasses). One freed with DisposeObject()
+         * instead of MUI_DisposeObject() then leaves nothing behind. */
+        MUI_FreeClass(cl);
         if (obj) return obj;
 
         bug("*** Could not create object of %s\n", classid);
-        MUI_FreeClass(cl);
     }
 
     bug("*** Couldn't find %s\n", classid);

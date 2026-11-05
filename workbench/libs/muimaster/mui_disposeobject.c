@@ -45,14 +45,9 @@
     if (obj == NULL)
         return;
     
-    Class *cl = OCLASS(obj);
-    /* Objects of built-in classes hold no reference (MUI_NewObjectA) */
-    BOOL builtin = (cl->cl_Flags & CLF_INLIST) != 0;
-
+    /* Objects hold no reference to their class (MUI_NewObjectA), as with
+     * MUI: this is DisposeObject() */
     DisposeObject(obj);
-
-    if (!builtin)
-        MUI_FreeClass(cl);
 
     AROS_LIBFUNC_EXIT
 
