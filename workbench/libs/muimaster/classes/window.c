@@ -1567,9 +1567,21 @@ static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     mri->mri_Colormap = scr->ViewPort.ColorMap;
     mri->mri_Fallback = 0;
 
-    if (scr->Width / scr->Height < 2)
+    /* Decided again at every setup: the window may open on another
+     * screen. MUI 3.8's frame thickness "auto" is thick when the screen
+     * is at least twice as wide as tall (its size, not the display mode:
+     * 640x320 thick, 640x321 thin, lores 320x256 thin). */
+    mri->mri_Flags &= ~(MUIMRI_THINFRAMES | MUIMRI_TRUECOLOR);
+    switch (muiGlobalInfo(obj)->mgi_Prefs->frame_thickness)
     {
+    case FRAME_THICKNESS_THICK:
+        break;
+    case FRAME_THICKNESS_THIN:
         mri->mri_Flags |= MUIMRI_THINFRAMES;
+        break;
+    default:
+        if (scr->Width < 2 * scr->Height)
+            mri->mri_Flags |= MUIMRI_THINFRAMES;
     }
 
     if (GetBitMapAttr(scr->RastPort.BitMap, BMA_DEPTH) >= 15)

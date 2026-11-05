@@ -232,6 +232,8 @@ const static struct def_ulval DefULValues[] = {
     /* MUI 3.8: no extra title bar gadgets until switched on */
     PREF_DEFAULT(MUICFG_Window_Buttons, 0, window_buttons),
     PREF_DEFAULT(MUICFG_Window_Spacing_Bottom, 3, window_inner_bottom),
+    /* MUI 3.8: thick frames on screens at least twice as wide as tall */
+    PREF_DEFAULT(MUICFG_Frame_Thickness, FRAME_THICKNESS_AUTO, frame_thickness),
     PREF_DEFAULT(MUICFG_Window_Positions, WINDOW_POSITION_REMEMBER_ON_EXIT, window_position),
     PREF_DEFAULT(MUICFG_Window_Redraw, WINDOW_REDRAW_WITHOUT_CLEAR, window_redraw),
     /* MUI 3.8's default; MUI 3.9 changed to simple refresh, which loses

@@ -42,6 +42,14 @@ typedef enum WindowPosition {
     WINDOW_POSITION_SAVE_ON_EXIT,
 } WindowPosition;
 
+/* MUI 3.8's "Frame thickness": auto = thick on a screen at least twice as
+ * wide as tall, thin otherwise (decided per window at setup) */
+typedef enum FrameThickness {
+    FRAME_THICKNESS_AUTO,
+    FRAME_THICKNESS_THICK,
+    FRAME_THICKNESS_THIN
+} FrameThickness;
+
 typedef enum WindowRedraw {
     WINDOW_REDRAW_WITHOUT_CLEAR,
     WINDOW_REDRAW_WITH_CLEAR
@@ -209,7 +217,8 @@ struct ZunePrefsNew
     CONST_STRPTR customframe_config_15;
     CONST_STRPTR customframe_config_16;
 
-
+    /* Windows (last, so that the fields above keep their offsets) */
+    FrameThickness frame_thickness;
 };
 
 #endif

@@ -32,6 +32,7 @@ struct MUI_WindowPData
     Object *positions_cycle;
     Object *refresh_cycle;
     Object *redraw_cycle;
+    Object *thickness_cycle;
     Object *font_normal_string;
     Object *font_tiny_string;
     Object *font_big_string;
@@ -126,6 +127,8 @@ static Object *MakeTitleButton(int which)
 static CONST_STRPTR positions_labels[4];
 static CONST_STRPTR refresh_labels[3];
 static CONST_STRPTR redraw_labels[3];
+/* MUI 3.8's Frame thickness, in its order (MUICFG_Frame_Thickness) */
+static CONST_STRPTR thickness_labels[] = { "auto", "thick", "thin", NULL };
 
 static IPTR WindowP_New(struct IClass *cl, Object *obj, struct opSet *msg)
 {
@@ -159,6 +162,8 @@ static IPTR WindowP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                       Child, (IPTR) (d.refresh_cycle = MakeCycle(_(MSG_REFRESH), refresh_labels)),
                       Child, (IPTR) Label(_(MSG_REDRAW)),
                       Child, (IPTR) (d.redraw_cycle = MakeCycle(_(MSG_REDRAW), redraw_labels)),
+                      Child, (IPTR) Label("Frame thickness:"),
+                      Child, (IPTR) (d.thickness_cycle = MakeCycle("Frame thickness:", thickness_labels)),
                       Child, (IPTR) Label("Gadgets:"),
                       Child, (IPTR) HGroup,
                          MUIA_Group_Spacing, 0,
@@ -273,6 +278,9 @@ static IPTR WindowP_ConfigToGadgets(struct IClass *cl, Object *obj,
     setcycle(data->refresh_cycle,
              DoMethod(msg->configdata, MUIM_Configdata_GetULong,
                       MUICFG_Window_Refresh));
+    setcycle(data->thickness_cycle,
+             DoMethod(msg->configdata, MUIM_Configdata_GetULong,
+                      MUICFG_Frame_Thickness));
 
     buttons = DoMethod(msg->configdata, MUIM_Configdata_GetULong, MUICFG_Window_Buttons);
 
@@ -327,6 +335,8 @@ static IPTR WindowP_GadgetsToConfig(struct IClass *cl, Object *obj,
              XGET(data->positions_cycle, MUIA_Cycle_Active));
     DoMethod(msg->configdata, MUIM_Configdata_SetULong, MUICFG_Window_Refresh,
              XGET(data->refresh_cycle, MUIA_Cycle_Active));
+    DoMethod(msg->configdata, MUIM_Configdata_SetULong, MUICFG_Frame_Thickness,
+             XGET(data->thickness_cycle, MUIA_Cycle_Active));
 
     buttons = 0;
 

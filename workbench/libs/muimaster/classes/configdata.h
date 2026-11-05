@@ -147,6 +147,7 @@
 #define MUICFG_Screen_Height            0x508
 #define MUICFG_WindowPos                0x509
 #define MUICFG_Window_Buttons           0x50a
+#define MUICFG_Frame_Thickness          0x50b   /* ULONG, auto = 0 (def), thick, thin; Zune's own id, MUI's is unknown */
 
 #define MUICFG_CustomFrame_1            0x600
 #define MUICFG_CustomFrame_2            0x601

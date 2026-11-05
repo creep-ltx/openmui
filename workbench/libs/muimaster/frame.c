@@ -641,6 +641,171 @@ static void frame_thick_border_down_draw(struct dt_frame_image *fi,
 }
 
 /**************************************************************************
+ Thick frames (MUI 3.8's "Frame thickness: thick", the default where the
+ screen is at least twice as wide as tall): types 1, 2, 3 and 9 draw their
+ left and right lines 2 pixels wide (and are 2 or 4 pixels wider for it,
+ see __thickFrameGfx); type 4 keeps its size and fills its gap ring.
+ Top and bottom lines stay 1 pixel. The pixels are MUI 3.8's, measured.
+
+ Zune numbers the types 5 to 10 as MUI 4 and 5 do (TheBar's default
+ button frame "602222" is the xen look), MUI 3.8 numbers them otherwise:
+ its 5 is Zune's 6 raised, its 6 is Zune's 9 (type 3 in the half pens, the
+ one of them that is thick), its 7 is Zune's 10, its 9 is close to Zune's
+ 7 and its 10 to Zune's 5; 8 is 8 in both. The numbers stay Zune's: MUI
+ 3.8 takes no frame spec string in MUIA_Frame, MUI 4 and 5 programs do.
+**************************************************************************/
+
+/* RectFill only what is a rectangle: tiny frames must not hand
+ * graphics.library an inverted one */
+static void fill_box(struct RastPort *rp, int x0, int y0, int x1, int y1)
+{
+    if (x0 <= x1 && y0 <= y1)
+        RectFill(rp, x0, y0, x1, y1);
+}
+
+#define TR_LR 1 /* the top-right corner pixel in the lower right pen */
+#define BL_LR 2 /* the bottom-left one too (else both upper left) */
+
+/* One bevel line ring around the box l..r x t..b: the ul pen on the top row
+ * and the left column(s), the lr pen on the bottom row and the right
+ * column(s), cw (1 or 2) pixels wide; the top-right and bottom-left corner
+ * pixels as corners says. */
+static __attribute__((noinline)) void bevel_ring(struct MUI_RenderInfo *mri,
+    int l, int t, int r, int b, int cw, MPen ul, MPen lr, UBYTE corners)
+{
+    struct RastPort *rp = mri->mri_RastPort;
+
+    SetAPen(rp, mri->mri_Pens[ul]);
+    fill_box(rp, l, t, (corners & TR_LR) ? r - 1 : r, t);
+    fill_box(rp, l, t + 1, l + cw - 1, (corners & BL_LR) ? b - 1 : b);
+    SetAPen(rp, mri->mri_Pens[lr]);
+    fill_box(rp, l + 1, b, r, b);
+    fill_box(rp, r - cw + 1, t + 1, r, b - 1);
+    if (corners & TR_LR)
+        WritePixel(rp, r, t);
+    if (corners & BL_LR)
+        WritePixel(rp, l, b);
+}
+
+/* 1 (ul == lr) and 2: the outer column takes the off-pen corner, top
+ * right in the lower right pen, bottom left in the upper left one */
+static __attribute__((noinline)) void button_thick_draw(
+    struct MUI_RenderInfo *mri, int left, int top, int width, int height,
+    MPen ul, MPen lr)
+{
+    bevel_ring(mri, left, top, left + width - 1, top + height - 1, 2, ul, lr,
+               TR_LR);
+}
+
+static void frame_white_rect_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    button_thick_draw(mri, left, top, width, height, MPEN_SHINE, MPEN_SHINE);
+}
+
+static void frame_black_rect_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    button_thick_draw(mri, left, top, width, height, MPEN_SHADOW, MPEN_SHADOW);
+}
+
+static void frame_bevelled_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    button_thick_draw(mri, left, top, width, height, MPEN_SHINE, MPEN_SHADOW);
+}
+
+static void frame_recessed_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    button_thick_draw(mri, left, top, width, height, MPEN_SHADOW, MPEN_SHINE);
+}
+
+/* 3 and 9: two thick bevels, the inner one of the opposite state at
+ * x + 2, y + 1 */
+static __attribute__((noinline)) void thinborder_thick_draw(
+    struct MUI_RenderInfo *mri, int left, int top, int width, int height,
+    MPen ul, MPen lr)
+{
+    int right = left + width - 1, bottom = top + height - 1;
+
+    if (width < 8 || height < 4)
+        return;
+    bevel_ring(mri, left, top, right, bottom, 2, ul, lr, TR_LR);
+    bevel_ring(mri, left + 2, top + 1, right - 2, bottom - 1, 2, lr, ul,
+               TR_LR);
+}
+
+static void frame_thin_border_up_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    thinborder_thick_draw(mri, left, top, width, height, MPEN_SHINE,
+                          MPEN_SHADOW);
+}
+
+static void frame_thin_border_down_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    thinborder_thick_draw(mri, left, top, width, height, MPEN_SHADOW,
+                          MPEN_SHINE);
+}
+
+static void frame_halftone_border_up_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    thinborder_thick_draw(mri, left, top, width, height, MPEN_HALFSHINE,
+                          MPEN_HALFSHADOW);
+}
+
+static void frame_halftone_border_down_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    thinborder_thick_draw(mri, left, top, width, height, MPEN_HALFSHADOW,
+                          MPEN_HALFSHINE);
+}
+
+/* 4: same size as thin; the gap ring is filled with the outer lower right
+ * pen, and every bevel corner pixel takes its bevel's lower right pen */
+static __attribute__((noinline)) void thickborder_thick_draw(
+    struct MUI_RenderInfo *mri, int left, int top, int width, int height,
+    MPen ul, MPen lr)
+{
+    int right = left + width - 1, bottom = top + height - 1;
+
+    if (width < 6 || height < 6)
+        return;
+    bevel_ring(mri, left, top, right, bottom, 1, ul, lr, TR_LR | BL_LR);
+    bevel_ring(mri, left + 1, top + 1, right - 1, bottom - 1, 1, lr, lr,
+               TR_LR | BL_LR);
+    bevel_ring(mri, left + 2, top + 2, right - 2, bottom - 2, 1, lr, ul,
+               TR_LR | BL_LR);
+}
+
+static void frame_thick_border_up_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    thickborder_thick_draw(mri, left, top, width, height, MPEN_SHINE,
+                           MPEN_SHADOW);
+}
+
+static void frame_thick_border_down_thick_draw(struct dt_frame_image *fi,
+    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+    int top, int width, int height)
+{
+    thickborder_thick_draw(mri, left, top, width, height, MPEN_SHADOW,
+                           MPEN_SHINE);
+}
+
+/**************************************************************************
  5 : FST_ROUND_BEVEL
 **************************************************************************/
 /**
@@ -1303,57 +1468,55 @@ static const struct ZuneFrameGfx __builtinFrameGfx[] = {
 
 };
 
+/* Thick frames, for render infos without MUIMRI_THINFRAMES: types 1, 2, 3,
+ * 4 and 9, raised and recessed, in that order */
+static const struct ZuneFrameGfx __thickFrameGfx[] = {
+    /* 1 : FST_RECT */
+    {frame_white_rect_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
+    {frame_black_rect_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
+    /* 2 : FST_BEVEL */
+    {frame_bevelled_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
+    {frame_recessed_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
+    /* 3 : FST_THIN_BORDER */
+    {frame_thin_border_up_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
+    {frame_thin_border_down_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
+    /* 4 : FST_THICK_BORDER */
+    {frame_thick_border_up_thick_draw, 0, 3, 3, 3, 3, NULL, FALSE, 3, 0},
+    {frame_thick_border_down_thick_draw, 0, 3, 3, 3, 3, NULL, FALSE, 3, 0},
+    /* 9 : FST_GRAY_BORDER */
+    {frame_halftone_border_up_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
+    {frame_halftone_border_down_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
+};
+
 /**************************************************************************
-
+ The frame of a spec. obj is a set up Area object or NULL; its render info
+ decides thick or thin (MUIMRI_THINFRAMES, set by Window at setup from the
+ "Frame thickness" setting and the screen). Without one, thin.
 **************************************************************************/
-const struct ZuneFrameGfx *
-zune_zframe_get(Object *obj, const struct MUI_FrameSpec_intern *frameSpec)
-{
-    struct dt_frame_image *fi = NULL;
-
-    if (frameSpec->type >= FST_CUSTOM1) {
-        struct MUI_RenderInfo *mri = muiRenderInfo(obj);
-        if (!(fi = mri->mri_FrameImage[frameSpec->type - FST_CUSTOM1]))
-            return &__builtinFrameGfx[2 * FST_RECT];
-    }
-
-    if (frameSpec->type >= FST_COUNT)
-        return &__builtinFrameGfx[2 * FST_RECT];
-
-    return &__builtinFrameGfx[2 * frameSpec->type + frameSpec->state];
-
-#if 0
-    frame->customframe = NULL;
-
-    if ((fi != NULL) && (frame != NULL)) {
-        frame->customframe = fi;
-        frame->ileft = fi->inner_left;
-        frame->itop = fi->inner_top;
-        frame->iright = fi->inner_right;
-        frame->ibottom = fi->inner_bottom;
-        frame->noalpha = fi->noalpha;
-
-    }
-
-    return frame;
-#endif
-}
-
 const struct ZuneFrameGfx *zune_zframe_get_with_state(
     Object *obj, const struct MUI_FrameSpec_intern *frameSpec, UWORD state)
 {
-    struct dt_frame_image *fi = NULL;
+    UWORD type = frameSpec->type;
+    struct MUI_RenderInfo *mri = obj ? muiRenderInfo(obj) : NULL;
 
-    if (frameSpec->type >= FST_CUSTOM1) {
-        struct MUI_RenderInfo *mri = muiRenderInfo(obj);
-        if (!(fi = mri->mri_FrameImage[frameSpec->type - FST_CUSTOM1]))
+    if (type >= FST_CUSTOM1) {
+        if (type >= FST_COUNT || !mri
+            || !mri->mri_FrameImage[type - FST_CUSTOM1])
             return &__builtinFrameGfx[2 * FST_RECT];
     }
+    else if (((type >= FST_RECT && type <= FST_THICK_BORDER)
+            || type == FST_GRAY_BORDER) && mri
+        && !(mri->mri_Flags & MUIMRI_THINFRAMES))
+        return &__thickFrameGfx[2 * (type == FST_GRAY_BORDER ? 4 : type - 1)
+            + state];
 
-    if (frameSpec->type >= FST_COUNT)
-        return &__builtinFrameGfx[2 * FST_RECT];
+    return &__builtinFrameGfx[2 * type + state];
+}
 
-    return &__builtinFrameGfx[2 * frameSpec->type + state];
+const struct ZuneFrameGfx *
+zune_zframe_get(Object *obj, const struct MUI_FrameSpec_intern *frameSpec)
+{
+    return zune_zframe_get_with_state(obj, frameSpec, frameSpec->state);
 }
 
 /*------------------------------------------------------------------------*/
