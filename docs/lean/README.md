@@ -189,6 +189,7 @@ program 520.7 -> 497.2 KB, each further 222.3 -> 222.3 KB, first window
   List's edit and drag parts ~2.4 KB; String's context menu 0.35 KB) there
   is no clean cut: the code works on the classes' private instance data,
   which would have to move into shared headers, for a few KB.
+| 1d7331d7 Window | windows larger than the screen are fitted in MUI 3.8's three stages (helvetica 9 and 1 pixel spacing; no inner frame spacing; topaz 8), measured with a column of buttons: same heights as MUI 3.8 for 17 to 22 buttons, NListtree-Demo now opens (it never did on Zune). MUIA_Window_Width/Height read back the whole window as on MUI 3.8 (Zune returned the inner size) |
 
 ## Left open
 
@@ -210,6 +211,5 @@ program 520.7 -> 497.2 KB, each further 222.3 -> 222.3 KB, first window
   backing store, the rest is spread (notifications 13 KB, list pools
   14 KB of 1 KB puddles, MUI's own default is 2 KB, Text contents and
   text engine 8.5 KB, Group's virtual-only fields ~4 KB).
-- NListtree-Demo opens no window (Zune68 main too).
 
 - Tested in FS-UAE only, not on real hardware; Dtpic not on an RTG screen.
