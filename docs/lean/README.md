@@ -128,9 +128,5 @@ runs on a second build with every class inside the library
   14 KB of 1 KB puddles, MUI's own default is 2 KB, Text contents and
   text engine 8.5 KB, Group's virtual-only fields ~4 KB).
 - NListtree-Demo opens no window (Zune68 main too).
-- **About Zune window draws its text wrong** (seen on the real A1200, 2026-11-05, build of 2026-11-04): the
-  "Compiled on" and "Copyright" lines overlap and the text runs past the window's right edge. Built in
-  `classes/aboutmui.c` (one centred multi-line Text, `about_text[100]` - a longer translation would also be
-  cut off). Not yet checked whether Zune68 main does the same.
 
 - Tested in FS-UAE only, not on real hardware; Dtpic not on an RTG screen.
