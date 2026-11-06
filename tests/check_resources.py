@@ -147,6 +147,11 @@ def check(path):
         for failure in range(1, 5):
             h = ResourceHarness(path)
             h.fail_number = failure
+            # "3:<name>.image" opens an image class library through the
+            # picture module (DOS and ramlib, not modelled here): it is not
+            # there, as when the file is missing
+            h.trap(h.symbols['_zune_boopsi_image_open'],
+                   lambda: h.cpu.w_reg(0, 0))
             spec = h.call('zune_imspec_setup', h.blob(text.encode() + b'\0'), MRI)
             if spec:
                 h.call('zune_imspec_cleanup', spec)
