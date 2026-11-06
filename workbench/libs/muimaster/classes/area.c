@@ -25,6 +25,12 @@
 extern struct Library *MUIMasterBase;
 #include "muimaster_intern.h"
 
+/* Where a background pattern's first column and row lie: MUI 3.9 starts
+ * them at the object's corner, MUI 3.8 at the window's (demopix: the
+ * patterns of MUI-Demo's Backfill window) */
+#define PATTERN_ORIGIN_X(obj) (ZUNE_APP_MUI38(obj) ? 0 : _left(obj))
+#define PATTERN_ORIGIN_Y(obj) (ZUNE_APP_MUI38(obj) ? 0 : _top(obj))
+
 #include "bubbleengine.h"
 #include "datatypescache.h"
 #include "font.h"
@@ -2427,7 +2433,8 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
                 rects[i].MinX, rects[i].MinY,
                 rects[i].MaxX - rects[i].MinX + 1,
                 rects[i].MaxY - rects[i].MinY + 1, rects[i].MinX,
-                rects[i].MinY, 0, _left(obj), _top(obj));
+                rects[i].MinY, 0, PATTERN_ORIGIN_X(obj),
+                PATTERN_ORIGIN_Y(obj));
         }
     }
 
@@ -3031,7 +3038,7 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
         /*      D(bug("Area_DrawBackground(%p): draw bg\n", obj)); */
         zune_imspec_draw_at(bg, data->mad_RenderInfo, msg->left, msg->top,
             msg->width, msg->height, msg->xoffset, msg->yoffset, state,
-            _left(obj), _top(obj));
+            PATTERN_ORIGIN_X(obj), PATTERN_ORIGIN_Y(obj));
 
         //     if (!data->mad_FrameTitle)
         //     {
@@ -3040,7 +3047,8 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
         if (zframe->noalpha == FALSE) {
             zune_imspec_draw_at(bg, data->mad_RenderInfo, msg->left,
                 msg->top, msg->width, msg->height, msg->xoffset,
-                msg->yoffset, state, _left(obj), _top(obj));
+                msg->yoffset, state, PATTERN_ORIGIN_X(obj),
+                PATTERN_ORIGIN_Y(obj));
         }
     }
 
