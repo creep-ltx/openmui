@@ -54,7 +54,8 @@
 #define ZUNE_ID_MUI4  2
 #define ZUNE_ID_MUI5  3
 /* Programs (tasks) whose identity is remembered while they have the
- * library open; one more is served by the rules without a record */
+ * library open (12 bytes each); more are served by the rules without a
+ * record */
 #define ZUNE_ID_OPENERS 32
 
 struct MUIMasterBase_intern
@@ -114,6 +115,7 @@ struct MUIMasterBase_intern
     UBYTE                       IdLoader;     /* ZUNE_ID_* or 0 */
     struct ZuneOpener {
         struct Task *task;
+        APTR splower;   /* another task at the same address: not this */
         UWORD count;
         UBYTE identity;
         UBYTE pad;

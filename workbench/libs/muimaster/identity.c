@@ -20,7 +20,7 @@
  *   3. Automatic: the version it asks for, 0-19 MUI 3.8, 20 MUI 4,
  *      21 and higher MUI 5.
  * It is decided at the program's first open and remembered for its task
- * while it has the library open (ZUNE_ID_OPENERS records, 8 bytes each,
+ * while it has the library open (ZUNE_ID_OPENERS records, 12 bytes each,
  * in the base), so the classes it opens from its own task and the
  * application objects it makes follow it. External classes are loaded
  * through ramlib, whose task opens this library for them: those opens
@@ -267,13 +267,28 @@ static UBYTE decide(struct MUIMasterBase_intern *base, struct Task *task,
         : ZUNE_ID_MUI5;
 }
 
+/* The record of a task; a record of a task that closed the library from
+ * another task (and has ended) does not match a new task at its address:
+ * the stack differs */
 static struct ZuneOpener *find_opener(struct MUIMasterBase_intern *base,
     struct Task *task)
 {
     struct ZuneOpener *o;
 
     for (o = base->IdOpeners; o < base->IdOpeners + ZUNE_ID_OPENERS; o++)
-        if (o->task == task)
+        if (o->task == task && o->splower == task->tc_SPLower)
+            return o;
+    return NULL;
+}
+
+/* A free record, or that of an ended task at the address of this one */
+static struct ZuneOpener *free_opener(struct MUIMasterBase_intern *base,
+    struct Task *task)
+{
+    struct ZuneOpener *o;
+
+    for (o = base->IdOpeners; o < base->IdOpeners + ZUNE_ID_OPENERS; o++)
+        if (!o->task || o->task == task)
             return o;
     return NULL;
 }
@@ -339,9 +354,10 @@ struct Library *zune_identity_open(ULONG version)
     else
     {
         id = decide(base, me, version);
-        if ((o = find_opener(base, NULL)))
+        if ((o = free_opener(base, me)))
         {
             o->task = me;
+            o->splower = me->tc_SPLower;
             o->count = 1;
             o->identity = id;
         }
@@ -376,8 +392,9 @@ UBYTE zune_task_identity(void)
     Forbid();
     if ((o = find_opener(base, me)))
         id = o->identity;
-    else if (base->IdLoader)
-        id = base->IdLoader;
+    else if (base->IdLoader && me->tc_Node.ln_Name
+        && !strcmp(me->tc_Node.ln_Name, "ramlib"))
+        id = base->IdLoader;    /* a class's init making objects */
     else
         id = base->IdGlobal ? base->IdGlobal : ZUNE_ID_MUI38;
     Permit();
