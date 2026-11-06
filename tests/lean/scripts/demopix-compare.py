@@ -17,6 +17,12 @@ from PIL import Image
 
 SCALE_Y = 2  # the pictures in the report get their rows doubled (640x256 is a 1:2 pixel)
 
+# shots that cannot be the same twice, on any library
+NOT_COMPARABLE = {
+    "Layout": "places its buttons at random",
+    "InputHandler": "its text changes every second",
+}
+
 
 def load_wins(path):
     wins = []
@@ -106,18 +112,23 @@ def main():
     with open(os.path.join(out, "results.tsv"), "w") as f:
         f.write("\n".join(tsv) + "\n")
     same = [r for r in rows if r["n"] == 0]
+    comparable = [r for r in rows if r["shot"] not in NOT_COMPARABLE]
     with open(os.path.join(out, "report.html"), "w", encoding="utf-8") as f:
         f.write("<!doctype html><meta charset=utf-8><title>Zune against MUI 3.8: the demo set</title>"
                 "<style>body{font-family:sans-serif;background:#333;color:#eee}"
                 "td{vertical-align:top;padding:4px}img{image-rendering:pixelated}"
                 ".ok{color:#7f7}.bad{color:#f77}</style>")
         f.write("<h1>Zune against MUI 3.8: the demo set, pixel by pixel</h1>")
-        f.write("<p>%d windows, %d pixel-identical. Rows doubled for viewing. In the difference "
-                "picture red = a different pixel, magenta = only one side has the window there.</p>"
-                % (len(rows), len(same)))
+        f.write("<p>%d windows, %d pixel-identical (%d can be compared: %s). Rows doubled for "
+                "viewing. In the difference picture red = a different pixel, magenta = only one side "
+                "has the window there.</p>"
+                % (len(rows), len(same), len(comparable),
+                   "; ".join("%s %s" % kv for kv in NOT_COMPARABLE.items())))
         f.write("<table><tr><th>shot / window</th><th>sizes</th><th>differing</th></tr>")
         for r in rows:
             cls = "ok" if r["n"] == 0 else "bad"
+            if r["shot"] in NOT_COMPARABLE:
+                cls = ""
             pct = "" if not r["tot"] else " (%.1f%%)" % (100.0 * r["n"] / r["tot"])
             f.write("<tr><td><a href='#%s'>%s / %s</a></td><td>%s / %s</td><td class=%s>%s%s</td></tr>"
                     % (r["base"], html.escape(r["shot"]), html.escape(r["title"]), r["z"] or "-",
@@ -132,7 +143,8 @@ def main():
                 p = os.path.join("cmp", "%s-%s.png" % (r["base"], side))
                 f.write("<td>%s</td>" % ("<img src='%s'>" % p if os.path.exists(os.path.join(out, p)) else "-"))
             f.write("</tr></table>")
-    print("%d windows, %d pixel-identical" % (len(rows), len(same)))
+    print("%d windows, %d pixel-identical, %d comparable (not: %s)"
+          % (len(rows), len(same), len(comparable), ", ".join(NOT_COMPARABLE)))
     for r in rows:
         print("%-22s %-28s %-9s %-9s %s" % (r["shot"], r["title"][:28], r["z"] or "-", r["m"] or "-",
                                          "-" if r["n"] is None else r["n"]))
