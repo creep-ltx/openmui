@@ -2181,6 +2181,13 @@ IPTR Group__MUIM_Setup(struct IClass *cl, Object *obj,
 #endif
                 DoMethod(child, MUIM_Cleanup);
             }
+            /* And undo our own (Area's) setup: a failed MUIM_Setup leaves
+             * the object as it was. The group stayed marked as set up, so
+             * the window's dispose sent it MUIM_Cleanup later, and the
+             * group passed that on to children that had never been set
+             * up (MUIMine 1.2, whose too large mine field window fails to
+             * open: the machine reset when it quit). */
+            DoSuperMethod(cl, obj, MUIM_Cleanup);
             return FALSE;
         }
     }
