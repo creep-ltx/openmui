@@ -272,13 +272,15 @@ static void Scrollgroup_UpdateProps(struct Scrollgroup_DATA *data)
     get(data->contents, MUIA_Virtgroup_Width, &width);
     get(data->contents, MUIA_Virtgroup_Height, &height);
 
-    SetAttrs(data->horiz, MUIA_Prop_First, left,
-        MUIA_Prop_Entries, width,
-        MUIA_Prop_Visible, _mwidth(data->contents), TAG_DONE);
+    if (data->horiz)
+        SetAttrs(data->horiz, MUIA_Prop_First, left,
+            MUIA_Prop_Entries, width,
+            MUIA_Prop_Visible, _mwidth(data->contents), TAG_DONE);
 
-    SetAttrs(data->vert, MUIA_Prop_First, top,
-        MUIA_Prop_Entries, height,
-        MUIA_Prop_Visible, _mheight(data->contents), TAG_DONE);
+    if (data->vert)
+        SetAttrs(data->vert, MUIA_Prop_First, top,
+            MUIA_Prop_Entries, height,
+            MUIA_Prop_Visible, _mheight(data->contents), TAG_DONE);
 }
 
 /* MUI 3.9 keeps the contents within their maximum size and centres them
@@ -335,32 +337,41 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
             {
                 WORD maxxxxwidth = 0;
                 WORD maxxxxheight = 0;
+                LONG vw = data->vert ? _minwidth(data->vert) : 0;
+                LONG hh = data->horiz ? _minheight(data->horiz) : 0;
+                LONG cminw = _minwidth(data->contents);
+                LONG cminh = _minheight(data->contents);
 
-                maxxxxwidth = _minwidth(data->contents);
-                if (_minwidth(data->horiz) > maxxxxwidth)
+                /* An axis that does not scroll (MUIA_Scrollgroup_FreeHoriz
+                 * or FreeVert FALSE) needs the contents' whole minimum */
+                if (!data->horiz)
+                    get(data->contents, MUIA_Virtgroup_MinWidth, &cminw);
+                if (!data->vert)
+                    get(data->contents, MUIA_Virtgroup_MinHeight, &cminh);
+
+                maxxxxwidth = cminw;
+                if (data->horiz && _minwidth(data->horiz) > maxxxxwidth)
                     maxxxxwidth = _minwidth(data->horiz);
-                maxxxxwidth += _minwidth(data->vert);
+                maxxxxwidth += vw;
                 lm->lm_MinMax.MinWidth = maxxxxwidth;
 
-                maxxxxheight = _minheight(data->contents);
-                if (_minheight(data->vert) > maxxxxheight)
+                maxxxxheight = cminh;
+                if (data->vert && _minheight(data->vert) > maxxxxheight)
                     maxxxxheight = _minheight(data->vert);
-                maxxxxheight += _minheight(data->horiz);
+                maxxxxheight += hh;
                 lm->lm_MinMax.MinHeight = maxxxxheight;
 
                 /* MUI 3.8/3.9: default and maximum are the contents'
                  * sizes plus the scrollers */
                 lm->lm_MinMax.DefWidth = MAX(lm->lm_MinMax.MinWidth,
-                    _defwidth(data->contents) + _minwidth(data->vert));
+                    _defwidth(data->contents) + vw);
                 lm->lm_MinMax.DefHeight = MAX(lm->lm_MinMax.MinHeight,
-                    _defheight(data->contents) + _minheight(data->horiz));
+                    _defheight(data->contents) + hh);
                 lm->lm_MinMax.MaxWidth = CLAMP((LONG)_maxwidth(data->contents)
-                    + _minwidth(data->vert), lm->lm_MinMax.DefWidth,
-                    MUI_MAXMAX);
+                    + vw, lm->lm_MinMax.DefWidth, MUI_MAXMAX);
                 lm->lm_MinMax.MaxHeight = CLAMP(
                     (LONG)_maxheight(data->contents)
-                    + _minheight(data->horiz), lm->lm_MinMax.DefHeight,
-                    MUI_MAXMAX);
+                    + hh, lm->lm_MinMax.DefHeight, MUI_MAXMAX);
             }
 
             //kprintf("scrollgroup minmax: min %d x %d  def %d x %d\n",
@@ -386,8 +397,8 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
             LONG virt_minheight = 0;
             LONG virt_maxwidth;
             LONG virt_maxheight;
-            LONG vert_width = _minwidth(data->vert);
-            LONG horiz_height = _minheight(data->horiz);
+            LONG vert_width = data->vert ? _minwidth(data->vert) : 0;
+            LONG horiz_height = data->horiz ? _minheight(data->horiz) : 0;
             LONG lay_width = lm->lm_Layout.Width;
             LONG lay_height = lm->lm_Layout.Height;
             LONG cont_width = lay_width - _subwidth(data->contents);
@@ -422,7 +433,7 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
                 virt_height =
                     CLAMP(cont_height, virt_minheight, virt_maxheight);
 
-                if (virt_width > cont_width)
+                if (data->horiz && virt_width > cont_width)
                 {
                     cont_height -= horiz_height;
                     virt_height =
@@ -432,7 +443,7 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
                 //kprintf("      1: %d x %d   hbar %d  vbar %d\n",
                 //    cont_width, cont_height, hbar, vbar);
 
-                if (virt_height > cont_height)
+                if (data->vert && virt_height > cont_height)
                 {
                     cont_width -= vert_width;
                     virt_width =
@@ -443,7 +454,7 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
                 //    cont_width, cont_height, hbar, vbar);
 
                 /* We need to check this a 2nd time!! */
-                if (!hbar && (virt_width > cont_width))
+                if (!hbar && data->horiz && (virt_width > cont_width))
                 {
                     cont_height -= horiz_height;
                     virt_height =
@@ -459,11 +470,12 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
              * unless MUIA_Scrollgroup_AutoBars asks to hide unneeded ones */
             if (!data->usewinborder && !data->autobars)
             {
-                if (!hbar)
+                if (!hbar && data->horiz)
                     cont_height -= horiz_height;
-                if (!vbar)
+                if (!vbar && data->vert)
                     cont_width -= vert_width;
-                hbar = vbar = TRUE;
+                hbar = data->horiz != NULL;
+                vbar = data->vert != NULL;
             }
 
             cont_width += _subwidth(data->contents);
@@ -472,43 +484,28 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
             //kprintf("cont_size layouted to %d,%d\n",
             //    cont_width, cont_height);
 
-            if (hbar && vbar)
+            /* A bar exists only on an axis that scrolls (FreeHoriz,
+             * FreeVert); the button only when both bars do */
+            if (data->vert)
             {
-                /* We need all scrollbars and the button */
-                set(data->vert, MUIA_ShowMe, TRUE);
-                    /* We could also overload MUIM_Show... */
-                set(data->horiz, MUIA_ShowMe, TRUE);
-                set(data->button, MUIA_ShowMe, TRUE);
-                MUI_Layout(data->vert, cont_width, 0, vert_width,
-                    cont_height, 0);
-                MUI_Layout(data->horiz, 0, cont_height, cont_width,
-                    horiz_height, 0);
-                MUI_Layout(data->button, cont_width, cont_height,
-                    vert_width, horiz_height, 0);
+                set(data->vert, MUIA_ShowMe, vbar);
+                if (vbar)
+                    MUI_Layout(data->vert, cont_width, 0, vert_width,
+                        cont_height, 0);
             }
-            else if (vbar)
+            if (data->horiz)
             {
-                set(data->vert, MUIA_ShowMe, TRUE);
-                set(data->horiz, MUIA_ShowMe, FALSE);
-                set(data->button, MUIA_ShowMe, FALSE);
-
-                MUI_Layout(data->vert, cont_width, 0, vert_width,
-                    cont_height, 0);
+                set(data->horiz, MUIA_ShowMe, hbar);
+                if (hbar)
+                    MUI_Layout(data->horiz, 0, cont_height, cont_width,
+                        horiz_height, 0);
             }
-            else if (hbar)
+            if (data->button)
             {
-                set(data->vert, MUIA_ShowMe, FALSE);
-                set(data->horiz, MUIA_ShowMe, TRUE);
-                set(data->button, MUIA_ShowMe, FALSE);
-
-                MUI_Layout(data->horiz, 0, cont_height, cont_width,
-                    horiz_height, 0);
-            }
-            else if (!data->usewinborder)
-            {
-                set(data->vert, MUIA_ShowMe, FALSE);
-                set(data->horiz, MUIA_ShowMe, FALSE);
-                set(data->button, MUIA_ShowMe, FALSE);
+                set(data->button, MUIA_ShowMe, hbar && vbar);
+                if (hbar && vbar)
+                    MUI_Layout(data->button, cont_width, cont_height,
+                        vert_width, horiz_height, 0);
             }
 
             /* Layout the group a second time, note that setting _mwidth()
@@ -525,18 +522,21 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
 
                 get(data->contents, MUIA_Virtgroup_Width, &vw);
                 get(data->contents, MUIA_Virtgroup_Height, &vh);
-                if ((LONG)vh > _mheight(data->contents))
+                if (data->vert && (LONG)vh > _mheight(data->contents))
                     nv = TRUE;
-                if ((LONG)vw > _mwidth(data->contents)
+                if (data->horiz && (LONG)vw > _mwidth(data->contents)
                     - (nv && !vbar ? vert_width : 0))
                     nh = TRUE;
                 if (nv != vbar || nh != hbar)
                 {
                     cont_width = lay_width - (nv ? vert_width : 0);
                     cont_height = lay_height - (nh ? horiz_height : 0);
-                    set(data->vert, MUIA_ShowMe, nv);
-                    set(data->horiz, MUIA_ShowMe, nh);
-                    set(data->button, MUIA_ShowMe, nv && nh);
+                    if (data->vert)
+                        set(data->vert, MUIA_ShowMe, nv);
+                    if (data->horiz)
+                        set(data->horiz, MUIA_ShowMe, nh);
+                    if (data->button)
+                        set(data->button, MUIA_ShowMe, nv && nh);
                     if (nv)
                         MUI_Layout(data->vert, cont_width, 0, vert_width,
                             cont_height, 0);
@@ -593,6 +593,7 @@ AROS_UFH3(ULONG, Scrollgroup_Function,
     switch (type)
     {
     case 1:
+        if (data->vert)
         {
             get(data->vert, MUIA_Prop_First, &val);
             SetAttrs(data->contents, MUIA_Virtgroup_Top, val, MUIA_NoNotify,
@@ -601,6 +602,7 @@ AROS_UFH3(ULONG, Scrollgroup_Function,
         }
 
     case 2:
+        if (data->horiz)
         {
             get(data->horiz, MUIA_Prop_First, &val);
             SetAttrs(data->contents, MUIA_Virtgroup_Left, val,
@@ -608,10 +610,12 @@ AROS_UFH3(ULONG, Scrollgroup_Function,
             break;
         }
     case 3:
-        nnset(data->horiz, MUIA_Prop_First, val);
+        if (data->horiz)
+            nnset(data->horiz, MUIA_Prop_First, val);
         break;
     case 4:
-        nnset(data->vert, MUIA_Prop_First, val);
+        if (data->vert)
+            nnset(data->vert, MUIA_Prop_First, val);
         break;
     case 5:
         /* The contents' virtual size changed in a relayout of its own,
@@ -642,8 +646,14 @@ IPTR Scrollgroup__OM_NEW(struct IClass *cl, Object *obj,
     Object *contents =
         (Object *) GetTagData(MUIA_Scrollgroup_Contents, 0,
         msg->ops_AttrList);
-    Object *vert, *horiz, *button, *group;
+    Object *vert = NULL, *horiz = NULL, *button = NULL, *group;
     BOOL usewinborder;
+    /* MUI 3.8 (V9): an axis that may not move gets no scroller, and a
+     * one-axis group no corner button */
+    BOOL freehoriz = GetTagData(MUIA_Scrollgroup_FreeHoriz, TRUE,
+        msg->ops_AttrList);
+    BOOL freevert = GetTagData(MUIA_Scrollgroup_FreeVert, TRUE,
+        msg->ops_AttrList);
     Tag hbordertag = TAG_IGNORE;
     Tag vbordertag = TAG_IGNORE;
 
@@ -667,17 +677,18 @@ IPTR Scrollgroup__OM_NEW(struct IClass *cl, Object *obj,
         Child, (IPTR) (group = (Object *) GroupObject,
             MUIA_Group_LayoutHook, (IPTR) layout_hook,
             Child, (IPTR) contents,
-            Child, (IPTR) (vert =
+            freevert ? Child : TAG_IGNORE, (IPTR) (vert = freevert ?
                 (Object *) ScrollbarObject, MUIA_Group_Horiz, FALSE,
                 vbordertag, MUIV_Prop_UseWinBorder_Right,
-                End),
-            Child, (IPTR) (horiz =
+                End : NULL),
+            freehoriz ? Child : TAG_IGNORE, (IPTR) (horiz = freehoriz ?
                 (Object *) ScrollbarObject, MUIA_Group_Horiz, TRUE,
                 hbordertag, MUIV_Prop_UseWinBorder_Bottom,
-                End),
-            Child, (IPTR) (button =
+                End : NULL),
+            freevert && freehoriz ? Child : TAG_IGNORE,
+                (IPTR) (button = freevert && freehoriz ?
                 (Object *) ScrollbuttonObject,
-                End),
+                End : NULL),
             End),
         TAG_MORE, msg->ops_AttrList);
 
@@ -701,9 +712,12 @@ IPTR Scrollgroup__OM_NEW(struct IClass *cl, Object *obj,
     data->layout_hook = layout_hook;
     layout_hook->h_Data = data;
 
-    DoMethod(vert, MUIM_Notify, MUIA_Prop_First, MUIV_EveryTime, (IPTR) obj,
-        4, MUIM_CallHook, (IPTR) & data->hook, 1, MUIV_TriggerValue);
-    DoMethod(horiz, MUIM_Notify, MUIA_Prop_First, MUIV_EveryTime,
+    if (vert)
+        DoMethod(vert, MUIM_Notify, MUIA_Prop_First, MUIV_EveryTime,
+            (IPTR) obj, 4, MUIM_CallHook, (IPTR) & data->hook, 1,
+            MUIV_TriggerValue);
+    if (horiz)
+        DoMethod(horiz, MUIM_Notify, MUIA_Prop_First, MUIV_EveryTime,
         (IPTR) obj, 4, MUIM_CallHook, (IPTR) & data->hook, 2,
         MUIV_TriggerValue);
     DoMethod(contents, MUIM_Group_DoMethodNoForward, MUIM_Notify,
