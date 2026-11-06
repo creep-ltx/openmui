@@ -28,7 +28,7 @@ extern struct Library *MUIMasterBase;
 
 static CONST_STRPTR const module_names[ZMOD_COUNT] = {
     MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient,
-    MUIC_Zwintitle
+    MUIC_Zwintitle, MUIC_Zframes
 };
 
 /* Modules a process could not load: not tried again while the library
@@ -417,4 +417,22 @@ int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
 
     zune_module_put(cl);
     return choice;
+}
+
+/* The rounded frames (frame_round.c): asked for on every draw and layout
+ * of such a frame, so the table is kept. Class files and modules are
+ * only unloaded at the library's expunge (ZUNE_CloseClassFiles), so it
+ * stays valid without a reference held. */
+const struct ZuneFrameGfx *zune_round_frames_get(void)
+{
+    static const struct ZuneFrameGfx *round;
+
+    if (!round)
+    {
+        MODULE(ZuneFramesModule, ZMOD_FRAMES);
+        if (m)
+            round = m->frames;
+        zune_module_put(cl);
+    }
+    return round;
 }

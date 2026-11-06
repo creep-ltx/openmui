@@ -26,11 +26,12 @@
 #define MUIC_Zrequest   "Zrequest.zmod"     /* Zrequest.mui: requesters.c, mui_request.c */
 #define MUIC_Zgradient  "Zgradient.zmod"    /* Zgradient.mui: imspec_gradientdraw.c */
 #define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
+#define MUIC_Zframes    "Zframes.zmod"      /* Zframes.mui: frame_round.c */
 
 enum
 {
     ZMOD_MENU, ZMOD_PICTURE, ZMOD_DRAGDROP, ZMOD_REQUEST, ZMOD_GRADIENT,
-    ZMOD_WINTITLE,
+    ZMOD_WINTITLE, ZMOD_FRAMES,
     ZMOD_COUNT
 };
 
@@ -133,6 +134,16 @@ int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
     struct Gadget *popup, BOOL has_id);
 /* in classes/window.c: is the window object asleep (MUIA_Window_Sleep) */
 BOOL zune_window_sleeping(Object *win);
+
+/* The rounded frame types (frame_round.c): their table, up and down for
+ * 5, 7, 8, A, B, or NULL. The module's code stays loaded until the
+ * library's expunge, so the table is looked up once. */
+struct ZuneFrameGfx;
+struct ZuneFramesModule
+{
+    const struct ZuneFrameGfx *frames;
+};
+const struct ZuneFrameGfx *zune_round_frames_get(void);
 
 /* In a module built as a file: take the library bases over again before
  * code that reads CyberGfxBase, which the library opens at the first

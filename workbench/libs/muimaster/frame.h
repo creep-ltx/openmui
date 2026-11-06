@@ -105,6 +105,8 @@ const struct ZuneFrameGfx *zune_zframe_get(Object *obj,
     const struct MUI_FrameSpec_intern *frameSpec);
 const struct ZuneFrameGfx *zune_zframe_get_with_state(Object *obj,
     const struct MUI_FrameSpec_intern *frameSpec, UWORD state);
+/* the thin entry of a built-in type, for its sizes (no module loaded) */
+const struct ZuneFrameGfx *zune_zframe_get_sizes(UWORD type);
 
 BOOL zune_frame_intern_to_spec(const struct MUI_FrameSpec_intern *intern,
     STRPTR spec);

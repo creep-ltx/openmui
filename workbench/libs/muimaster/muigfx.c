@@ -205,7 +205,6 @@ static void SetSlot(LONG offset, APTR function)
 
 void MUIGfx_Install(struct Library *owner)
 {
-    struct MUI_FrameSpec_intern spec = { 0 };
     struct Library *base;
     LONG i;
 
@@ -213,8 +212,8 @@ void MUIGfx_Install(struct Library *owner)
     {
         const struct ZuneFrameGfx *zframe;
 
-        spec.type = i;
-        zframe = zune_zframe_get_with_state(NULL, &spec, 0);
+        /* sizes only: at library init no module may be loaded */
+        zframe = zune_zframe_get_sizes(i);
         Frames[i].left = zframe->ileft;
         Frames[i].right = zframe->iright;
         Frames[i].top = zframe->itop;
