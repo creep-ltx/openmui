@@ -113,23 +113,23 @@ static void spec_parse_long(CONST_STRPTR s, LONG *val)
 /* Pattern specs hold no screen resources (their pens are looked up when
  * drawing), so all objects share one constant per pattern instead of an
  * allocation per object per window open. zune_imspec_free leaves them. */
-static struct MUI_ImageSpec_intern
-    pattern_specs[MUII_MARKBACKGROUND - MUII_SHADOWBACK + 1];
+#define NPATTERN_SPECS (MUII_MARKBACKGROUND - MUII_SHADOWBACK + 1)
+#define NCOLOR_SPECS (MUII_FILL - MUII_BACKGROUND + 1)
+static struct MUI_ImageSpec_intern shared_specs[NPATTERN_SPECS + NCOLOR_SPECS];
+#define pattern_specs shared_specs
 
 /* The same for the four plain MUI pens (MUII_BACKGROUND, MUII_SHADOW,
  * MUII_SHINE, MUII_FILL), the background most objects get from the
  * settings ("0:128" and friends): a PST_MUI pen is read from the render
  * info it is drawn with (zune_penspec_pen), so one constant serves every
  * window and screen; it is never set up, cleaned up or freed. */
-static struct MUI_ImageSpec_intern
-    color_specs[MUII_FILL - MUII_BACKGROUND + 1];
+#define color_specs (shared_specs + NPATTERN_SPECS)
 
+/* One range for both kinds: the test stays as cheap as before */
 static BOOL is_shared_spec(const struct MUI_ImageSpec_intern *spec)
 {
-    return (spec >= &pattern_specs[0]
-        && spec < &pattern_specs[MUII_MARKBACKGROUND - MUII_SHADOWBACK + 1])
-        || (spec >= &color_specs[0]
-        && spec < &color_specs[MUII_FILL - MUII_BACKGROUND + 1]);
+    return spec >= &shared_specs[0]
+        && spec < &shared_specs[NPATTERN_SPECS + NCOLOR_SPECS];
 }
 
 static struct MUI_ImageSpec_intern *get_pattern_imspec(LONG in)

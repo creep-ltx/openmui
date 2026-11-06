@@ -1666,7 +1666,11 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 cleanup_control_char(data, obj);
             data->mad_ControlChar = tag->ti_Data;
             if (_flags(obj) & MADF_SETUP)
+            {
+                if (tag->ti_Data)
+                    zune_area_live(obj, cl);
                 setup_control_char(data, obj, cl);
+            }
             break;
 
         case MUIA_CycleChain:
@@ -1678,6 +1682,8 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 if (_flags(obj) & MADF_SETUP) {
                     cleanup_control_char(data, obj);
                     _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_CYCLECHAIN);
+                    if (tag->ti_Data)
+                        zune_area_live(obj, cl);
                     setup_control_char(data, obj, cl);
                 } else
                     _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_CYCLECHAIN);
@@ -3135,9 +3141,10 @@ Area__MUIM_DrawBackgroundBuffered(struct IClass *cl, Object *obj,
 static void setup_control_char(struct MUI_AreaData *data, Object *obj,
                                struct IClass *cl)
 {
-    /* the live block may not exist yet when either was set while shown */
+    /* Setup makes the live block for either; a change while shown makes
+     * it before this is called (OM_SET) */
     if ((data->mad_ControlChar != 0 || data->mad_Flags & MADF_CYCLECHAIN)
-            && zune_area_live(obj, cl)) {
+            && data->mad_Live) {
         data->mad_Live->ccn.ehn_Events = data->mad_ControlChar;
         switch (data->mad_InputMode) {
         case MUIV_InputMode_RelVerify:
