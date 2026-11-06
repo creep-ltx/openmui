@@ -2411,8 +2411,13 @@ IPTR List__MUIM_Setup(struct IClass *cl, Object *obj,
      * shown by the layout when the columns need it. It is made at the
      * first setup, before the group sets up its children, not with the
      * list: a list in a window that is never opened then costs no
-     * scroller (a group, a prop and two buttons, ~1.3 KB). */
-    if (!data->horiz && !data->area_replaced)
+     * scroller (a group, a prop and two buttons, ~1.3 KB). MUI 3.8 has no
+     * horizontal list scroller: behaving as MUI 3.8, a list gets one only
+     * when the program asks for it (MUIA_List_HScrollerVisibility
+     * Always, a MUI 4 attribute). */
+    if (!data->horiz && !data->area_replaced
+        && (!ZUNE_MUI38() || data->hscroll_visibility
+            == MUIV_List_HScrollerVisibility_Always))
     {
         data->horiz = ScrollbarObject,
             MUIA_Group_Horiz, TRUE,

@@ -125,6 +125,9 @@ void zune_title_gadgets_free(void);    /* classes/window.c, at expunge */
 
 #ifndef __AROS__
 extern struct Library *MUIMasterBase;
+/* The library behaves as MUI 3.8 (reports 19) unless Zune prefs choose
+ * MUI 5 (zunemaster_lib.c LibInit): MUI 3.9+ behaviour only above 19 */
+#define ZUNE_MUI38() (MUIMasterBase->lib_Version < 20)
 extern struct Library *MUIScreenBase;
 extern struct Library *CyberGfxBase;
 BOOL ZUNE_FreeBuiltinClasses(struct Library *base);
