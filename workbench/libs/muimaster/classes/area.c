@@ -3370,6 +3370,16 @@ static IPTR Area__MUIM_Cleanup(struct IClass *cl, Object *obj,
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
 
+    /* Nothing to undo on an object that is not set up. One that never
+     * was has no setup state at all (mad_Live is made at the first
+     * setup): a MUIM_Cleanup sent to it anyway read its timer and handler
+     * nodes and its selected-state image through NULL, removed garbage
+     * from the window's lists, wrote into the exception vectors and freed
+     * a pointer read from them; a second Cleanup went through the render
+     * info the first one cleared. */
+    if (!(_flags(obj) & MADF_SETUP) || !data->mad_Live)
+        return TRUE;
+
     _flags(obj) &= ~MADF_SETUP;
 
     //    cleanup_cycle_chain (data, obj);
