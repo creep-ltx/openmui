@@ -917,6 +917,7 @@ void zune_text_get_bounds(ZText * text, Object * obj)
 
     ZTextLine *line_node;
     ZTextChunk *chunk_node;
+    WORD base_width;
 
     if (!text || !obj)
         return;
@@ -1022,6 +1023,7 @@ void zune_text_get_bounds(ZText * text, Object * obj)
         /* MUI 3.9 adds the overhang of a bold or italic line end, the
          * part of its TextExtent beyond the advance (tests/native/
          * textstyles.c) */
+        base_width = line_node->lwidth;
         chunk_node = (ZTextChunk *) line_node->chunklist.mlh_TailPred;
         while (chunk_node->node.mln_Pred && !chunk_node->str)
             chunk_node = (ZTextChunk *) chunk_node->node.mln_Pred;
@@ -1048,6 +1050,42 @@ void zune_text_get_bounds(ZText * text, Object * obj)
              * (tests/native/centrestyle.c) */
             if (chunk_node->node.mln_Pred->mln_Pred)
                 line_node->centreskip = 0;
+        }
+        /* MUI 3.8 centres a line with bold or italic parts on its advance
+         * plus every such part's overhang plus one (demopix: MUI-Demo's
+         * title, three bold letters, sits two pixels left of MUI 3.9's
+         * place); the sizes stay as above */
+        if ((text->styles & (FSF_BOLD | FSF_ITALIC)) && obj
+            && (_flags(obj) & MADF_SETUP) && ZUNE_APP_MUI38(obj))
+        {
+            LONG extra = 0;
+            BOOL styled = FALSE;
+
+            for (chunk_node = (ZTextChunk *) line_node->chunklist.mlh_Head;
+                chunk_node->node.mln_Succ;
+                chunk_node = (ZTextChunk *) chunk_node->node.mln_Succ)
+            {
+                struct TextExtent te;
+
+                if (!chunk_node->str
+                    || !(chunk_node->style & (FSF_BOLD | FSF_ITALIC)))
+                    continue;
+                if (rp != &copy)
+                {
+                    copy = *rp;
+                    rp = &copy;
+                }
+                SetSoftStyle(rp, chunk_node->style & ~ZTEXT_STYLE_HICHAR,
+                    AskSoftStyle(rp));
+                TextExtent(rp, chunk_node->str, chunk_node->clen, &te);
+                SetSoftStyle(rp, FS_NORMAL, AskSoftStyle(rp));
+                extra += te.te_Extent.MaxX - te.te_Extent.MinX + 1
+                    - te.te_Width;
+                styled = TRUE;
+            }
+            if (styled)
+                line_node->centreskip = line_node->lwidth - base_width
+                    - (extra + 1);
         }
 
         text->height += line_node->lheight;
