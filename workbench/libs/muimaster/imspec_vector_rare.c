@@ -4,9 +4,11 @@
 
 */
 
-/* The rarely used vector images, split out of imspec_vector.c: MUII_Drawer,
- * HardDisk, Disk, Chip, Volume, Network, Assign and the tape buttons
- * (vector images 10-23, "1:10" to "1:23"). The native build has them in
+/* The rarely used vector images, split out of imspec_vector.c: MUII_Disk,
+ * Chip, Volume and the tape buttons but Play and Down (vector images 12-14
+ * and 18-22). NListtree's default node images are TapePlay, TapeDown and
+ * Drawer, so those (and HardDisk, Network and Assign, drawn on the same
+ * drawer) stay in the library. The native build has them in
  * the image module (modules.h, classes/zimages.c), loaded when an image of
  * these is first set up; other builds include this file in
  * imspec_vector.c. */
@@ -22,88 +24,9 @@
 #include "modules.h"
 #endif
 
-static void stddrawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-    int bottom = top + height - 1;
-    int x, y;
-
-#define XX(x)   (x * (width - 1) / 100)
-#define YY(y)   (y * (height - 1) / 100)
-#define YOFF    45
-#define XOFF    24
-
-    for (y = 0; y < YY(YOFF); y++)
-    {
-        x = (YY(XOFF) > 1) ? XX(XOFF) * y / (YY(YOFF) - 1) : 1;
-        SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
-        RectFill(rport, left + XX(XOFF) - x, top + y, right - XX(XOFF) + x,
-            top + y);
-        SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-        WritePixel(rport, left + XX(XOFF) - x, top + y);
-        WritePixel(rport, right - XX(XOFF) + x, top + y);
-    }
 
 
-    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
-    RectFill(rport, left, top + YY(YOFF), right, bottom);
 
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(XOFF), top);
-    Draw(rport, right - XX(XOFF), top);
-
-    Move(rport, left, top + YY(YOFF));
-    Draw(rport, left, bottom);
-    Draw(rport, right, bottom);
-    Draw(rport, right, top + YY(YOFF));
-    Draw(rport, left, top + YY(YOFF));
-
-#undef XX
-#undef YY
-#undef YOFF
-#undef XOFF
-}
-
-
-void drawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-
-    stddrawer_draw(mri, left, top, width, height);
-
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(40), top + YY(75));
-    Draw(rport, right - XX(40), top + YY(75));
-
-#undef XX
-#undef YY
-
-}
-
-void harddisk_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-
-    stddrawer_draw(mri, left, top, width, height);
-
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(20), top + YY(75));
-    Draw(rport, left + XX(30), top + YY(75));
-
-#undef XX
-#undef YY
-}
 
 void disk_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
     LONG height, LONG state)
@@ -200,60 +123,8 @@ void volume_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
 #undef YY
 }
 
-void network_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
 
-    stddrawer_draw(mri, left, top, width, height);
 
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(40), top + YY(75));
-    Draw(rport, right - XX(40), top + YY(75));
-
-#undef XX
-#undef YY
-}
-
-void assign_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-
-    stddrawer_draw(mri, left, top, width, height);
-
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(40), top + YY(75));
-    Draw(rport, right - XX(40), top + YY(75));
-
-#undef XX
-#undef YY
-}
-
-void tape_play_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int x, half = height / 2;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-
-    for (x = 0; x < width; x++)
-    {
-        int y = (width > 1) ? half * x / (width - 1) : 1;
-
-        RectFill(rport, left + width - 1 - x, top + half - y,
-            left + width - 1 - x, top + half + y);
-    }
-}
 
 void tape_playback_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
     LONG width, LONG height, LONG state)
@@ -375,30 +246,13 @@ void tape_up_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
     }
 }
 
-void tape_down_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int y, half = width / 2;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-
-    for (y = 0; y < height; y++)
-    {
-        int x = (height > 1) ? half * y / (height - 1) : 1;
-
-        RectFill(rport, left + half - x, top + height - 1 - y,
-            left + half + x, top + height - 1 - y);
-    }
-}
 
 
 #ifdef ZUNE_IMAGES_MODULE
-/* Vector images 10-23, in imspec_vector.c's order */
+/* Vector images 10-23, in imspec_vector.c's order; NULL: in the library */
 const VECTOR_DRAW_FUNC zune_rare_vectors[14] = {
-    drawer_draw, harddisk_draw, disk_draw, ram_draw, volume_draw,
-    network_draw, assign_draw, tape_play_draw, tape_playback_draw,
-    tape_pause_draw, tape_stop_draw, tape_record_draw, tape_up_draw,
-    tape_down_draw
+    NULL, NULL, disk_draw, ram_draw, volume_draw, NULL, NULL, NULL,
+    tape_playback_draw, tape_pause_draw, tape_stop_draw, tape_record_draw,
+    tape_up_draw, NULL
 };
 #endif

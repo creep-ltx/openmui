@@ -560,8 +560,163 @@ void popdrawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
     glyph_draw(mri, left, top, width, height, popdrawer_glyph, 12, 9);
 }
 
-/* MUII_Drawer ... MUII_TapeDown (vector images 10-23): imspec_vector_rare.c,
- * the image module in the native build (see zune_imspec_create_vector) */
+static void stddrawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right = left + width - 1;
+    int bottom = top + height - 1;
+    int x, y;
+
+#define XX(x)   (x * (width - 1) / 100)
+#define YY(y)   (y * (height - 1) / 100)
+#define YOFF    45
+#define XOFF    24
+
+    for (y = 0; y < YY(YOFF); y++)
+    {
+        x = (YY(XOFF) > 1) ? XX(XOFF) * y / (YY(YOFF) - 1) : 1;
+        SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
+        RectFill(rport, left + XX(XOFF) - x, top + y, right - XX(XOFF) + x,
+            top + y);
+        SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+        WritePixel(rport, left + XX(XOFF) - x, top + y);
+        WritePixel(rport, right - XX(XOFF) + x, top + y);
+    }
+
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
+    RectFill(rport, left, top + YY(YOFF), right, bottom);
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(XOFF), top);
+    Draw(rport, right - XX(XOFF), top);
+
+    Move(rport, left, top + YY(YOFF));
+    Draw(rport, left, bottom);
+    Draw(rport, right, bottom);
+    Draw(rport, right, top + YY(YOFF));
+    Draw(rport, left, top + YY(YOFF));
+
+#undef XX
+#undef YY
+#undef YOFF
+#undef XOFF
+}
+
+void drawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right = left + width - 1;
+
+    stddrawer_draw(mri, left, top, width, height);
+
+#define XX(x) x * (width - 1) / 100
+#define YY(y) y * (height - 1) / 100
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(40), top + YY(75));
+    Draw(rport, right - XX(40), top + YY(75));
+
+#undef XX
+#undef YY
+
+}
+
+void harddisk_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+
+    stddrawer_draw(mri, left, top, width, height);
+
+#define XX(x) x * (width - 1) / 100
+#define YY(y) y * (height - 1) / 100
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(20), top + YY(75));
+    Draw(rport, left + XX(30), top + YY(75));
+
+#undef XX
+#undef YY
+}
+
+void network_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right = left + width - 1;
+
+    stddrawer_draw(mri, left, top, width, height);
+
+#define XX(x) x * (width - 1) / 100
+#define YY(y) y * (height - 1) / 100
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(40), top + YY(75));
+    Draw(rport, right - XX(40), top + YY(75));
+
+#undef XX
+#undef YY
+}
+
+void assign_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right = left + width - 1;
+
+    stddrawer_draw(mri, left, top, width, height);
+
+#define XX(x) x * (width - 1) / 100
+#define YY(y) y * (height - 1) / 100
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(40), top + YY(75));
+    Draw(rport, right - XX(40), top + YY(75));
+
+#undef XX
+#undef YY
+}
+
+void tape_play_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int x, half = height / 2;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+
+    for (x = 0; x < width; x++)
+    {
+        int y = (width > 1) ? half * x / (width - 1) : 1;
+
+        RectFill(rport, left + width - 1 - x, top + half - y,
+            left + width - 1 - x, top + half + y);
+    }
+}
+
+void tape_down_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int y, half = width / 2;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+
+    for (y = 0; y < height; y++)
+    {
+        int x = (height > 1) ? half * y / (height - 1) : 1;
+
+        RectFill(rport, left + half - x, top + height - 1 - y,
+            left + half + x, top + height - 1 - y);
+    }
+}
+
+/* MUII_Disk, Chip, Volume, TapePlayBack, TapePause, TapeStop, TapeRecord and
+ * TapeUp: imspec_vector_rare.c, the image module in the native build (see
+ * zune_imspec_create_vector) */
 #if !defined(ZUNE68_GCC_NATIVE)
 #include "imspec_vector_rare.c"
 #endif
@@ -574,8 +729,8 @@ struct vector_image
 
 /* Sizes as MUI 3.9 reports them for the built-in images
  * (tests/native/imgsizes.c) */
-/* The rare ones' sizes stay here; their drawing comes from the image
- * module in the native build (zune_rare_vectors_get()) */
+/* The rare ones' (RARE) sizes stay here; their drawing comes from the
+ * image module in the native build (zune_rare_vectors_get()) */
 #if defined(ZUNE68_GCC_NATIVE)
 #define RARE(f) NULL
 #else
@@ -594,21 +749,21 @@ static const struct vector_image vector_table[] = {
     {12, 10, popfile_draw},
     {12, 9, popdrawer_draw},
 
-    {13, 8, RARE(drawer_draw)},
-    {13, 8, RARE(harddisk_draw)},
+    {13, 8, drawer_draw},
+    {13, 8, harddisk_draw},
     {12, 8, RARE(disk_draw)},
     {12, 5, RARE(ram_draw)},
     {12, 5, RARE(volume_draw)},
-    {13, 8, RARE(network_draw)},
-    {13, 8, RARE(assign_draw)},
+    {13, 8, network_draw},
+    {13, 8, assign_draw},
 
-    {4, 7, RARE(tape_play_draw)},
+    {4, 7, tape_play_draw},
     {4, 7, RARE(tape_playback_draw)},
     {2, 7, RARE(tape_pause_draw)},
     {6, 7, RARE(tape_stop_draw)},
     {7, 7, RARE(tape_record_draw)},
     {7, 4, RARE(tape_up_draw)},
-    {7, 4, RARE(tape_down_draw)},
+    {7, 4, tape_down_draw},
 };
 
 #define VECTOR_TABLE_ENTRIES (sizeof(vector_table)/sizeof(vector_table[0]))
@@ -626,9 +781,9 @@ struct MUI_ImageSpec_intern *zune_imspec_create_vector(LONG vect)
         spec->u.vect.type = vect;
         spec->u.vect.draw = vector_table[vect].draw_func;
 #if defined(ZUNE68_GCC_NATIVE)
-        /* 10-23 come from the image module; without it they draw
-         * nothing (imspec_draw), at their size */
-        if (vect >= 10)
+        /* the rare ones come from the image module; without it they
+         * draw nothing (imspec_draw), at their size */
+        if (!spec->u.vect.draw)
         {
             const VECTOR_DRAW_FUNC *rare = zune_rare_vectors_get();
             spec->u.vect.draw = rare ? rare[vect - 10] : NULL;
