@@ -191,6 +191,10 @@ IPTR Scrollbar__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             ImageButtonFrame,
             MUIA_InputMode, MUIV_InputMode_RelVerify,
             MUIA_Image_Spec, horiz ? MUII_ArrowLeft : MUII_ArrowUp,
+            /* MUI 3.8 scales the arrows' height with the font (measured:
+             * 5 pixels in topaz 8 and helvetica 9, 6 in helvetica 11, 8
+             * in 13; their width stays) */
+            MUIA_Image_FontMatchHeight, TRUE,
             MUIA_Image_Prop, (IPTR)prop, End;
         if (data->up_arrow)
         {
@@ -205,6 +209,7 @@ IPTR Scrollbar__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             ImageButtonFrame,
             MUIA_InputMode, MUIV_InputMode_RelVerify,
             MUIA_Image_Spec, horiz ? MUII_ArrowRight : MUII_ArrowDown,
+            MUIA_Image_FontMatchHeight, TRUE,
             MUIA_Image_Prop, (IPTR)prop, End;
         if (data->down_arrow)
         {
