@@ -49,13 +49,20 @@ void MUIP_GetVirtualRect(Object *obj __asm("a0"), LONG *rect __asm("a1"));
  * purpose is unknown return 0. */
 ULONG MUI_PrivNone(void) { return 0; }
 Object *MUI_PrivApplist(void) { return zune_applist_get(); }
-/* Exec calls Open of the base in its library list (version in D0), and
- * returns what Open returns: the base for the program's identity
- * (identity.c). Close and Expunge come through that base, so through a
- * copy too: both work on the shared base. */
+/* Exec calls Open of the base in its library list and returns what
+ * Open returns: the base for the program's identity (identity.c). The
+ * version asked for: the RKRM's example library takes it in D0, but
+ * exec 40.10 (OS 3.1) and 47.8 (OS 3.2) call Open with the base in D0
+ * and the version in D2 (measured: D2 was 0, 5, 19, 20, 21 as asked,
+ * through OldOpenLibrary and for a library ramlib had just loaded). D0
+ * is taken when it is not the base, else D2; a D2 that cannot be a
+ * version counts as 0. Close and Expunge come through the base the
+ * program got, so through a copy too: both work on the shared base. */
 struct Library *LibOpen(struct MUIMasterBase_intern *base __asm("a6"),
-    ULONG version __asm("d0"))
+    ULONG d0 __asm("d0"), ULONG d2 __asm("d2"))
 {
+    ULONG version = d0 != (ULONG)base ? d0 : d2 < 0x10000 ? d2 : 0;
+
     base->library.lib_Flags &= ~LIBF_DELEXP;
     ++base->library.lib_OpenCnt;
     return zune_identity_open(version);

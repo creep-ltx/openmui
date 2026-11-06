@@ -68,6 +68,7 @@ int main(int argc, char **argv)
     app = MUI_NewObject(MUIC_Application, MUIA_Application_Title, "idtest",
         MUIA_Application_Base, "IDTEST", MUIA_Application_UseCommodities, FALSE,
         MUIA_Application_UseRexx, FALSE, TAG_DONE);
+    printf("task %08lx \"%s\" ", (ULONG)FindTask(NULL), FindTask(NULL)->tc_Node.ln_Name);
     printf("asked %ld ", v);
     report("got", MUIMasterBase, app);
     if (again >= 0 && (second = OpenLibrary("muimaster.library", again)))
