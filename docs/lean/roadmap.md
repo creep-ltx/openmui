@@ -118,3 +118,12 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 2. The remaining AROS-derived code rewritten smaller, piece by piece.
 3. MUI 5's extra classes and features as optional files.
 4. Faster drawing on graphics cards (RTG).
+
+## Bugs found from outside
+
+1. **MUI_AslRequest returns at once without a requester** (found 2026-11-06 with PFS3Doctor on the A1200,
+   Zune68 Beta 2, muimaster 21.227 of 2026-11-02): `MUI_AllocAslRequestTags(ASL_FileRequest,
+   ASLFR_TitleText, ASLFR_InitialFile, ASLFR_DoSaveMode TRUE)` then `MUI_AslRequestTags(fr, ASLFR_Window, w)`
+   showed nothing and saved nothing. Real MUI 3.8 (FS-UAE a1200-31-mui38) opens the requester with the same
+   code. Suspect the MUI file panel path (`ZuneAllocAslRequest`/`ZuneAslRequest`, used when every tag is
+   supported by the panel). PFS3Doctor now calls asl.library itself.
