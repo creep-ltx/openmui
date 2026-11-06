@@ -260,6 +260,7 @@ the drive are the same on both up to the crash (logged with a PutMsg patch);
 what in Zune sets it off is not found. IBrowse 2.5.9's "Couldn't open
 initial window" is the window fitting: its main window's minimum height is
 361-370 pixels in every fitting stage, the screen 256.
+| 08ed5791 muimaster | "Behave as: MUI 3.8 / MUI 5" in Zune prefs (System page), MUI 3.8 by default: the library reports 19.35 (MUI 3.8) unless ENV:Zune/Identity says MUI5 (21.227, as Zune68), read when the library loads. Classes choose their code paths by this version: TheBar sized its virtual bars the MUI 5 way (demo9 cut off at 640, as on real MUI 5). Real-program suite with MUI 3.8: no new failure, 14 of 36 programs as on MUI 3.8 (12 before), TheBar demos within 1-2 px of MUI 3.8 (up to 22 before). Programs that require MUI 4/5 need the MUI 5 setting |
 
 ## Left open
 
