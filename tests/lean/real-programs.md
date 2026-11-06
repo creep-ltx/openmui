@@ -187,6 +187,25 @@ whole suite twice on that branch: MUI 3.x group 30 of 36 as on MUI 3.8 (the same
 second quit once; three runs of AmTelnet alone right after were clean (left 0 bytes). MUI 4/5
 group: all 5 as `identity`'s. Results: `/tmp/demopix/zwork/suite-real/dp3`, `dp3b`, `dp5`, `dp5b`.
 
+**Update, branch `smaller` (2026-11-06, roadmap phase 3):** rarely used code moved into modules
+(docs/lean/README.md, "A smaller library"). MUI 3.x group: 30 of 36 as on MUI 3.8 (the same six),
+36 of 36 as `demopix`'s run; MUI 4/5 group: 5 of 5 as `demopix`'s. A `wasabi snoop` trace of every
+LoadSeg during the run (`tests/lean/scripts/snooplog.sh`) showed the image module of a first try
+loaded in ten programs (NListtree's default node images are MUII_TapePlay, TapeDown and Drawer;
+CManager and ViewCSV use the tape arrows, RO the volume images), so that module was taken back;
+CManager, RO, ViewCSV, the NListtree demo and YAM 2.5 run again on the final build load no new
+module. Results: `/tmp/smaller/zwork/suite-real/sm3`, `sm3b`, `sm3c`, `sm5`.
+
+**AmTelnet's reset at its second quit is FS-UAE's, not Zune's** (2026-11-06, branch `smaller`):
+AmTelnet started and quit 3-10 times per boot, with a marker file in RAM: to tell a reboot from a
+stalled wasabid. FS-UAE with Zune, ~175 cycles: 2 resets, 1 freeze and 1 start without a window,
+all but one at the second cycle after boot. FS-UAE with MUI 3.8, 113 cycles: 1 reboot during the
+second cycle, 1 freeze and 2 starts without a window. Amiberry 8.5.0 headless with Zune, 100
+cycles: none. The same thing happens with MUI 3.8 and never in Amiberry, so it is FS-UAE (likely
+its emulated bsdsocket.library, which AmTelnet opens and closes on every run) with AmTelnet. In
+Amiberry, AmTelnet has to be started from RAM: (from Amiberry's host-directory drive it fails with
+"object is not of required type" when it reloads itself).
+
 **MUI 4/5 programs, Zune against MUI 5 (5 entries):** DizzyTorrent (the one that needs MUI 3.9+)
 and AmigaGPT open and quit on Zune as on MUI 5 (sizes differ by 6-72 px); IBrowse 3.0a opens,
 but the machine stops answering when its second run quits; YAM 2.10dev gets further on Zune than

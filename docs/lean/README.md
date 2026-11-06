@@ -16,8 +16,11 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 | MUI 3.8 | 166 KB | 238 KB | 460 KB | 211-219 KB | 1.48-1.5 s |
 | Zune68 main | 429 KB | 535 KB | 832 KB | 334 KB | 1.9-2.0 s |
 | lean | 277 KB (+215 KB in 44 class and module files) | 289 KB | 497 KB | 222 KB | 1.5 s |
+| smaller | 262 KB (+236 KB in 47 class and module files) | 275 KB | 477 KB | 212 KB | 1.4 s |
 
-(lean measured 2026-11-05 with GCC 16.2, after the modules below; the other
+(lean measured 2026-11-05 with GCC 16.2, after the modules below; smaller
+2026-11-06 (branch `smaller`, [below](#a-smaller-library-2026-11-06-phase-3)),
+where lean measured the same session gave 289 / 490 / 212 KB; the other
 rows 2026-11-04.)
 
 perfbench (68EC020, same session): lean is faster than MUI 3.8 in seven of
@@ -531,9 +534,119 @@ Still different (`$ZWORK/demopix/report.html`):
 - **Slidorama** (6,921): MUI 3.8's Knob and Levelmeter look different
   (a dial, readable numbers): the same artwork question.
 
+## A smaller library (2026-11-06, phase 3)
+
+Branch `smaller`. More rarely used code into the on-demand modules
+(`LIBS:Zune/Z*.mui`, see "Modules" above), one switch made a table. In each
+case the library keeps what layout and the common path need (sizes, the
+decision whether a feature is on at all) and calls the module only when the
+feature is used, so a program that does not use it never loads it.
+
+| commit | what moved | library file | module |
+|---|---|---|---|
+| 73579d3b Frames | drawing a custom frame (`frame.config`'s tiled pictures, `frame_tile.c`) into Zpicture.mui, which loaded the frame's pictures anyway | -2,288 | Zpicture 9,568 -> 12,044 |
+| f7fda3ce Window | MUI 3.8's extra title bar gadgets (Popup, Prefs, Snapshot, Iconify; off by default) and the Popup gadget's window menu (`wintitle.c`); the window keeps the decision and the clicks | -3,124 | Zwintitle 4,764 |
+| 7e27ee4a Frames | the rounded frame types 5, 7, 8, A and B (`frame_round.c`), which no default setting uses; their sizes stay in the library's table, only the drawing comes from the module (looked up once and kept: modules leave only at expunge). muigfx.library's frame table, made at library init, now asks for sizes only (`zune_zframe_get_sizes()`): `make check` showed that init would otherwise have loaded the module | -4,336 | Zframes 6,848 |
+| 28d173c8, 8ede6a9c, 908a5702 Images | tried and taken back: the vector images 10-23 (MUII_Drawer ... MUII_TapeDown) as a module. The suite's LoadSeg trace showed it loaded in ten of 36 programs: NListtree's default node images are TapePlay, TapeDown and Drawer. With those (and the drawer-based ones) back in the library it still loaded in CManager, RO and ViewCSV (volume images in a file manager, the tape arrows as sort markers), so every vector image is in the library again, as on `lean` | 0 | - |
+| 35debed5 Window | MUIM_Window_DragObject and a window's event handling during a drag (`dragwin.c`) into Zdragdrop.mui, which a drag loads anyway for its image | -1,244 | Zdragdrop 5,536 -> 6,928 |
+| 6a978479 Menus | MUIM_Menustrip_Popup (`menupopup.c`) into Zmenu.mui, which draws the pop-up menu anyway | -836 | Zmenu 9,596 -> 10,616 |
+| 02594a0c List | MUIM_List_Edit/EndEdit (MUI 5's in-place editing) and List's MUIM_DragReport, MUIM_DragDrop, MUIM_CreateDragImage (`listx.c`; List's instance data in `classes/list_private.h`); called only for an editable list, an open editor or a drag (setting MUIA_List_Format no longer goes near it). Also: class files compiled without LTO and their table made with `gcc-nm` under `LTO=1` | -1,828 | Zlist 3,824 |
+| b4450875 Configdata | the 58-case switch that stored each string setting became a field offset in the defaults table; start-up stores each string straight through its entry | -964 | - |
+
+Library file **283,196 -> 268,572 bytes** (-14.3 KB, -5.2%; code 265,388
+-> 251,548 bytes); the class and module files 221,204 -> 241,528 bytes on
+disk (47 files), loaded only when used. MUI 3.8's muimaster.library:
+166,412.
+
+MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build, GCC 16.2; `m.sh`,
+two `measure.sh` runs and `libonly.sh` each, `lean` and `smaller` in the
+same session; emulator figures):
+
+| | library file | library alone | first program | each further | first window |
+|---|---|---|---|---|---|
+| lean | 283,196 | 295,616 | 501,784 | 217,224-217,288 | 1.46-1.52 s |
+| smaller | 268,572 | 281,800 | 487,920-487,968 | 217,224-217,288 | 1.42 s |
+
+The library is in memory once, so the 13.8 KB come off the library alone and
+the first program; each further program costs the same as before. The first
+window opens as fast. Deepest stack use (`tests/lean/scripts/stackrun.sh`, MUI-Demo
+with its eight sub-windows, Layout, Virtual, Pages, Slidorama): 5,388 /
+2,264 / 2,676 / 2,236 / 2,300 bytes on both, unchanged.
+
+perfbench (68EC020, `bench.sh`, 15 repetitions, `lean` and `smaller` (at
+8ede6a9c) side by side, twice): create+dispose +0.1 / +1.4%, open+close 0.0 / 0.0%, redraw
+-0.0 / +0.1%, relayout +0.6 / +0.4%, list insert +1.5 / -0.1%, list active
++3.3 / +2.1%, notify -0.3 / -0.4%, text set -0.1 / -0.3%. The same
+library on both instances (`lean` against `lean`) differs as much: open+close
++3.3%, list active +1.0%, list insert +0.7%; `lean`'s "list active" ranged
+1,141,552-1,179,850 ticks over four instances, `smaller`'s 1,165,608-1,179,167.
+No batch is slower beyond that spread; the moved code is not on these paths.
+
+**Which modules a MUI 3 program loads** (`wasabi snoop` during the runs,
+every LoadSeg of a `LIBS:Zune/` file, `tests/lean/scripts/snooplog.sh`):
+fullcheck (MUI-Demo with its eight sub-windows and the 18 other MUI 3.8
+demos) loads exactly the class files `lean` loads and no module. The whole
+real-program suite (36 entries) loaded none of the new modules except the
+image module of the first try (above), which is gone; the programs that had
+loaded it (CManager, RO, ViewCSV, the NListtree demo, YAM 2.5) were run
+again on the final build: no new module. The other module loads are
+`lean`'s: Zrequest.mui where a program shows a MUI requester (MUIMine,
+Archiver, IBrowse 2.5.9, NewsCoaster, RO) and Zpicture.mui for the
+TextEditor demo's pictures.
+
+Checked:
+
+- `make check` after every commit.
+- Screenshots: `tests/lean/smaller.c` (the five rounded frames, the fourteen
+  images, the pop-up menu strip open, the window menu of the Popup title
+  gadget with all four title gadgets on through `tools/lean/mkprefs.py`)
+  pixel-identical to `lean` after each step and on the final build.
+- fullcheck: MUI-Demo with eight sub-windows and the 18 other demos open and
+  close, no alert, the same "lost" figures as `lean` in the same session
+  (they are the programs' window position records in ENV:).
+- Demo pixel comparison (`demopix.sh`): 18 of 27 windows identical, the same
+  as `lean` (Popup differs by its PopDrawer glyph since 639730ba: Zune's own
+  drawing); every count as `lean`'s.
+- Real-program suite: MUI 3.x group 30 of 36 as on MUI 3.8 (the same six
+  differ: TheBar demo2/demo3, IBrowse 2.5.9, AmIRC, AmTelnet, MultiRen) and
+  36 of 36 as `lean`'s (`demopix`) run; MUI 4/5 group 5 of 5 as `lean`'s.
+- The whole suite ran with the image module still in (28d173c8), demopix
+  and perfbench on 8ede6a9c; on the final build (908a5702: every image in
+  the library as on `lean`) make check, fullcheck, the stack, the
+  `smaller.c` screenshots, the memory figures and the five programs that had
+  loaded the image module were run again, all as above.
+
+**LTO** (`LTO=1`, GCC 16.2, measured, not switched on): -14.0 KB more (on
+02594a0c: 265,744 -> 251,408 bytes; the screenshots of `tests/lean/smaller.c`
+identical), but stack use grows: MUI-Demo's deepest stack 5,388 -> 5,992
+bytes, Virtual 2,676 -> 3,312 (functions called once inlined across files
+into the dispatchers). With `-fno-inline-functions-called-once` the gain is
+11.2 KB, but that build did not load its modules and MUI-Demo did not
+start: not looked into further. And `make check` cannot run on an LTO
+build: the checks read the library's hunk symbols, which the m68k linker
+writes wrong under LTO (the harness ends in a memory error). Class files must be compiled without
+LTO (else they pull in libnix's stdio and do not link) and their function
+table needs `m68k-amigaos-gcc-nm` (the GNUmakefile does both now).
+`-ffunction-sections -fdata-sections` with `--gc-sections` makes the hunk
+library 7.5 KB larger: no use.
+
+**What is left toward 166 KB** (per-function sizes with `nm -n` on the
+symbol build): the rest is the core classes' own code that every program
+runs: List 29 KB, Window 27 KB, Group 21 KB, String 20 KB, Area 16 KB,
+Application 15 KB, text engine 10 KB, Configdata 8 KB, vector images 8
+KB, frames 9 KB. Most of the gap is in what every program runs, not in
+rarely used features.
+Still movable, small: String's Textinput-compatible attributes and 64-bit
+integers (MUI 4/5), Configdata's setters (prefs programs only, ~0.7 KB),
+the private Applist object (LVO -264, AmIRC only, ~0.5 KB), the Aboutmui,
+Settings, Settingsgroup and Mccprefs classes as one file (~1.3 KB). Beyond
+that it means rewriting the big classes smaller (roadmap "Later").
+
 ## Left open
 
-- **Library code**: 261 KB (file 279 KB) against MUI 3.8's 166 KB.
+- **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
+  MUI 3.8's 166 KB; what is left: "A smaller library" above. Before:
+  261 KB (file 279 KB).
   Compiler options do not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
   switches within 0.3 KB, alignment none, `LTO=1` with bebbo's GCC 6.5
   -3.6 KB and it cannot link the class files: no `nm` plugin, fat LTO

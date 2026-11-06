@@ -10,7 +10,7 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 
 | | lean | MUI 3.8 |
 |---|---|---|
-| library code loaded at start | 261 KB | 166 KB |
+| library code loaded at start | 261 KB (2026-11-06, `smaller`: 246 KB, file 262 KB) | 166 KB |
 | first program | ~497 KB | 449-460 KB |
 | each further program | ~222 KB | 206-219 KB |
 | first window | 1.5 s | 1.46-1.62 s |
@@ -40,7 +40,17 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    rarely used code into files loaded on demand (window snapshot and
    title gadgets, list editing and drag, string extras, ...), then the
    largest classes made smaller where they do work MUI 3.8 does not.
-   Never at the cost of speed or features.
+   Never at the cost of speed or features. *First round 2026-11-06*
+   (branch `smaller`): title gadgets, rounded frames, custom frame
+   drawing, window and list drag and drop, list editing and the pop-up
+   menu strip into modules, one switch made a table: library file
+   283,196 -> 268,572 bytes, library alone and first program 13.8 KB
+   less, speed and stack as before, no module on a MUI 3 program's
+   common path (checked by tracing every LoadSeg through the demos and
+   the real-program suite: the rare vector images were tried as a module
+   and taken back). 166 KB is not reached: the rest is the core classes'
+   own code; what is still movable and what LTO would give in
+   [README.md](README.md#a-smaller-library-2026-11-06-phase-3).
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.
