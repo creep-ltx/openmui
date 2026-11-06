@@ -480,7 +480,7 @@ programs keep MUI 3.9's behaviour.
 | commit | change (demopix windows it fixed) |
 |---|---|
 | 3ca0136c Text | a shortcut underline as long as the letter's advance (MUI 3.9: one pixel shorter). Popup |
-| 276cef2c Images | MUI 3.8's PopDrawer glyph, 10 rows (MUI 3.9's 9). Popup |
+| (dropped) Images | MUI 3.8's 10-row PopDrawer glyph was measured but not taken: copying artwork from screenshots is outside the clean-room rules; Zune keeps its own drawing. Popup |
 | 226976dd List | whole rows only, the spare pixels shared above and below them (MUI 3.9: a cut-off last row); the scrollbar gets entries, visible and first in pixels (rows x row height, delta factor the row height): Intuition's prop gadget rounds those into other knobs than rows, `propvis` measured 232 lists, now all knobs as MUI 3.8's (137 differed). Groups, Notify, DragnDrop, Strings, ... |
 | d11963cd Floattext | justifies to the whole entry area (MUI 3.9 leaves 4 pixels). Cycle |
 | bd517f42, 49da8e37 Rectangle | with thick frames a VBar is two dark and two light columns and bars are at least 4 pixels wide (`objdump`: MUIO_VBar 1 and 2). Menus |
