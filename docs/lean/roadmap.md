@@ -50,6 +50,17 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 7. **Settings program as complete as MUI 3.8's**, including reading
    existing MUI 3.8 settings files (their item ids are known for the
    title gadgets; the rest to be measured).
+8. **Each program gets the MUI it was written for** (decided with our
+   partner 2026-11-06, done right after the phase 1 fixes): a MUI 3
+   program sees and behaves as MUI 3.8, a MUI 4 program as MUI 4, a MUI 5
+   program as MUI 5, with no setting to change. How: exec tells a
+   library which version a program asked for when it opens it; the
+   shared base reports 21 so every program gets in, and each opener gets
+   its own small copy of the base reporting what it asked for (below 20:
+   MUI 3.8). Zune's own behaviour follows the same choice per
+   application. The global "Behave as" setting becomes a per-program
+   exception list in Zune prefs. Known limit to research: a class loaded
+   once and shared by two programs (TheBar) checks the version once.
 
 ## Later (wanted, not scheduled)
 
@@ -57,11 +68,3 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 2. The remaining AROS-derived code rewritten smaller, piece by piece.
 3. MUI 5's extra classes and features as optional files.
 4. Faster drawing on graphics cards (RTG).
-5. **Automatic MUI version per program.** Today one global setting (Zune
-   prefs "Behave as: MUI 3.8 / MUI 5") decides the version every program
-   and class sees. Idea: the shared library base reports 21 so the
-   system lets every program in; each program gets its own copy of the
-   base (LibOpen may return one) reporting the version it asked for
-   (MUI 3.8 if below 20), plus a per-program list in Zune prefs for
-   exceptions. Limits: a class loaded by two programs keeps the first
-   one's version; Zune's internals assume one base. Research first.
