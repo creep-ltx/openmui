@@ -58,8 +58,9 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    shared base reports 21 so every program gets in, and each opener gets
    its own small copy of the base reporting what it asked for (below 20:
    MUI 3.8). Zune's own behaviour follows the same choice per
-   application. The global "Behave as" setting becomes a per-program
-   exception list in Zune prefs. Known limit to research: a class loaded
+   application. The "Behave as" setting stays and can override it:
+   Automatic (the default), MUI 3.8, MUI 4 or MUI 5, for all programs,
+   and per program in a list in Zune prefs. Known limit to research: a class loaded
    once and shared by two programs (TheBar) checks the version once.
 
 ## Later (wanted, not scheduled)
