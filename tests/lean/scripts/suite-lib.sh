@@ -259,10 +259,13 @@ alive() { wasabi ping >/dev/null 2>&1 || { sleep 3; wasabi ping >/dev/null 2>&1;
 # why wasabid stopped answering: "reset" (the machine rebooted by itself: wasabid answers again
 # within 45 s, started by the startup sequence), "frozen" (it does not)
 gone_why() { local i; for i in $(seq 1 15); do sleep 3; wasabi ping >/dev/null 2>&1 && { echo reset; return; }; done; echo frozen; }
-result() { printf '%s\t%s\t%s\t%s\t%s\n' "$P_ID" "$1" "$2" "$3" "$4" | tee -a "$OUT/results.tsv" >&2; }
+# sixth column: the memory the second run holds with its windows open (bytes less free than
+# before it started; libraries and classes are in memory from the first run, so this is the
+# program's own memory, its objects and windows), "?" without a second run
+result() { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$P_ID" "$1" "$2" "$3" "$4" "${5:-?}" | tee -a "$OUT/results.tsv" >&2; }
 
 run_prog() {
-  local id=$P_ID dir="$RD/$P_ID" exe=${P_EXE%% *} wl status=ok left=0 lost=? al0 al1 n x before w a0 a1 why
+  local id=$P_ID dir="$RD/$P_ID" exe=${P_EXE%% *} wl status=ok left=0 lost=? al0 al1 n x before w a0 a1 why inuse=?
   P_ARGS=; [ "$P_EXE" != "$exe" ] && P_ARGS=${P_EXE#* }
   P_TASK="$dir/$exe"; P_TITLE=${TITLE[$id]:-}
   al0=$(alerts)
@@ -319,6 +322,7 @@ run_prog() {
     hook pre
     start_prog "$dir"; wait_window "$P_WAIT"; settle 10
     hook dismiss
+    a1=$(avail); [ -n "$a0" ] && [ -n "$a1" ] && inuse=$((a1-a0))
     if ! quit_prog; then lost="?(2nd run did not quit)"; left=2
     elif ! alive; then lost="?($(gone_why) at 2nd quit)"; reboot_instance; al0=$(alerts)
     else a1=$(avail); lost=$((a0-a1)); fi
@@ -326,7 +330,7 @@ run_prog() {
   alive || { status="$status,$(gone_why)"; reboot_instance; al0=$(alerts); }
   al1=$(alerts)
   [ "${al1:-0}" -gt "${al0:-0}" ] && status="$status,alert"
-  result "$status" "$left" "$lost" "$wl"
+  result "$status" "$left" "$lost" "$wl" "$inuse"
   # every program starts on a freshly booted machine: what one program leaves behind (a task
   # still running, memory it overwrote, MUI 3.8 after "avail flush": the next program's window
   # did not open) must not decide the next one's result

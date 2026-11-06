@@ -4,7 +4,7 @@
 # ramlib's LoadSeg and the library's init) and dump the blocks still held to OUT.
 # With PROG=<demo in $ZWORK/demos> the first copy of that program runs under "memtally
 # runall" instead (the library, its class files, fonts and the program, all tasks).
-# Read OUT with tools/lean/mtreport2.py OUT LIB tasks|cats|3.
+# Read OUT with tools/lean/mtreport2.py OUT LIB tasks|cats|3. KEEP=1 leaves the instance running.
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
 set -u
 NAME=$1; MACH=$2; PORT=$3; OUT=$4; LIB=${5:-}; STK=${STK:-40000}; PROG=${PROG:-}
@@ -31,3 +31,4 @@ B1=$(wasabi run avail | awk '/^total/{print $3}')
 wasabi run "RAM:memtally dump RAM:mt.txt"
 wasabi get RAM:mt.txt "$OUT" >/dev/null
 echo "avail delta $((B1-B0))"
+[ "${KEEP:-0}" = 1 ] || amiga-test $MACH stop --as $NAME >/dev/null 2>&1

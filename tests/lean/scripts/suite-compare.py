@@ -30,7 +30,8 @@ def load(d):
             m = re.match(r"extra(\d+)=(.*?):(.*)$", x)
             if m:
                 extras.append((m.group(2), parse_wins(m.group(3))))
-        res[pid] = dict(status=status, left=left, lost=lost, main=main, extras=extras)
+        inuse = f[5] if len(f) > 5 else "?"  # memory held by the 2nd run (newer suite runs)
+        res[pid] = dict(status=status, left=left, lost=lost, main=main, extras=extras, inuse=inuse)
     return res
 
 
@@ -127,9 +128,9 @@ def main():
         else:
             same += 1
         cls = "bad" if d else "ok"
-        info = lambda r, l: "<b>%s</b>: %s<br>%s<br>still running: %s, lost 2nd run: %s" % (
+        info = lambda r, l: "<b>%s</b>: %s<br>%s<br>still running: %s, lost 2nd run: %s, in use: %s" % (
             l, html.escape(r["status"]), "<br>".join("%s %dx%d" % (html.escape(w[0]), w[1], w[2]) for w in r["main"]) or "no window",
-            r["left"], html.escape(r["lost"])) if r else "<b>%s</b>: not run" % l
+            r["left"], html.escape(r["lost"]), html.escape(r["inuse"])) if r else "<b>%s</b>: not run" % l
         rows.append("<tr><td colspan=2><h2 class=%s>%s</h2>%s</td></tr>" % (
             cls, html.escape(i), "<br>".join("<code>%s</code>" % html.escape(x) for x in d) or "same windows and sizes"))
         rows.append("<tr><td>%s</td><td>%s</td></tr>" % (info(a, la), info(b, lb)))
