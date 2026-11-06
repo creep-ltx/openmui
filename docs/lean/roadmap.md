@@ -57,3 +57,11 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 2. The remaining AROS-derived code rewritten smaller, piece by piece.
 3. MUI 5's extra classes and features as optional files.
 4. Faster drawing on graphics cards (RTG).
+5. **Automatic MUI version per program.** Today one global setting (Zune
+   prefs "Behave as: MUI 3.8 / MUI 5") decides the version every program
+   and class sees. Idea: the shared library base reports 21 so the
+   system lets every program in; each program gets its own copy of the
+   base (LibOpen may return one) reporting the version it asked for
+   (MUI 3.8 if below 20), plus a per-program list in Zune prefs for
+   exceptions. Limits: a class loaded by two programs keeps the first
+   one's version; Zune's internals assume one base. Research first.
