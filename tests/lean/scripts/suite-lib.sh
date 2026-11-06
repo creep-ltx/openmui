@@ -261,17 +261,53 @@ alive() { wasabi ping >/dev/null 2>&1 || { sleep 3; wasabi ping >/dev/null 2>&1;
 gone_why() { local i; for i in $(seq 1 15); do sleep 3; wasabi ping >/dev/null 2>&1 && { echo reset; return; }; done; echo frozen; }
 # sixth column: the memory the second run holds with its windows open (bytes less free than
 # before it started; libraries and classes are in memory from the first run, so this is the
-# program's own memory, its objects and windows), "?" without a second run
-result() { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$P_ID" "$1" "$2" "$3" "$4" "${5:-?}" | tee -a "$OUT/results.tsv" >&2; }
+# program's own memory, its objects and windows), "?" without a second run; seventh: the same for
+# the first run, from a freshly booted machine: what the program costs in all (the library, its
+# classes, and what MUI keeps after the program quits, which a second run then reuses)
+result() { printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$P_ID" "$1" "$2" "$3" "$4" "${5:-?}" "${inuse1:-?}" | tee -a "$OUT/results.tsv" >&2; }
+
+# --tally: the run TALLY_RUN (1 or 2) goes under memtally runall (every task's AllocMem/FreeMem),
+# its live blocks with the windows open are written to $OUT/<id>.mt (run 2) or <id>-1.mt (run 1).
+# TALLY_RUN=keep: "memtally lib muimaster.library" from before the first run (every task, also
+# the library's own load), dumped with the windows open (<id>-1.mt) and after the program quit
+# (<id>-q.mt: what stays in memory after it, code and whatever MUI keeps for later runs)
+tally_start() { # RUN: copy memtally next to the program (its PROGDIR: is memtally's) and set mt
+  mt=; mtq=; [ -n "${TALLY:-}" ] || return 0
+  if [ "${TALLY_RUN:-2}" = keep ] && [ "$1" = 1 ]; then
+    mtq=RAM:memtally
+    wasabi put "$TALLY" "$mtq" >/dev/null && wasabi run "protect $mtq +e
+run >NIL: <NIL: $mtq lib muimaster.library" >/dev/null
+    sleep 3; return 0
+  fi
+  [ "${TALLY_RUN:-2}" = "$1" ] || return 0
+  mt="$(dirname "$P_TASK")/memtally"
+  wasabi put "$TALLY" "$mt" >/dev/null && wasabi run "protect \"$mt\" +e" >/dev/null
+}
+tally_run() { # the program in memtally's process; its windows then belong to memtally's command
+  wasabi run "cd \"$(dirname "$P_TASK")\"
+stack 65536
+run >NIL: <NIL: \"$mt\" runall \"$P_TASK\"" >/dev/null 2>&1
+  task0=$P_TASK; P_TASK=$mt
+}
+tally_dump() { # NAME
+  local t=${mt:-$mtq}
+  [ -n "$t" ] || return 0
+  wasabi run "\"$t\" dump RAM:mt.txt" >/dev/null 2>&1 && wasabi get RAM:mt.txt "$OUT/$1.mt" >/dev/null 2>&1 \
+    && wasabi run "delete RAM:mt.txt" >/dev/null 2>&1
+}
+tally_end() { [ -n "$mt" ] && P_TASK=$task0; mt=; }
 
 run_prog() {
-  local id=$P_ID dir="$RD/$P_ID" exe=${P_EXE%% *} wl status=ok left=0 lost=? al0 al1 n x before w a0 a1 why inuse=?
+  local id=$P_ID dir="$RD/$P_ID" exe=${P_EXE%% *} wl status=ok left=0 lost=? al0 al1 n x before w a0 a1 why inuse=? mt= mtq= task0=
   P_ARGS=; [ "$P_EXE" != "$exe" ] && P_ARGS=${P_EXE#* }
   P_TASK="$dir/$exe"; P_TITLE=${TITLE[$id]:-}
   al0=$(alerts)
   log "$id: start $P_TASK"
+  tally_start 1
+  local f0 f1 inuse1=?
+  f0=$(avail)
   hook pre
-  start_prog "$dir"
+  if [ -n "$mt" ]; then tally_run; else start_prog "$dir"; fi
   if ! wait_window "$P_WAIT"; then
     status=nowindow
     if ! alive; then
@@ -289,6 +325,8 @@ run_prog() {
     result "$why" ? ? "$wl"; reboot_instance; return
   fi
   hook dismiss
+  f1=$(avail); [ -n "$f0" ] && [ -n "$f1" ] && inuse1=$((f1-f0))
+  tally_dump "$id-1"
   wl=$(wins | cut -f1,2 | tr '\t\n' '@;')
   [ -z "$wl" ] && [ "$status" = ok ] && status=nowindow
   grab "$OUT/$id.png"
@@ -312,20 +350,26 @@ run_prog() {
     done < <(wins | grep -v -F -f <(echo "${before:-none}") | cut -f1)
   done < <(echo "$P_EXTRAS" | tr ';' '\n')
   quit_prog || left=1
+  tally_end
+  [ -n "${mtq:-}" ] && { settle 5; tally_dump "$id-q"; }
   if ! alive; then
     # wasabid (on FS-UAE's emulated bsdsocket) dies when some network programs quit: "frozen"
     # then means wasabid is gone, not necessarily the machine
     why=$(gone_why); status="$status,$why-at-quit"; log "$id: $why at quit, rebooting"; reboot_instance; left=?; al0=$(alerts)
   fi
   if [ "$status" = ok ] && [ "$left" = 0 ] && [ "$LEAK" = 1 ]; then
+    tally_start 2
     a0=$(avail)
     hook pre
-    start_prog "$dir"; wait_window "$P_WAIT"; settle 10
+    if [ -n "$mt" ]; then tally_run; else start_prog "$dir"; fi
+    wait_window "$P_WAIT"; settle 10
     hook dismiss
     a1=$(avail); [ -n "$a0" ] && [ -n "$a1" ] && inuse=$((a1-a0))
+    tally_dump "$id"
     if ! quit_prog; then lost="?(2nd run did not quit)"; left=2
     elif ! alive; then lost="?($(gone_why) at 2nd quit)"; reboot_instance; al0=$(alerts)
     else a1=$(avail); lost=$((a0-a1)); fi
+    tally_end
   fi
   alive || { status="$status,$(gone_why)"; reboot_instance; al0=$(alerts); }
   al1=$(alerts)

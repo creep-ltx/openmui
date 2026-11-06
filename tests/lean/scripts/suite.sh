@@ -16,6 +16,11 @@
 #   --no-leak      skip the second run (memory)
 #   --behave-as ID Zune: MUI3.8, MUI4 or MUI5 for all programs (default: each
 #                  program gets the MUI it asks for)
+#   --tally FILE   run the second run under FILE (tests/lean/memtally built, "memtally runall":
+#                  every task's AllocMem/FreeMem) and write its live blocks with the windows open
+#                  to TAG/<id>.mt (read with tools/lean/mtlib.py); its in-use figure then
+#                  includes memtally's own table. TALLY_RUN=1: the first run instead (from a
+#                  fresh boot, the class files loaded by ramlib) to TAG/<id>-1.mt
 #   --keep         leave the instance running at the end (default: stopped)
 #   --reuse        do not make a fresh copy of the machine (files from the last run stay)
 #   --update       keep the other programs' lines in results.tsv (run some programs again)
@@ -33,12 +38,12 @@ S=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$S/../../.." && pwd)
 
 TARGET=${1:?usage: suite.sh zune|mui38|mui5 [options] [ID...]}; shift
-LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; BEHAVE=; KEEP=0; REUSE=0; UPDATE=0; ONLY=()
+LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; BEHAVE=; KEEP=0; REUSE=0; UPDATE=0; TALLY=; ONLY=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib) LIB=$2; shift ;; --port) PORT=$2; shift ;; --name) NAME=$2; shift ;;
     --groups) PGROUPS=$2; shift ;; --tag) TAG=$2; shift ;; --no-leak) LEAK=0 ;;
-    --behave-as) BEHAVE=$2; shift ;;
+    --behave-as) BEHAVE=$2; shift ;; --tally) TALLY=$2; shift ;;
     --keep) KEEP=1 ;; --reuse) REUSE=1 ;; --update) UPDATE=1 ;; -*) echo "suite.sh: unknown option $1" >&2; exit 2 ;;
     *) ONLY+=("$1") ;;
   esac; shift

@@ -31,7 +31,9 @@ def load(d):
             if m:
                 extras.append((m.group(2), parse_wins(m.group(3))))
         inuse = f[5] if len(f) > 5 else "?"  # memory held by the 2nd run (newer suite runs)
-        res[pid] = dict(status=status, left=left, lost=lost, main=main, extras=extras, inuse=inuse)
+        inuse1 = f[6] if len(f) > 6 else "?"  # the same for the 1st run, from a fresh boot
+        res[pid] = dict(status=status, left=left, lost=lost, main=main, extras=extras, inuse=inuse,
+                        inuse1=inuse1)
     return res
 
 
@@ -128,9 +130,9 @@ def main():
         else:
             same += 1
         cls = "bad" if d else "ok"
-        info = lambda r, l: "<b>%s</b>: %s<br>%s<br>still running: %s, lost 2nd run: %s, in use: %s" % (
+        info = lambda r, l: "<b>%s</b>: %s<br>%s<br>still running: %s, lost 2nd run: %s, in use: %s (1st run %s)" % (
             l, html.escape(r["status"]), "<br>".join("%s %dx%d" % (html.escape(w[0]), w[1], w[2]) for w in r["main"]) or "no window",
-            r["left"], html.escape(r["lost"]), html.escape(r["inuse"])) if r else "<b>%s</b>: not run" % l
+            r["left"], html.escape(r["lost"]), html.escape(r["inuse"]), html.escape(r["inuse1"])) if r else "<b>%s</b>: not run" % l
         rows.append("<tr><td colspan=2><h2 class=%s>%s</h2>%s</td></tr>" % (
             cls, html.escape(i), "<br>".join("<code>%s</code>" % html.escape(x) for x in d) or "same windows and sizes"))
         rows.append("<tr><td>%s</td><td>%s</td></tr>" % (info(a, la), info(b, lb)))
@@ -149,6 +151,19 @@ def main():
         print("  %s:" % i)
         for x in d:
             print("    " + x)
+    # memory in use with the windows open, 2nd run and 1st run (from a fresh boot), bytes
+    num = lambda r, k: int(r[k]) if r and r.get(k, "?").lstrip("-").isdigit() else None
+    if any(num(ra.get(i), "inuse") is not None for i in ids):
+        print("memory in use (2nd run / 1st run from boot), %s and %s:" % (la, lb))
+        tot = [0, 0, 0, 0]
+        for i in ids:
+            v = [num(ra.get(i), "inuse"), num(rb.get(i), "inuse"),
+                 num(ra.get(i), "inuse1"), num(rb.get(i), "inuse1")]
+            print("  %-16s %10s %10s   %10s %10s" % ((i,) + tuple("?" if x is None else x for x in v)))
+            for k in (0, 2):
+                if v[k] is not None and v[k + 1] is not None:
+                    tot[k] += v[k]; tot[k + 1] += v[k + 1]
+        print("  %-16s %10d %10d   %10d %10d  (programs with both figures)" % (("total",) + tuple(tot)))
     print("contact sheet: %s" % out)
 
 

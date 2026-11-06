@@ -4,8 +4,15 @@
                                block allocated by this task is kept with up to 3 return
                                addresses found in muimaster's code (seglist in the base:
                                Zune68 offset 38, Zune68k 42) or the program.
+   memtally runall PROG      : as run, every task's blocks (callers: any code in RAM, not ROM,
+                               so that a library call inside ROM shows who made it).
    memtally dump FILE        : write the live blocks of a running "memtally run" to FILE:
-                               "size direct a1 a2 a3" (hex) per line, plus the ranges.
+                               "size direct a1 a2 a3 task addr" (hex) per line, plus the
+                               ranges (M muimaster, P program), "L lo hi name" (each library's
+                               and device's code: its jump table's targets around their
+                               median) and "K task name". Read with tools/lean/mtlib.py.
+   The callers are searched on the stack the allocation runs on: the task's, or (Zune runs
+   programs with small stacks on one of its own) up to the end of the memory it is in.
    A second FreeMem of a block this task allocated and already freed (and not allocated
    again since) is reported through RawPutChar (wasabi debug) with both callers' return
    addresses, before exec's own alert.
@@ -47,6 +54,20 @@ static int inram(ULONG v)
     return 0;
 }
 
+/* the end of the stack sp is on: the task's, or (on a stack of its own,
+   which Zune switches to for a program with a small one) the end of the
+   memory sp is in */
+static ULONG *stackend(ULONG *sp)
+{
+    struct Task *t = SysBase->ThisTask;
+    struct MemHeader *mh;
+    if ((APTR)sp >= t->tc_SPLower && (APTR)sp < t->tc_SPUpper) return (ULONG *)t->tc_SPUpper;
+    for (mh = (struct MemHeader *)SysBase->MemList.lh_Head; mh->mh_Node.ln_Succ;
+         mh = (struct MemHeader *)mh->mh_Node.ln_Succ)
+        if ((APTR)sp >= mh->mh_Lower && (APTR)sp < mh->mh_Upper) return (ULONG *)mh->mh_Upper;
+    return sp;
+}
+
 static int isret(ULONG v)
 {
     UWORD w2, w4, w6;
@@ -79,7 +100,7 @@ static void khex(ULONG v)
 }
 static void callers(ULONG *sp, ULONG *a)
 {
-    struct mt *m = M; ULONG i, *up = (ULONG *)SysBase->ThisTask->tc_SPUpper; int k = 0;
+    struct mt *m = M; ULONG i, *up = stackend(sp); int k = 0;
     a[0] = a[1] = a[2] = 0;
     for (i = 0; sp + i < up && i < 2048 && k < 3; i++) {
         ULONG v = sp[i];
@@ -102,11 +123,11 @@ static void mt_record(ULONG addr, ULONG size, ULONG *sp, ULONG pad)
     if (!m || (!m->all && t != m->task)) return;
     e.addr = addr; e.size = size; e.direct = sp[0]; e.a[0] = e.a[1] = e.a[2] = 0; e.pad = pad;
     e.task = (ULONG)t;
-    up = (ULONG *)t->tc_SPUpper;
+    up = stackend(sp);
     for (i = 0; sp + i < up && i < 2048 && k < 3; i++) {
         ULONG v = sp[i];
         if ((inr(v, m->mlo, m->mhi, m->nm) || inr(v, m->plo, m->phi, m->np)
-             || (m->all && inram(v))) && isret(v)) e.a[k++] = v;
+             || (m->all && v < 0xF80000 && inram(v))) && isret(v)) e.a[k++] = v;
     }
     Forbid();
     for (i = 0; i < NFREED; i++) if (freed[i].addr == addr) freed[i].addr = 0;
@@ -260,34 +281,82 @@ static void ranges(BPTR seg, ULONG *lo, ULONG *hi, int *n)
     while (seg && *n < 16) { ULONG *p = BADDR(seg); lo[*n] = (ULONG)(p + 1); hi[*n] = (ULONG)p + p[-1] - 4; (*n)++; seg = p[0]; }
 }
 
+/* text built under Forbid (dump) */
+#define TXTMAX 65536
+static char *tp, *te;
+static void tadd(const char *t) { while (*t && tp < te) *tp++ = *t++; }
+static void thex(ULONG v)
+{
+    char b[9]; int i = 8; b[8] = 0;
+    do { b[--i] = "0123456789abcdef"[v & 15]; v >>= 4; } while (v && i);
+    tadd(b + i);
+}
+
 int main(int argc, char **argv)
 {
     if (argc >= 3 && !strcmp(argv[1], "dump")) {
-        struct SignalSemaphore *s; struct mt *m; BPTR f; ULONG i, tot = 0; int j;
+        /* Everything is copied under Forbid first and written after it:
+           writing a file waits for the file system, which breaks the
+           Forbid while the lists are walked */
+        struct SignalSemaphore *s; struct mt *m; BPTR f; ULONG i, n = 0, tot = 0, nlive, nover; int j;
+        struct ent *snap; char *txt;
         Forbid(); s = FindSemaphore("memtally"); Permit();
         if (!s) { PutStr("no memtally running\n"); return 10; }
         m = (struct mt *)s;
+        snap = AllocMem(NENT * sizeof(struct ent), MEMF_ANY);
+        txt = AllocMem(TXTMAX, MEMF_ANY);
+        if (!snap || !txt) return 20;
         if (!(f = Open(argv[2], MODE_NEWFILE))) return 10;
-        for (j = 0; j < m->nm; j++) FPrintf(f, "M %lx %lx\n", m->mlo[j], m->mhi[j]);
-        for (j = 0; j < m->np; j++) FPrintf(f, "P %lx %lx\n", m->plo[j], m->phi[j]);
+        tp = txt; te = txt + TXTMAX - 64;
         Forbid();
         for (i = 0; i < NENT; i++) if (m->tab[i].addr > 1) {
-            struct ent *e = &m->tab[i];
-            if (m->all && e->task == (ULONG)FindTask(NULL)) continue;
-            tot += e->size;
-            FPrintf(f, "%lx %lx %lx %lx %lx %lx\n", e->size, e->direct, e->a[0], e->a[1], e->a[2], e->task);
+            if (m->all && m->tab[i].task == (ULONG)FindTask(NULL)) continue;
+            snap[n++] = m->tab[i];
+        }
+        nlive = m->nlive; nover = m->nover;
+        { /* each library's and device's code: the span of its jump table's
+             targets around their median (patched vectors elsewhere are
+             left out): "L lo hi name", to name callers outside muimaster
+             and the program (class libraries, ROM) */
+            static ULONG tg[400];
+            struct List *ll[2]; struct Node *nd; int k;
+            ll[0] = &SysBase->LibList; ll[1] = &SysBase->DeviceList;
+            for (k = 0; k < 2; k++)
+                for (nd = ll[k]->lh_Head; nd->ln_Succ; nd = nd->ln_Succ) {
+                    struct Library *lb = (struct Library *)nd; ULONG lo = ~0UL, hi = 0, med; UWORD o; int c = 0, x, y;
+                    for (o = 6; o <= lb->lib_NegSize && c < 400; o += 6) {
+                        UWORD *jp = (UWORD *)((UBYTE *)lb - o);
+                        if (*jp == 0x4EF9) tg[c++] = *(ULONG *)(jp + 1);
+                    }
+                    if (!c) continue;
+                    for (x = 1; x < c; x++) for (y = x; y > 0 && tg[y - 1] > tg[y]; y--) { ULONG t = tg[y]; tg[y] = tg[y - 1]; tg[y - 1] = t; }
+                    med = tg[c / 2];
+                    for (x = 0; x < c; x++)
+                        if (tg[x] + 0x30000 >= med && tg[x] <= med + 0x30000) { if (tg[x] < lo) lo = tg[x]; if (tg[x] > hi) hi = tg[x]; }
+                    tadd("L "); thex(lo); tadd(" "); thex(hi); tadd(" "); tadd(nd->ln_Name ? nd->ln_Name : "?"); tadd("\n");
+                }
         }
         if (m->all) { /* names of the tasks that still exist */
-            struct Node *n; struct List *ls[2]; int k;
+            struct Node *nd; struct List *ls[2]; int k;
             ls[0] = &SysBase->TaskReady; ls[1] = &SysBase->TaskWait;
             for (k = 0; k < 2; k++)
-                for (n = ls[k]->lh_Head; n->ln_Succ; n = n->ln_Succ)
-                    FPrintf(f, "K %lx %s\n", (ULONG)n, n->ln_Name ? n->ln_Name : "?");
+                for (nd = ls[k]->lh_Head; nd->ln_Succ; nd = nd->ln_Succ) {
+                    tadd("K "); thex((ULONG)nd); tadd(" "); tadd(nd->ln_Name ? nd->ln_Name : "?"); tadd("\n");
+                }
         }
         Permit();
-        FPrintf(f, "T %ld %ld %ld\n", tot, m->nlive, m->nover);
+        for (j = 0; j < m->nm; j++) FPrintf(f, "M %lx %lx\n", m->mlo[j], m->mhi[j]);
+        for (j = 0; j < m->np; j++) FPrintf(f, "P %lx %lx\n", m->plo[j], m->phi[j]);
+        for (i = 0; i < n; i++) {
+            struct ent *e = &snap[i];
+            tot += e->size;
+            FPrintf(f, "%lx %lx %lx %lx %lx %lx %lx\n", e->size, e->direct, e->a[0], e->a[1], e->a[2], e->task, e->addr);
+        }
+        *tp = 0; FPuts(f, txt);
+        FPrintf(f, "T %ld %ld %ld\n", tot, nlive, nover);
         Close(f);
-        Printf("%ld bytes in %ld blocks (%ld not kept)\n", tot, m->nlive, m->nover);
+        FreeMem(snap, NENT * sizeof(struct ent)); FreeMem(txt, TXTMAX);
+        Printf("%ld bytes in %ld blocks (%ld not kept)\n", tot, nlive, nover);
         return 0;
     }
     if (argc >= 3 && !strcmp(argv[1], "lib")) {
@@ -364,6 +433,8 @@ int main(int argc, char **argv)
         UnLoadSeg(seg);
         if (mb) CloseLibrary(mb);
         Printf("left: %ld blocks\n", m->nlive);
+        FreeMem(m->tab, NENT * sizeof(struct ent));
+        FreeMem(m, sizeof(*m));
         return 0;
     }
     PutStr("memtally run|guard|runall PROG | memtally lib NAME [VER] | memtally dump FILE\n");
