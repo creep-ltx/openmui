@@ -51,28 +51,29 @@
     /* The node is in the Area's live block, made here if the object has
      * not been set up yet. */
     struct MUI_AreaLive *live = zune_area_live(obj, NULL);
+    struct MUI_AreaLiveX *x;
 
-    if (!live)
+    if (!live || !(x = zune_area_livex(obj, live)))
         return;
 
     /* Use the Eventhandler to simulate a MUIM_HandleInput */
     if (muiRenderInfo(obj) && (_flags(obj) & MADF_SETUP) && _win(obj))
     {
-        if (live->hiehn.ehn_Events)
+        if (x->hiehn.ehn_Events)
         {
             DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                (IPTR)&live->hiehn);
+                (IPTR)&x->hiehn);
         }
-        live->hiehn.ehn_Events |= flags;
-        if (live->hiehn.ehn_Events)
+        x->hiehn.ehn_Events |= flags;
+        if (x->hiehn.ehn_Events)
         {
             DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                (IPTR)&live->hiehn);
+                (IPTR)&x->hiehn);
         }
     }
     else
     {
-        live->hiehn.ehn_Events |= flags;
+        x->hiehn.ehn_Events |= flags;
     }
 
     AROS_LIBFUNC_EXIT

@@ -1523,18 +1523,24 @@ struct MUI_AreaLive *zune_area_live(Object *obj, struct IClass *cl)
     live->ehn.ehn_Object = obj;
     live->ehn.ehn_Class = cl; /* NULL from MUI_RequestIDCMP: Setup fills it */
 
-    live->hiehn.ehn_Events = 0;
-    live->hiehn.ehn_Priority = -10;
-    live->hiehn.ehn_Flags = MUI_EHF_HANDLEINPUT;
-    live->hiehn.ehn_Object = obj;
-    live->hiehn.ehn_Class = 0;
-
-    live->Timer.ihn_Flags = MUIIHNF_TIMER;
-    live->Timer.ihn_Method = MUIM_Timer;
-    live->Timer.ihn_Object = obj;
-
     data->mad_Live = live;
     return live;
+}
+
+struct MUI_AreaLiveX *zune_area_livex(Object *obj, struct MUI_AreaLive *live)
+{
+    struct MUI_AreaLiveX *x = live->x;
+
+    if (x || !(x = AllocVec(sizeof(*x), MEMF_ANY | MEMF_CLEAR)))
+        return x;
+    x->hiehn.ehn_Priority = -10;
+    x->hiehn.ehn_Flags = MUI_EHF_HANDLEINPUT;
+    x->hiehn.ehn_Object = obj;
+    x->Timer.ihn_Flags = MUIIHNF_TIMER;
+    x->Timer.ihn_Method = MUIM_Timer;
+    x->Timer.ihn_Object = obj;
+    live->x = x;
+    return x;
 }
 
 /* Whether a setup needs the live block: an object that reacts to the
@@ -1561,7 +1567,10 @@ static IPTR Area__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
     /* Safe to call this with NULL */
     zune_image_spec_free(data->mad_BackgroundSpec);
     if (data->mad_Live)
+    {
+        FreeVec(data->mad_Live->x);
         FreeVec(data->mad_Live);
+    }
     if (data->mad_Rare)
         FreeVec(data->mad_Rare);
 
@@ -3359,8 +3368,8 @@ static IPTR Area__MUIM_Setup(struct IClass *cl, Object *obj,
     }
 
     /* Those are filled by RequestIDCMP() */
-    if (data->mad_Live && data->mad_Live->hiehn.ehn_Events)
-        DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->hiehn);
+    if (data->mad_Live && data->mad_Live->x && data->mad_Live->x->hiehn.ehn_Events)
+        DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->x->hiehn);
 
     setup_control_char(data, obj, cl);
     //    setup_cycle_chain (data, obj);
@@ -3436,15 +3445,17 @@ static IPTR Area__MUIM_Cleanup(struct IClass *cl, Object *obj,
     /* An object without the live block (it was not needed) has no nodes
      * to remove */
     if (data->mad_Live) {
-        if (data->mad_Live->Timer.ihn_Millis) {
+        struct MUI_AreaLiveX *x = data->mad_Live->x;
+
+        if (x && x->Timer.ihn_Millis) {
             DoMethod(_app(obj), MUIM_Application_RemInputHandler,
-                     (IPTR)&data->mad_Live->Timer);
-            data->mad_Live->Timer.ihn_Millis = 0;
+                     (IPTR)&x->Timer);
+            x->Timer.ihn_Millis = 0;
         }
 
         /* Remove the handler if it is added */
-        if (data->mad_Live->hiehn.ehn_Events)
-            DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->hiehn);
+        if (x && x->hiehn.ehn_Events)
+            DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&x->hiehn);
 
         /* Remove the event handler if it has been added */
         if (data->mad_Live->ehn.ehn_Events)
@@ -3770,10 +3781,14 @@ static void handle_press(struct IClass *cl, Object *obj)
     case MUIV_InputMode_RelVerify:
         SetAttrs(obj, MUIA_Selected, TRUE, MUIA_Pressed, TRUE, TAG_DONE);
         set(obj, MUIA_Timer, ++muiAreaData(obj)->mad_Live->Timeval);
-        if (!data->mad_Live->Timer.ihn_Millis && data->mad_DisableCount == 0) {
-            data->mad_Live->Timer.ihn_Millis = 300;
-            DoMethod(_app(obj), MUIM_Application_AddInputHandler,
-                     (IPTR)&data->mad_Live->Timer);
+        {
+            struct MUI_AreaLiveX *x = zune_area_livex(obj, data->mad_Live);
+
+            if (x && !x->Timer.ihn_Millis && data->mad_DisableCount == 0) {
+                x->Timer.ihn_Millis = 300;
+                DoMethod(_app(obj), MUIM_Application_AddInputHandler,
+                         (IPTR)&x->Timer);
+            }
         }
         break;
 
@@ -3828,10 +3843,10 @@ static void handle_release(struct IClass *cl, Object *obj, int cancel)
         }
     }
 
-    if (data->mad_Live->Timer.ihn_Millis) {
+    if (data->mad_Live->x && data->mad_Live->x->Timer.ihn_Millis) {
         DoMethod(_app(obj), MUIM_Application_RemInputHandler,
-                 (IPTR)&data->mad_Live->Timer);
-        data->mad_Live->Timer.ihn_Millis = 0;
+                 (IPTR)&data->mad_Live->x->Timer);
+        data->mad_Live->x->Timer.ihn_Millis = 0;
     }
 }
 
@@ -3981,10 +3996,10 @@ static IPTR event_motion(Class *cl, Object *obj, struct IntuiMessage *imsg)
                              (IPTR)&data->mad_Live->ehn);
                 data->mad_Live->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;
                 DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
-                if (data->mad_Live->Timer.ihn_Millis) {
+                if (data->mad_Live->x && data->mad_Live->x->Timer.ihn_Millis) {
                     DoMethod(_app(obj), MUIM_Application_RemInputHandler,
-                             (IPTR)&data->mad_Live->Timer);
-                    data->mad_Live->Timer.ihn_Millis = 0;
+                             (IPTR)&data->mad_Live->x->Timer);
+                    data->mad_Live->x->Timer.ihn_Millis = 0;
                 }
 
                 DoMethod(obj, MUIM_DoDrag, data->mad_Live->ClickX - _left(obj),
@@ -4275,13 +4290,15 @@ static IPTR Area__MUIM_Import(struct IClass *cl, Object *obj,
 static IPTR Area__MUIM_Timer(struct IClass *cl, Object *obj, Msg msg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
-    if (!data->mad_Live)
+    struct MUI_AreaLiveX *x;
+
+    if (!data->mad_Live || !(x = zune_area_livex(obj, data->mad_Live)))
         return 0;
-    if (data->mad_Live->Timer.ihn_Millis)
+    if (x->Timer.ihn_Millis)
         DoMethod(_app(obj), MUIM_Application_RemInputHandler,
-                 (IPTR)&data->mad_Live->Timer);
-    data->mad_Live->Timer.ihn_Millis = 50;
-    DoMethod(_app(obj), MUIM_Application_AddInputHandler, (IPTR)&data->mad_Live->Timer);
+                 (IPTR)&x->Timer);
+    x->Timer.ihn_Millis = 50;
+    DoMethod(_app(obj), MUIM_Application_AddInputHandler, (IPTR)&x->Timer);
 
     if (data->mad_Flags & MADF_SELECTED)
         set(obj, MUIA_Timer, ++muiAreaData(obj)->mad_Live->Timeval);

@@ -550,13 +550,21 @@ struct MUIP_CreateFrameClippingRegion
 
 struct MUI_ImageSpec_intern;
 
-/* Per-object state needed only once the object has been set up */
+/* The nodes few objects use: MUI_RequestIDCMP's (old-style classes) and
+ * the timer a pressed button repeats with; made when first needed */
+struct MUI_AreaLiveX
+{
+    struct MUI_EventHandlerNode hiehn;  /* to simulate MUIM_HandleInput */
+    struct MUI_InputHandlerNode Timer;  /* MUIA_Timer */
+};
+
+/* Per-object state of an object that reacts to input, made at its first
+ * setup (80 bytes with AllocVec's) */
 struct MUI_AreaLive
 {
     struct MUI_EventHandlerNode ehn;
-    struct MUI_EventHandlerNode hiehn;  /* to simulate MUIM_HandleInput */
     struct MUI_EventHandlerNode ccn;    /* gross hack for control char */
-    struct MUI_InputHandlerNode Timer;  /* MUIA_Timer */
+    struct MUI_AreaLiveX *x;            /* NULL until needed */
     struct ZMenu *ContextZMenu;
     LONG ClickX;                /* x position of the initial SELECTDOWN click */
     LONG ClickY;                /* y position of the initial SELECTDOWN click */
@@ -588,6 +596,8 @@ struct MUI_AreaData;
 struct MUI_AreaRare *zune_area_rare(struct MUI_AreaData *data);
 /* The object's live block, made on first use; NULL without memory. */
 struct MUI_AreaLive *zune_area_live(Object *obj, struct IClass *cl);
+/* Its rarely used nodes, made on first use; NULL without memory. */
+struct MUI_AreaLiveX *zune_area_livex(Object *obj, struct MUI_AreaLive *live);
 
 struct MUI_AreaData
 {
