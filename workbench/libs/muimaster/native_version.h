@@ -4,10 +4,12 @@
 /* Native distribution identity, shared by both native library names.
  * The library reports the version of MUI 5, because applications gate
  * their current code paths on it. That is not a claim of complete MUI 5
- * compatibility, and the number is not bumped for Zune68 releases. A
- * release is identified by ZUNE68_LIBRARY_DATE and ZUNE68_RELEASE_STAGE,
- * which tools/release.py reads from the $VER string to name the archive and
- * fill the readmes; the release tag is the same date as vYYYY.MM.DD.
+ * compatibility, and the number is not bumped for releases. A release is
+ * identified by its edition (ZUNE68_EDITION) and its build date
+ * (ZUNE68_LIBRARY_DATE, made by the build in $(BUILD)/build-date.h: the
+ * day of the build, or ZUNE68_DATE=DD.MM.YYYY given to make), which
+ * tools/release.py reads from the $VER string to name the archive and
+ * fill the readmes.
  * MUI5_TEST=0 builds the AROS source baseline identity (muimaster.conf).
  * External classes retain their own MUIA_Version/MUIA_Revision handlers.
  */
@@ -28,8 +30,9 @@
 #define ZUNE68_MUI38_REVISION 35
 #define ZUNE68_MUI4_VERSION 20
 #define ZUNE68_MUI4_REVISION 6000
-#define ZUNE68_LIBRARY_DATE "02.11.2026"
-#define ZUNE68_RELEASE_STAGE "Beta 2"
+/* The edition after the date in the $VER strings. It must contain
+ * "Zune68": Zune prefs and the class-file check look for it there. */
+#define ZUNE68_EDITION "Zune68k lean"
 #define ZUNE68_STRINGIFY_(x) #x
 #define ZUNE68_STRINGIFY(x) ZUNE68_STRINGIFY_(x)
 #define ZUNE68_LIBRARY_VERSION_STRING \

@@ -403,7 +403,9 @@ int main(int argc, char **argv)
         if (mb) { struct Library *lb; Forbid();
             lb = (struct Library *)FindName(&SysBase->LibList, "muimaster.library");
             Permit(); if (lb) mb = lb; }
-        if (mb && strstr((char *)mb->lib_IdString, "Zune68k")) ranges(*(BPTR *)((UBYTE *)mb + 42), m->mlo, m->mhi, &m->nm);
+        /* Zune68k (the separate port) keeps its seglist at 42; Zune68 and its
+           lean edition ("Zune68k lean" since 2026-11-06) at 38 */
+        if (mb && strstr((char *)mb->lib_IdString, "Zune68k") && !strstr((char *)mb->lib_IdString, "lean")) ranges(*(BPTR *)((UBYTE *)mb + 42), m->mlo, m->mhi, &m->nm);
         else if (mb && strstr((char *)mb->lib_IdString, "Zune68")) ranges(*(BPTR *)((UBYTE *)mb + 38), m->mlo, m->mhi, &m->nm);
         if (!(seg = LoadSeg(argv[2]))) return 20;
         ranges(seg, m->plo, m->phi, &m->np);

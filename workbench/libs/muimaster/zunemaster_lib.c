@@ -8,6 +8,7 @@
 #include <proto/dos.h>
 #include "muimaster_intern.h"
 #include "native_version.h"
+#include "build-date.h"
 #include "gates.h"
 struct ExecBase *SysBase;
 ULONG L_InitLib(struct Library *base);
@@ -18,7 +19,7 @@ void L_ExpungeLib(struct Library *base);
 #define LIBNAME "zunemaster.library"
 #endif
 #define IDSTRING "$VER: " LIBNAME " " ZUNE68_LIBRARY_VERSION_STRING \
-    " (" ZUNE68_LIBRARY_DATE ") Zune68 " ZUNE68_RELEASE_STAGE "\r\n"
+    " (" ZUNE68_LIBRARY_DATE ") " ZUNE68_EDITION "\r\n"
 
 /* The fourth vector, reserved: exec never calls it and it returns 0.
  * Zune prefs calls it with D0 'ZnID' from its own process after saving

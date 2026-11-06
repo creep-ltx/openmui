@@ -18,6 +18,7 @@
 #include <proto/exec.h>
 #include "classfile.h"
 #include "native_version.h"
+#include "build-date.h"
 
 struct __MUIBuiltinClass
 {

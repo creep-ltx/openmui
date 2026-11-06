@@ -124,7 +124,8 @@ CPPFLAGS += $(CF_OFF)
 OBJECTS = $(addprefix $(BUILD)/,$(SOURCES:.c=.o))
 LDLIBS = -Wl,--start-group -lgcc -lnix20 -lnix -lm -lamiga -ldebug \
   -Wl,--end-group
-GENERATED = $(BUILD)/muimaster_strings.h $(BUILD)/trace-config.h $(BUILD)/include/libraries/mui.h \
+GENERATED = $(BUILD)/muimaster_strings.h $(BUILD)/trace-config.h $(BUILD)/build-date.h \
+  $(BUILD)/include/libraries/mui.h \
   $(BUILD)/include/inline/muimaster.h $(BUILD)/include/inline/muiscreen.h $(BUILD)/gates.h \
   $(BUILD)/classfiles.h
 
@@ -277,6 +278,14 @@ $(BUILD)/trace-config.h: FORCE
 	@mkdir -p $(@D)
 	@printf '#define ZUNE68_TRACE %s\n#define ZUNE68_MUI5_TEST %s\n' '$(TRACE)' '$(MUI5_TEST)' | cmp -s - $@ || \
 	  printf '#define ZUNE68_TRACE %s\n#define ZUNE68_MUI5_TEST %s\n' '$(TRACE)' '$(MUI5_TEST)' > $@
+
+# The date in the $VER strings: the day of the build, or ZUNE68_DATE=DD.MM.YYYY.
+# Written only when it changes, so a build on the same day recompiles nothing.
+ZUNE68_DATE ?= $(shell date +%d.%m.%Y)
+$(BUILD)/build-date.h: FORCE
+	@mkdir -p $(@D)
+	@printf '#define ZUNE68_LIBRARY_DATE "%s"\n' '$(ZUNE68_DATE)' | cmp -s - $@ || \
+	  printf '#define ZUNE68_LIBRARY_DATE "%s"\n' '$(ZUNE68_DATE)' > $@
 
 $(BUILD)/cflags: FORCE
 	@$(call record_flags,$(CC) $(CPPFLAGS) $(LIB_CFLAGS) $(LDFLAGS) $(LTO_LDFLAGS))
