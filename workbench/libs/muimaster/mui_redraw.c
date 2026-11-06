@@ -276,7 +276,7 @@ void ZuneDrawDisabled(Object *obj)
               damage_bounds.MinY >= bounds.MinY &&
               damage_bounds.MaxY <= bounds.MaxY) ||
              (muiRenderInfo(obj)->mri_rCount > 0 &&
-              isRegionWithinBounds(muiRenderInfo(obj)->mri_rArray[
+              isRegionWithinBounds(muiRenderInfo(obj)->mri_Tail->rArray[
                   muiRenderInfo(obj)->mri_rCount - 1], bounds.MinX,
                   bounds.MinY, bounds.MaxX - bounds.MinX + 1,
                   bounds.MaxY - bounds.MinY + 1))))
@@ -364,7 +364,7 @@ void ZuneDrawDisabled(Object *obj)
         && ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Height >= 1)
     {
         /* ClipBlit autodoc: XSize and YSize must be at least 1. */
-        ClipBlit(&((struct __dummyAreaData__ *)(obj))->mad.mad_RenderInfo->mri_BufferRP, ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Left, ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Top,
+        ClipBlit(&((struct __dummyAreaData__ *)(obj))->mad.mad_RenderInfo->mri_Tail->BufferRP, ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Left, ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Top,
                  ((struct __dummyAreaData__ *)(obj))->mad.mad_RenderInfo->mri_Window->RPort, ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Left, ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Top,
                  ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Width, ((struct __dummyAreaData__ *)(obj))->mad.mad_Box.Height, 0xc0);
     }

@@ -114,6 +114,7 @@ def check_virtual(path):
     h.mem.w32(h.symbols['_GfxBase'], GFX)
     h.mem.w32(h.symbols['_LayersBase'], LAYERS)
     h.mem.w32(MRI + 20, RP)
+    h.mem.w32(MRI + 88, MRI + 0x400)  # mri_Tail: the clip region stack
     h.mem.w32(RP, LAYER)
     h.mem.w32(OBJECT + 28, MRI)
     rects, clips = [], []

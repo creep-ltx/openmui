@@ -54,8 +54,8 @@ VOID ZuneRemoveClipRegion(struct MUI_RenderInfo *mri, APTR handle)
      * Frees the region given in MUI_AddClipRegion (upstream does this too;
      * duplicating the region at add time would be cleaner).
      */
-    DisposeRegion(mri->mri_rArray[mri->mri_rCount]);
-    mri->mri_rArray[mri->mri_rCount] = NULL;
+    DisposeRegion(mri->mri_Tail->rArray[mri->mri_rCount]);
+    mri->mri_Tail->rArray[mri->mri_rCount] = NULL;
 }
 
 /*****************************************************************************

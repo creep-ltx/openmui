@@ -6,7 +6,7 @@ from check_notifications import NotifyHarness
 from check_class_lifetime import EXEC, INTUITION
 
 CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71040
-POOL, CHAIN, ORDER = DATA + 406, DATA + 410, DATA + 648
+POOL, CHAIN, ORDER = DATA + 166, DATA + 170, DATA + 408
 SETUP, CYCLE = 1 << 28, 1 << 5
 
 

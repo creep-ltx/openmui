@@ -357,6 +357,17 @@ struct dt_frame_image;
 
 #define MRI_RARRAY_SIZE 20
 
+/* The parts of a window's render info that only a set-up window uses (the
+ * clip region stack, the buffer rastport, the custom frames): made at the
+ * window's first setup and kept until the window is disposed, so windows
+ * that never open do not carry them (244 bytes) */
+struct MUI_RenderInfoTail
+{
+    struct Region *rArray[MRI_RARRAY_SIZE]; /* AddClipping/AddClipRegion */
+    struct RastPort BufferRP;               /* with mri_BufferBM */
+    struct dt_frame_image *FrameImage[16];
+};
+
 struct MUI_RenderInfo
 {
     Object *mri_WindowObject;   /* accessable in-between
@@ -388,8 +399,10 @@ struct MUI_RenderInfo
     /* Opened text fonts, done by zune_get_font() */
     struct TextFont *mri_Fonts[-MUIV_Font_NegCount];
 
+    /* the clip regions (mri_Tail->rArray), the buffer rastport and the
+     * custom frames; valid between MUIM_Setup/MUIM_Cleanup */
+    struct MUI_RenderInfoTail *mri_Tail;
     /* this is for AddClipping/AddClipRegion */
-    struct Region *mri_rArray[MRI_RARRAY_SIZE];
     int mri_rCount;
 
     struct Rectangle mri_ClipRect;
@@ -409,11 +422,8 @@ struct MUI_RenderInfo
     Object *mri_VertProp;       /* Valid between MUIM_Show/MUIM_Hide */
     Object *mri_HorizProp;
 
-    /* buffering */
-    struct RastPort mri_BufferRP;
+    /* buffering (mri_Tail->BufferRP) */
     struct BitMap *mri_BufferBM;
-
-    struct dt_frame_image *mri_FrameImage[16];
 };
 
 #define MUIMRI_RECTFILL (1<<0)

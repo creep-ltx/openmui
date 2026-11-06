@@ -1331,55 +1331,55 @@ static BOOL InitCustomFrames(Object *obj, struct MUI_RenderInfo *mri)
 
     for (i = 0; i < 16; i++)
     {
-        mri->mri_FrameImage[i] = NULL;
+        mri->mri_Tail->FrameImage[i] = NULL;
     }
 
-    mri->mri_FrameImage[0] =
+    mri->mri_Tail->FrameImage[0] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_1, mri->mri_Screen);
-    mri->mri_FrameImage[1] =
+    mri->mri_Tail->FrameImage[1] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_2, mri->mri_Screen);
-    mri->mri_FrameImage[2] =
+    mri->mri_Tail->FrameImage[2] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_3, mri->mri_Screen);
-    mri->mri_FrameImage[3] =
+    mri->mri_Tail->FrameImage[3] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_4, mri->mri_Screen);
-    mri->mri_FrameImage[4] =
+    mri->mri_Tail->FrameImage[4] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_5, mri->mri_Screen);
-    mri->mri_FrameImage[5] =
+    mri->mri_Tail->FrameImage[5] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_6, mri->mri_Screen);
-    mri->mri_FrameImage[6] =
+    mri->mri_Tail->FrameImage[6] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_7, mri->mri_Screen);
-    mri->mri_FrameImage[7] =
+    mri->mri_Tail->FrameImage[7] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_8, mri->mri_Screen);
-    mri->mri_FrameImage[8] =
+    mri->mri_Tail->FrameImage[8] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_9, mri->mri_Screen);
-    mri->mri_FrameImage[9] =
+    mri->mri_Tail->FrameImage[9] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_10, mri->mri_Screen);
-    mri->mri_FrameImage[10] =
+    mri->mri_Tail->FrameImage[10] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_11, mri->mri_Screen);
-    mri->mri_FrameImage[11] =
+    mri->mri_Tail->FrameImage[11] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_12, mri->mri_Screen);
-    mri->mri_FrameImage[12] =
+    mri->mri_Tail->FrameImage[12] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_13, mri->mri_Screen);
-    mri->mri_FrameImage[13] =
+    mri->mri_Tail->FrameImage[13] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_14, mri->mri_Screen);
-    mri->mri_FrameImage[14] =
+    mri->mri_Tail->FrameImage[14] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_15, mri->mri_Screen);
-    mri->mri_FrameImage[15] =
+    mri->mri_Tail->FrameImage[15] =
         load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
         customframe_config_16, mri->mri_Screen);
 
@@ -1394,11 +1394,13 @@ static void DisposeCustomFrames(struct MUI_RenderInfo *mri)
 {
     int i;
 
+    if (!mri->mri_Tail) /* never set up */
+        return;
     for (i = 0; i < 16; i++)
     {
-        dispose_custom_frame(mri->mri_FrameImage[i]);
+        dispose_custom_frame(mri->mri_Tail->FrameImage[i]);
 
-        mri->mri_FrameImage[i] = NULL;
+        mri->mri_Tail->FrameImage[i] = NULL;
     }
 }
 
@@ -1473,6 +1475,10 @@ static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     Object *temp_obj;
     IPTR val;
     int i;
+
+    if (!mri->mri_Tail &&
+        !(mri->mri_Tail = AllocVec(sizeof(*mri->mri_Tail), MEMF_ANY | MEMF_CLEAR)))
+        return FALSE;
 
     /* TODO: Move this whole screen locking/opening stuff into the
      * application class by creating methods for this purpose  */
@@ -1780,7 +1786,7 @@ static void ShowRenderInfo(struct MUI_RenderInfo *mri)
 {
     if (mri->mri_BufferBM)
     {
-        mri->mri_RastPort = &mri->mri_BufferRP;
+        mri->mri_RastPort = &mri->mri_Tail->BufferRP;
     }
     else
     {
@@ -4718,6 +4724,7 @@ IPTR Window__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
         MUI_DisposeObject(data->wd_ChildMenustrip);
     if (data->wd_MemoryPool) DeletePool(data->wd_MemoryPool);
     FreeVec(data->wd_CycleOrder);
+    FreeVec(data->wd_RenderInfo.mri_Tail);
     return DoSuperMethodA(cl, obj, msg);
 }
 
@@ -5417,8 +5424,8 @@ static void InstallBackbuffer(struct IClass *cl, Object *obj)
 /*            "with friend %p\n", */
 /*            win->Width, win->Height, win->RPort->BitMap->Depth, */
 /*            win->RPort->BitMap)); */
-        InitRastPort(&data->wd_RenderInfo.mri_BufferRP);
-        data->wd_RenderInfo.mri_BufferRP.BitMap =
+        InitRastPort(&data->wd_RenderInfo.mri_Tail->BufferRP);
+        data->wd_RenderInfo.mri_Tail->BufferRP.BitMap =
             data->wd_RenderInfo.mri_BufferBM;
     }
 }
@@ -5433,7 +5440,7 @@ static void DeinstallBackbuffer(struct IClass *cl, Object *obj)
 
     if (data->wd_RenderInfo.mri_BufferBM)
     {
-        DeinitRastPort(&data->wd_RenderInfo.mri_BufferRP);
+        DeinitRastPort(&data->wd_RenderInfo.mri_Tail->BufferRP);
         FreeBitMap(data->wd_RenderInfo.mri_BufferBM);
         data->wd_RenderInfo.mri_BufferBM = NULL;
     }

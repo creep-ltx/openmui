@@ -755,7 +755,7 @@ const struct ZuneFrameGfx *zune_zframe_get_with_state(
 
     if (type >= FST_CUSTOM1) {
         if (type >= FST_COUNT || !mri
-            || !mri->mri_FrameImage[type - FST_CUSTOM1])
+            || !mri->mri_Tail->FrameImage[type - FST_CUSTOM1])
             return &__builtinFrameGfx[2 * FST_RECT];
     }
     else if (((type >= FST_RECT && type <= FST_THICK_BORDER)

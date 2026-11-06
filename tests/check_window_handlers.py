@@ -11,7 +11,7 @@ from check_class_lifetime import Harness, EXEC, INTUITION
 
 CLASS, OBJECT, ROOT, IWINDOW = 0x70000, 0x71000, 0x71800, 0x71a00
 DATA = OBJECT + 28
-EH, CC, ACTIVE, DEFAULT, CURSORS = [DATA + n for n in (422, 434, 466, 474, 690)]
+EH, CC, ACTIVE, DEFAULT, CURSORS = [DATA + n for n in (182, 194, 226, 234, 470)]
 GLOBAL, PREFS, MESSAGE, NESTED, DEADKEY = 0x78000, 0x79000, 0x7b000, 0x7b100, 0x7b200
 HANDLE, PARENT = 0x80426d66, 0x8042e35f
 RAW, NORMAL = 0x400, 0x4000
@@ -28,7 +28,7 @@ class HandlerHarness(Harness):
         self.mem.w16(CLASS + 32, 28)
         self.mem.w32(OBJECT, GLOBAL)
         self.mem.w32(GLOBAL + 20, PREFS)
-        self.mem.w32(DATA + 522, ROOT)
+        self.mem.w32(DATA + 282, ROOT)
         self.mem.w32(DATA + 16, IWINDOW)
         self.mem.w32(IWINDOW + 120, OBJECT)
         for head in (EH, CC):

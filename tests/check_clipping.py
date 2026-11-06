@@ -17,6 +17,9 @@ class ClipHarness(NotifyHarness):
         self.mem.w32(self.symbols['_GfxBase'], GFX)
         self.mem.w32(self.symbols['_LayersBase'], LAYERS)
         self.mem.w32(MRI + 20, RP)
+        # mri_Tail (offset 88): the clip regions, buffer rastport and custom
+        # frames of a set-up window
+        self.mem.w32(MRI + 88, MRI + 0x400)
         self.mem.w32(RP, LAYER)
         self.mem.w32(OBJECT + 28, MRI)
         self.mem.w32(OBJECT + 64, (1 << 14) | (1 << 29))
@@ -87,7 +90,7 @@ class ClipHarness(NotifyHarness):
 
     def finish(self):
         assert not self.allocations
-        assert self.mem.r32(MRI + 168) == 0
+        assert self.mem.r32(MRI + 92) == 0
         self.check_freed()
         self.machine.cleanup()
 
@@ -108,16 +111,16 @@ def check_virtual_paint(path):
             h.call('ZuneAddClipRegion', MRI, h.alloc(12))
             h.fail_intersect = True
         old_clip = h.mem.r32(LAYER + 126)
-        count = h.mem.r32(MRI + 168)
+        count = h.mem.r32(MRI + 92)
         result = h.call('Group__MUIM_Virtgroup_BeginPaint', cl, OBJECT)
         assert bool(result) == (failure == 'none')
         if result:
             assert h.mem.r32(LAYER + 126) != old_clip
-            assert h.mem.r32(MRI + 168) == count + 1
+            assert h.mem.r32(MRI + 92) == count + 1
             assert not h.call('Group__MUIM_Virtgroup_BeginPaint', cl, OBJECT)
         h.call('Group__MUIM_Virtgroup_EndPaint', cl, OBJECT)
         assert h.mem.r32(LAYER + 126) == old_clip
-        assert h.mem.r32(MRI + 168) == count
+        assert h.mem.r32(MRI + 92) == count
         if failure == 'intersect':
             h.call('ZuneRemoveClipRegion', MRI, outer)
         h.finish()
@@ -195,10 +198,10 @@ def check_refresh_culling(path):
         h.mem.w_block(LAYER + 16, struct.pack('>4h', 40, 50, 339, 249))
         damage = h.blob(struct.pack('>4hI', 16, 22, 39, 37, 1 if nonempty else 0))
         h.mem.w32(LAYER + 156, damage)
-        h.mem.w_block(MRI + 172, sentinel)
+        h.mem.w_block(MRI + 96, sentinel)
         h.call('MUI_Redraw', OBJECT, 1)
         assert h.draws == int(drawn), (box, refreshing, nonempty)
-        actual = bytes(h.mem.r_block(MRI + 172, 8))
+        actual = bytes(h.mem.r_block(MRI + 96, 8))
         assert actual == (struct.pack('>4h', *expected) if drawn else sentinel)
         if not drawn:
             assert h.mem.r32(OBJECT + 64) == 1 << 14
@@ -213,11 +216,11 @@ def check_refresh_culling(path):
     h.mem.w32(MRI + 24, 8)
     damage = h.blob(struct.pack('>4hI', 150, 150, 170, 170, 1))
     h.mem.w32(LAYER + 156, damage)
-    h.mem.w_block(MRI + 172, sentinel)
+    h.mem.w_block(MRI + 96, sentinel)
     flags = h.mem.r32(OBJECT + 64)
     h.call('MUI_Redraw', OBJECT, 1)
     assert not h.draws and not h.gets and not h.region_allocations
-    assert bytes(h.mem.r_block(MRI + 172, 8)) == sentinel
+    assert bytes(h.mem.r_block(MRI + 96, 8)) == sentinel
     assert h.mem.r32(OBJECT + 64) == flags
     h.finish()
 
@@ -236,13 +239,13 @@ def check_refresh_culling(path):
             h.parent(OBJECT, 50, 50, 40, 40)
         else:
             h.mem.w32(OBJECT + 64, 1 << 14)
-        h.mem.w_block(MRI + 172, sentinel)
+        h.mem.w_block(MRI + 96, sentinel)
         flags = h.mem.r32(OBJECT + 64)
         h.call('MUI_Redraw', OBJECT, 1)
         assert not h.draws
         assert h.region_allocations == int(virtual)
         assert h.mem.r32(LAYER + 126) == outer
-        assert bytes(h.mem.r_block(MRI + 172, 8)) == sentinel
+        assert bytes(h.mem.r_block(MRI + 96, 8)) == sentinel
         assert h.mem.r32(OBJECT + 64) == flags
         h.finish()
 
@@ -259,7 +262,7 @@ def check_refresh_culling(path):
     h.mem.w32(LAYER + 156, damage)
     h.call('MUI_Redraw', OBJECT, 1)
     assert h.draws == 1 and not h.region_allocations
-    assert struct.unpack('>4h', h.mem.r_block(MRI + 172, 8)) == (40, 40, 49, 49)
+    assert struct.unpack('>4h', h.mem.r_block(MRI + 96, 8)) == (40, 40, 49, 49)
     h.finish()
     # Only the observed ordinary window coordinate system is optimized.
     for mode in ('no window', 'scroll x', 'scroll y', 'other rastport', 'buffer'):
@@ -278,11 +281,11 @@ def check_refresh_culling(path):
         elif mode == 'other rastport':
             h.mem.w32(WINDOW + 50, RP + 256)
         else:
-            h.mem.w32(MRI + 316, 1)
+            h.mem.w32(MRI + 140, 1)
             h.trap(GFX - 552, lambda: None)  # Existing buffered ClipBlit.
         h.call('MUI_Redraw', OBJECT, 1)
         assert h.draws == 1 and not h.region_allocations, mode
-        assert struct.unpack('>4h', h.mem.r_block(MRI + 172, 8)) == (0, 0, 99, 99)
+        assert struct.unpack('>4h', h.mem.r_block(MRI + 96, 8)) == (0, 0, 99, 99)
         h.finish()
     print(f'{path.name}: refresh damage culls before allocation, bounds draw clips, '
           'preserves early-return state and leaves explicit redraws unchanged')
@@ -382,7 +385,7 @@ def check(path):
     a = h.call('ZuneAddClipRegion', MRI, h.alloc(12))
     h.fail_intersect = True
     assert h.call('ZuneAddClipRegion', MRI, h.alloc(12)) == 0xffffffff
-    assert h.mem.r32(MRI + 168) == 1
+    assert h.mem.r32(MRI + 92) == 1
     h.call('ZuneRemoveClipRegion', MRI, a)
     h.finish()
     print(f'{path.name}: nested clip ownership and 12 ancestors / one rectangle pass')

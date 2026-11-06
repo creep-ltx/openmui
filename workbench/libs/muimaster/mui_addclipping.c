@@ -23,7 +23,7 @@ APTR ZuneAddClipping(struct MUI_RenderInfo *mri, LONG left, LONG top,
 
     if (mri->mri_rCount > 0)
     {
-        if (isRegionWithinBounds(mri->mri_rArray[mri->mri_rCount-1],
+        if (isRegionWithinBounds(mri->mri_Tail->rArray[mri->mri_rCount-1],
             (WORD)left, (WORD)top, (WORD)width, (WORD)height))
             return (APTR)-1;
     }

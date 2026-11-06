@@ -54,7 +54,7 @@ APTR ZuneAddClipRegion(struct MUI_RenderInfo *mri, struct Region *r)
     }
 
     if (mri->mri_rCount != 0
-        && !AndRegionRegion(mri->mri_rArray[mri->mri_rCount-1], r))
+        && !AndRegionRegion(mri->mri_Tail->rArray[mri->mri_rCount-1], r))
     {
         DisposeRegion(r);
         return (APTR)-1;
@@ -75,7 +75,7 @@ APTR ZuneAddClipRegion(struct MUI_RenderInfo *mri, struct Region *r)
     else if (lock_layerinfo)
         UnlockLayerInfo(&w->WScreen->LayerInfo);
 
-    mri->mri_rArray[mri->mri_rCount++] = r;
+    mri->mri_Tail->rArray[mri->mri_rCount++] = r;
 
     return result;
 }

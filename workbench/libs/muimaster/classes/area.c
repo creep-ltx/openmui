@@ -2204,7 +2204,7 @@ static IPTR Area_CustomBackfill(Object *obj, LONG left, LONG top,
      * partly visible last line spills below the group. */
     if ((data->mad_Flags & (MADF_ISVIRTUALGROUP | MADF_INVIRTUALGROUP))
         && !(mri->mri_rCount > 0
-            && isRegionWithinBounds(mri->mri_rArray[mri->mri_rCount - 1],
+            && isRegionWithinBounds(mri->mri_Tail->rArray[mri->mri_rCount - 1],
                 left, top, width, height)))
     {
         struct Region *region = NewRegion();

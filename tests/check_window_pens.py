@@ -15,7 +15,7 @@ SCREEN, DRAWINFO, DRAWPENS, COLORMAP = 0x75000, 0x76000, 0x76100, 0x77000
 GFX, SPECS, MESSAGE = 0x78000, 0x79000, 0x7a000
 # Native offsets checked with offsetof against window.c and the classic SDK.
 DATA = OBJECT + 64
-USER_SCREEN, CREATE_FLAGS = DATA + 618, DATA + 462
+USER_SCREEN, CREATE_FLAGS = DATA + 378, DATA + 222
 PUBLIC_PENS = DATA + 36
 
 
@@ -30,6 +30,10 @@ class PenHarness(Harness):
         self.mem.w32(OBJECT, GLOBAL)
         self.mem.w32(GLOBAL + 20, PREFS)
         self.mem.w32(USER_SCREEN, SCREEN)
+        # The render info's tail (mri_Tail, offset 88 of the window's data:
+        # clip regions, buffer rastport, custom frames) as a window keeps
+        # it from its first setup; the pen checks count allocations after it
+        self.mem.w32(DATA + 88, 0x7d800)
         self.mem.w32(CREATE_FLAGS, 0x800)  # Borderless avoids unrelated sysiclass.
         self.mem.w16(SCREEN + 12, 640)
         self.mem.w16(SCREEN + 14, 256)
