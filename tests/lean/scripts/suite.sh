@@ -67,6 +67,15 @@ boot || { log "instance did not come up"; exit 1; }
 VOL=$(sysvol); RD="${VOL}Real"
 log "SYS: is $VOL, programs in $RD"
 wasabi run "makedir ENV:MUI" >/dev/null 2>&1
+# MUI 4/5 programs need Zune to behave as MUI 5 (Zune prefs "Behave as";
+# ENVARC: so that it survives the reboot before each program)
+if [ "$TARGET" = zune ] && echo ",$PGROUPS," | grep -q ",mui5,"; then
+  wasabi run "makedir ENVARC:Zune
+echo >ENVARC:Zune/Identity MUI5 NOLINE
+makedir ENV:Zune
+copy ENVARC:Zune/Identity ENV:Zune/" >/dev/null 2>&1
+  log "Zune behaves as MUI 5 (ENVARC:Zune/Identity)"
+fi
 
 # ---- run ----
 if [ "$UPDATE" = 1 ] && [ -f "$OUT/results.tsv" ]; then
