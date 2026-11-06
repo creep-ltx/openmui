@@ -350,11 +350,15 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     {
 /*          msg->MinMaxInfo->MinWidth += 1; */
 /*          msg->MinMaxInfo->MinHeight += 1;             */
-        /* MUI 3.9 makes both kinds of bar at least 2x2 */
+        /* MUI 3.9 makes both kinds of bar at least 2x2; MUI 3.8 with
+         * thick frames 4x2, also MUIO_VBar 1 or 2 (demopix: the Menus and
+         * Subtask demos, measured with tests/lean/probe/objdump.c) */
         if (data->Type == RECTANGLE_TYPE_HBAR
             || data->Type == RECTANGLE_TYPE_VBAR)
         {
-            msg->MinMaxInfo->MinWidth += 2;
+            msg->MinMaxInfo->MinWidth +=
+                !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
+                && ZUNE_APP_MUI38(obj) ? 4 : 2;
             msg->MinMaxInfo->MinHeight += 2;
         }
     }
@@ -521,11 +525,13 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
         }
         else if (data->Type == RECTANGLE_TYPE_VBAR)
         {
-            int x = _mleft(obj) + _mwidth(obj) / 2 - 1;
             /* with thick frames MUI 3.8 doubles both lines, like the
-             * sides of a frame (demopix: the Menus demo) */
+             * sides of a frame, also on a bar narrower than the four
+             * pixels (demopix: MUIO_VBar 1 and 2 in the Menus and Subtask
+             * demos) */
             int thick = !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
-                && _width(obj) >= 4;
+                && ZUNE_APP_MUI38(obj);
+            int x = _mleft(obj) + _mwidth(obj) / 2 - 1;
 
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
             draw_line(_rp(obj), x, _mtop(obj), x, _mbottom(obj));
