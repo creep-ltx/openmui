@@ -272,17 +272,18 @@ extern struct Library *MUIMasterBase;
  * Draw bypasses Area drawing/flag check, draws parent background and the
  * custom state image. No public getter/setter or ownership transfer.
  */
+/* 28 bytes (was 36): with Area's an image object is 176 bytes */
 struct MUI_ImageData
 {
     char *spec;
-    ULONG flags;
     struct MUI_ImageSpec_intern *img;
     struct  NewImage *propimage;
     struct Image *old_image;
     Object *prop; /* private hack to use prop images */
-    LONG   state; /* see IDS_* in intuition/imageclass.h */
     ULONG  specnr;
-    ULONG builtin;
+    UWORD  state; /* see IDS_* in intuition/imageclass.h */
+    UBYTE  flags; /* MIF_* */
+    UBYTE  builtin; /* MUIA_Image_BuiltinSpec below MUII_Count, else 0xff */
 };
 
 
@@ -341,7 +342,10 @@ IPTR Image__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     data = INST_DATA(cl, obj);
     data->state = IDS_NORMAL;
-    data->builtin = GetTagData(MUIA_Image_BuiltinSpec, (IPTR)-1, msg->ops_AttrList);
+    {
+        IPTR builtin = GetTagData(MUIA_Image_BuiltinSpec, (IPTR)-1, msg->ops_AttrList);
+        data->builtin = builtin < MUII_Count ? builtin : 0xff;
+    }
 
     /* parse initial taglist */
 

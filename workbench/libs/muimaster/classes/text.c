@@ -267,24 +267,24 @@ struct TextMark
     BOOL dragging, focused;
 };
 
+/* 38 bytes (was 50): with Area's a Text object is 192 bytes */
 struct MUI_TextData
 {
-    ULONG mtd_Flags;
     STRPTR contents;
     ULONG contents_size;    /* allocated bytes of contents */
     CONST_STRPTR preparse;
-    TEXT hichar;
     ZText *ztext;
     ZTextChunk *plain_chunk; /* the one chunk of a ztext of plain contents */
-
-    LONG update;        /* type of update: 1 - everything,
-                         * 2 - insert char, no scroll */
     STRPTR owned_contents;
-    BOOL copy_contents;
-    LONG shorten;
-    TEXT controlchar;
     Object *textdata;
     struct TextMark *mark;
+    UBYTE mtd_Flags;    /* MTDF_* */
+    TEXT hichar;
+    TEXT controlchar;
+    UBYTE update;       /* type of update: 1 - everything,
+                         * 2 - insert char, no scroll */
+    UBYTE copy_contents;
+    BYTE shorten;       /* MUIV_Text_Shorten_* */
 };
 
 #define MTDF_SETMIN    (1<<0)
