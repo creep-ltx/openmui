@@ -192,7 +192,7 @@ group: all 5 as `identity`'s. Results: `/tmp/demopix/zwork/suite-real/dp3`, `dp3
 36 of 36 as `demopix`'s run; MUI 4/5 group: 5 of 5 as `demopix`'s. A `wasabi snoop` trace of every
 LoadSeg during the run (`tests/lean/scripts/snooplog.sh`) showed the image module of a first try
 loaded in ten programs (NListtree's default node images are MUII_TapePlay, TapeDown and Drawer;
-CManager and ViewCSV use the tape arrows, RO the volume images), so that module was taken back;
+with those in the library, CManager, RO and ViewCSV still loaded it), so that module was taken back;
 CManager, RO, ViewCSV, the NListtree demo and YAM 2.5 run again on the final build load no new
 module. Results: `/tmp/smaller/zwork/suite-real/sm3`, `sm3b`, `sm3c`, `sm5`.
 
