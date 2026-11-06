@@ -21,7 +21,7 @@
 
 /* The class names, and the files (gcc/classfiles.py) */
 #define MUIC_Zmenu      "Zmenu.zmod"        /* Zmenu.mui: menu.c */
-#define MUIC_Zpicture   "Zpicture.zmod"     /* Zpicture.mui: datatypescache.c */
+#define MUIC_Zpicture   "Zpicture.zmod"     /* Zpicture.mui: datatypescache.c, frame_tile.c */
 #define MUIC_Zdragdrop  "Zdragdrop.zmod"    /* Zdragdrop.mui: dragndrop.c */
 #define MUIC_Zrequest   "Zrequest.zmod"     /* Zrequest.mui: requesters.c, mui_request.c */
 #define MUIC_Zgradient  "Zgradient.zmod"    /* Zgradient.mui: imspec_gradientdraw.c */
@@ -56,6 +56,7 @@ struct ZuneMenuModule
 
 struct dt_node;
 struct dt_frame_image;
+struct NewImage;
 struct RastPort;
 struct Screen;
 struct ZunePictureModule
@@ -70,6 +71,8 @@ struct ZunePictureModule
     struct dt_frame_image *(*load_custom_frame)(CONST_STRPTR,
         struct Screen *);
     void (*dispose_custom_frame)(struct dt_frame_image *);
+    void (*do_frame_rects)(struct RastPort *, struct dt_frame_image *,
+        struct NewImage *, int, int, int, int, int, int, int, int);
 };
 
 struct DragNDrop;

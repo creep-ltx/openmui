@@ -210,6 +210,18 @@ void dispose_custom_frame(struct dt_frame_image *fi)
     }
 }
 
+/* A custom frame is only drawn with pictures the module loaded */
+void dt_do_frame_rects(struct RastPort *rp, struct dt_frame_image *fi,
+    struct NewImage *ni, int gl, int gt, int gw, int gh, int left, int top,
+    int width, int height)
+{
+    MODULE(ZunePictureModule, ZMOD_PICTURE);
+    if (m)
+        m->do_frame_rects(rp, fi, ni, gl, gt, gw, gh, left, top, width,
+            height);
+    zune_module_put(cl);
+}
+
 /* Drag and drop images (dragndrop.c) */
 
 struct DragNDrop *CreateDragNDropA(struct TagItem *tlist)

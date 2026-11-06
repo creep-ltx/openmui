@@ -108,6 +108,10 @@ void dt_put_on_rastport_quicktiled(struct RastPort *rp,
 struct dt_frame_image *load_custom_frame(CONST_STRPTR filename,
     struct Screen *scr);
 void dispose_custom_frame(struct dt_frame_image *fi);
+/* Draw a custom frame's picture ni into rp (frame_tile.c) */
+void dt_do_frame_rects(struct RastPort *rp, struct dt_frame_image *fi,
+    struct NewImage *ni, int gl, int gt, int gw, int gh, int left, int top,
+    int width, int height);
 
 #ifndef __AROS__
 /* BltMaskBitMapRastPort() that also works with an interleaved source
