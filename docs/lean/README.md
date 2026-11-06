@@ -195,6 +195,10 @@ program 520.7 -> 497.2 KB, each further 222.3 -> 222.3 KB, first window
   List's edit and drag parts ~2.4 KB; String's context menu 0.35 KB) there
   is no clean cut: the code works on the classes' private instance data,
   which would have to move into shared headers, for a few KB.
+  (2026-11-06: the title gadgets and List's edit and drag parts were
+  moved after all, through small interfaces and `classes/list_private.h`:
+  "A smaller library" below. The snapshot stays: positions are remembered
+  on exit by default.)
 
 ## MUI 3.8's sizes (2026-11-05)
 
@@ -650,7 +654,8 @@ that it means rewriting the big classes smaller (roadmap "Later").
   Compiler options do not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
   switches within 0.3 KB, alignment none, `LTO=1` with bebbo's GCC 6.5
   -3.6 KB and it cannot link the class files: no `nm` plugin, fat LTO
-  objects make the linker write nothing). What is left is Zune's own
+  objects make the linker write nothing). With GCC 16.2, `LTO=1` gives 14 KB but more
+  stack use and no `make check` ("A smaller library"). What is left is Zune's own
   code: List 30 KB, Window 29 KB, String 21 KB, Group 20 KB, Area 16 KB,
   Application 15 KB, frames 11 KB, text engine 9 KB. The rarely used
   non-class parts are modules now (above); what is still movable sits
