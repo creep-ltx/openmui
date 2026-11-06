@@ -5,6 +5,9 @@ reports MUI 5 (21.227) and stays close to MUI 3.8 in memory. The goal:
 stock OS 3.1 works (68000 build the default, 68020 too), every feature
 programs use is kept, Zune68's behaviour is kept (smart refresh, as MUI
 3.8), and only MUI 5-only parts and rarely used classes become on-demand.
+Each program sees the MUI it asks for: MUI 3 programs 19.35 (MUI 3.8),
+MUI 4 programs 20.x, MUI 5 programs 21.227, unless Zune prefs' "Behave
+as" says otherwise ([below](#each-program-gets-the-mui-it-asked-for-2026-11-06-phase-8)).
 
 MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 
@@ -330,6 +333,122 @@ Still different, and why:
 - A Cycle's internal structure (Zune: a page group of texts; MUI 3.8: one
   text) and a List's (an entry area inside the list group) differ; the
   outer sizes are the same.
+
+## Each program gets the MUI it asked for (2026-11-06, phase 8)
+
+Branch `identity`. Programs and classes choose their code paths by the
+version muimaster.library's base reports (TheBar sizes its virtual bar
+itself only below MUI 4; NList, TextEditor and BetterString branch on MUI 4
+revisions), so one number for the whole machine was wrong for somebody:
+19.35 kept MUI 4/5 programs out, 21.227 gave MUI 3 programs MUI 5's
+behaviour. Now each program sees the MUI it asked for, with no setting to
+change:
+
+- **How exec helps.** OpenLibrary() checks lib_Version against the version
+  asked for *before* it calls the library's Open, and returns whatever Open
+  returns. So the base in the library list reports MUI 5 (21.227) and lets
+  every program in, and Open hands out a base for the program: that base
+  itself for MUI 5, or a copy reporting 19.35 (MUI 3.8) or 20.6000 (MUI 4).
+  A copy is the jump table and the Library structure (342 bytes), made the
+  first time it is needed and shared by every program of that identity; its
+  vectors are the same functions, so a call costs nothing more. Close and
+  Expunge through a copy work on the shared base.
+- **Where the version is.** The RKRM's example library takes it in D0; exec
+  40.10 (OS 3.1) and 47.8 (OS 3.2) call Open with the base in D0 and the
+  version in D2 (measured: D2 was 0, 5, 19, 20, 21 as asked, through
+  OldOpenLibrary too, and for a library ramlib had just loaded). Open takes
+  D0 when it is not the base, else D2.
+- **Automatic** (the default): asked for 0-19 MUI 3.8, 20 MUI 4, 21 or
+  more MUI 5. Zune prefs, System page, "MUI version": **Behave as**
+  Automatic / MUI 3.8 / MUI 4 / MUI 5 for all programs, and a list of
+  programs with a MUI of their own (the program's file name: the Shell's
+  command name or, from Workbench, the task name; no path, no case), which
+  wins over the setting for all. Saved as ENV:Zune/BehaveAs (first line
+  `Auto`, `MUI3.8`, `MUI4` or `MUI5`, then one `MUI5 YAM` line per
+  program). Open runs under Forbid and cannot read it: the library reads it
+  when it is loaded, and Zune prefs has the libraries in memory read it
+  again when it saves or uses (their reserved vector, LVO -24, with 'ZnID'
+  in D0), so the change holds for the next program started.
+  `tests/lean/idtest reload` does the same after an edit by hand.
+  ENV:Zune/Identity of the earlier "MUI 3.8 / MUI 5" setting is no longer
+  read.
+- **The program, not the machine.** The program's task is remembered while
+  it has the library open (32 records of 12 bytes in the base: task, its
+  stack, count, identity): its later opens keep its identity, its
+  application object keeps it (MUI_GlobalInfo's private first field, high
+  byte), and Zune's own MUI 3.8 / MUI 5 differences (List's horizontal
+  scroller, MUI_AslRequest with asl.library's requester) follow the
+  application, or the calling task where there is no object.
+- **Classes.** External classes (.mcc) open muimaster.library in their init,
+  which ramlib runs in its own task; Zune sets the identity of the program
+  it is loading the class for around the load, and ramlib's opens get it
+  (else the rules with the version the class asks for). A class library
+  then serves every program with that identity while it is loaded. When
+  nobody uses it any more and a program of another identity asks for it,
+  Zune removes it from memory first (RemLibrary) so that it is loaded again
+  for the new program: TheBar demo9 alone, Automatic, has MUI 3.8's layout
+  (fits on 640 with the small font), and with a `MUI5 demo9` line MUI 5's
+  (cut off at 640, topaz), one after the other.
+
+Measured (FS-UAE A1200, OS 3.1, 68000 build, GCC 16.2):
+
+| | lean | identity |
+|---|---|---|
+| library file | 279,844 | 282,084 (+2,240) |
+| library + first program (idtest, in use) | 355,344 | 358,200 (+2,856: code, the records in the base, the MUI 3.8 copy) |
+| each further program | 72,352 | 72,352 (+0) |
+| the first MUI 4 program | - | +352 (its copy, once) |
+
+`tests/lean/idtest.c` opens the library with a version and prints the base's
+version, the list's and the identity Zune gave its application object:
+0 and 19 -> 19.35 (identity MUI 3.8), 20 -> 20.6000 (MUI 4), 21 -> 21.227
+(MUI 5) on OS 3.1 and 3.2.1; a second open of the same program with another
+version keeps the first; three running at once (19, 21, 20) each keep their
+own to the end. The settings for all and per program (also a line for a
+program not running, names in other case) give what they say; Zune prefs'
+list adds, changes and removes lines, saves, and the next program gets the
+new setting.
+
+What the suite's MUI 4/5 programs ask for (traced): YAM 2.10dev, IBrowse
+3.0a, AmigaGPT 3.4 and MQTTExplorer 19 (IBrowse also 17), DizzyTorrent 20;
+classes from ramlib 19 and 11. They are MUI 3.8 programs that use MUI 4/5
+features when the version says so: Automatic gives them MUI 3.8 (they run
+as they do on MUI 3.8); a line in the list gives one MUI 5.
+
+Checked (FS-UAE, OS 3.1 unless said, 68000 build, GCC 16.2): `make check`
+passes (its 68000 harness now models FindTask and opens with version 21);
+fullcheck: the 19 MUI 3.8 demos and MUI-Demo's sub-windows exactly as on
+`lean` (same windows, sizes and memory, run the same day); the real-program
+suite, Automatic: **MUI 3.x group 30 of 36 as on MUI 3.8, all 36 the same
+as `lean`'s run** (the same six differences, see above); MUI 4/5 group:
+4 of 5 the same as with the MUI 5 setting before, AmigaGPT's window 2
+pixels lower (590x253, was 255: it asks for 19 and now gets MUI 3.8).
+
+Found on the way, also on `lean` (commit "Window: a remembered size is
+kept within the window's own limits"): TheBar's demos all use application
+base THEBAREXAMPLE and window ID MAIN, so demo1 started after demo9 opened
+at demo9's remembered 627x220, above its maximum height, and drew nothing.
+The remembered size is now clamped to the window's minimum and maximum.
+
+Limits:
+- A class loaded once serves all programs with the identity of the one it
+  was loaded for while any program uses it (TheBar decides its MUI 4 mode
+  at init; NList and TextEditor read their own base's version each time,
+  and that base is the first program's). It is loaded again for another
+  identity only once nobody uses it.
+- Two programs loading classes at the same moment can swap the loading
+  identity (no lock: a class whose init loads another class through ramlib
+  would deadlock on one).
+- A class a program opens itself with OpenLibrary (not through MUI) gets
+  the rules with the version the class asks for, not the program's.
+- SetFunction() on muimaster.library patches the listed base; programs
+  holding a copy call the original functions.
+- More than 32 programs with the library open at once: the others get the
+  rules but no record (their objects fall back to the setting for all,
+  else MUI 3.8).
+- The version detection relies on exec 40/47 keeping the version in D2;
+  another exec that passes neither D0 nor D2 would make every program
+  MUI 3.8 under Automatic (the per-program list still works).
 
 ## Left open
 

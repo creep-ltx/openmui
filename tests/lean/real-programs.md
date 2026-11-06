@@ -171,6 +171,15 @@ different: TheBar demo2 and demo3 (18 px wider), AmIRC (256 against 236 high), A
 y 4 against 256 at 0), IBrowse 2.5.9 (no main window) and MultiRen (only MUI 3.8's run "still
 running after quit"). Results: `$ZWORK/suite-real/after` (ZWORK ~/.cache/zune68-suitefix).
 
+**Update, branch `identity` (2026-11-06, roadmap phase 8):** each program
+gets the MUI it asks for (Automatic; docs/lean/README.md, "Each program gets
+the MUI it asked for"); the zune target no longer sets MUI 5 for the mui5
+group (`--behave-as MUI5` does). MUI 3.x group: 30 of 36 as on MUI 3.8, all
+36 the same as `suitefix`'s run. MUI 4/5 group: YAM 2.10dev, IBrowse 3.0a,
+AmigaGPT and MQTTExplorer ask for 19 (MUI 3.8), DizzyTorrent for 20 (MUI 4);
+4 of 5 the same as with the MUI 5 setting, AmigaGPT 2 pixels lower.
+Results: `/tmp/identity/zwork/suite-real/id3`, `id5` (ZWORK of that run).
+
 **MUI 4/5 programs, Zune against MUI 5 (5 entries):** DizzyTorrent (the one that needs MUI 3.9+)
 and AmigaGPT open and quit on Zune as on MUI 5 (sizes differ by 6-72 px); IBrowse 3.0a opens,
 but the machine stops answering when its second run quits; YAM 2.10dev gets further on Zune than
