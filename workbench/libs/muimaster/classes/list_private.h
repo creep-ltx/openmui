@@ -133,7 +133,7 @@ struct MUI_ListData
                                  * more than needed (for the entry position) */
 
     /* Titlestuff */
-    int title_height;           /* The complete height of the title */
+    WORD title_height;          /* The complete height of the title */
     STRPTR title;               /* On single column lists this is the title,
                                  * otherwise 1. NULL for no title(s) */
 
@@ -143,9 +143,6 @@ struct MUI_ListData
     struct MUI_ImageSpec_intern *list_selcur;
 
     /* Render optimization */
-    int update; /* 1 - update everything, 2 - redraw entry at update_pos,
-                 * 3 - scroll to current entries_first (old value is in
-                 * update_pos) */
     int update_pos;
 
     LONG drop_mark;
@@ -155,40 +152,30 @@ struct MUI_ListData
     struct MinList images;
 
     /* user prefs */
-    ListviewRefresh prefs_refresh;
     UWORD prefs_linespacing;
-    BOOL prefs_smoothed;
     UWORD prefs_smoothval;
 
     /* render space handling */
     Object *area;
-    BOOL area_replaced;
-    BOOL area_connected;
 
     /***************************/
     /* Former Listview members */
     /***************************/
 
     Object *vert;
-    BOOL vert_connected;
 
     /* MUI 3.9: a horizontal scroller below the framed entry area when the
      * columns are wider than it; the entries scroll by horiz_first
      * pixels */
     Object *horiz;
-    BOOL horiz_shown;
     LONG horiz_first;
     struct Hook layout_hook;
     IPTR scroller_pos;
-    BOOL read_only;
-    IPTR multiselect;
-    LONG drag_type;
 
     /* clicked column */
     LONG click_column;
     LONG def_click_column;
 
-    LONG mouse_click;            /* see below if mouse is held down */
     LONG mouse_x;
     LONG mouse_y;
 
@@ -199,26 +186,40 @@ struct MUI_ListData
 
     struct MUI_EventHandlerNode ehn;
 
-    /* user prefs */
-    ListviewMulti prefs_multi;
-
-    BOOL doubleclick;
     LONG seltype;
 
     struct Hook hook;
     LONG hscroll_visibility, title_click, sort_column;
-    BOOL stripes, editable;
     Object *edit_object, *edit_focus;
     LONG edit_row, edit_column;
     APTR edit_entry;
-    BOOL ending_edit;
     LONG max_columns;
     CONST_STRPTR *title_array;
     LONG title_columns;
     STRPTR *mapped_strings;
-    BOOL format_layout, max_columns_explicit;
     LONG columns_reserved;      /* slots in strings[] and preparses[] */
     LONG columns_used;          /* highest column number the format shows + 1 */
+
+    /* The switches and small modes as bytes, together (they were BOOLs,
+     * enums and LONGs between pointers, each with its padding) */
+    UBYTE update; /* UPDATEMODE_*: 1 - update everything, 2 - redraw
+                   * entry at update_pos, 3 - scroll to current
+                   * entries_first (old value is in update_pos) */
+    UBYTE prefs_refresh;        /* ListviewRefresh */
+    UBYTE prefs_multi;          /* ListviewMulti */
+    UBYTE prefs_smoothed;
+    UBYTE area_replaced;
+    UBYTE area_connected;
+    UBYTE vert_connected;
+    UBYTE horiz_shown;
+    UBYTE read_only;
+    UBYTE multiselect;          /* MUIV_Listview_MultiSelect_* */
+    UBYTE drag_type;            /* MUIV_Listview_DragType_* */
+    UBYTE mouse_click;          /* see below if mouse is held down */
+    UBYTE doubleclick;
+    UBYTE stripes, editable;
+    UBYTE ending_edit;
+    UBYTE format_layout, max_columns_explicit;
 };
 
 #define MOUSE_CLICK_ENTRY 1     /* on entry clicked */
