@@ -20,6 +20,7 @@
 #include "imspec_intern.h"
 #include "datatypescache.h"
 #include "dragndrop.h"
+#include "dragwin.h"
 #include "menu.h"
 #include "requesters.h"
 #include "modules.h"
@@ -232,6 +233,29 @@ struct DragNDrop *CreateDragNDropA(struct TagItem *tlist)
 
     zune_module_put(cl);
     return dnd;
+}
+
+/* A window's MUIM_Window_DragObject (dragwin.c): no drag without the
+ * module */
+IPTR zune_drag_begin(struct ZuneDrag *d, Object *obj, LONG touchx,
+    LONG touchy, ULONG flags, struct Screen *scr)
+{
+    MODULE(ZuneDragDropModule, ZMOD_DRAGDROP);
+    IPTR ok = m ? m->drag_begin(d, obj, touchx, touchy, flags, scr) : 0;
+
+    zune_module_put(cl);
+    return ok;
+}
+
+/* Only called while a drag the module began is on */
+BOOL zune_drag_event(Object *oWin, struct ZuneDrag *d,
+    struct IntuiMessage *imsg)
+{
+    MODULE(ZuneDragDropModule, ZMOD_DRAGDROP);
+    BOOL finished = m ? m->drag_event(oWin, d, imsg) : TRUE;
+
+    zune_module_put(cl);
+    return finished;
 }
 
 /* The others are only called with a drag the module made */

@@ -23,7 +23,7 @@
 /* The class names, and the files (gcc/classfiles.py) */
 #define MUIC_Zmenu      "Zmenu.zmod"        /* Zmenu.mui: menu.c */
 #define MUIC_Zpicture   "Zpicture.zmod"     /* Zpicture.mui: datatypescache.c, frame_tile.c */
-#define MUIC_Zdragdrop  "Zdragdrop.zmod"    /* Zdragdrop.mui: dragndrop.c */
+#define MUIC_Zdragdrop  "Zdragdrop.zmod"    /* Zdragdrop.mui: dragndrop.c, dragwin.c */
 #define MUIC_Zrequest   "Zrequest.zmod"     /* Zrequest.mui: requesters.c, mui_request.c */
 #define MUIC_Zgradient  "Zgradient.zmod"    /* Zgradient.mui: imspec_gradientdraw.c */
 #define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
@@ -82,6 +82,8 @@ struct ZunePictureModule
 
 struct DragNDrop;
 struct BitMapNode;
+struct ZuneDrag;
+struct IntuiMessage;
 struct TagItem;
 struct ZuneDragDropModule
 {
@@ -95,6 +97,9 @@ struct ZuneDragDropModule
     VOID (*delete_node)(struct BitMapNode *);
     VOID (*attach_node)(struct DragNDrop *, struct BitMapNode *);
     VOID (*detach_node)(struct BitMapNode *);
+    IPTR (*drag_begin)(struct ZuneDrag *, Object *, LONG, LONG, ULONG,
+        struct Screen *);
+    BOOL (*drag_event)(Object *, struct ZuneDrag *, struct IntuiMessage *);
 };
 
 struct ZuneRequestModule
