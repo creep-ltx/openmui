@@ -18,6 +18,7 @@
 
 #include <exec/types.h>
 #include <intuition/classes.h>
+#include "imspec_intern.h"   /* VECTOR_DRAW_FUNC */
 
 /* The class names, and the files (gcc/classfiles.py) */
 #define MUIC_Zmenu      "Zmenu.zmod"        /* Zmenu.mui: menu.c */
@@ -27,11 +28,12 @@
 #define MUIC_Zgradient  "Zgradient.zmod"    /* Zgradient.mui: imspec_gradientdraw.c */
 #define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
 #define MUIC_Zframes    "Zframes.zmod"      /* Zframes.mui: frame_round.c */
+#define MUIC_Zimages    "Zimages.zmod"      /* Zimages.mui: imspec_vector_rare.c */
 
 enum
 {
     ZMOD_MENU, ZMOD_PICTURE, ZMOD_DRAGDROP, ZMOD_REQUEST, ZMOD_GRADIENT,
-    ZMOD_WINTITLE, ZMOD_FRAMES,
+    ZMOD_WINTITLE, ZMOD_FRAMES, ZMOD_IMAGES,
     ZMOD_COUNT
 };
 
@@ -144,6 +146,14 @@ struct ZuneFramesModule
     const struct ZuneFrameGfx *frames;
 };
 const struct ZuneFrameGfx *zune_round_frames_get(void);
+
+/* The rare vector images 10-23 (imspec_vector_rare.c): their drawing
+ * functions, or NULL. Looked up once, as the round frames. */
+struct ZuneImagesModule
+{
+    const VECTOR_DRAW_FUNC *vectors;
+};
+const VECTOR_DRAW_FUNC *zune_rare_vectors_get(void);
 
 /* In a module built as a file: take the library bases over again before
  * code that reads CyberGfxBase, which the library opens at the first
