@@ -763,7 +763,8 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
     DeleteFile((STRPTR)p);
     for (i = nents - 1; i >= 0; i--)
         if (ents[i].kind == E_DIR && !DeleteFile((STRPTR)ents[i].path)
-            && IoErr() == ERROR_DIRECTORY_NOT_EMPTY)
+            && IoErr() == ERROR_DIRECTORY_NOT_EMPTY
+            && Strnicmp(ents[i].path, "SYS:Zune68k", 11))
             say2("Kept ", ents[i].path, ": other files are in it.\n");
     if (settings)
     {
@@ -772,10 +773,17 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
     }
     if (exists(home, NULL))
     {
-        if (!kept && fromwb)
-            home_later = TRUE;   /* once our requester is gone */
-        else if (!kept && !DeleteFile((STRPTR)home))
-            say2("The drawer ", home, " can be deleted now.\n");
+        /* the drawer we were started from stays locked until we end (by
+         * Workbench, or as the Shell's program drawer): removed by a
+         * script afterwards. Not for the installer (QUIET), which makes
+         * the drawers again at once. */
+        if (!kept && !DeleteFile((STRPTR)home))
+        {
+            if (!quiet)
+                home_later = TRUE;
+            else
+                say2("The drawer ", home, " can be deleted now.\n");
+        }
     }
     if (kept)
         say("Some files could not be changed (see above); the record\n"
@@ -785,7 +793,7 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
         say("Zune68k is removed. Reboot to make sure no program\n"
             "still uses it.\n");
         if (home_later)
-            say("The empty drawer goes when its window is closed.\n");
+            say("The empty drawer goes in a moment (once no window shows it).\n");
     }
     if (!settings)
         say("Your Zune settings in ENVARC:Zune are kept.\n");
