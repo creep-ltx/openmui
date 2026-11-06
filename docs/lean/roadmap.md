@@ -133,3 +133,7 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    47.9, planar 640x256) open both requesters. Plain `AslRequest()` called by the test itself with
    `ASLFR_Window` = a Zune window reset the A1200: Software Failure 8000 0004 (illegal instruction), task
    0x08008FC2, next to input.device's task. Next: reproduce on an emulated RTG (uaegfx) OS 3.2 screen.
+2. **A List eats every key while the pointer is over it** (found 2026-11-06 with PFS3Doctor, FS-UAE with the
+   A1200's muimaster 21.227): List's HandleEvent, IDCMP_RAWKEY, sets `result = MUI_EventHandlerRC_Eat`
+   whenever the pointer is over the list or its scroller, outside the switch that only handles the wheel
+   codes, so ControlChar buttons stop working after a click into a list. Eat only RAWKEY_NM_WHEEL_UP/DOWN.
