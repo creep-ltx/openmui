@@ -38,8 +38,17 @@ the other lines. The contact sheets: `$ZWORK/suite-real/compare-zune-mui38.html`
   the second run did not quit), "lost": in-use before the second run minus in-use after it
   (negative: the second run left memory in use; positive: it gave some back), the
   windows as `title@x,y wxh` (screen pixels), the extra windows, and since 2026-11-06 the memory
-  in use while the second run's windows are open (bytes, "?" without a second run). Screenshots
+  in use while the second run's windows are open (bytes, "?" without a second run) and, seventh,
+  the same for the first run from a freshly booted machine (everything the program costs: the
+  library, its classes, and what MUI keeps after a quit for the next run). Screenshots
   `TAG/<id>.png`, `TAG/<id>-extraN.png`, log `TAG/log.txt`.
+- `--tally FILE` (FILE: `tests/lean/memtally` built) runs the second run under `memtally runall`
+  and writes its live blocks with the windows open to `TAG/<id>.mt`; `TALLY_RUN=1` the first run
+  instead (`<id>-1.mt`); `TALLY_RUN=keep` starts `memtally lib muimaster.library` before the first
+  run and dumps with the windows open (`<id>-1.mt`) and after the quit (`<id>-q.mt`). Read them
+  with `tools/lean/mtlib.py` (by task, caller, size; `SYMLIB=` a Zune build with symbols names
+  Zune's functions) and `tools/lean/mtsizes.py`. MUI 3.8 is a black box there: its callers show
+  as muimaster.library.
 - `suite-compare.py A B` writes `compare-A-B.html` next to them: per program both screenshots
   side by side, the windows and their size differences, status and memory, and prints every
   program that behaves differently.
@@ -258,6 +267,66 @@ than MUI 3.8 in most programs: 10-110 KB (RO 410 against 299 KB, AmFTP 406 again
 326 against 213, NewsCoaster 1,260 against 1,018): not traced yet, the next lever for phase 4's
 follow-up (MUI-Demo's own objects are now below MUI 3.8's, so it is something these programs use
 and MUI-Demo does not).
+
+**Update, branch `realmem` (2026-11-06, phase 4 follow-up):** traced (docs/lean/README.md, "Real
+programs' memory against MUI 3.8"). Most of the second-run gap is the measurement: **MUI 3.8 keeps
+its pool puddles when a program quits** (AmFTP 112 KB, RO 80, AmigaAMP-Prefs 56 KB, freed only by a
+flush) and the second run reuses them, while Zune gives everything back. The suite therefore also
+records the first run from boot (seventh column). What Zune really spent more was fixed: an
+event-node block for every shown object (now only for objects that take input, 80 instead of 120
+bytes) and an image spec per object for the plain pen backgrounds (now shared). The whole suite on
+this branch, `lean` and MUI 3.8 in the same session (results `/tmp/realmem/zwork/suite-real/fin3`,
+`base3`, `mui38`, `fin5`, `base5`): MUI 3.x group 35 of 36 as `lean`'s run, 30 of 36 windows as on MUI
+3.8 (the same six differ); the one other difference: ViewCSV's second quit reset the machine on
+`lean` and on MUI 3.8 and not here (FS-UAE). MUI 4/5 group 5 of 5 as `lean`'s. Memory in use,
+emulator figures, bytes ("1st": the first run from a fresh boot, library and classes included,
+so Zune's larger code counts there):
+
+| ID | lean | realmem | change | MUI 3.8 | lean 1st | realmem 1st | change | MUI 3.8 1st |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| nlist-demo | 311,728 | 302,336 | -9,392 | 262,080 | 806,240 | 797,448 | -8,792 | 716,200 |
+| nlisttree-demo | 928,816 | 922,176 | -6,640 | 909,624 | 1,470,176 | 1,464,040 | -6,136 | 1,419,624 |
+| texteditor-demo | 186,456 | 179,032 | -7,424 | 158,008 | 605,184 | 598,360 | -6,824 | 540,952 |
+| thebar-demo1 | 208,160 | 202,880 | -5,280 | 194,376 | 592,312 | 587,584 | -4,728 | 542,688 |
+| thebar-demo2 | 235,272 | 222,680 | -12,592 | 197,264 | 626,752 | 614,712 | -12,040 | 575,912 |
+| thebar-demo3 | 243,456 | 230,744 | -12,712 | 207,080 | 632,896 | 620,736 | -12,160 | 583,664 |
+| thebar-demo4 | 188,360 | 183,080 | -5,280 | 174,576 | 558,616 | 553,840 | -4,776 | 508,944 |
+| thebar-demo5 | 155,696 | 151,344 | -4,352 | 145,304 | 525,952 | 522,056 | -3,896 | 479,672 |
+| thebar-demo6 | 194,952 | 189,696 | -5,256 | 181,192 | 579,128 | 574,400 | -4,728 | 529,504 |
+| thebar-demo7 | 189,464 | 186,872 | -2,592 | 185,600 | 619,680 | 617,640 | -2,040 | 545,776 |
+| thebar-demo8 | 181,512 | 176,232 | -5,280 | 167,728 | 551,720 | 546,992 | -4,728 | 502,096 |
+| thebar-demo9 | 278,016 | 271,640 | -6,376 | 266,192 | 709,544 | 703,720 | -5,824 | 631,584 |
+| thebar-demo10 | 158,368 | 154,912 | -3,456 | 151,920 | 528,512 | 525,560 | -2,952 | 486,288 |
+| textinput-demo | 123,064 | 117,088 | -5,976 | 107,768 | 749,240 | 743,816 | -5,424 | 701,208 |
+| yam25 | 1,730,000 | 1,715,024 | -14,976 | 1,472,888 | 2,876,368 | 2,858,592 | -17,776 | 2,802,432 |
+| muimine | 142,432 | 140,968 | -1,464 | 146,408 | 432,472 | 431,560 | -912 | 381,888 |
+| installerng | 729,504 | 729,504 | +0 | 729,480 | 752,864 | 769,312 | +16,448 | 769,312 |
+| amftp | 405,784 | 380,864 | -24,920 | 308,408 | 794,176 | 769,808 | -24,368 | 776,168 |
+| atc | 513,360 | 513,360 | +0 | 513,360 | 811,808 | 812,312 | +504 | 767,848 |
+| simplemail | ? | ? |  | ? | ? | ? |  | ? |
+| newscoaster | 1,259,808 | 1,257,096 | -2,712 | 1,017,680 | 2,116,592 | 2,112,568 | -4,024 | 2,034,664 |
+| ibrowse25 | ? | ? |  | 1,544,160 | 2,465,528 | 2,455,040 | -10,488 | 2,186,312 |
+| amirc | 985,128 | 979,064 | -6,064 | 801,336 | 1,942,000 | 1,936,488 | -5,512 | 1,664,048 |
+| wookiechat | 2,324,832 | 2,308,104 | -16,728 | 2,094,160 | 3,230,432 | 3,215,864 | -14,568 | 3,164,312 |
+| amtelnet | 366,048 | 356,976 | -9,072 | 0 | 1,130,240 | 1,121,720 | -8,520 | 1,051,080 |
+| scout | 469,384 | 464,024 | -5,360 | 428,912 | 1,005,136 | 1,000,376 | -4,760 | 664,264 |
+| muibase | 1,330,472 | 1,329,456 | -1,016 | 1,330,664 | 2,158,288 | 2,157,824 | -464 | 2,067,592 |
+| homebank | 499,408 | 487,576 | -11,832 | 451,928 | 1,088,544 | 1,077,264 | -11,280 | 1,023,536 |
+| cmanager | 746,928 | 740,744 | -6,184 | 697,560 | 2,163,824 | 2,158,192 | -5,632 | 1,914,696 |
+| ro | 409,808 | 376,048 | -33,760 | 298,600 | 701,000 | 667,816 | -33,184 | 601,536 |
+| multiren | 746,696 | 742,336 | -4,360 | ? | 1,410,688 | 1,406,880 | -3,808 | 1,336,360 |
+| archiver | 368,872 | 350,208 | -18,664 | 244,456 | 710,920 | 692,760 | -18,160 | 611,648 |
+| annotate | 883,808 | 883,808 | +0 | 883,808 | 940,136 | 940,136 | +0 | 940,184 |
+| amigaampprefs | 325,936 | 290,176 | -35,760 | 213,112 | 658,104 | 622,944 | -35,160 | 538,640 |
+| viewcsv | ? | 319,440 |  | ? | 1,101,112 | 1,096,200 | -4,912 | 1,050,808 |
+| todo | 131,192 | 127,568 | -3,624 | 124,448 | 406,520 | 403,472 | -3,048 | 363,968 |
+| total (32 / 35 programs with all three) | 17,206,024 | 16,921,280 | -284,744 | 15,065,920 | 38,452,704 | 38,178,032 | -274,672 | 35,475,408 |
+
+MUI 4/5 group (second run / first run): YAM 2.10dev 3,805,256 -> 3,582,416 / 5,038,440 -> 4,816,120,
+DizzyTorrent 2,510,232 -> 2,498,568 / 2,852,424 -> 2,841,360, AmigaGPT 2,055,136 -> 2,044,080 /
+3,172,464 -> 3,161,960; IBrowse 3.0a first run 2,755,264 -> 2,744,392. SimpleMail had no window
+this session on all three (wasabid on FS-UAE's bsdsocket). InstallerNG's first-run figure moved by
+16 KB with no change in its second run (it equals MUI 3.8's): not looked into.
 
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second

@@ -65,6 +65,19 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    first program on top of the library is 15 KB cheaper than MUI 3.8's).
    Speed and stack as before. Details in
    [README.md](README.md#memory-per-program-2026-11-06-phase-4).
+   *Follow-up 2026-11-06* (branch `realmem`): why real programs showed
+   10-110 KB more than on MUI 3.8 in the suite. Mostly the measurement:
+   MUI 3.8 keeps its pool puddles after a program quits (AmFTP 112 KB, RO
+   80, AmigaAMP-Prefs 56) and its second run reuses them; the suite now
+   also records the first run from boot. What Zune really spent more: an
+   event-node block for every shown object (now only for objects that take
+   input, and 80 instead of 120 bytes) and an image spec per object for the
+   plain pen backgrounds (now shared). Suite: 32 MUI 3.x programs 285 KB
+   less together (RO -34 KB, AmigaAMP-Prefs -36, AmFTP -25), YAM 2.10 -223
+   KB; MUI-Demo each further 204.5 KB, first 476.4 KB. First-run data now
+   about MUI 3.8's (RO +7 KB, AmigaAMP-Prefs +22, AmFTP -54); the rest is
+   code. Speed and stack as before (window opening 3.5% faster). Details in
+   [README.md](README.md#real-programs-memory-against-mui-38-2026-11-06-phase-4-follow-up).
 5. **Speed** (target: faster than MUI 3.8): start-up, window opening,
    redraw, list scrolling; measured on real 68000/68020 hardware, not
    only in the emulator, and never PiStorm figures as Amiga speeds. The

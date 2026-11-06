@@ -18,12 +18,15 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 | lean | 277 KB (+215 KB in 44 class and module files) | 289 KB | 497 KB | 222 KB | 1.5 s |
 | smaller | 262 KB (+236 KB in 47 class and module files) | 275 KB | 477 KB | 212 KB | 1.4 s |
 | memory | 263 KB (+236 KB in 47 class and module files) | 276 KB | 468 KB | 203 KB | 1.4 s |
+| realmem | 263 KB (+236 KB in 47 class and module files) | 276 KB | 465 KB | 200 KB | 1.4 s |
 
 (lean measured 2026-11-05 with GCC 16.2, after the modules below; smaller
 2026-11-06 (branch `smaller`, [below](#a-smaller-library-2026-11-06-phase-3));
 memory 2026-11-06 (branch `memory`, [below](#memory-per-program-2026-11-06-phase-4):
 479,064 / 207,736 bytes, MUI 3.8 the same session 460,296 / 210,696-218,824;
-this table is in KiB),
+this table is in KiB); realmem 2026-11-06 (branch `realmem`,
+[below](#real-programs-memory-against-mui-38-2026-11-06-phase-4-follow-up):
+476,368 / 204,456-204,504 bytes),
 where lean measured the same session gave 289 / 490 / 212 KB; the other
 rows 2026-11-04.)
 
@@ -761,6 +764,111 @@ notifications (8.4 KB, 32 bytes each) and the smart refresh backing store
 state (~60 bytes) could join `mri_Tail`; `Register`'s titles could use
 `zune_text_compact()` too (class file, not measured).
 
+## Real programs' memory against MUI 3.8 (2026-11-06, phase 4 follow-up)
+
+Branch `realmem`. The suite's "memory in use" column (the second run,
+windows open) showed Zune 10-110 KB above MUI 3.8 in most real MUI 3
+programs (RO 410 against 299 KB, AmFTP 406 against 308, AmigaAMP-Prefs 326
+against 213) while MUI-Demo's objects were below MUI 3.8's. Traced
+black-box with memtally on both sides: every task's AllocMem/FreeMem with
+its callers, LoadSeg'd code told apart from data; MUI 3.8 only from outside
+(which library asked, which task, block sizes, what stays after a quit).
+Emulator figures (FS-UAE, A1200, OS 3.1, 8 MB fast, 68000 build, GCC 16.2),
+bytes.
+
+**Most of the gap was the measurement.** MUI 3.8 keeps its object pools'
+8 KB puddles when a program quits, and the suite's second run fills them
+again without asking exec for much. `memtally lib muimaster.library`
+started before the first run and dumped after the program quit
+(`suite.sh --tally`, `TALLY_RUN=keep`): MUI 3.8 still holds 112 KB of
+puddles for AmFTP (in the program's task and in a subtask's), 80 KB for RO,
+56 KB for AmigaAMP-Prefs, until a flush; Zune holds none. Everything that
+stays after the quit apart from code: MUI 3.8 154 / 118 / 93 KB, Zune 33 /
+28 / 28 KB (fonts on both). So the second-run column compares all that Zune
+needs with what MUI 3.8 adds to memory it kept from the first run.
+
+The fair comparison is the first run from a freshly booted machine. The
+suite now records it too (results.tsv's seventh column, printed by
+`suite-compare.py`), and the tally splits it into code (all that ramlib
+loaded and every LoadSeg'd hunk: libraries, class files, the program) and
+data (all the rest), `tools/lean/mtlib.py`, `mtsizes.py`; every task:
+
+| first run, windows open | lean data | realmem data | MUI 3.8 data | lean code | realmem code | MUI 3.8 code |
+|---|---:|---:|---:|---:|---:|---:|
+| AmFTP 1.91 | 297,334 | 272,346 | 326,309 | 520,094 | 520,646 | 474,035 |
+| RO 1.27 | 271,800 | 238,060 | 230,689 | 450,178 | 450,730 | 395,229 |
+| AmigaAMP-Prefs 1.25a | 281,989 | 246,189 | 224,598 | 397,978 | 398,530 | 338,371 |
+
+The code is larger on Zune: its library is 269 KB against MUI 3.8's 166
+KB, and Zune's class files are LoadSeg'd in the program's task (counted
+here as code: RO 22 KB of them), MUI 3.8's by ramlib.
+
+**What Zune really spent more**, per caller (memtally `runall`, Zune's
+function names from a build with symbols), and what was done:
+
+| commit | what | before |
+|---|---|---|
+| b89663cb Area | an object's live block (event, IDCMP, control-char and timer nodes, 120 bytes) was made at every object's first setup; labels, images, groups and spacers never get an event. Now only for objects with an input mode, a context menu, a shortcut or in the cycle chain, or on MUI_RequestIDCMP / MUIA_Timer; a shortcut, cycle chain or context menu set while shown makes it then. MUIA_Disabled on a shown object without one skips the simulated button release (the first build wrote through NULL there: YAM 2.5's configuration window reset the machine; `tests/check_area_live.py`) | RO 230 blocks, 27.6 KB; AmigaAMP-Prefs 34.8 KB; AmFTP 23.9 KB |
+| 8fee6ff2 Image specs | MUII_BACKGROUND, SHADOW, SHINE and FILL (the settings' "0:128" and friends, the background most objects get) allocated a 50-byte spec per object at every setup. Four shared constants now, as the pattern specs already were; a MUI pen is read from the render info it is drawn with (`zune_penspec_pen`), so one spec serves every window and screen | RO 360 blocks, 19.4 KB; AmFTP 6.5 KB; AmigaAMP-Prefs 5.9 KB |
+| 5106711a Area | the MUI_RequestIDCMP node (old-style classes) and a pressed button's repeat timer moved out of the live block into one made at first use: 80 bytes per button, string or cycle gadget | RO 177 x 120 bytes |
+| 898e030d | stack as on `lean` (below) | |
+
+Library file 269,188 -> 269,572 bytes (+384 bytes of code). MUI-Demo
+(`m.sh`, OS 3.1 + 4 MB fast): first program 479,064 -> 476,368, each
+further 207,704-207,768 -> 204,456-204,504, library alone 282,392 ->
+282,920, first window 1.42-1.44 s as before.
+
+Real-program suite, memory in use (`suite-compare.py`, `lean` and MUI 3.8
+the same session; [real-programs.md](../../tests/lean/real-programs.md) has
+every program): 32 MUI 3.x programs 284,744 bytes less together in the
+second run (RO -33.8 KB, AmigaAMP-Prefs -35.8, AmFTP -24.9, Archiver -18.7,
+WookieChat -16.7, YAM 2.5 -15.0), the first run from boot 274,672 bytes
+less; MUI 4/5 group: YAM 2.10 -222.8 KB, DizzyTorrent -11.7, AmigaGPT
+-11.1. InstallerNG, AmiTradeCenter and Annotate hold the same as before
+(as on every branch; not looked into).
+
+**Stack**: `-fstack-usage` of every changed file against `lean`, per
+function: the first build had `setup_control_char` 4 -> 20 bytes (it made
+the live block itself; OM_SET makes it now) and `zune_imspec_free` 8 -> 12
+(two ranges for the shared specs; one array now), and a guard inside
+`handle_release` cost 4 bytes (it is in OM_SET's call now): every
+function's frame is `lean`'s. `stackrun.sh` twice: MUI-Demo with its eight
+sub-windows 5,384, Layout 2,264, Virtual 2,672, Pages 2,236, Slidorama
+2,300 bytes, as `lean` (whose Virtual gave 2,672 and 2,736: its known
+noise).
+
+**Speed** (perfbench, 68EC020, `bench.sh`, 15 repetitions, this branch and
+`lean` on two instances at once, then swapped): create+dispose -1.1 /
+-2.1%, open+close -3.5 / -3.5%, redraw 0.0 / -0.0%, relayout +0.4 / +0.2%,
+list insert +1.2 / -0.3%, list active +1.2 / -0.4%, notify +0.2 / +0.1%,
+text set -0.0 / -0.1%. Opening a window is faster (fewer allocations); no
+batch is slower beyond the known spread.
+
+Checked:
+
+- `make check` after every commit; the new `check_area_live.py` fails
+  on the first build's bug and passes now.
+- fullcheck: MUI-Demo with eight sub-windows and the 18 other demos open and
+  close, no alert, the same "lost" figures as `lean` in the same session;
+  all 26 screenshots pixel-identical to `lean`'s.
+- Demo pixel comparison (`demopix.sh --only zune` against `memory`'s MUI 3.8
+  shots): 18 of 27 identical, every count as before except Layout (its
+  random buttons).
+- Real-program suite: MUI 3.x group 35 of 36 as `lean`'s run of the same
+  session, 30 of 36 windows as on MUI 3.8 (the same six differ); the one
+  other difference is ViewCSV's second quit, which reset the machine on
+  `lean` and on MUI 3.8 and not here (FS-UAE, as AmTelnet's). MUI 4/5
+  group 5 of 5 as `lean`'s. YAM 2.5 was run by hand too (configuration
+  window open for a minute).
+
+**Left open**: each shown Text keeps its parse (~110 bytes per label:
+AmigaAMP-Prefs 131 of them, 15 KB; RO's 104 empty texts 56 bytes each):
+dropping it means parsing at every draw (slower) or a parse buffer on the
+stack (deeper), so it stays. Notifications (24 bytes + 4 per parameter),
+Text contents copies and object data are about MUI 3.8's. What is left
+against MUI 3.8 in data: RO +7 KB, AmigaAMP-Prefs +22 KB (AmFTP -54 KB).
+The code is the larger difference now (library and class files).
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
@@ -780,11 +888,14 @@ state (~60 bytes) could join `mri_Tail`; `Register`'s titles could use
   muigfx/muilowlevel), a small application and its window take the same
   time as on MUI 3.8; a second MUI-Demo with everything loaded takes 1.47
   s against 1.11 s. Where the rest goes in MUI-Demo is not found yet.
-- **Per program**: MUI-Demo's each further 207.7 KB (bytes/1000) against
-  MUI 3.8's 210.7-218.8 since phase 4 ("Memory per program" above); real
-  programs still hold 10-110 KB more than on MUI 3.8 (RO, AmFTP,
-  AmigaAMP-Prefs, NewsCoaster), not traced yet. The first program is
-  479 against 460 KB: the library's code. (Before phase 4: 243 KB against
+- **Per program**: MUI-Demo's each further 204.5 KB (bytes/1000) against
+  MUI 3.8's 210.7-218.8 since phase 4 and its follow-up ("Memory per
+  program", "Real programs' memory" above). Real programs' second-run
+  figure is 10-80 KB above MUI 3.8's mostly because MUI 3.8 keeps its pool
+  puddles after a quit and reuses them; in the first run from boot their
+  data is about MUI 3.8's (RO +7 KB, AmigaAMP-Prefs +22 KB, AmFTP -54 KB)
+  and their code larger. The first program is 476 against 460 KB: the
+  library's code. (Before phase 4: 243 KB against
   211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
   list pools of 1 KB puddles, Text contents.)
 
