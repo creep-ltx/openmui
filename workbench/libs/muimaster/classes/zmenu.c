@@ -9,7 +9,9 @@
 #define zune_leave_menu zmod_leave_menu
 #define zune_close_menu zmod_close_menu
 #define zune_get_menu_pointer zmod_get_menu_pointer
+#define zune_menustrip_popup zmod_menustrip_popup
 #include "../menu.c"
+#include "../menupopup.c"
 #include <clib/alib_protos.h>
 #include "mui.h"
 #include "support.h"
@@ -17,7 +19,7 @@
 
 static const struct ZuneMenuModule menu_module = {
     zmod_open_menu_at, zmod_mouse_update, zmod_poll_menu, zmod_leave_menu,
-    zmod_close_menu
+    zmod_close_menu, zmod_menustrip_popup
 };
 
 BOOPSI_DISPATCHER(IPTR, Zmenu_Dispatcher, cl, obj, msg)

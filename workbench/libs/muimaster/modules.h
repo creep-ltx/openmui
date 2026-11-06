@@ -21,7 +21,7 @@
 #include "imspec_intern.h"   /* VECTOR_DRAW_FUNC */
 
 /* The class names, and the files (gcc/classfiles.py) */
-#define MUIC_Zmenu      "Zmenu.zmod"        /* Zmenu.mui: menu.c */
+#define MUIC_Zmenu      "Zmenu.zmod"        /* Zmenu.mui: menu.c, menupopup.c */
 #define MUIC_Zpicture   "Zpicture.zmod"     /* Zpicture.mui: datatypescache.c, frame_tile.c */
 #define MUIC_Zdragdrop  "Zdragdrop.zmod"    /* Zdragdrop.mui: dragndrop.c, dragwin.c */
 #define MUIC_Zrequest   "Zrequest.zmod"     /* Zrequest.mui: requesters.c, mui_request.c */
@@ -49,6 +49,7 @@ struct Window;
 struct NewMenu;
 struct MenuItem;
 struct ZMenu;
+struct MUIP_Menustrip_Popup;
 struct ZuneMenuModule
 {
     struct ZMenu *(*open_menu_at)(struct Window *, struct NewMenu *, LONG,
@@ -57,7 +58,10 @@ struct ZuneMenuModule
     int (*poll_menu)(struct ZMenu *, struct MenuItem **);
     struct MenuItem *(*leave_menu)(struct ZMenu *);
     void (*close_menu)(struct ZMenu *);
+    IPTR (*menustrip_popup)(Object *, struct MUIP_Menustrip_Popup *);
 };
+/* MUIM_Menustrip_Popup (menupopup.c) */
+IPTR zune_menustrip_popup(Object *obj, struct MUIP_Menustrip_Popup *msg);
 
 struct dt_node;
 struct dt_frame_image;

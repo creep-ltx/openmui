@@ -134,6 +134,17 @@ void zune_close_menu(struct ZMenu *menu)
     }
 }
 
+/* MUIM_Menustrip_Popup (menupopup.c): no pop-up menu without the
+ * module, as when it cannot make the menu */
+IPTR zune_menustrip_popup(Object *obj, struct MUIP_Menustrip_Popup *msg)
+{
+    MODULE(ZuneMenuModule, ZMOD_MENU);
+    IPTR result = m ? m->menustrip_popup(obj, msg) : 0;
+
+    zune_module_put(cl);
+    return result;
+}
+
 /* Datatype pictures (brush and bitmap image specs, menu images) and
  * custom frames (datatypescache.c) */
 
