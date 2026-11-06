@@ -99,12 +99,28 @@ dismiss_amftp() {
 # second button from the right
 quit_wookiechat() {
   menu "Project/Quit" || wasabi ui click close --window "Wookiechat" >/dev/null 2>&1
-  sleep 3; [ -n "$(winline "Quit Program")" ] && clickrel "Quit Program" -33 -33
+  sleep 3
+  local l w h; l=$(winline "Quit Program"); [ -n "$l" ] || return 0
+  # Yes sits about 3/10 of the width from the right edge, half way down (MUI 3.8 draws the
+  # requester in the program's small font, Zune in topaz: no fixed offset fits both)
+  w=$(echo "$l" | cut -f5); h=$(echo "$l" | cut -f6)
+  clickrel "Quit Program" -$((w * 3 / 10)) -$((h * $(yscale) / 2))
 }
 # MUIMine: its pictures are in the archive's images drawer, next to progfiles
 pre_host_muimine() { cp -a "$REAL/muimine/x/MUIMineInstall/images" "$1/images"; }
-# MultiRen: "Please register" notice in front; OK is its bottom right button
-dismiss_multiren() { [ -n "$(winline "MultiRen")" ] && clickrel "MultiRen" -28 -22; }
+# MultiRen: two notices in front of its main window (full screen height): "Please register"
+# (OK bottom right, beside "Easy register now!") and the welcome (OK bottom middle)
+dismiss_multiren() {
+  local i l w h
+  for i in 1 2 3; do
+    l=$(winline "MultiRen"); [ -n "$l" ] || return 0
+    w=$(echo "$l" | cut -f5); h=$(echo "$l" | cut -f6)
+    [ "$h" -ge 200 ] && return 0
+    if [ "$i" = 1 ] && [ "$w" -lt 450 ]; then clickrel "MultiRen" -28 -22
+    else clickrel "MultiRen" $((w / 2)) -22; fi
+    sleep 2
+  done
+}
 # AmigaAMP-Prefs: no settings yet ("Could not load the prefs"): OK, the bottom middle button
 dismiss_amigaampprefs() {
   local l w; l=$(winline "AmigaAMP"); [ -n "$l" ] || return 0
@@ -125,8 +141,14 @@ dismiss_ibrowse25() { dismiss_ibrowse; }
 dismiss_ibrowse30() { dismiss_ibrowse; }
 # AmTelnet: the demo notice; "Continue testing" is its rightmost button (no underlined letter)
 dismiss_amtelnet() { [ -n "$(winline "Demo Notice")" ] && clickrel "Demo Notice" -84 -32; }
-# Contact Manager: the first start asks for its database drawer (an ASL requester): OK
-dismiss_cmanager() { answer OK; waitwin "" 20; }
+# Contact Manager: the first start asks for its database drawer with MUI_AslRequest: on MUI 3.8
+# an ASL requester (OK), on Zune Zune's own requester (another process; Save, bottom left)
+TITLE[cmanager]='^(Contact Manager|Select the directory)'
+dismiss_cmanager() {
+  answer OK; sleep 2
+  [ -n "$(winline "Select the directory")" ] && clickrel "Select the directory" 82 -39
+  waitwin "Contact Manager" 30
+}
 
 # ---- classes and libraries ----
 # The MUI classes every target gets (third-party, from their own archives), as "LOCAL [NAME]"

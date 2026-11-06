@@ -22,7 +22,10 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    MUI 4/5-only ones. Each: install, start, open its main windows, quit;
    screenshots and memory compared with MUI 3.8 (and MUI 5 for 4/5-only
    programs). Runs from one script. Everything after this is checked
-   with it.
+   with it. *Built 2026-11-06*: `tests/lean/scripts/suite.sh`, the
+   programs, how to run it and the first results (six programs that fail
+   on Zune and not on MUI 3.8, eleven more kinds of difference) in
+   [tests/lean/real-programs.md](../../tests/lean/real-programs.md).
 2. **Demo set compared with MUI 3.8 automatically.** The 19 MUI 3.8
    demos and MUI-Demo's sub-windows, screenshotted on Zune and MUI 3.8
    with the same settings, compared pixel by pixel; a report of every

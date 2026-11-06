@@ -296,7 +296,11 @@ run_prog() {
     n=$((n+1))
     before=$(wins | cut -f3)
     menu "$x" || log "$id: menu $x not found"
-    sleep 3; settle 10
+    # up to 40 s for a new window other than an error window (YAM's configuration window came
+    # after ~15 s of "Error messages" on Zune), then settle
+    local t0=$SECONDS
+    while [ $((SECONDS - t0)) -lt 40 ] && [ -z "$(wins | grep -v -F -f <(echo "${before:-none}") | cut -f1 | grep -v -i error)" ]; do sleep 1; done
+    sleep 2; settle 10
     wl="$wl|extra$n=$x:$(wins | grep -v -F -f <(echo "${before:-none}") | cut -f1,2 | tr '\t\n' '@;')"
     grab "$OUT/$id-extra$n.png"
     while IFS= read -r w; do

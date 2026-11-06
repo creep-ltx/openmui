@@ -16,6 +16,7 @@
 #   --no-leak      skip the second run (memory)
 #   --keep         leave the instance running at the end (default: stopped)
 #   --reuse        do not make a fresh copy of the machine (files from the last run stay)
+#   --update       keep the other programs' lines in results.tsv (run some programs again)
 #
 # Results: $ZWORK/suite-real/TAG/results.tsv (one line per program: id, status, windows with
 # sizes, still running after quit, bytes lost on the 2nd run, alert), TAG/<id>.png and
@@ -29,12 +30,12 @@ S=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$S/../../.." && pwd)
 
 TARGET=${1:?usage: suite.sh zune|mui38|mui5 [options] [ID...]}; shift
-LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; KEEP=0; REUSE=0; ONLY=()
+LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; KEEP=0; REUSE=0; UPDATE=0; ONLY=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib) LIB=$2; shift ;; --port) PORT=$2; shift ;; --name) NAME=$2; shift ;;
     --groups) PGROUPS=$2; shift ;; --tag) TAG=$2; shift ;; --no-leak) LEAK=0 ;;
-    --keep) KEEP=1 ;; --reuse) REUSE=1 ;; -*) echo "suite.sh: unknown option $1" >&2; exit 2 ;;
+    --keep) KEEP=1 ;; --reuse) REUSE=1 ;; --update) UPDATE=1 ;; -*) echo "suite.sh: unknown option $1" >&2; exit 2 ;;
     *) ONLY+=("$1") ;;
   esac; shift
 done
@@ -54,7 +55,7 @@ log() { echo "$(date +%T) $*" | tee -a "$LOG" >&2; }
 . "$S/suite-lib.sh"
 
 # ---- install on the host side (the instance's drive folder), before it boots ----
-[ "$REUSE" = 1 ] || : > "$LOG"
+[ "$REUSE" = 1 ] || [ "$UPDATE" = 1 ] || : > "$LOG"
 amiga-test $MACH stop --as $NAME >/dev/null 2>&1
 if [ "$REUSE" = 0 ]; then
   amiga-test $MACH reset --as $NAME >/dev/null
@@ -68,7 +69,13 @@ log "SYS: is $VOL, programs in $RD"
 wasabi run "makedir ENV:MUI" >/dev/null 2>&1
 
 # ---- run ----
-: > "$OUT/results.tsv"
+if [ "$UPDATE" = 1 ] && [ -f "$OUT/results.tsv" ]; then
+  # the lines of the programs run now go, the others stay (in their order)
+  grep -v -F -f <(printf '%s\t\n' "${ONLY[@]}") "$OUT/results.tsv" > "$OUT/results.tsv.new"
+  mv "$OUT/results.tsv.new" "$OUT/results.tsv"
+else
+  : > "$OUT/results.tsv"
+fi
 for e in "${PROGS[@]}"; do
   parse_prog "$e"
   [ ${#ONLY[@]} -gt 0 ] && ! printf '%s\n' "${ONLY[@]}" | grep -qx "$P_ID" && continue
