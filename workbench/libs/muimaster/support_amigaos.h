@@ -130,6 +130,9 @@ typedef void (*VOID_FUNC)(void);
 #ifndef ZUNE_BUILTIN_ZIMAGES
 #define ZUNE_BUILTIN_ZIMAGES 1
 #endif
+#ifndef ZUNE_BUILTIN_ZLIST
+#define ZUNE_BUILTIN_ZLIST 1
+#endif
 #ifndef ZUNE_BUILTIN_FRAMEADJUST
 #define ZUNE_BUILTIN_FRAMEADJUST 1
 #endif

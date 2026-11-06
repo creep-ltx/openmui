@@ -29,11 +29,12 @@
 #define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
 #define MUIC_Zframes    "Zframes.zmod"      /* Zframes.mui: frame_round.c */
 #define MUIC_Zimages    "Zimages.zmod"      /* Zimages.mui: imspec_vector_rare.c */
+#define MUIC_Zlist      "Zlist.zmod"        /* Zlist.mui: listx.c */
 
 enum
 {
     ZMOD_MENU, ZMOD_PICTURE, ZMOD_DRAGDROP, ZMOD_REQUEST, ZMOD_GRADIENT,
-    ZMOD_WINTITLE, ZMOD_FRAMES, ZMOD_IMAGES,
+    ZMOD_WINTITLE, ZMOD_FRAMES, ZMOD_IMAGES, ZMOD_LIST,
     ZMOD_COUNT
 };
 
@@ -163,6 +164,24 @@ struct ZuneImagesModule
     const VECTOR_DRAW_FUNC *vectors;
 };
 const VECTOR_DRAW_FUNC *zune_rare_vectors_get(void);
+
+/* List's in-place editing and drag and drop (listx.c); the library's
+ * functions of the same names (zune_list_*, classes/list_private.h) call
+ * them */
+struct MUI_ListData;
+struct MUIP_DragReport;
+struct MUIP_DragDrop;
+struct MUIP_CreateDragImage;
+struct ZuneListModule
+{
+    IPTR (*edit)(struct IClass *, Object *, LONG, LONG);
+    IPTR (*end_edit)(struct IClass *, Object *, ULONG, BOOL);
+    void (*layout_editor)(Object *, struct MUI_ListData *);
+    IPTR (*drag_report)(struct IClass *, Object *, struct MUIP_DragReport *);
+    IPTR (*drag_drop)(struct IClass *, Object *, struct MUIP_DragDrop *);
+    IPTR (*create_drag_image)(struct IClass *, Object *,
+        struct MUIP_CreateDragImage *);
+};
 
 /* In a module built as a file: take the library bases over again before
  * code that reads CyberGfxBase, which the library opens at the first

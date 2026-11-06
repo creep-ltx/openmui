@@ -24,12 +24,13 @@
 #include "menu.h"
 #include "requesters.h"
 #include "modules.h"
+#include "classes/list_private.h"
 
 extern struct Library *MUIMasterBase;
 
 static CONST_STRPTR const module_names[ZMOD_COUNT] = {
     MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient,
-    MUIC_Zwintitle, MUIC_Zframes, MUIC_Zimages
+    MUIC_Zwintitle, MUIC_Zframes, MUIC_Zimages, MUIC_Zlist
 };
 
 /* Modules a process could not load: not tried again while the library
@@ -486,4 +487,64 @@ const VECTOR_DRAW_FUNC *zune_rare_vectors_get(void)
         zune_module_put(cl);
     }
     return rare;
+}
+
+/* List's in-place editing (MUI 5) and drag and drop (listx.c). Without
+ * the module a list cannot be edited in place (MUIM_List_Edit fails, an
+ * editor that was never opened needs no ending) and takes no drop. */
+IPTR zune_list_edit(struct IClass *icl, Object *obj, LONG row, LONG column)
+{
+    MODULE(ZuneListModule, ZMOD_LIST);
+    IPTR ok = m ? m->edit(icl, obj, row, column) : FALSE;
+
+    zune_module_put(cl);
+    return ok;
+}
+
+IPTR zune_list_end_edit(struct IClass *icl, Object *obj, ULONG mode,
+    BOOL force)
+{
+    MODULE(ZuneListModule, ZMOD_LIST);
+    IPTR ok = m ? m->end_edit(icl, obj, mode, force) : TRUE;
+
+    zune_module_put(cl);
+    return ok;
+}
+
+void zune_list_layout_editor(Object *obj, struct MUI_ListData *data)
+{
+    MODULE(ZuneListModule, ZMOD_LIST);
+    if (m)
+        m->layout_editor(obj, data);
+    zune_module_put(cl);
+}
+
+IPTR zune_list_drag_report(struct IClass *icl, Object *obj,
+    struct MUIP_DragReport *msg)
+{
+    MODULE(ZuneListModule, ZMOD_LIST);
+    IPTR rc = m ? m->drag_report(icl, obj, msg) : MUIV_DragReport_Abort;
+
+    zune_module_put(cl);
+    return rc;
+}
+
+IPTR zune_list_drag_drop(struct IClass *icl, Object *obj,
+    struct MUIP_DragDrop *msg)
+{
+    MODULE(ZuneListModule, ZMOD_LIST);
+    IPTR rc = m ? m->drag_drop(icl, obj, msg) : FALSE;
+
+    zune_module_put(cl);
+    return rc;
+}
+
+IPTR zune_list_create_drag_image(struct IClass *icl, Object *obj,
+    struct MUIP_CreateDragImage *msg)
+{
+    MODULE(ZuneListModule, ZMOD_LIST);
+    IPTR img = m ? m->create_drag_image(icl, obj, msg) : 0;
+
+    zune_module_put(cl);
+    return img;
 }

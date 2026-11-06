@@ -59,6 +59,10 @@ BBB_CFLAGS := $(shell $(CC) -fbbb=abcefhlmnprsz0 -S -o /dev/null -x c /dev/null 
   2>/dev/null && echo -fbbb=abcefhlmnprsz0)
 LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(BBB_CFLAGS) $(LTO_CFLAGS) \
   -fno-common -fno-builtin -fno-strict-aliasing
+# Class files and modules are compiled without LTO (small links of their own)
+CF_CFLAGS = $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS))
+# LTO objects only show their symbols to the nm with the LTO plugin
+CF_NM = $(if $(LTO_CFLAGS),$(CROSS)gcc-nm,$(CROSS)nm)
 SOURCES = \
   gcc/format.c gcc/runtime.c muimaster_init.c identity.c datatypescache.c font.c \
   frame.c pointer.c imspec.c imspec_vector.c imspec_gradient.c muigfx.c \
@@ -96,7 +100,7 @@ SOURCES = \
   classes/volumelist.c classes/window.c \
   classes/zmenu.c classes/zpicture.c classes/zdragdrop.c classes/zrequest.c \
   classes/zgradient.c classes/zwintitle.c classes/zframes.c \
-  classes/zimages.c
+  classes/zimages.c classes/zlist.c
 # Classes built as files of their own, $(BUILD)/Zune/<Name>.mui, installed
 # in LIBS:Zune/ and loaded the first time a program makes one of their
 # objects, as MUI 3.8 does with MUI:Libs/mui (classfile.h). CLASSFILES=
@@ -110,7 +114,7 @@ CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   fontpanel filepanel selectorpanel keyadjust title datamap textdata \
   selectgroup process dtpic register bitmap bodychunk chunkyimage \
   zmenu zpicture zdragdrop zrequest zgradient zwintitle zframes \
-  zimages
+  zimages zlist
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
 CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
 CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/Zune/$(shell echo $(c) | sed 's/^./\U&/').mui)
@@ -349,26 +353,26 @@ $(BUILD)/classfiles.h: $(CF_SOURCES) gcc/classfiles.py GNUmakefile
 
 $(BUILD)/cf/%.o: classes/%.c $(GENERATED)
 	@mkdir -p $(@D)
-	$(CC) $(filter-out $(CF_OFF),$(CPPFLAGS)) -DZUNE_CLASSFILE $(LIB_CFLAGS) \
+	$(CC) $(filter-out $(CF_OFF),$(CPPFLAGS)) -DZUNE_CLASSFILE $(CF_CFLAGS) \
 	  -MMD -MP -c $< -o $@
 
 $(BUILD)/cf/classfile-%.o: classfile.c classfile.h native_version.h $(GENERATED)
 	@mkdir -p $(@D)
-	$(CC) -I. -I$(BUILD) -include $(BUILD)/trace-config.h $(LIB_CFLAGS) \
+	$(CC) -I. -I$(BUILD) -include $(BUILD)/trace-config.h $(CF_CFLAGS) \
 	  $$(cat $(BUILD)/cf/$*.flags) -c $< -o $@
 
 $(BUILD)/cf/cfbases.o: cfbases.c classfile.h
 	@mkdir -p $(@D)
-	$(CC) -I. $(LIB_CFLAGS) -c $< -o $@
+	$(CC) -I. $(CF_CFLAGS) -c $< -o $@
 
 $(BUILD)/cf/classtable.c: $(OBJECTS) $(CF_OBJECTS) \
   $(BUILD)/cf/cfbases.o gcc/classfiles.py
 	@mkdir -p $(@D)
-	$(PYTHON) gcc/classfiles.py iface $(CROSS)nm $(BUILD)/cf $(OBJECTS) -- \
+	$(PYTHON) gcc/classfiles.py iface $(CF_NM) $(BUILD)/cf $(OBJECTS) -- \
 	  $(CF_OBJECTS) $(BUILD)/cf/cfbases.o
 
 $(BUILD)/cf/classtable.o: $(BUILD)/cf/classtable.c classfile.h
-	$(CC) -I. $(LIB_CFLAGS) -c $< -o $@
+	$(CC) -I. $(CF_CFLAGS) -c $< -o $@
 
 # The jumps as a link library: each class file takes only those it calls.
 $(BUILD)/cf/libclassstubs.a: $(BUILD)/cf/classtable.c

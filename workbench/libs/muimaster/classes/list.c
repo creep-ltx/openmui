@@ -28,242 +28,11 @@
 #include "textengine.h"
 #include "listimage.h"
 #include "prefs.h"
+#include "modules.h"
 
 extern struct Library *MUIMasterBase;
 
-#define ENTRY_TITLE (-1)
-/* Display array slots reserved at least (see ParseListFormat) */
-#define LIST_MIN_RESERVED 16
-
-#define FORMAT_TEMPLATE "DELTA=D/K/N,PREPARSE=P/K,WEIGHT=W/K/N,MINWIDTH=MIW/K," \
-    "MAXWIDTH=MAW/K,COL=C/K/N,BAR/S,H=HIDDEN/S,SORTABLE/S,ORDER/K," \
-    "ISOBJECT/S,ELIDE=E/K,FIXWIDTH/K/N"
-
-#define BAR_WIDTH 2
-
-#define UPDATEMODE_ALL                  (1 << 0)
-#define UPDATEMODE_ENTRY                (1 << 1)
-#define UPDATEMODE_NEEDED               (1 << 2)
-
-enum
-{
-    ARG_DELTA,
-    ARG_PREPARSE,
-    ARG_WEIGHT,
-    ARG_MINWIDTH,
-    ARG_MAXWIDTH,
-    ARG_COL,
-    ARG_BAR,
-    ARG_HIDDEN,
-    ARG_SORTABLE,
-    ARG_ORDER,
-    ARG_ISOBJECT,
-    ARG_ELIDE,
-    ARG_FIXWIDTH,
-    ARG_CNT
-};
-
-
-struct ListEntry
-{
-    APTR data;
-    LONG width;    /* Line width */
-    LONG height;   /* Line height */
-    WORD flags;    /* see below */
-    LONG widths[]; /* Widths of the columns */
-};
-
-#define ENTRY_SELECTED   (1<<0)
-#define ENTRY_RENDER     (1<<1)
-
-
-struct ColumnInfo
-{
-    int colno;      /* Column number */
-    int user_width; /* user set width; -1 if entry width */
-    int min_width;  /* min width percentage */
-    int max_width;  /* min width percentage */
-    int weight;
-    int delta;      /* ignored for the first and last column, defaults to 4 */
-    int bar;
-    STRPTR preparse;
-    int entries_width; /* width of the entries (maximum of all widths) */
-    BOOL hidden, sortable, descending;
-    int order_id;
-    BOOL min_pixels, max_pixels, is_object, layout_hidden;
-    LONG elide, layout_width, layout_max;
-};
-
-struct MUI_ImageSpec_intern;
-
-struct MUI_ListData
-{
-    /* bool attrs */
-    ULONG flags;
-
-    APTR intern_pool;    /* The internal pool which the class has allocated */
-    LONG intern_puddle_size;
-    LONG intern_thresh_size;
-    APTR pool;           /* the pool which is used to allocate list entries */
-
-    struct Hook *construct_hook;
-    struct Hook *compare_hook;
-    struct Hook *destruct_hook;
-    struct Hook *display_hook;
-    struct Hook *multi_test_hook;
-
-    struct Hook default_compare_hook;
-
-    /* List management, currently we use a simple flat array, which is not
-     * good if many entries are inserted/deleted */
-    LONG entries_num;           /* Number of Entries in the list */
-    LONG entries_allocated;
-    struct ListEntry **entries;
-
-    LONG entries_first;         /* first visible entry */
-    LONG entries_visible;       /* number of visible entries,
-                                 * determined at MUIM_Zune_Layout */
-    LONG entries_active;
-    LONG insert_position;       /* pos of the last insertion */
-
-    LONG entry_maxheight;       /* Maximum height of an entry */
-    ULONG entry_minheight;      /* from MUIA_List_MinLineHeight */
-
-    LONG entries_totalheight;
-    LONG entries_maxwidth;
-
-    LONG vertprop_entries;
-    LONG vertprop_visible;
-    LONG vertprop_first;
-
-    LONG confirm_entries_num;   /* These are the correct entries num, used
-                                 * so you cannot set MUIA_List_Entries to
-                                 * wrong values */
-
-    LONG entries_top_pixel;     /* Where the entries start */
-
-    /* Column managment, is allocated by ParseListFormat() and freed
-     * by CleanListFormat() */
-    STRPTR format;
-    LONG columns;               /* Number of columns the list has */
-    LONG columns_allocated;     /* List has space for columns_allocated columns */
-    struct ColumnInfo *ci;
-    STRPTR *preparses;
-    STRPTR *strings_mem;        /* safe pointer to allocated memory for strings[] */
-    STRPTR *strings;            /* the strings for the display function, one
-                                 * more than needed (for the entry position) */
-
-    /* Titlestuff */
-    int title_height;           /* The complete height of the title */
-    STRPTR title;               /* On single column lists this is the title,
-                                 * otherwise 1. NULL for no title(s) */
-
-    /* Cursor images */
-    struct MUI_ImageSpec_intern *list_cursor;
-    struct MUI_ImageSpec_intern *list_select;
-    struct MUI_ImageSpec_intern *list_selcur;
-
-    /* Render optimization */
-    int update; /* 1 - update everything, 2 - redraw entry at update_pos,
-                 * 3 - scroll to current entries_first (old value is in
-                 * update_pos) */
-    int update_pos;
-
-    LONG drop_mark;
-    LONG drop_mark_y;
-
-    /* list images */
-    struct MinList images;
-
-    /* user prefs */
-    ListviewRefresh prefs_refresh;
-    UWORD prefs_linespacing;
-    BOOL prefs_smoothed;
-    UWORD prefs_smoothval;
-
-    /* render space handling */
-    Object *area;
-    BOOL area_replaced;
-    BOOL area_connected;
-
-    /***************************/
-    /* Former Listview members */
-    /***************************/
-
-    Object *vert;
-    BOOL vert_connected;
-
-    /* MUI 3.9: a horizontal scroller below the framed entry area when the
-     * columns are wider than it; the entries scroll by horiz_first
-     * pixels */
-    Object *horiz;
-    BOOL horiz_shown;
-    LONG horiz_first;
-    struct Hook layout_hook;
-    IPTR scroller_pos;
-    BOOL read_only;
-    IPTR multiselect;
-    LONG drag_type;
-
-    /* clicked column */
-    LONG click_column;
-    LONG def_click_column;
-
-    LONG mouse_click;            /* see below if mouse is held down */
-    LONG mouse_x;
-    LONG mouse_y;
-
-    /* double click */
-    ULONG last_secs;
-    ULONG last_mics;
-    ULONG last_active;
-
-    struct MUI_EventHandlerNode ehn;
-
-    /* user prefs */
-    ListviewMulti prefs_multi;
-
-    BOOL doubleclick;
-    LONG seltype;
-
-    struct Hook hook;
-    LONG hscroll_visibility, title_click, sort_column;
-    BOOL stripes, editable;
-    Object *edit_object, *edit_focus;
-    LONG edit_row, edit_column;
-    APTR edit_entry;
-    BOOL ending_edit;
-    LONG max_columns;
-    CONST_STRPTR *title_array;
-    LONG title_columns;
-    STRPTR *mapped_strings;
-    BOOL format_layout, max_columns_explicit;
-    LONG columns_reserved;      /* slots in strings[] and preparses[] */
-    LONG columns_used;          /* highest column number the format shows + 1 */
-};
-
-#define MOUSE_CLICK_ENTRY 1     /* on entry clicked */
-#define MOUSE_CLICK_TITLE 2     /* on title clicked */
-
-#define LIST_ADJUSTWIDTH   (1<<0)
-#define LIST_ADJUSTHEIGHT  (1<<1)
-#define LIST_AUTOVISIBLE   (1<<2)
-#define LIST_DRAGSORTABLE  (1<<3)
-#define LIST_SHOWDROPMARKS (1<<4)
-#define LIST_QUIET         (1<<5)
-#define LIST_CHANGED    (1<<6)
-#define LIST_HORIZCHECK (1<<7)  /* check the horizontal scroller when quiet ends */
-
-
-static inline __attribute__((always_inline)) LONG ColumnWidth(struct MUI_ListData *data, LONG column)
-{
-    return data->format_layout ? data->ci[column].layout_width :
-        data->ci[column].entries_width;
-}
-static inline __attribute__((always_inline)) BOOL ColumnHidden(struct MUI_ListData *data, LONG column)
-{
-    return data->ci[column].hidden || data->ci[column].layout_hidden;
-}
+#include "list_private.h"
 
 /* Keep natural text widths separate from the current allocation. Resizing
  * can shrink and grow columns without measuring every entry again. */
@@ -322,9 +91,27 @@ static LONG ParseColumnWidth(CONST_STRPTR value, BOOL *pixels)
     return MAX(-1, MIN(width, 32767));
 }
 
-static IPTR ListEndEdit(struct IClass *cl, Object *obj, ULONG mode, BOOL force);
-static IPTR ListEdit(struct IClass *cl, Object *obj, LONG row, LONG column);
-static void ListLayoutEditor(Object *obj, struct MUI_ListData *data);
+/* In-place editing (MUIM_List_Edit, MUI 5) and the list's drag and drop
+ * methods are listx.c: the list module (modules.h) in the native build,
+ * included at the end of this file in others. Only an editable list, a
+ * list with an editor open or a drag ever calls them. */
+static inline IPTR ListEndEdit(struct IClass *cl, Object *obj, ULONG mode,
+    BOOL force)
+{
+    return ((struct MUI_ListData *)INST_DATA(cl, obj))->edit_object ?
+        zune_list_end_edit(cl, obj, mode, force) : TRUE;
+}
+static inline IPTR ListEdit(struct IClass *cl, Object *obj, LONG row,
+    LONG column)
+{
+    return ((struct MUI_ListData *)INST_DATA(cl, obj))->editable ?
+        zune_list_edit(cl, obj, row, column) : FALSE;
+}
+static inline void ListLayoutEditor(Object *obj, struct MUI_ListData *data)
+{
+    if (data->edit_object)
+        zune_list_layout_editor(obj, data);
+}
 
 static BOOL IncreaseColumns(struct MUI_ListData *data, int new_columns);
 
@@ -5063,212 +4850,6 @@ IPTR List__MUIM_DragFinish(struct IClass *cl, Object *obj,
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
-/****i* List.mui/MUIM_DragReport *********************************************
-*
-*   NAME
-*       MUIM_DragReport
-*
-******************************************************************************
-*
-*/
-
-IPTR List__MUIM_DragReport(struct IClass *cl, Object *obj,
-    struct MUIP_DragReport *msg)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-    struct MUI_List_TestPos_Result pos;
-    struct RastPort *rp = _rp(obj);
-    LONG n, y;
-    UWORD old_pattern;
-
-    /* Choose new drop mark position */
-
-    DoMethod(obj, MUIM_List_TestPos, msg->x, msg->y, (IPTR) &pos);
-    if (pos.entry != -1)
-    {
-        n = pos.entry;
-        if (pos.yoffset > 0)
-            n++;
-    }
-    else if ((pos.flags & MUI_LPR_ABOVE) != 0)
-        n = data->entries_first;
-    else
-    {
-        n = MIN(data->entries_visible, data->entries_num)
-            - data->entries_first;
-    }
-
-    /* Clear old drop mark */
-
-    if ((data->flags & LIST_SHOWDROPMARKS) != 0)
-    {
-        y = data->entries_top_pixel + (n - data->entries_first)
-            * data->entry_maxheight;
-        if (y != data->drop_mark_y)
-        {
-            DoMethod(obj, MUIM_DrawBackground, _mleft(data->area),
-                data->drop_mark_y, _mwidth(data->area), 1, 0, 0, 0);
-
-            /* Draw new drop mark and store its position */
-
-            /* Restore draw mode and background pen afterwards */
-            UBYTE oldDrMd = rp->DrawMode, oldBPen = rp->BgPen;
-            SetABPenDrMd(rp, _pens(obj)[MPEN_SHINE], _pens(obj)[MPEN_SHADOW],
-                JAM2);
-            old_pattern = rp->LinePtrn;
-            SetDrPt(rp, 0xF0F0);
-            Move(rp, _mleft(data->area), y);
-            Draw(rp, _mright(data->area), y);
-            SetDrPt(rp, old_pattern);
-            SetBPen(rp, oldBPen);
-            SetDrMd(rp, oldDrMd);
-            data->drop_mark_y = y;
-        }
-    }
-
-    return TRUE;
-}
-
-
-/****i* List.mui/MUIM_DragDrop ***********************************************
-*
-*   NAME
-*       MUIM_DragDrop
-*
-******************************************************************************
-*
-*/
-
-IPTR List__MUIM_DragDrop(struct IClass *cl, Object *obj,
-    struct MUIP_DragDrop *msg)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-    struct MUI_List_TestPos_Result pos;
-    LONG n;
-
-    /* Find drop position */
-
-    DoMethod(obj, MUIM_List_TestPos, msg->x, msg->y, (IPTR) &pos);
-    if (pos.entry != -1)
-    {
-        /* Change drop position when coords move past centre of entry, not
-         * entry boundary */
-
-        n = pos.entry;
-        if (pos.yoffset > 0)
-            n++;
-    }
-    else if ((pos.flags & MUI_LPR_ABOVE) != 0)
-        n = 0;
-    else
-        n = data->entries_num;
-
-    data->drop_mark = n;
-
-    if (data->flags & LIST_DRAGSORTABLE)
-    {
-        /* Ensure that dropped entry will be positioned between the two
-         * entries that are above and below the drop mark, rather than
-         * strictly at the numeric index shown */
-
-        if (n > data->entries_active)
-            n--;
-
-        DoMethod(obj, MUIM_List_Move, MUIV_List_Move_Active, n);
-        SET(obj, MUIA_List_Active, n);
-    }
-
-    return TRUE;
-}
-
-
-/****i* List.mui/MUIM_CreateDragImage ****************************************
-*
-*   NAME
-*       MUIM_CreateDragImage
-*
-******************************************************************************
-*
-*/
-
-static __attribute__((noinline)) IPTR List__MUIM_CreateDragImage(struct IClass *cl, Object *obj,
-    struct MUIP_CreateDragImage *msg)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-    BOOL success = TRUE;
-    struct MUI_List_TestPos_Result pos;
-    WORD width, height, left, top;
-    struct MUI_DragImage *img = NULL;
-    const struct ZuneFrameGfx *zframe;
-    LONG depth;
-
-    /* If entries aren't draggable, allow the list as a whole to be */
-    if (data->drag_type == MUIV_Listview_DragType_None)
-        return DoSuperMethodA(cl, obj, (Msg)msg);
-
-    /* Get info on dragged entry */
-    DoMethod(obj, MUIM_List_TestPos, _left(data->area) + msg->touchx,
-        _top(data->area) + msg->touchy, (IPTR) &pos);
-    if (pos.entry == -1)
-        success = FALSE;
-
-    if (success)
-    {
-        /* Get boundaries of entry */
-        width = _mwidth(data->area);
-        height = data->entry_maxheight;
-        left = _mleft(data->area);
-        top = _top(data->area) + msg->touchy
-            - (pos.yoffset + data->entry_maxheight / 2);
-
-        /* Allocate drag image structure */
-        img = (struct MUI_DragImage *)
-            AllocVec(sizeof(struct MUI_DragImage), MEMF_CLEAR);
-        if (img == NULL)
-            success = FALSE;
-    }
-
-    if (success)
-    {
-        /* Get drag frame */
-        zframe = zune_zframe_get(obj,
-            &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Drag]);
-
-        /* Allocate drag image buffer */
-        img->width = width + zframe->ileft + zframe->iright;
-        img->height = height + zframe->itop + zframe->ibottom;
-        depth = GetBitMapAttr(_screen(obj)->RastPort.BitMap, BMA_DEPTH);
-        img->bm = AllocBitMap(img->width, img->height, depth, BMF_MINPLANES,
-            _screen(obj)->RastPort.BitMap);
-
-        if (img->bm != NULL)
-        {
-            /* Render entry */
-            struct RastPort temprp;
-            InitRastPort(&temprp);
-            temprp.BitMap = img->bm;
-            ClipBlit(_rp(obj), left, top, &temprp,
-                zframe->ileft, zframe->itop, width, height,
-                0xc0);
-
-            /* Render frame */
-            struct RastPort *rp_save = muiRenderInfo(obj)->mri_RastPort;
-            muiRenderInfo(obj)->mri_RastPort = &temprp;
-            zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0,
-                img->width, img->height, 0, 0, img->width, img->height);
-            muiRenderInfo(obj)->mri_RastPort = rp_save;
-        }
-
-        /* Ensure drag point matches where user clicked */
-        img->touchx = msg->touchx - zframe->ileft + _addleft(obj);
-        img->touchy = -(pos.yoffset + data->entry_maxheight / 2)
-            - zframe->itop;
-        img->flags = 0;
-    }
-
-    return (IPTR) img;
-}
-
 static void DoWheelMove(struct IClass *cl, Object *obj, LONG wheely)
 {
     LONG new, first, entries, visible;
@@ -5673,85 +5254,9 @@ static IPTR ListSortEntries(struct IClass *cl, Object *obj, APTR *entries)
     return TRUE;
 }
 
-static void ListLayoutEditor(Object *obj, struct MUI_ListData *data)
-{
-    LONG left = _mleft(data->area) - data->horiz_first;
-    LONG top = data->entries_top_pixel + (data->edit_row - data->entries_first) * data->entry_maxheight;
-    if (!data->edit_object) return;
-    for (LONG column = 0; column < data->edit_column; column++)
-        if (!ColumnHidden(data, column))
-            left += ColumnWidth(data, column) + data->ci[column].delta +
-                (data->ci[column].bar ? BAR_WIDTH : 0);
-    LONG width = MIN(ColumnWidth(data, data->edit_column),
-        _mright(data->area) - left + 1);
-    MUI_LayoutObj(data->edit_object, left, top, MAX(1, width),
-        MAX(data->entry_maxheight, _minheight(data->edit_object)), 0);
-}
-
-static IPTR ListEdit(struct IClass *cl, Object *obj, LONG row, LONG column)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-    Object *editor;
-    struct MUI_MinMax minmax = {0};
-    if (row == MUIV_List_Edit_Active) row = data->entries_active;
-    if (!data->editable || !(_flags(obj) & MADF_CANDRAW) || row < 0 ||
-        row >= data->entries_num || column < 0 || column >= data->columns) return FALSE;
-    if (data->ci[column].hidden)
-        set(obj, MUIA_List_ShowColumn, data->ci[column].order_id);
-    if (data->edit_object && !ListEndEdit(cl, obj, MUIV_List_EndEdit_Done, FALSE)) return FALSE;
-    editor = (Object *)DoMethod(obj, MUIM_List_CreateEditObject, row, column, data->entries[row]->data);
-    if (!editor) return FALSE;
-    DoMethod(editor, MUIM_ConnectParent, obj);
-    if (!DoMethod(editor, MUIM_Setup, muiRenderInfo(obj)))
-    {
-        DoMethod(editor, MUIM_DisconnectParent); MUI_DisposeObject(editor);
-        return FALSE;
-    }
-    struct MUIP_AskMinMax ask = {MUIM_AskMinMax, &minmax};
-    DoMethodA(editor, (Msg)&ask);
-    if (ask.MinMaxInfo) __area_finish_minmax(editor, ask.MinMaxInfo);
-    data->edit_object = editor; data->edit_row = row; data->edit_column = column;
-    data->edit_entry = data->entries[row]->data;
-    data->edit_focus = (Object *)XGET(_win(obj), MUIA_Window_ActiveObject);
-    DoMethod(obj, MUIM_List_Jump, row);
-    ListLayoutEditor(obj, data);
-    DoShowMethod(editor); MUI_Redraw(editor, MADF_DRAWOBJECT);
-    DoMethod(editor, MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
-        _app(obj), 5, MUIM_Application_PushMethod, obj, 2,
-        MUIM_List_EndEdit, MUIV_List_EndEdit_Done);
-    set(_win(obj), MUIA_Window_ActiveObject, editor);
-    return TRUE;
-}
-
-static IPTR ListEndEdit(struct IClass *cl, Object *obj, ULONG mode, BOOL force)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-    Object *editor = data->edit_object;
-    LONG row = data->edit_row, column = data->edit_column;
-    if (!editor) return TRUE;
-    if (data->ending_edit) return FALSE;
-    data->ending_edit = TRUE;
-    IPTR accepted = DoMethod(obj, MUIM_List_EditDone, row, column,
-        mode == MUIV_List_EndEdit_Abort ? NULL : data->edit_entry, editor);
-    if (!accepted && !force) { data->ending_edit = FALSE; return FALSE; }
-    set(_win(obj), MUIA_Window_ActiveObject, data->edit_focus);
-    data->edit_object = NULL;
-    DoHideMethod(editor); DoMethod(editor, MUIM_Cleanup);
-    DoMethod(editor, MUIM_DisconnectParent); MUI_DisposeObject(editor);
-    data->ending_edit = FALSE;
-    DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
-    if (!force && mode >= MUIV_List_EndEdit_Prev && mode <= MUIV_List_EndEdit_Down)
-    {
-        if (mode == MUIV_List_EndEdit_Prev) column--;
-        if (mode == MUIV_List_EndEdit_Next) column++;
-        if (mode == MUIV_List_EndEdit_Up) row--;
-        if (mode == MUIV_List_EndEdit_Down) row++;
-        if (column < 0) { column = data->columns - 1; row--; }
-        if (column >= data->columns) { column = 0; row++; }
-        ListEdit(cl, obj, row, column);
-    }
-    return TRUE;
-}
+#if !defined(ZUNE68_GCC_NATIVE)
+#include "../listx.c"
+#endif
 
 BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
 {
@@ -5844,11 +5349,11 @@ BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
     case MUIM_DragFinish:
         return List__MUIM_DragFinish(cl, obj, (APTR) msg);
     case MUIM_DragReport:
-        return List__MUIM_DragReport(cl, obj, (APTR) msg);
+        return zune_list_drag_report(cl, obj, (APTR) msg);
     case MUIM_DragDrop:
-        return List__MUIM_DragDrop(cl, obj, (APTR) msg);
+        return zune_list_drag_drop(cl, obj, (APTR) msg);
     case MUIM_CreateDragImage:
-        return List__MUIM_CreateDragImage(cl, obj, (APTR) msg);
+        return zune_list_create_drag_image(cl, obj, (APTR) msg);
     }
 
     return DoSuperMethodA(cl, obj, (Msg)msg);
