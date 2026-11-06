@@ -319,7 +319,9 @@ static void SetTextLines(struct IClass *cl, Object *obj,
      * a margin: MUI 3.9 fills 26 pixels less than the Listview's width
      * (tests/native/ftwidth.c) */
     width = List_EntryAreaWidth(cl->cl_Super, obj);
-    if (width > 0)
+    /* MUI 3.8 fills the whole entry area (demopix: MUI-Demo's Cycle
+     * window justifies its lines 8 pixels wider than MUI 3.9 would) */
+    if (width > 0 && !((_flags(obj) & MADF_SETUP) && ZUNE_APP_MUI38(obj)))
         width = MAX(width - FLOATTEXT_MARGIN, 1);
 #else
     width = XGET(obj, MUIA_Width) - XGET(obj, MUIA_InnerLeft)
