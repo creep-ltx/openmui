@@ -495,6 +495,7 @@ static void SetHardCoord(Object *obj, struct Register_DATA *data)
 {
     struct MUI_AreaData *adata = muiAreaData(obj);
     const struct MUI_FrameSpec_intern *frame;
+    WORD thick;
 
     //adata->mad_InnerLeft = REGISTER_FRAMEX;
     //adata->mad_InnerTop = data->tab_height
@@ -506,11 +507,14 @@ static void SetHardCoord(Object *obj, struct Register_DATA *data)
 
     frame = &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Group];
 
-    adata->mad_InnerLeft = frame->innerLeft + 1;
+    /* MUI 3.8 (measured): one pixel more beside the pages with thick
+     * frames (6 against 5 with the default 4 pixel group spacing) */
+    thick = !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES);
+    adata->mad_InnerLeft = frame->innerLeft + 1 + thick;
     adata->mad_InnerTop =
         data->tab_height * (1 + data->active / data->columns) +
         frame->innerTop;
-    adata->mad_InnerRight = frame->innerRight + 1;
+    adata->mad_InnerRight = frame->innerRight + 1 + thick;
     adata->mad_InnerBottom =
         data->tab_height * (data->rows - 1 - data->active / data->columns)
         + frame->innerBottom + 1;
@@ -757,8 +761,10 @@ IPTR Register__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
     msg->MinMaxInfo->MinWidth =
         MAX(msg->MinMaxInfo->MinWidth, data->min_width);
-    msg->MinMaxInfo->MaxWidth =
-        MAX(msg->MinMaxInfo->MaxWidth, data->def_width);
+    /* MUI 3.8 (measured): a register group may always grow, also when
+     * all its pages have fixed sizes (Archiver's settings), so its window
+     * keeps a size gadget */
+    msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
     msg->MinMaxInfo->DefWidth =
         MAX(msg->MinMaxInfo->DefWidth, data->def_width);
 
