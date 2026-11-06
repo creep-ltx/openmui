@@ -54,7 +54,7 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.
-   *Done 2026-11-06* (branch `memory`): measured first (memtally of every
+   *First round 2026-11-06 (each further program reached, first program not yet)* (branch `memory`): measured first (memtally of every
    task, MUI 3.8 black-box: its second MUI-Demo holds 138.8 KB, Zune's
    144.6), then Area at MUI 3.8's 108 bytes, Group 96 -> 68, List 420 ->
    392, Image and Text smaller, a window's clip stack, buffer rastport and
