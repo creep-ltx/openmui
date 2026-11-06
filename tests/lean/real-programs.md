@@ -288,6 +288,8 @@ Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or
    packets IBrowse sends to the drive (logged with a PutMsg patch) are the same on both up to
    the crash; what in Zune sets off the corruption is not found. IBrowse 2.5.9's frozen second
    quit is the same.
+   Next: run it in Amiberry (8.5, installed; our partner finds it more correct than FS-UAE) to
+   tell an FS-UAE fault from a Zune one before chasing it further.
 9. **Window sizes** (each a few pixels; the contact sheet shows where):
    - TheBar toolbars 3 px taller (demos 1, 4, 5, 6, 8: 125-132 against 122-129), demo2 and demo7
      22 px narrower, demo2's control window and demo3 18 px wider, demo10 +6x+6.
