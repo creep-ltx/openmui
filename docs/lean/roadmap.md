@@ -127,3 +127,9 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    showed nothing and saved nothing. Real MUI 3.8 (FS-UAE a1200-31-mui38) opens the requester with the same
    code. Suspect the MUI file panel path (`ZuneAllocAslRequest`/`ZuneAslRequest`, used when every tag is
    supported by the panel). PFS3Doctor now calls asl.library itself.
+   *Checked 2026-11-06 (lean 76619647):* reproduced on the real A1200 (OS 3.2, asl.library 47.11, 1280x960
+   24-bit RTG Workbench) with a small test (AllocAsl/AslRequest as above): FALSE at once with the MUI 3.8
+   identity (plain asl.library path) and the MUI 5 identity (Zune's panel). FS-UAE OS 3.1 and OS 3.2.1 (asl
+   47.9, planar 640x256) open both requesters. Plain `AslRequest()` called by the test itself with
+   `ASLFR_Window` = a Zune window reset the A1200: Software Failure 8000 0004 (illegal instruction), task
+   0x08008FC2, next to input.device's task. Next: reproduce on an emulated RTG (uaegfx) OS 3.2 screen.
