@@ -2543,6 +2543,10 @@ static WORD List_TitleStrip(Object *obj, struct MUI_ListData *data)
 {
     if (!data->title || data->area_replaced || !_font(obj))
         return 0;
+    /* MUI 3.8 shows the title as the first row of the entry area
+     * (demopix: MUI-Demo's Dirlist) */
+    if ((_flags(obj) & MADF_SETUP) && ZUNE_APP_MUI38(obj))
+        return 0;
     return _font(obj)->tf_YSize + 6;
 }
 
