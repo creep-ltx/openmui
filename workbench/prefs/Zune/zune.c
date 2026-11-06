@@ -232,6 +232,44 @@ static BOOL known_mcp(struct MUI_CustomClass *candidate)
     return FALSE;
 }
 
+/* A real MUI's own drawer of classes: MUI:Libs, when it holds a
+ * muimaster.library other than the one programs get (the first in LIBS:,
+ * Zune's). Its classes are written for that MUI's private interface (MUI
+ * 5's Listtree.mcp, LayGroup.mcp, ... jump past the end of Zune's jump
+ * table; opening them all here reset the machine), and with "Use real
+ * MUI" (SYS:Zune68k) the real MUI gets them back: Zune prefs leaves them
+ * alone. Returns a lock on MUI:Libs, or 0. */
+static BPTR real_mui_libs(void)
+{
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR oldwin = me->pr_WindowPtr;
+    BPTR muilibs = BNULL, theirs, ours, ourdir;
+
+    /* no "please insert volume MUI" without the assign */
+    me->pr_WindowPtr = (APTR)-1;
+    if ((theirs = Lock("MUI:Libs/muimaster.library", ACCESS_READ)))
+    {
+        if ((ours = Lock("LIBS:muimaster.library", ACCESS_READ)))
+        {
+            if (SameLock(theirs, ours) != LOCK_SAME
+                && (ourdir = ParentDir(ours)))
+            {
+                muilibs = Lock("MUI:Libs", ACCESS_READ);
+                if (muilibs && SameLock(muilibs, ourdir) == LOCK_SAME)
+                {
+                    UnLock(muilibs);
+                    muilibs = BNULL;
+                }
+                UnLock(ourdir);
+            }
+            UnLock(ours);
+        }
+        UnLock(theirs);
+    }
+    me->pr_WindowPtr = oldwin;
+    return muilibs;
+}
+
 void find_mcps(void)
 {
     static CONST_STRPTR const searchpaths[] =
@@ -245,17 +283,23 @@ void find_mcps(void)
     struct DevProc *dp = NULL;
     struct page_entry *pe;
     WORD   num_page_entries = 0;
-    BPTR olddir;
+    BPTR olddir, muilibs;
     
     for(pe = main_page_entries; pe->name; pe++)
     {
         num_page_entries++;
     }
     
+    muilibs = real_mui_libs();
     olddir = CurrentDir(BNULL);
     
     while((dp = GetDeviceProc("LIBS:", dp)))
     {
+        if (muilibs && SameLock(dp->dvp_Lock, muilibs) == LOCK_SAME)
+        {
+            if (!(dp->dvp_Flags & DVPF_ASSIGN)) break;
+            continue;
+        }
         CurrentDir(dp->dvp_Lock);
         
         for(pathptr = searchpaths; *pathptr; pathptr++)
@@ -326,6 +370,7 @@ void find_mcps(void)
     FreeDeviceProc(dp);
     
     CurrentDir(olddir);
+    UnLock(muilibs);
 }
 
 /****************************************************************
