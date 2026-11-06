@@ -137,3 +137,5 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    A1200's muimaster 21.227): List's HandleEvent, IDCMP_RAWKEY, sets `result = MUI_EventHandlerRC_Eat`
    whenever the pointer is over the list or its scroller, outside the switch that only handles the wheel
    codes, so ControlChar buttons stop working after a click into a list. Eat only RAWKEY_NM_WHEEL_UP/DOWN.
+   *Fixed 2026-11-06*: only the two wheel codes are eaten. `tests/lean/listkey.c` (a list and a `_Log`
+   button): with the pointer on the list, L pressed the button 0 times before, 1 time after (FS-UAE a1200-31).
