@@ -2846,7 +2846,12 @@ static void group_minmax_horiz(struct IClass *cl, Object *obj,
             /* a child whose own children may all disappear has a
              * negative minimum; MUI 3.9 counts it as 0 here */
             tmp.MinWidth += MAX(minwidth, 0);
-            tmp.DefWidth += MAX(w0_defwidth(child), 0);
+            /* MUI 3.8 counts the default width of a child of horizontal
+             * weight 0 too (measured: a string of weight 0 beside a
+             * button, 112 + 6 + 32), although the child stays at its
+             * minimum in the layout; a vertical group counts the
+             * minimum height of a child of vertical weight 0 */
+            tmp.DefWidth += MAX(_defwidth(child), 0);
         }
         if (tmp.MaxWidth < MUI_MAXMAX)
             tmp.MaxWidth += data->horiz_spacing
