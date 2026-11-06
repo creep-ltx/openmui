@@ -268,9 +268,15 @@ struct MUI_SystemPData
     Object *on_startup_checkmark;
     Object *arexx_checkmark;
     Object *identity_cycle;
+    Object *program_list;
+    Object *program_string;
+    Object *program_cycle;
+    Object *program_add;
+    Object *program_remove;
     Object *first_bubble_slider;
     Object *next_bubble_slider;
     struct Hook psiHook;
+    struct Hook programHook;
 };
 
 static IPTR ExecuteScreenInspectorFunc(struct Hook *hook, Object *caller, void *data)
@@ -300,9 +306,96 @@ static IPTR ExecuteScreenInspectorFunc(struct Hook *hook, Object *caller, void *
     return (IPTR) TRUE;
 }
 
-/* What the library tells programs it is (ENV:Zune/Identity, read by the
- * library when it is loaded): MUI 3.8 by default, or MUI 5 */
-static CONST_STRPTR identity_labels[] = { "MUI 3.8", "MUI 5", NULL };
+/* Which MUI programs see and Zune behaves as (ENV:Zune/BehaveAs, read
+ * by the library when it is loaded and when these settings are saved or
+ * used; muimaster identity.c). Automatic: the MUI each program asks
+ * for. The per-program lines win over the setting for all. A line of
+ * the list is the line of the variable: "MUI5 YAM". */
+static CONST_STRPTR identity_labels[] = {
+    "Automatic", "MUI 3.8", "MUI 4", "MUI 5", NULL };
+static CONST_STRPTR program_labels[] = { "MUI 3.8", "MUI 4", "MUI 5", NULL };
+static CONST_STRPTR const identity_words[] = { "Auto", "MUI3.8", "MUI4", "MUI5" };
+
+/* "MUI3.8", "MUI4", "MUI5" (any case, "MUI3" too) at s: 1-3, else 0 */
+static int identity_word(CONST_STRPTR s, CONST_STRPTR *end)
+{
+    int id = 0;
+
+    if ((s[0] | 0x20) != 'm' || (s[1] | 0x20) != 'u' || (s[2] | 0x20) != 'i')
+        return 0;
+    s += 3;
+    if (s[0] == '3') { id = 1; s++; if (s[0] == '.' && s[1] == '8') s += 2; }
+    else if (s[0] == '4') { id = 2; s++; }
+    else if (s[0] == '5') { id = 3; s++; }
+    if (!id || (*s != ' ' && *s != '\t' && *s))
+        return 0;
+    while (*s == ' ' || *s == '\t') s++;
+    if (end) *end = s;
+    return id;
+}
+
+/* The name part of a list line */
+static CONST_STRPTR line_name(CONST_STRPTR line)
+{
+    CONST_STRPTR name = line;
+
+    return identity_word(line, &name) ? name : line;
+}
+
+/* Buttons and the list of the per-program lines: what = 0 a line was
+ * chosen (it goes into the gadgets), 1 Add (or change the line of that
+ * name), 2 Remove */
+static IPTR ProgramFunc(struct Hook *hook, Object *caller, IPTR *params)
+{
+    struct MUI_SystemPData *data = hook->h_Data;
+    LONG active = XGET(data->program_list, MUIA_List_Active);
+    STRPTR line = NULL, name;
+    char buf[300];
+    LONG i;
+
+    (void)caller;
+    switch (params[0])
+    {
+    case 0:
+        if (active < 0)
+            break;
+        DoMethod(data->program_list, MUIM_List_GetEntry, active, (IPTR)&line);
+        if (!line)
+            break;
+        set(data->program_string, MUIA_String_Contents, (IPTR)line_name(line));
+        set(data->program_cycle, MUIA_Cycle_Active, identity_word(line, NULL) - 1);
+        break;
+    case 1:
+        name = (STRPTR)XGET(data->program_string, MUIA_String_Contents);
+        while (name && (*name == ' ' || *name == '\t')) name++;
+        if (!name || !*name)
+            break;
+        snprintf(buf, sizeof(buf), "%s %s",
+            identity_words[XGET(data->program_cycle, MUIA_Cycle_Active) + 1], name);
+        for (i = 0; ; i++)
+        {
+            line = NULL;
+            DoMethod(data->program_list, MUIM_List_GetEntry, i, (IPTR)&line);
+            if (!line)
+                break;
+            if (!Stricmp((STRPTR)line_name(line), name))
+            {
+                DoMethod(data->program_list, MUIM_List_Remove, i);
+                break;
+            }
+        }
+        DoMethod(data->program_list, MUIM_List_InsertSingle, (IPTR)buf,
+            line ? i : MUIV_List_Insert_Bottom);
+        set(data->program_list, MUIA_List_Active, line ? i
+            : MUIV_List_Active_Bottom);
+        break;
+    case 2:
+        if (active >= 0)
+            DoMethod(data->program_list, MUIM_List_Remove, MUIV_List_Remove_Active);
+        break;
+    }
+    return 0;
+}
 
 static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
 {
@@ -372,15 +465,40 @@ static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                 Child, (IPTR) (d.arexx_checkmark = MakeCheck(NULL)),
                 Child, HSpace(0),
                 End,
+            Child, (IPTR) VSpace(0),
+            End,
+
+        Child, (IPTR) VGroup,
+            GroupFrameT("MUI version"),
             Child, (IPTR) HGroup,
                 Child, (IPTR) Label1("Behave as:"),
                 Child, (IPTR) (d.identity_cycle = MakeCycle("Behave as:", identity_labels)),
-                MUIA_ShortHelp, (IPTR) "Which MUI programs and classes see.\n"
-                    "MUI 3.8: everything as on MUI 3.8.\n"
-                    "MUI 5: programs that need MUI 4 or 5 start.\n"
-                    "Takes effect when the library is next loaded.",
+                MUIA_ShortHelp, (IPTR) "The MUI programs see and Zune behaves as.\n"
+                    "Automatic: the one each program asks for\n"
+                    "(MUI 3 programs get MUI 3.8, MUI 4 and 5\n"
+                    "programs MUI 4 and 5).\n"
+                    "Or one for all programs. A program in the\n"
+                    "list below gets the one given there.\n"
+                    "For programs started after saving.",
                 End,
-            Child, (IPTR) VSpace(0),
+            Child, (IPTR) ListviewObject,
+                MUIA_Listview_List, (IPTR) (d.program_list = ListObject,
+                    InputListFrame,
+                    MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
+                    MUIA_List_DestructHook, MUIV_List_DestructHook_String,
+                    End),
+                MUIA_ShortHelp, (IPTR) "Programs that get a MUI of their own,\n"
+                    "by the name of the program's file.",
+                End,
+            Child, (IPTR) HGroup,
+                Child, (IPTR) Label2("Program:"),
+                Child, (IPTR) (d.program_string = MakeString()),
+                End,
+            Child, (IPTR) HGroup,
+                Child, (IPTR) (d.program_cycle = MakeCycle(NULL, program_labels)),
+                Child, (IPTR) (d.program_add = SimpleButton("_Add")),
+                Child, (IPTR) (d.program_remove = SimpleButton("_Remove")),
+                End,
             End,
 
         Child, (IPTR) VGroup,
@@ -415,6 +533,18 @@ static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
         d.call_psi_button, MUIM_Notify, MUIA_Pressed, FALSE,
         obj, (IPTR) 2, MUIM_CallHook, &data->psiHook
     );
+
+    data->programHook.h_Entry = HookEntry;
+    data->programHook.h_SubEntry = (HOOKFUNC) ProgramFunc;
+    data->programHook.h_Data = data;
+    DoMethod(d.program_list, MUIM_Notify, MUIA_List_Active, MUIV_EveryTime,
+        obj, (IPTR) 3, MUIM_CallHook, &data->programHook, 0);
+    DoMethod(d.program_add, MUIM_Notify, MUIA_Pressed, FALSE,
+        obj, (IPTR) 3, MUIM_CallHook, &data->programHook, 1);
+    DoMethod(d.program_string, MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
+        obj, (IPTR) 3, MUIM_CallHook, &data->programHook, 1);
+    DoMethod(d.program_remove, MUIM_Notify, MUIA_Pressed, FALSE,
+        obj, (IPTR) 3, MUIM_CallHook, &data->programHook, 2);
     
     return (IPTR)obj;
 }
@@ -433,11 +563,31 @@ static IPTR SystemP_ConfigToGadgets(struct IClass *cl, Object *obj,
     ConfigToCheckmark(msg->configdata, MUICFG_Iconification_OnStartup, data->on_startup_checkmark);
     ConfigToCheckmark(msg->configdata, MUICFG_Interfaces_EnableARexx, data->arexx_checkmark);
     {
-        char id[8];
+        char *text = AllocVec(ZUNE_BEHAVE_AS_SIZE, MEMF_ANY), *line, *e;
+        int id = 0;
 
-        set(data->identity_cycle, MUIA_Cycle_Active,
-            GetVar("Zune/Identity", id, sizeof(id), GVF_GLOBAL_ONLY) >= 4
-            && (id[0] | 0x20) == 'm' && id[3] == '5');
+        DoMethod(data->program_list, MUIM_List_Clear);
+        if (text && GetVar("Zune/BehaveAs", text, ZUNE_BEHAVE_AS_SIZE,
+            GVF_GLOBAL_ONLY | GVF_BINARY_VAR) >= 0)
+        {
+            for (line = text; line; line = e)
+            {
+                if ((e = strchr(line, '\n')))
+                    *e++ = 0;
+                if (line == text)
+                {
+                    CONST_STRPTR s = line;
+
+                    while (*s == ' ') s++;
+                    id = identity_word(s, NULL);
+                }
+                else if (identity_word(line, NULL) && *line_name(line))
+                    DoMethod(data->program_list, MUIM_List_InsertSingle,
+                        (IPTR)line, MUIV_List_Insert_Bottom);
+            }
+        }
+        FreeVec(text);
+        set(data->identity_cycle, MUIA_Cycle_Active, id);
     }
     ConfigToSlider(msg->configdata, MUICFG_BubbleHelp_FirstDelay, data->first_bubble_slider);
     ConfigToSlider(msg->configdata, MUICFG_BubbleHelp_NextDelay, data->next_bubble_slider);
@@ -458,7 +608,23 @@ static IPTR SystemP_GadgetsToConfig(struct IClass *cl, Object *obj,
     CheckmarkToConfig(data->show_menu_checkmark, msg->configdata, MUICFG_Iconification_ShowMenu);
     CheckmarkToConfig(data->on_startup_checkmark, msg->configdata, MUICFG_Iconification_OnStartup);
     CheckmarkToConfig(data->arexx_checkmark, msg->configdata, MUICFG_Interfaces_EnableARexx);
-    zune_identity_mui5 = XGET(data->identity_cycle, MUIA_Cycle_Active) == 1;
+    {
+        /* the text zune.c saves as ENV:Zune/BehaveAs */
+        char *t = zune_behave_as;
+        STRPTR line;
+        LONG i, n = 0;
+
+        n = snprintf(t, ZUNE_BEHAVE_AS_SIZE, "%s\n",
+            identity_words[XGET(data->identity_cycle, MUIA_Cycle_Active)]);
+        for (i = 0; n < ZUNE_BEHAVE_AS_SIZE - 1; i++)
+        {
+            line = NULL;
+            DoMethod(data->program_list, MUIM_List_GetEntry, i, (IPTR)&line);
+            if (!line)
+                break;
+            n += snprintf(t + n, ZUNE_BEHAVE_AS_SIZE - n, "%s\n", line);
+        }
+    }
     SliderToConfig(data->first_bubble_slider, msg->configdata, MUICFG_BubbleHelp_FirstDelay);
     SliderToConfig(data->next_bubble_slider, msg->configdata, MUICFG_BubbleHelp_NextDelay);
     

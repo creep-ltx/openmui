@@ -700,8 +700,41 @@ void main_open_menu(void)
 /****************************************************************
  Saves the done prefs
 *****************************************************************/
-/* Set by the System page: the library behaves as MUI 5 (see systemp.c) */
-BOOL zune_identity_mui5;
+/* Set by the System page: which MUI programs get (see systemp.c) */
+char zune_behave_as[ZUNE_BEHAVE_AS_SIZE];
+
+/* Have muimaster.library and zunemaster.library, if they are in memory
+ * and Zune68's, read ENV:Zune/BehaveAs again: their reserved vector with
+ * 'ZnID' in D0 (muimaster zunemaster_lib.c LibReserved). Called from
+ * this process, outside Forbid: they read the variable with DOS. */
+static void reload_behave_as(void)
+{
+    static CONST_STRPTR const names[] = {
+        "muimaster.library", "zunemaster.library" };
+    struct Library *lib;
+    int i;
+
+    for (i = 0; i < 2; i++)
+    {
+        Forbid();
+        lib = (struct Library *)FindName(&SysBase->LibList, names[i]);
+        if (lib && (!lib->lib_IdString
+            || !strstr((const char *)lib->lib_IdString, "Zune68")))
+            lib = NULL;
+        if (lib)
+            lib = OpenLibrary(names[i], 0); /* in memory: no loading */
+        Permit();
+        if (lib)
+        {
+            register struct Library *a6 __asm("a6") = lib;
+            register ULONG d0 __asm("d0") = 0x5A6E4944;
+
+            __asm__ volatile ("jsr -24(a6)" : "+r"(d0) : "r"(a6)
+                : "d1", "a0", "a1", "cc", "memory");
+            CloseLibrary(lib);
+        }
+    }
+}
 
 void save_prefs(CONST_STRPTR name, BOOL envarc)
 {
@@ -734,10 +767,13 @@ void save_prefs(CONST_STRPTR name, BOOL envarc)
         }
         snprintf(buf, 255, "ENV:zune/%s.prefs", name);
         DoMethod(configdata, MUIM_Configdata_Save, (IPTR)buf);
-        /* The identity is global: the library reads it when it loads */
-        if (!strcmp(name, "global"))
-            SetVar("Zune/Identity", zune_identity_mui5 ? "MUI5" : "MUI3.8",
-                -1, GVF_GLOBAL_ONLY | (envarc ? GVF_SAVE_VAR : 0));
+        /* The MUI programs get is global, not per program's settings */
+        if (!strcmp(name, "global") && zune_behave_as[0])
+        {
+            SetVar("Zune/BehaveAs", zune_behave_as, -1,
+                GVF_GLOBAL_ONLY | (envarc ? GVF_SAVE_VAR : 0));
+            reload_behave_as();
+        }
 
         MUI_DisposeObject(configdata);
 /*      D(bug("zune::save_prefs: disposed configdata %p\n", configdata)); */

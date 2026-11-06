@@ -15,7 +15,9 @@
 #endif
 
 /* listview class */
-extern BOOL zune_identity_mui5;   /* zune.c: System page -> ENV:Zune/Identity */
+/* zune.c: the System page's "Behave as" settings -> ENV:Zune/BehaveAs */
+#define ZUNE_BEHAVE_AS_SIZE 2048
+extern char zune_behave_as[ZUNE_BEHAVE_AS_SIZE];
 extern struct MUI_CustomClass *ClassListview_CLASS;
 struct MUI_CustomClass *create_listview_class(void);
 void delete_listview_class(void);

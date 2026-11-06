@@ -14,6 +14,8 @@
 #   --groups LIST  program groups, e.g. mui3,mui5 (default: zune and mui38 mui3, mui5 mui5)
 #   --tag TAG      result folder $ZWORK/suite-real/TAG (default TARGET)
 #   --no-leak      skip the second run (memory)
+#   --behave-as ID Zune: MUI3.8, MUI4 or MUI5 for all programs (default: each
+#                  program gets the MUI it asks for)
 #   --keep         leave the instance running at the end (default: stopped)
 #   --reuse        do not make a fresh copy of the machine (files from the last run stay)
 #   --update       keep the other programs' lines in results.tsv (run some programs again)
@@ -30,11 +32,12 @@ S=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$S/../../.." && pwd)
 
 TARGET=${1:?usage: suite.sh zune|mui38|mui5 [options] [ID...]}; shift
-LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; KEEP=0; REUSE=0; UPDATE=0; ONLY=()
+LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; BEHAVE=; KEEP=0; REUSE=0; UPDATE=0; ONLY=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib) LIB=$2; shift ;; --port) PORT=$2; shift ;; --name) NAME=$2; shift ;;
     --groups) PGROUPS=$2; shift ;; --tag) TAG=$2; shift ;; --no-leak) LEAK=0 ;;
+    --behave-as) BEHAVE=$2; shift ;;
     --keep) KEEP=1 ;; --reuse) REUSE=1 ;; --update) UPDATE=1 ;; -*) echo "suite.sh: unknown option $1" >&2; exit 2 ;;
     *) ONLY+=("$1") ;;
   esac; shift
@@ -67,14 +70,15 @@ boot || { log "instance did not come up"; exit 1; }
 VOL=$(sysvol); RD="${VOL}Real"
 log "SYS: is $VOL, programs in $RD"
 wasabi run "makedir ENV:MUI" >/dev/null 2>&1
-# MUI 4/5 programs need Zune to behave as MUI 5 (Zune prefs "Behave as";
-# ENVARC: so that it survives the reboot before each program)
-if [ "$TARGET" = zune ] && echo ",$PGROUPS," | grep -q ",mui5,"; then
+# Zune gives each program the MUI it asks for (Zune prefs "Behave as" Automatic);
+# --behave-as MUI3.8|MUI4|MUI5 sets one for all programs (ENVARC: so that it
+# survives the reboot before each program)
+if [ "$TARGET" = zune ] && [ -n "$BEHAVE" ]; then
   wasabi run "makedir ENVARC:Zune
-echo >ENVARC:Zune/Identity MUI5 NOLINE
+echo >ENVARC:Zune/BehaveAs $BEHAVE
 makedir ENV:Zune
-copy ENVARC:Zune/Identity ENV:Zune/" >/dev/null 2>&1
-  log "Zune behaves as MUI 5 (ENVARC:Zune/Identity)"
+copy ENVARC:Zune/BehaveAs ENV:Zune/" >/dev/null 2>&1
+  log "Zune behaves as $BEHAVE for all programs (ENVARC:Zune/BehaveAs)"
 fi
 
 # ---- run ----

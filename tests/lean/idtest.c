@@ -1,6 +1,7 @@
 /* idtest: which MUI a program gets from Zune (identity.c, roadmap phase 8).
  *
  *   idtest VERSION [AGAIN] [wait]
+ *   idtest reload      have the library read ENV:Zune/BehaveAs again
  *
  * Opens muimaster.library with VERSION (0 = OldOpenLibrary), prints the
  * version of the base it got, the base in the library list, and the
@@ -45,6 +46,16 @@ static void report(const char *what, struct Library *b, Object *app)
         app ? identity_of(app) : 0);
 }
 
+/* What Zune prefs does after saving: the reserved vector with 'ZnID' */
+static void reload(struct Library *base)
+{
+    register struct Library *a6 __asm("a6") = base;
+    register ULONG d0 __asm("d0") = 0x5A6E4944;
+
+    __asm__ volatile ("jsr -24(a6)" : "+r"(d0) : "r"(a6)
+        : "d1", "a0", "a1", "cc", "memory");
+}
+
 int main(int argc, char **argv)
 {
     LONG v = argc > 1 ? atol(argv[1]) : 19, again = -1;
@@ -53,6 +64,15 @@ int main(int argc, char **argv)
     Object *app;
     int i;
 
+    if (argc > 1 && !strcmp(argv[1], "reload"))
+    {
+        if (!(MUIMasterBase = OpenLibrary("muimaster.library", 0)))
+            return 20;
+        reload(MUIMasterBase);
+        CloseLibrary(MUIMasterBase);
+        printf("reloaded\n");
+        return 0;
+    }
     for (i = 2; i < argc; i++)
         if (!strcmp(argv[i], "wait"))
             wait = TRUE;
