@@ -3209,8 +3209,18 @@ static void set_title_sizes(Object *obj, struct MUI_AreaData *data)
 
         switch (muiGlobalInfo(obj)->mgi_Prefs->group_title_position) {
         case GROUP_TITLE_POSITION_ABOVE:
-            data->mad_TitleHeightAbove = _font(obj)->tf_Baseline;
-            break;
+            /* MUI 3.8 (measured with title fonts of 8 to 13 pixels and
+             * in every fitting stage): the frame's top line is on the
+             * row above the title's baseline, the contents follow its
+             * border and inner spacing, but never start on the title's
+             * rows. topaz 8 with the default 4 pixel spacing: 11 */
+            data->mad_TitleHeightAbove = MAX(_font(obj)->tf_Baseline - 1, 0);
+            data->mad_TitleHeightAdd = MAX(_font(obj)->tf_YSize
+                - (LONG)data->mad_InnerTop - zframe->itop,
+                data->mad_TitleHeightAbove);
+            data->mad_TitleHeightBelow =
+                data->mad_TitleHeightAdd - data->mad_TitleHeightAbove;
+            return;
         case GROUP_TITLE_POSITION_CENTERED:
             /* rounded up like MUI 3.9 (the 9 pixel title font of
              * MUI-Demo's "Available Demos" puts the line on row 5) */
