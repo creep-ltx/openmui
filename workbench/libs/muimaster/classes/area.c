@@ -3174,9 +3174,10 @@ static void set_inner_sizes(Object *obj, struct MUI_AreaData *data)
         data->mad_InnerRight = frame->innerRight;
     if (!(data->mad_Flags & MADF_INNERBOTTOM))
         data->mad_InnerBottom = frame->innerBottom;
-    /* MUI 3.8 drops the frames' inner spacing from the second stage of
+    /* MUI 3.8 drops the frames' inner spacing in the later stages of
      * fitting a window into the screen */
-    if (muiRenderInfo(obj) && muiRenderInfo(obj)->mri_Fallback >= 2)
+    if (muiRenderInfo(obj)
+        && muiRenderInfo(obj)->mri_Fallback >= FALLBACK_NOINNER)
     {
         if (!(data->mad_Flags & MADF_INNERLEFT))
             data->mad_InnerLeft = 0;

@@ -24,15 +24,25 @@ extern struct Library *MUIMasterBase;
  */
 
 /* The fonts MUI 3.8 uses for a window that does not fit the screen,
- * stage by stage (measured: a column of buttons on a 640x256 screen):
- * helvetica 9 for the first two stages, topaz 8 for the last; the fixed
- * font is always topaz 8 */
+ * stage by stage (measured: a row and a column of buttons on a 640x256
+ * screen): helvetica 11 (tiny and title fonts 9, big 13), then
+ * helvetica 9 for all, topaz 8 in the last stage; the fixed font is
+ * always topaz 8 */
 static CONST_STRPTR fallback_font_name(UWORD stage, SIPTR preset)
 {
     if (!stage)
         return NULL;
-    if (preset == (SIPTR) MUIV_Font_Fixed || stage >= 3)
+    if (preset == (SIPTR) MUIV_Font_Fixed || stage >= FALLBACK_TOPAZ)
         return "topaz/8";
+    if (stage == FALLBACK_HELVETICA11)
+    {
+        if (preset == (SIPTR) MUIV_Font_Tiny
+            || preset == (SIPTR) MUIV_Font_Title)
+            return "helvetica/9";
+        if (preset == (SIPTR) MUIV_Font_Big)
+            return "helvetica/13";
+        return "helvetica/11";
+    }
     return "helvetica/9";
 }
 

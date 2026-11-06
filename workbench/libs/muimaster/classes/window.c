@@ -5763,12 +5763,13 @@ static void SetRootObjInnerSpacing(Object *obj,
         wd_innerRight = muiGlobalInfo(obj)->mgi_Prefs->window_inner_right;
         wd_innerTop = muiGlobalInfo(obj)->mgi_Prefs->window_inner_top;
         wd_innerBottom = muiGlobalInfo(obj)->mgi_Prefs->window_inner_bottom;
-        /* MUI 3.8 keeps 1 pixel of window spacing in every stage of
-         * fitting a window into the screen */
-        if (data->wd_RenderInfo.mri_Fallback)
+        /* MUI 3.8 keeps 2 pixels of window spacing left and right and 1
+         * above and below from the third stage of fitting a window into
+         * the screen */
+        if (data->wd_RenderInfo.mri_Fallback >= FALLBACK_SPACING)
         {
-            wd_innerLeft = MIN(wd_innerLeft, 1);
-            wd_innerRight = MIN(wd_innerRight, 1);
+            wd_innerLeft = MIN(wd_innerLeft, 2);
+            wd_innerRight = MIN(wd_innerRight, 2);
             wd_innerTop = MIN(wd_innerTop, 1);
             wd_innerBottom = MIN(wd_innerBottom, 1);
         }
@@ -5992,16 +5993,17 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
     WindowMinMax(obj, data);
 
     /* Like MUI 3.8, set a window larger than the screen up again with
-     * smaller fonts and spacing, stage by stage (helvetica 9 and 1 pixel
-     * spacing; then no inner frame spacing; then topaz 8), and do not open
-     * it if it still does not fit */
+     * smaller fonts and spacing, stage by stage (helvetica 11; helvetica
+     * 9; less spacing; no inner frame spacing; topaz 8: FALLBACK_ in
+     * muimaster_intern.h), and
+     * do not open it if it still does not fit */
     while (!WindowFits(data))
     {
         struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
 
         DoMethod(data->wd_RootObject, MUIM_Cleanup);
         CloseRenderInfoFonts(mri);
-        if (mri->mri_Fallback >= 3
+        if (mri->mri_Fallback >= FALLBACK_TOPAZ
             || (++mri->mri_Fallback,
                 !DoSetupMethod(data->wd_RootObject, mri)))
         {

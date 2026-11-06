@@ -109,6 +109,15 @@ void zune_vector_free_templates(void); /* imspec_vector.c, at expunge */
 void zune_title_gadgets_free(void);    /* classes/window.c, at expunge */
 #define MUIMB(b)	((struct MUIMasterBase_intern *)b)
 
+/* The stages in which MUI 3.8 sets a window larger than the screen up
+ * again (measured with a row and a column of buttons on a 640x256
+ * screen): each keeps what the one before it changed */
+#define FALLBACK_HELVETICA11 1  /* helvetica 11 fonts */
+#define FALLBACK_HELVETICA9  2  /* helvetica 9 fonts */
+#define FALLBACK_SPACING     3  /* group and window spacing 2 beside, 1 above */
+#define FALLBACK_NOINNER     4  /* no inner frame spacing */
+#define FALLBACK_TOPAZ       5  /* topaz 8 fonts, the last stage */
+
 #ifndef __AROS__
 extern struct Library *MUIMasterBase;
 extern struct Library *MUIScreenBase;

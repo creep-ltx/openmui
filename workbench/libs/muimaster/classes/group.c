@@ -2149,12 +2149,14 @@ IPTR Group__MUIM_Setup(struct IClass *cl, Object *obj,
         data->horiz_spacing = muiGlobalInfo(obj)->mgi_Prefs->group_hspacing;
     if (!(data->flags & GROUP_VSPACING))
         data->vert_spacing = muiGlobalInfo(obj)->mgi_Prefs->group_vspacing;
-    /* MUI 3.8 puts 1 pixel between objects in every stage of fitting a
-     * window into the screen */
-    if (muiRenderInfo(obj)->mri_Fallback)
+    /* MUI 3.8 puts 2 pixels beside and 1 pixel between rows of objects
+     * in every stage of fitting a window into the screen (measured: a
+     * row of three buttons, a column of texts) from the third stage of
+     * fitting a window into the screen */
+    if (muiRenderInfo(obj)->mri_Fallback >= FALLBACK_SPACING)
     {
         if (!(data->flags & GROUP_HSPACING))
-            data->horiz_spacing = MIN(data->horiz_spacing, 1);
+            data->horiz_spacing = MIN(data->horiz_spacing, 2);
         if (!(data->flags & GROUP_VSPACING))
             data->vert_spacing = MIN(data->vert_spacing, 1);
     }
