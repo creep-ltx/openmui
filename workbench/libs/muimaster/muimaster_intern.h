@@ -117,6 +117,11 @@ void zune_title_gadgets_free(void);    /* classes/window.c, at expunge */
 #define FALLBACK_SPACING     3  /* group and window spacing 2 beside, 1 above */
 #define FALLBACK_NOINNER     4  /* no inner frame spacing */
 #define FALLBACK_TOPAZ       5  /* topaz 8 fonts, the last stage */
+/* The highest of these stages any window of an application needed:
+ * MUI 3.8 opens the application's later windows in it too. Kept in the
+ * global info's first field, which MUI names private and Zune does not
+ * otherwise use */
+#define MGI_FALLBACK(mgi) ((mgi)->priv0)
 
 #ifndef __AROS__
 extern struct Library *MUIMasterBase;

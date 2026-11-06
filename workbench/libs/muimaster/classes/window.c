@@ -1565,7 +1565,10 @@ static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     }
 
     mri->mri_Colormap = scr->ViewPort.ColorMap;
-    mri->mri_Fallback = 0;
+    /* MUI 3.8 opens every later window of an application in the stage
+     * one of its windows had to be fitted into the screen in (measured:
+     * MUI_Request's window after a 17-button column needed helvetica) */
+    mri->mri_Fallback = MGI_FALLBACK(muiGlobalInfo(obj));
 
     /* Decided again at every setup: the window may open on another
      * screen. MUI 3.8's frame thickness "auto" is thick when the screen
@@ -6014,6 +6017,8 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
         }
         WindowMinMax(obj, data);
     }
+    if (data->wd_RenderInfo.mri_Fallback > MGI_FALLBACK(muiGlobalInfo(obj)))
+        MGI_FALLBACK(muiGlobalInfo(obj)) = data->wd_RenderInfo.mri_Fallback;
     WindowSelectDimensions(data);
 
     /* Decide which menustrip should be used */
