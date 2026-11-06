@@ -51,6 +51,7 @@ typedef struct ZTextChunk {
 typedef struct ZTextLine {
     struct MinNode node;       /* embedded node */
     UBYTE  align;              /* ZTL_CENTER, ZTL_RIGHT, ZTL_LEFT */
+    BYTE   lshift;             /* MUI 3.8: pixels an italic start moves right */
     struct MinList chunklist;
     WORD   lwidth;
     WORD   lheight;

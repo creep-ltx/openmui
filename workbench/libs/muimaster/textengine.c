@@ -275,6 +275,7 @@ BOOL zune_text_init_plain(ZText *text, ZTextLine *line, ZTextChunk *chunk,
     zt_addtail(&text->lines, (struct MinNode *)line);
     zt_addtail(&line->chunklist, (struct MinNode *)chunk);
     line->align = ZTL_LEFT;
+    line->lshift = 0;
     chunk->str = (char *)content;
     chunk->clen = len;
     chunk->pen = chunk->dripen = -1;
@@ -328,6 +329,7 @@ ZText *zune_text_new(CONST_STRPTR preparse, CONST_STRPTR content,
         ZTextLine *line = ztext_alloc(text, sizeof(*line));
         NewList((struct List *)&line->chunklist);
         line->align = ZTL_LEFT;
+        line->lshift = 0;
         zt_addtail(&text->lines, (struct MinNode *)line);
         if (content_len)
         {
@@ -838,6 +840,7 @@ static ZTextLine *zune_text_parse_line(CONST_STRPTR * s_ptr,
     NewList((struct List *)&ztl->chunklist);
 
     ztl->align = zc->align;
+    ztl->lshift = 0;
     zc->text_start = zc->text = s;
     zc->line = ztl;
 
@@ -961,6 +964,7 @@ void zune_text_get_bounds(ZText * text, Object * obj)
         line_node->lheight = font->tf_YSize;
         line_node->lwidth = 0;
         line_node->centreskip = 0;
+        line_node->lshift = 0;
 
         for (chunk_node = (ZTextChunk *) line_node->chunklist.mlh_Head;
             chunk_node->node.mln_Succ;
@@ -1086,6 +1090,27 @@ void zune_text_get_bounds(ZText * text, Object * obj)
             if (styled)
                 line_node->centreskip = line_node->lwidth - base_width
                     - (extra + 1);
+            /* and moves a line starting in italics right by the part of
+             * its first letters left of the start (demopix: "Hello User !"
+             * in the Virtual demo) */
+            chunk_node = (ZTextChunk *) line_node->chunklist.mlh_Head;
+            if (chunk_node->node.mln_Succ && chunk_node->str
+                && (chunk_node->style & FSF_ITALIC))
+            {
+                struct TextExtent te;
+
+                if (rp != &copy)
+                {
+                    copy = *rp;
+                    rp = &copy;
+                }
+                SetSoftStyle(rp, chunk_node->style & ~ZTEXT_STYLE_HICHAR,
+                    AskSoftStyle(rp));
+                TextExtent(rp, chunk_node->str, chunk_node->clen, &te);
+                SetSoftStyle(rp, FS_NORMAL, AskSoftStyle(rp));
+                if (te.te_Extent.MinX < 0)
+                    line_node->lshift = -te.te_Extent.MinX;
+            }
         }
 
         text->height += line_node->lheight;
@@ -1164,6 +1189,7 @@ void zune_text_draw(ZText * text, Object * obj, WORD left, WORD right,
         // like MUI, never truncates the beginning of a line
         if (x < left)
             x = left;
+        x += line_node->lshift;
 
         //D(bug("zune_text_draw(%x,%d,%d,%d, align=%d) : x = %d\n",
         //obj, left, right, line_node->lwidth, line_node->align, x));
@@ -1341,7 +1367,7 @@ static void text_shortened(ZText *text, Object *obj, WORD left,
                 LONG prefix = mode == MUIV_Text_Shorten_ElideLeft ? 0 :
                     mode == MUIV_Text_Shorten_ElideCenter ? remaining / 2 : remaining;
                 NewList((struct List *)&line.chunklist);
-                line.lwidth = 0; line.centreskip = 0;
+                line.lwidth = 0; line.centreskip = 0; line.lshift = 0;
                 budget = prefix;
                 for (chunk = (APTR)source->chunklist.mlh_Head;
                     chunk->node.mln_Succ && budget > 0; chunk = (APTR)chunk->node.mln_Succ)
