@@ -213,6 +213,7 @@ static void LayoutTabItems(Object *obj, struct Register_DATA *data)
     WORD item_width;            /* from vertical line left to v l right */
     int i;
     int tabs_on_bottom = 0;
+    BOOL mui38 = ZUNE_APP_MUI38(obj);
 
     item_width = (_width(obj) - data->total_hspacing) / data->columns;
         //data->numitems;
@@ -241,10 +242,14 @@ static void LayoutTabItems(Object *obj, struct Register_DATA *data)
 
         ri->x1 = x;
         ri->x2 = ri->x1 + item_width - 1;
-        if (extra_space > 0)
+        /* the spare pixels widen the first tabs of a row; MUI 3.8's the
+         * last ones (demopix: the Pages demo) */
+        if (mui38 ? (i % data->columns) >= data->columns - extra_space
+            : extra_space > 0)
         {
             ri->x2++;
-            extra_space--;
+            if (!mui38)
+                extra_space--;
         }
         fitwidth = ri->x2 - ri->x1 + 1 - TEXTSPACING;
         x += fitwidth + TEXTSPACING + INTERTAB;
@@ -277,6 +282,7 @@ static void RenderRegisterTabItem(struct IClass *cl, Object *obj,
     WORD item_bar_width;
     WORD item_bg_height;
     WORD fitwidth;
+    BOOL mui38 = ZUNE_APP_MUI38(obj);
 
     if ((item < 0) || (item >= data->numitems))
         return;
@@ -354,7 +360,9 @@ static void RenderRegisterTabItem(struct IClass *cl, Object *obj,
     WritePixel(_rp(obj), right_item_bar_x - 1, top_item_bar_y + 2);
     RectFill(_rp(obj), right_item_bar_x, top_item_bar_y + 4,
         right_item_bar_x, bottom_item_bar_y);
-    SetAPen(_rp(obj), _pens(obj)[MPEN_HALFSHADOW]);
+    /* MUI 3.8 rounds the right corner off in the fill pen (demopix: the
+     * Pages demo, blue on the 4-colour Workbench) */
+    SetAPen(_rp(obj), _pens(obj)[mui38 ? MPEN_FILL : MPEN_HALFSHADOW]);
     WritePixel(_rp(obj), right_item_bar_x - 2, top_item_bar_y + 1);
     WritePixel(_rp(obj), right_item_bar_x - 1, top_item_bar_y + 3);
     WritePixel(_rp(obj), right_item_bar_x, top_item_bar_y + 3);
@@ -368,7 +376,11 @@ static void RenderRegisterTabItem(struct IClass *cl, Object *obj,
         fitwidth, bottom_item_bar_y - top_item_bar_y + 1);
 
     SetAPen(_rp(obj), _pens(obj)[MPEN_TEXT]);
-    zune_text_draw(ri->ztext, obj, x, x + fitwidth, top_item_bar_y + TEXTSPACING - 1);
+    /* MUI 3.8 centres the title on the tab's own width (a pixel left of
+     * MUI 3.9's place) and sets the active tab's a row lower */
+    zune_text_draw(ri->ztext, obj, x, x + fitwidth - (mui38 ? 1 : 0),
+        top_item_bar_y + TEXTSPACING - 1
+        + (mui38 && data->active == item ? 1 : 0));
 
     MUI_RemoveClipping(muiRenderInfo(obj), clip);
 }
@@ -434,12 +446,21 @@ static void RenderRegisterTab(struct IClass *cl, Object *obj, ULONG flags)
     {
         int i, y, tabs_on_bottom = 0;
 
+        /* MUI 3.8 doubles the page frame's sides with thick frames, as
+         * a group frame's (demopix: the Pages demo) */
+        WORD side = !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
+            && ZUNE_APP_MUI38(obj) ? 1 : 0;
+
         SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
 
         RectFill(_rp(obj), data->left,
             data->top + data->tab_height - 1,
             data->left,
             data->top + data->tab_height + data->frameheight - 1);
+        if (side)
+            RectFill(_rp(obj), data->left + 1, data->top + data->tab_height,
+                data->left + 1,
+                data->top + data->tab_height + data->frameheight - 2);
 
         y = data->top + data->tab_height - 1;
 
@@ -463,6 +484,11 @@ static void RenderRegisterTab(struct IClass *cl, Object *obj, ULONG flags)
             data->top + data->tab_height - 1,
             data->left + data->framewidth - 1,
             data->top + data->tab_height + data->frameheight - 1);
+        if (side)
+            RectFill(_rp(obj), data->left + data->framewidth - 2,
+                data->top + data->tab_height,
+                data->left + data->framewidth - 2,
+                data->top + data->tab_height + data->frameheight - 2);
 
         RectFill(_rp(obj), data->left + 1,
             data->top + data->tab_height + data->frameheight - 1,
