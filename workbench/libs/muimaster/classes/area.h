@@ -647,7 +647,9 @@ struct MUI_AreaData
      * set attributes in mad_Rare (NULL until one is set): 114 bytes per
      * object instead of 136 (MUI 3.8's Area data is 108) */
     struct MUI_AreaRare *mad_Rare;
-    WORD mad_DisableCount;      /* counts number of disables */
+    /* MUIA_Disabled in the top bit (AREA_DISABLED_SELF), the
+     * MUIA_NestedDisabled count in the others */
+    UWORD mad_DisableCount;
     BYTE mad_ehnPriority;       /* priority for mad_Live->ehn */
     /* END PRIV */
 // only 148 bytes for the struct in MUI !
@@ -662,6 +664,9 @@ struct MUI_AreaData
 #define MADF2_BGCHECKED        (1UL << 4) /* PRIV: MADF2_BUILTINBG is valid */
 #define MADF2_BUILTINBG        (1UL << 5) /* PRIV: all classes down to Area built-in */
 #define MADF2_KNOWSDISABLED    (1UL << 6) /* MUIA_KnowsDisabled: do not ghost */
+/* mad_DisableCount's MUIA_Disabled bit (the field is a UWORD: (1 << 31)
+ * fell off it, so no object was ever disabled by MUIA_Disabled) */
+#define AREA_DISABLED_SELF     0x8000
 
 #define MADF_DRAWOBJECT        (1<< 0)  /* draw object completely */
 #define MADF_DRAWUPDATE        (1<< 1)  /* update object */

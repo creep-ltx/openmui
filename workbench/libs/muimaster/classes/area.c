@@ -1310,7 +1310,7 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_Disabled:
             if (tag->ti_Data)
-                data->mad_DisableCount |= (1 << 31);
+                data->mad_DisableCount |= AREA_DISABLED_SELF;
             break;
 
         case MUIA_CustomBackfill:
@@ -1655,10 +1655,10 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             if (tag->ti_Data) {
                 if (data->mad_DisableCount == 0)
                     change_disable = 1;
-                data->mad_DisableCount |= (1 << 31);
+                data->mad_DisableCount |= AREA_DISABLED_SELF;
             } else {
                 int change_val = (data->mad_DisableCount != 0) ? 1 : 0;
-                data->mad_DisableCount &= ~(1 << 31);
+                data->mad_DisableCount &= ~AREA_DISABLED_SELF;
                 if (data->mad_DisableCount == 0)
                     change_disable = change_val;
             }
@@ -1666,19 +1666,19 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_NestedDisabled:
             if (tag->ti_Data) {
-                ULONG count = data->mad_DisableCount & ~(1 << 31);
+                ULONG count = data->mad_DisableCount & ~AREA_DISABLED_SELF;
                 if (data->mad_DisableCount == 0)
                     change_disable = 1;
                 count += 1;
                 data->mad_DisableCount =
-                    (data->mad_DisableCount & (1 << 31)) | (count & ~(1 << 31));
+                    (data->mad_DisableCount & AREA_DISABLED_SELF) | (count & ~AREA_DISABLED_SELF);
             } else {
                 int change_val = (data->mad_DisableCount != 0) ? 1 : 0;
-                ULONG count = data->mad_DisableCount & ~(1 << 31);
+                ULONG count = data->mad_DisableCount & ~AREA_DISABLED_SELF;
                 if (count > 0) {
                     count -= 1;
                     data->mad_DisableCount =
-                        (data->mad_DisableCount & (1 << 31)) | (count & ~(1 << 31));
+                        (data->mad_DisableCount & AREA_DISABLED_SELF) | (count & ~AREA_DISABLED_SELF);
                 }
                 if (data->mad_DisableCount == 0)
                     change_disable = change_val;
@@ -1886,7 +1886,7 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 
     case MUIA_NestedDisabled:
         STORE =
-            ((data->mad_DisableCount & ~(1 << 31)) != 0) ? (IPTR)TRUE : (IPTR)FALSE;
+            ((data->mad_DisableCount & ~AREA_DISABLED_SELF) != 0) ? (IPTR)TRUE : (IPTR)FALSE;
         return TRUE;
 
     case MUIA_Font:
