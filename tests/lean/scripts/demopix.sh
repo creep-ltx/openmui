@@ -42,7 +42,11 @@ log() { echo "$(date +%T) $*" | tee -a "$OUT/logs/demopix.log" >&2; }
 
 boot() { # MACHINE NAME PORT [--fresh]
   amiga-test "$1" stop --as "$2" >/dev/null 2>&1
-  amiga-test "$1" start --as "$2" --port "$3" ${4:-} --config 'fast_memory = 8192' > "$OUT/logs/$2.log" 2>&1 < /dev/null
+  # an instance of someone else on the port must not be shot instead
+  if ! amiga-test "$1" start --as "$2" --port "$3" ${4:-} --config 'fast_memory = 8192' \
+      > "$OUT/logs/$2.log" 2>&1 < /dev/null; then
+    log "$2 did not start: $(tail -1 "$OUT/logs/$2.log")"; exit 1
+  fi
   local i
   for i in $(seq 1 30); do wasabi windows 2>/dev/null | grep -q '^ *window "Workbench"' && break; sleep 1; done
   sleep 2
