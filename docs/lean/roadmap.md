@@ -60,8 +60,17 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    MUI 3.8). Zune's own behaviour follows the same choice per
    application. The "Behave as" setting stays and can override it:
    Automatic (the default), MUI 3.8, MUI 4 or MUI 5, for all programs,
-   and per program in a list in Zune prefs. Known limit to research: a class loaded
-   once and shared by two programs (TheBar) checks the version once.
+   and per program in a list in Zune prefs. *Built 2026-11-06* (branch
+   `identity`): one copy of the base per identity (342 bytes, shared),
+   none per program; exec 40/47 pass the version in D2, not D0 as the
+   RKRM's example says; classes get the identity of the program they are
+   loaded for and are loaded again for another identity once unused.
+   Limits: a class in use by one program serves a second program of
+   another identity as the first's; most "MUI 4/5" programs ask for 19
+   and so get MUI 3.8 under Automatic (only DizzyTorrent of the suite's
+   five asks for 20): the per-program list gives them MUI 5. Details,
+   measurements and the other limits in
+   [README.md](README.md#each-program-gets-the-mui-it-asked-for-2026-11-06-phase-8).
 
 ## Later (wanted, not scheduled)
 

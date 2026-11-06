@@ -2394,17 +2394,23 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
     get(_app(obj), MUIA_Application_GetWinPos, &winp);
     if (winp)
     {
+        /* Within the window's own limits: another program with the
+         * same application base and window ID (TheBar's demos all use
+         * THEBAREXAMPLE/MAIN) leaves its window's size here, and a
+         * window opened larger than its maximum stayed empty */
         if (scr->Width >
             (data->wd_X + data->wd_Width))
         {
             data->wd_X = winp->x1;
-            data->wd_Width = winp->w1;
+            data->wd_Width = CLAMP(winp->w1, data->wd_MinMax.MinWidth,
+                data->wd_MinMax.MaxWidth);
         }
         if (scr->Height >
             (data->wd_Y + data->wd_Height))
         {
             data->wd_Y = winp->y1;
-            data->wd_Height = winp->h1;
+            data->wd_Height = CLAMP(winp->h1, data->wd_MinMax.MinHeight,
+                data->wd_MinMax.MaxHeight);
         }
     }
 
