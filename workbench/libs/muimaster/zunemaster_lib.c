@@ -26,6 +26,17 @@ void MUI_Priv4(void) { }
 void MUI_Priv5(void) { }
 void MUI_Priv6(void) { }
 void MUIP_GetVirtualRect(Object *obj __asm("a0"), LONG *rect __asm("a1"));
+/* MUI 3.8's jump table goes down to LVO -306 (lib_NegSize 308), MUI 5's
+ * further; the slots past MUIP_GetVirtualRect are private there. Programs
+ * from MUI's own authors call some of them: AmIRC 3.6 calls -264 at start
+ * and sends a method to what it returns (classes/application.c,
+ * zune_applist_get). A table that ended at -240 sent that call into
+ * whatever memory lay below the library base: a guru (8000000B,
+ * 80000008, 80000004, by what happened to be there), which on OS 3.1
+ * reboots the machine. Every slot MUI 3.8 has now exists; those whose
+ * purpose is unknown return 0. */
+ULONG MUI_PrivNone(void) { return 0; }
+Object *MUI_PrivApplist(void) { return zune_applist_get(); }
 struct Library *LibOpen(struct MUIMasterBase_intern *base __asm("a6"))
 {
     base->library.lib_Flags &= ~LIBF_DELEXP;
@@ -40,8 +51,13 @@ BPTR LibExpunge(struct MUIMasterBase_intern *base __asm("a6"))
     ZUNE_ReleaseExternalClasses(&base->library);
     if (base->library.lib_OpenCnt || base->ReleasingExternal
         || (base->ExternalClasses.mlh_Head
-            && !IsListEmpty((struct List *)&base->ExternalClasses))
-        || !ZUNE_FreeBuiltinClasses(&base->library)) {
+            && !IsListEmpty((struct List *)&base->ExternalClasses))) {
+        base->library.lib_Flags |= LIBF_DELEXP;
+        return 0;
+    }
+    /* MUI's private application list object holds a Semaphore subclass */
+    zune_applist_free();
+    if (!ZUNE_FreeBuiltinClasses(&base->library)) {
         base->library.lib_Flags |= LIBF_DELEXP;
         return 0;
     }
@@ -128,6 +144,17 @@ static const APTR LibVectors[] = {
   MUI_VECTOR(MUI_LayoutObj),
   MUI_VECTOR(MUI_Offset),
   (APTR) MUIP_GetVirtualRect,
+  (APTR) MUI_PrivNone,          /* -246 */
+  (APTR) MUI_PrivNone,          /* -252 */
+  (APTR) MUI_PrivNone,          /* -258 */
+  (APTR) MUI_PrivApplist,       /* -264 */
+  (APTR) MUI_PrivNone,          /* -270 */
+  (APTR) MUI_PrivNone,          /* -276 */
+  (APTR) MUI_PrivNone,          /* -282 */
+  (APTR) MUI_PrivNone,          /* -288 */
+  (APTR) MUI_PrivNone,          /* -294 */
+  (APTR) MUI_PrivNone,          /* -300 */
+  (APTR) MUI_PrivNone,          /* -306 */
   (APTR) -1
 };
 

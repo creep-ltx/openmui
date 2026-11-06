@@ -93,6 +93,9 @@ struct MUIMasterBase_intern
      * each, kept while loaded as MUI does (support_classes.c) */
     struct MinList              ExternalClasses;
     BOOL                        ReleasingExternal; /* LibClose: no expunge now */
+    /* What MUI's private LVO -264 returns (classes/application.c) */
+    Object                      *Applist;
+    struct MUI_CustomClass      *ApplistClass;
     /* The last three stay last: the checks in tests/ find them from the
      * end of the base (class list at -28, default pens at -4) */
     struct MinList              BuiltinClasses;
@@ -113,6 +116,9 @@ extern struct Library *CyberGfxBase;
 BOOL ZUNE_FreeBuiltinClasses(struct Library *base);
 void ZUNE_ReleaseExternalClasses(struct Library *base);
 BOOL ZUNE_FreeExternalClass(Class *cl, struct Library *base);
+/* classes/application.c: MUI's private application list object */
+Object *zune_applist_get(void);
+void zune_applist_free(void);
 /* classes/application.c: run fn(cl, obj, msg) on a spare stack of app's
  * when little stack is left (68k native builds) */
 IPTR zune_deep_call(Object *app, IPTR (*fn)(struct IClass *, Object *, Msg),

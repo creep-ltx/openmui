@@ -55,7 +55,13 @@ def check(path):
         assert long(vectors + i * 4) == symbols[name], name
     # MUIP_GetVirtualRect follows the FD entries; Voyager calls LVO -240.
     assert long(vectors + len(expected) * 4) == symbols['_MUIP_GetVirtualRect']
-    assert long(vectors + (len(expected) + 1) * 4) == 0xffffffff
+    # Then MUI 3.8's private slots down to LVO -306 (lib_NegSize 308):
+    # AmIRC calls -264 (the application list object), the rest return 0.
+    private = ['_MUI_PrivNone'] * 3 + ['_MUI_PrivApplist'] + ['_MUI_PrivNone'] * 7
+    for i, name in enumerate(private):
+        assert long(vectors + (len(expected) + 1 + i) * 4) == symbols[name], \
+            'LVO -%d' % (6 * (len(expected) + 1 + i) + 6)
+    assert long(vectors + (len(expected) + 1 + len(private)) * 4) == 0xffffffff
 
     machine = Machine.from_name("68000", ram_size=RAM_KIB)
     mem, cpu = machine.mem, machine.cpu
