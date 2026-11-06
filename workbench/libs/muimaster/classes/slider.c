@@ -351,6 +351,10 @@ IPTR Slider__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     {
         switch (tag->ti_Tag)
         {
+        /* MUI 3.8's Slider autodoc: "Also understands MUIA_Group_Horiz to
+         * be compatible with previous versions of MUI" (its own example
+         * makes a vertical slider that way; Archiver 2.3 does) */
+        case MUIA_Group_Horiz:
         case MUIA_Slider_Horiz:
             _handle_bool_tag(flags, tag->ti_Data, SLIDER_HORIZ);
             break;
