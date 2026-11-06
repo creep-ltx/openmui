@@ -21,10 +21,11 @@
 #include <stdlib.h>
 
 #define NENT 8192
-struct ent { ULONG addr, size, direct, a[3]; ULONG pad; };
+struct ent { ULONG addr, size, direct, a[3]; ULONG pad, task; };
 struct mt {
     struct SignalSemaphore sem;
     struct Task *task;
+    int all;                          /* lib/runall: every task's blocks */
     struct ent *tab;
     ULONG nlive, nover;
     ULONG mlo[16], mhi[16]; int nm;   /* muimaster hunks */
@@ -33,6 +34,18 @@ struct mt {
 static struct mt *M;
 static int inr(ULONG v, ULONG *lo, ULONG *hi, int n)
 { int i; for (i = 0; i < n; i++) if (v >= lo[i] && v < hi[i]) return 1; return 0; }
+
+/* a code address in a memory header's range or in ROM (lib/runall mode,
+   where the callers outside muimaster and the program count too) */
+static int inram(ULONG v)
+{
+    struct MemHeader *mh;
+    if (v >= 0xF80000 && v < 0x1000000) return 1;
+    for (mh = (struct MemHeader *)SysBase->MemList.lh_Head; mh->mh_Node.ln_Succ;
+         mh = (struct MemHeader *)mh->mh_Node.ln_Succ)
+        if (v >= (ULONG)mh->mh_Lower + 8 && v < (ULONG)mh->mh_Upper) return 1;
+    return 0;
+}
 
 static int isret(ULONG v)
 {
@@ -86,12 +99,14 @@ static void mt_record(ULONG addr, ULONG size, ULONG *sp, ULONG pad)
 {
     struct mt *m = M; struct Task *t = SysBase->ThisTask; ULONG h, i, *up; int k = 0;
     struct ent e;
-    if (!m || t != m->task) return;
+    if (!m || (!m->all && t != m->task)) return;
     e.addr = addr; e.size = size; e.direct = sp[0]; e.a[0] = e.a[1] = e.a[2] = 0; e.pad = pad;
+    e.task = (ULONG)t;
     up = (ULONG *)t->tc_SPUpper;
     for (i = 0; sp + i < up && i < 2048 && k < 3; i++) {
         ULONG v = sp[i];
-        if ((inr(v, m->mlo, m->mhi, m->nm) || inr(v, m->plo, m->phi, m->np)) && isret(v)) e.a[k++] = v;
+        if ((inr(v, m->mlo, m->mhi, m->nm) || inr(v, m->plo, m->phi, m->np)
+             || (m->all && inram(v))) && isret(v)) e.a[k++] = v;
     }
     Forbid();
     for (i = 0; i < NFREED; i++) if (freed[i].addr == addr) freed[i].addr = 0;
@@ -257,8 +272,17 @@ int main(int argc, char **argv)
         for (j = 0; j < m->np; j++) FPrintf(f, "P %lx %lx\n", m->plo[j], m->phi[j]);
         Forbid();
         for (i = 0; i < NENT; i++) if (m->tab[i].addr > 1) {
-            struct ent *e = &m->tab[i]; tot += e->size;
-            FPrintf(f, "%lx %lx %lx %lx %lx\n", e->size, e->direct, e->a[0], e->a[1], e->a[2]);
+            struct ent *e = &m->tab[i];
+            if (m->all && e->task == (ULONG)FindTask(NULL)) continue;
+            tot += e->size;
+            FPrintf(f, "%lx %lx %lx %lx %lx %lx\n", e->size, e->direct, e->a[0], e->a[1], e->a[2], e->task);
+        }
+        if (m->all) { /* names of the tasks that still exist */
+            struct Node *n; struct List *ls[2]; int k;
+            ls[0] = &SysBase->TaskReady; ls[1] = &SysBase->TaskWait;
+            for (k = 0; k < 2; k++)
+                for (n = ls[k]->lh_Head; n->ln_Succ; n = n->ln_Succ)
+                    FPrintf(f, "K %lx %s\n", (ULONG)n, n->ln_Name ? n->ln_Name : "?");
         }
         Permit();
         FPrintf(f, "T %ld %ld %ld\n", tot, m->nlive, m->nover);
@@ -266,17 +290,56 @@ int main(int argc, char **argv)
         Printf("%ld bytes in %ld blocks (%ld not kept)\n", tot, m->nlive, m->nover);
         return 0;
     }
-    if (argc >= 3 && (!strcmp(argv[1], "run") || !strcmp(argv[1], "guard"))) {
+    if (argc >= 3 && !strcmp(argv[1], "lib")) {
+        /* memtally lib NAME [VERSION]: record every task's blocks while NAME
+           is opened, keep it open until Ctrl-C; "dump" shows what it holds */
+        struct Library *mb, *lb; struct mt *m;
+        m = AllocMem(sizeof(*m), MEMF_PUBLIC | MEMF_CLEAR);
+        m->tab = AllocMem(NENT * sizeof(struct ent), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!m || !m->tab) return 20;
+        m->task = FindTask(NULL); m->all = 1;
+        m->sem.ss_Link.ln_Name = "memtally"; m->sem.ss_Link.ln_Pri = 0;
+        AddSemaphore(&m->sem);
+        Forbid();
+        oldAllocMem = SetFunction(SysBase, -198, (APTR)newAllocMem);
+        oldFreeMem = SetFunction(SysBase, -210, (APTR)newFreeMem);
+        M = m;
+        Permit();
+        mb = OpenLibrary(argv[2], argc > 3 ? atoi(argv[3]) : 0);
+        if (mb) {
+            Forbid(); lb = (struct Library *)FindName(&SysBase->LibList, argv[2]); Permit();
+            if (lb && lb->lib_IdString && strstr((char *)lb->lib_IdString, "Zune68"))
+                ranges(*(BPTR *)((UBYTE *)lb + 38), m->mlo, m->mhi, &m->nm);
+        }
+        Printf("%s %s\n", argv[2], mb ? "open" : "not opened");
+        Wait(SIGBREAKF_CTRL_C);
+        Forbid();
+        SetFunction(SysBase, -198, oldAllocMem);
+        SetFunction(SysBase, -210, oldFreeMem);
+        M = 0;
+        Permit();
+        RemSemaphore(&m->sem);
+        if (mb) CloseLibrary(mb);
+        return 0;
+    }
+    if (argc >= 3 && (!strcmp(argv[1], "run") || !strcmp(argv[1], "guard") || !strcmp(argv[1], "runall"))) {
         struct Library *mb; BPTR seg; struct mt *m;
         m = AllocMem(sizeof(*m), MEMF_PUBLIC | MEMF_CLEAR);
         m->tab = AllocMem(NENT * sizeof(struct ent), MEMF_PUBLIC | MEMF_CLEAR);
         if (!m || !m->tab) return 20;
         mb = OpenLibrary("muimaster.library", 0);
+        /* Zune68 since phase 8 hands a MUI 3.8 program a copy of the base
+           (jump table + struct Library only): the seglist is in the base
+           in the library list */
+        if (mb) { struct Library *lb; Forbid();
+            lb = (struct Library *)FindName(&SysBase->LibList, "muimaster.library");
+            Permit(); if (lb) mb = lb; }
         if (mb && strstr((char *)mb->lib_IdString, "Zune68k")) ranges(*(BPTR *)((UBYTE *)mb + 42), m->mlo, m->mhi, &m->nm);
         else if (mb && strstr((char *)mb->lib_IdString, "Zune68")) ranges(*(BPTR *)((UBYTE *)mb + 38), m->mlo, m->mhi, &m->nm);
         if (!(seg = LoadSeg(argv[2]))) return 20;
         ranges(seg, m->plo, m->phi, &m->np);
         m->task = FindTask(NULL);
+        m->all = !strcmp(argv[1], "runall");
         guard = !strcmp(argv[1], "guard");
         if (guard) {
             int j;
@@ -303,6 +366,6 @@ int main(int argc, char **argv)
         Printf("left: %ld blocks\n", m->nlive);
         return 0;
     }
-    PutStr("memtally run|guard PROG | memtally dump FILE\n");
+    PutStr("memtally run|guard|runall PROG | memtally lib NAME [VER] | memtally dump FILE\n");
     return 5;
 }

@@ -31,13 +31,14 @@ else:
         if len(p) >= 3 and p[1] in 'tT' and not p[2].endswith('_desc'): syms.append((int(p[0], 16), p[2], '?'))
 syms.sort()
 addrs = [s[0] for s in syms]
-M = []; P = []; rows = []
+M = []; P = []; rows = []; TASKS = {}
 for l in open(dump, errors='replace'):
     p = l.split()
     if not p: continue
     if p[0] == 'M': M.append((int(p[1], 16), int(p[2], 16)))
     elif p[0] == 'P': P.append((int(p[1], 16), int(p[2], 16)))
     elif p[0] == 'T': pass
+    elif p[0] == 'K': TASKS[int(p[1], 16)] = ' '.join(p[2:])
     else: rows.append([int(x, 16) for x in p])
 def look(a):
     if a == 0: return ('-', '-')
@@ -79,6 +80,12 @@ for r in rows:
     elif mode == 'cats':
         # an allocation made through DoSuperMethodA from Notify's OM_NEW is the object itself
         key = cat(looked)
+    elif mode == 'tasks':
+        # dumps of "memtally lib/runall" (sixth column: the task): per task, the first
+        # muimaster/program caller, else the direct caller's address
+        t = r[5] if len(r) > 5 else 0
+        fn = next((n for n, f in looked if n not in ('ROM', 'other', '-')), None)
+        key = f"{TASKS.get(t, hex(t)):<22s} " + (fn or ('ROM' if direct >= 0xf80000 else 'RAM ' + hex(direct)))
     else:
         key = ' < '.join(n for n, f in looked[:int(mode) if mode.isdigit() else 3])
     key = ('ROM:' if direct >= 0xf80000 and mode not in ('files', 'cats') else '') + key
