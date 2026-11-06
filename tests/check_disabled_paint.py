@@ -63,10 +63,10 @@ class PaintHarness(Harness):
         self.events.clear()
         self.mem.w32(OBJECT - 4, cl)
         # The disable count, mad_DisableCount (offsetof + Notify's 28 bytes):
-        # a WORD at offset 110 of Area's data since the lean edition moved
-        # the rarely set attributes out (a LONG at 128 before, at 230 before
-        # the event nodes moved out).
-        self.mem.w16(OBJECT + 138, 1 if disabled else 0)
+        # a WORD at offset 106 of Area's data since the lean edition made
+        # Area MUI 3.8's 108 bytes (110 before, a LONG at 128 before that,
+        # at 230 before the event nodes moved out).
+        self.mem.w16(OBJECT + 134, 1 if disabled else 0)
         self.call('MUI_Redraw', OBJECT, 1)
 
 

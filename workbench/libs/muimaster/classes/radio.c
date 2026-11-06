@@ -348,7 +348,7 @@ IPTR Radio__MUIM_Setup(struct IClass *cl, Object *obj, Msg msg)
         for (i = 0; i < data->entries_num; i++)
         {
             muiAreaData(texts[i])->mad_Flags |= MADF_FIXWIDTH;
-            muiAreaData(texts[i])->mad_HardWidth = widest;
+            muiAreaData(texts[i])->mad_FixWidth = widest;
         }
     }
     return TRUE;

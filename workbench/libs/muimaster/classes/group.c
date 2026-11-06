@@ -97,24 +97,27 @@ static const struct GroupVirtual group_novirt;
 #define GV(data) ((data)->virt ? (data)->virt \
     : (struct GroupVirtual *)&group_novirt)
 
+/* Every group, list, listview and scrollbar carries this: 68 bytes, so
+ * that with Area's 108 a group object is 216 bytes (was 96 and 256).
+ * Counts, spacings and sizes are WORDs (MUI's sizes are, MUI_MAXMAX is
+ * 10000); the weight sums stay LONGs (weights can be large). */
 struct MUI_GroupData
 {
-    struct MinList *children;   /* &childlist; kept first so the other offsets stay */
     struct Hook *layout_hook;
-    ULONG flags;
-    ULONG columns;
-    ULONG rows;
+    UWORD flags;                /* GROUP_* */
+    UWORD columns;
+    UWORD rows;
+    WORD active_page;
     struct layout2d_elem *row_infos;
     struct layout2d_elem *col_infos;
-    LONG active_page;
-    ULONG horiz_spacing;
-    ULONG vert_spacing;
-    ULONG num_children;
-    ULONG num_visible_children; /* for horiz/vert group only */
+    WORD horiz_spacing;         /* -1 until setup, unless set */
+    WORD vert_spacing;
+    UWORD num_children;
+    UWORD num_visible_children; /* for horiz/vert group only */
     ULONG horiz_weight_sum;
     ULONG vert_weight_sum;
-    ULONG samesize_maxmin_horiz;
-    ULONG samesize_maxmin_vert;
+    WORD samesize_maxmin_horiz;
+    WORD samesize_maxmin_vert;
     UBYTE update;               /* for MUI_Redraw() 1 - do not redraw the frame
                                  * 2 - the virtual pos has changed */
     UBYTE dont_forward_get;     /* Set temporarily to 1 so that the get method
@@ -134,12 +137,12 @@ struct MUI_GroupData
     struct MinList childlist;
     /* Entries row_infos and col_infos have room for: kept between
      * AskMinMax passes, which reallocated both every time */
-    ULONG row_cap, col_cap;
+    UWORD row_cap, col_cap;
 };
 
 /* *infos with room for n entries, cleared; NULL without memory */
 static struct layout2d_elem *group_infos(struct layout2d_elem **infos,
-    ULONG *cap, ULONG n)
+    UWORD *cap, ULONG n)
 {
     if (*infos && *cap >= n)
     {
@@ -155,7 +158,7 @@ static struct layout2d_elem *group_infos(struct layout2d_elem **infos,
 
 static inline struct MinList *group_children(struct MUI_GroupData *data)
 {
-    return data->children;
+    return &data->childlist;
 }
 
 /* Family's AddHead/AddTail/Insert on the group's own list. Family's parent
@@ -977,7 +980,6 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data = INST_DATA(cl, obj);
 
     NewList((struct List *)&data->childlist);
-    data->children = &data->childlist;
 
     data->horiz_spacing = -1;
     data->vert_spacing = -1;
@@ -1129,7 +1131,7 @@ IPTR Group__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
         mui_free(data->col_infos);
     if (data->virt)
         mui_free(data->virt);
-    if (data->children)
+    if (data->childlist.mlh_Head)
     {
         Object *cstate = (Object *)data->childlist.mlh_Head;
         Object *child;

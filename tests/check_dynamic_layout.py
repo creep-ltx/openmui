@@ -111,21 +111,23 @@ def check(path):
     assert len(h.events) == 1
     parent = h.blob(bytes(400))
     h.mem.w32(OBJECT + 16, parent)
-    h.mem.w32(parent + 272 + 8, 1 << 4)
+    # Group's flags: a UWORD at offset 4 of its data (GROUP_CHANGING)
+    h.mem.w16(parent + 272 + 4, 1 << 4)
     h.call('Group__MUIM_ExitChange', CLASS, OBJECT, h.words(0))
     assert len(h.events) == 1
-    h.mem.w32(parent + 272 + 8, 0)
+    h.mem.w16(parent + 272 + 4, 0)
     h.call('Group__MUIM_ExitChange', CLASS, OBJECT, h.words(0))
     assert len(h.events) == 2
     # A custom layout hook receives the live child list and inner geometry.
-    children = h.blob(bytes(12))
+    # Lean edition: Group keeps its children itself, a MinList at offset
+    # 52 of its data (upstream asked its Family object); the layout hook
+    # is its first field.
+    children = OBJECT + 272 + 52
     hook, entry = h.blob(bytes(20)), h.blob(bytes(4))
     h.mem.w32(children, children + 4)
+    h.mem.w32(children + 4, 0)
     h.mem.w32(children + 8, children)
-    # Lean edition: Group keeps its children itself; the first field of
-    # its data points to the list (upstream asked its Family object).
-    h.mem.w32(OBJECT + 272, children)
-    h.mem.w32(OBJECT + 272 + 4, hook)
+    h.mem.w32(OBJECT + 272, hook)
     h.mem.w32(hook + 8, entry)
     h.mem.w16(OBJECT + 28 + 28, 100)  # mad_Box.Width
     h.mem.w16(OBJECT + 28 + 30, 50)
@@ -152,10 +154,10 @@ def check(path):
     # A custom virtual layout may shrink its requested content extent,
     # but its public virtual dimensions must still cover the viewport.
     # This follows the grow/shrink sequence in native/relayout.c.
-    h.mem.w32(OBJECT + 272 + 8, 1 << 6)  # GROUP_VIRTUAL
+    h.mem.w16(OBJECT + 272 + 4, 1 << 6)  # GROUP_VIRTUAL
     # Lean edition: a virtual group's state is a block of its own (68
-    # bytes), made at OM_NEW; its pointer is at offset 68 of Group's data.
-    h.mem.w32(OBJECT + 272 + 68, h.blob(bytes(68)))
+    # bytes), made at OM_NEW; its pointer is at offset 44 of Group's data.
+    h.mem.w32(OBJECT + 272 + 44, h.blob(bytes(68)))
     requested = [20, 10]
     def virtual_layout():
         msg = h.cpu.r_reg(9)

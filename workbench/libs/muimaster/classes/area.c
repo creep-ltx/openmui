@@ -1343,7 +1343,7 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_FixHeight:
             data->mad_Flags |= MADF_FIXHEIGHT;
-            data->mad_HardHeight = data->mad_FixHeight = tag->ti_Data;
+            data->mad_FixHeight = tag->ti_Data;
             break;
 
         case MUIA_FixHeightTxt:
@@ -1353,7 +1353,7 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_FixWidth:
             data->mad_Flags |= MADF_FIXWIDTH;
-            data->mad_HardWidth = data->mad_FixWidth = tag->ti_Data;
+            data->mad_FixWidth = tag->ti_Data;
             break;
 
         case MUIA_FixWidthTxt:
@@ -1416,13 +1416,19 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_MaxHeight:
-            data->mad_Flags |= MADF_MAXHEIGHT;
-            data->mad_HardHeight = tag->ti_Data;
+            if (zune_area_rare(data))
+            {
+                data->mad_Flags |= MADF_MAXHEIGHT;
+                data->mad_Rare->MaxHeight = tag->ti_Data;
+            }
             break;
 
         case MUIA_MaxWidth:
-            data->mad_Flags |= MADF_MAXWIDTH;
-            data->mad_HardWidth = tag->ti_Data;
+            if (zune_area_rare(data))
+            {
+                data->mad_Flags |= MADF_MAXWIDTH;
+                data->mad_Rare->MaxWidth = tag->ti_Data;
+            }
             break;
 
         case MUIA_Selected:
@@ -2098,8 +2104,8 @@ void __area_finish_minmax(Object *obj, struct MUI_MinMax *MinMaxInfo)
     /* MUI 3.9's MUIA_FixHeight/FixWidth set the minimum and maximum and
      * raise a smaller default to them, but keep a larger default, which
      * enclosing groups then clamp (tests/native/lvfix.c) */
-    if ((_flags(obj) & MADF_FIXHEIGHT) && (data->mad_HardHeight > 0)) {
-        int h = data->mad_HardHeight + data->mad_subheight;
+    if ((_flags(obj) & MADF_FIXHEIGHT) && (data->mad_FixHeight > 0)) {
+        int h = data->mad_FixHeight + data->mad_subheight;
 
         MinMaxInfo->MinHeight = MinMaxInfo->MaxHeight =
                                     CLAMP(h, MinMaxInfo->MinHeight, MinMaxInfo->MaxHeight);
@@ -2120,12 +2126,12 @@ void __area_finish_minmax(Object *obj, struct MUI_MinMax *MinMaxInfo)
         }
 
     } else if (_flags(obj) & MADF_MAXHEIGHT) {
-        MinMaxInfo->MaxHeight = CLAMP(data->mad_HardHeight + data->mad_subheight,
+        MinMaxInfo->MaxHeight = CLAMP(AREA_MAXHEIGHT(data) + data->mad_subheight,
                                       MinMaxInfo->MinHeight, MinMaxInfo->MaxHeight);
     }
 
-    if ((_flags(obj) & MADF_FIXWIDTH) && (data->mad_HardWidth > 0)) {
-        int w = data->mad_HardWidth + data->mad_subwidth;
+    if ((_flags(obj) & MADF_FIXWIDTH) && (data->mad_FixWidth > 0)) {
+        int w = data->mad_FixWidth + data->mad_subwidth;
 
         MinMaxInfo->MinWidth = MinMaxInfo->MaxWidth =
                                    CLAMP(w, MinMaxInfo->MinWidth, MinMaxInfo->MaxWidth);
@@ -2146,7 +2152,7 @@ void __area_finish_minmax(Object *obj, struct MUI_MinMax *MinMaxInfo)
         }
 
     } else if (_flags(obj) & MADF_MAXWIDTH) {
-        MinMaxInfo->MaxWidth = CLAMP(data->mad_HardWidth + data->mad_subwidth,
+        MinMaxInfo->MaxWidth = CLAMP(AREA_MAXWIDTH(data) + data->mad_subwidth,
                                      MinMaxInfo->MinWidth, MinMaxInfo->MaxWidth);
     }
 

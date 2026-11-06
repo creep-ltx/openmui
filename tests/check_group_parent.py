@@ -5,7 +5,10 @@ import sys
 from pathlib import Path
 from check_class_lifetime import Harness, INTUITION
 
-CLASS, GROUP, LIST = 0x70000, 0x71000, 0x72000
+CLASS, GROUP = 0x70000, 0x71000
+# The group's child list: a MinList at offset 52 of Group's data (the
+# lean edition keeps it there, no pointer to it)
+LIST = GROUP + 256 + 52
 DISCONNECT = 0x12345678  # message forwarded unchanged
 PARENT = 16  # MUI_NotifyData.mnd_ParentObject
 
@@ -26,7 +29,6 @@ def check(path):
            lambda: calls.append(('super', argument(1))))
     h.trap(INTUITION - 654, get_attr)
     h.mem.w16(CLASS + 32, 256)
-    h.mem.w32(GROUP + 256, LIST)  # the group's child list pointer (first field)
 
     # Two children: struct _Object nodes (MinNode, class) precede each object.
     nodes = [LIST + 0x100, LIST + 0x200]

@@ -572,6 +572,8 @@ struct MUI_AreaRare
     CONST_STRPTR HardHeightTxt;
     Object *ContextMenu;        /* menu strip */
     IPTR PointerType;           /* built-in type or borrowed pointerclass */
+    WORD MaxHeight;             /* MUIA_MaxHeight, with MADF_MAXHEIGHT */
+    WORD MaxWidth;              /* MUIA_MaxWidth, with MADF_MAXWIDTH */
 };
 #define AREA_SELBACK(d) ((d)->mad_Live ? (d)->mad_Live->SelBack : NULL)
 #define AREA_CONTEXTMENU(d) ((d)->mad_Rare ? (d)->mad_Rare->ContextMenu : NULL)
@@ -579,6 +581,8 @@ struct MUI_AreaRare
     ((d)->mad_Rare ? (d)->mad_Rare->PointerType : MUIV_PointerType_Parent)
 #define AREA_HARDWIDTHTXT(d) ((d)->mad_Rare ? (d)->mad_Rare->HardWidthTxt : NULL)
 #define AREA_HARDHEIGHTTXT(d) ((d)->mad_Rare ? (d)->mad_Rare->HardHeightTxt : NULL)
+#define AREA_MAXWIDTH(d) ((d)->mad_Rare ? (d)->mad_Rare->MaxWidth : 0)
+#define AREA_MAXHEIGHT(d) ((d)->mad_Rare ? (d)->mad_Rare->MaxHeight : 0)
 /* The object's rare block, made on first use; NULL without memory. */
 struct MUI_AreaData;
 struct MUI_AreaRare *zune_area_rare(struct MUI_AreaData *data);
@@ -623,7 +627,8 @@ struct MUI_AreaData
     BYTE mad_InnerRight;
     BYTE mad_InnerBottom;
 // offset 94
-    BYTE mad_FrameOBSOLETE;     /* frame setting -- private */
+    BYTE mad_ehnPriority;       /* priority for mad_Live->ehn (was the
+                                 * unused mad_FrameOBSOLETE) */
 // offset 95
     BYTE mad_InputMode;         /* how to react to events */
 // offset 96
@@ -634,8 +639,8 @@ struct MUI_AreaData
 // 100
 // ?
     IPTR mad_Frame;
-    WORD mad_HardHeight;        /* if harcoded dim (see flags)  */
-    WORD mad_HardWidth;         /* if harcoded dim (see flags)  */
+    /* MUIA_FixWidth/FixHeight are mad_FixWidth/mad_FixHeight above (with
+     * MADF_FIXWIDTH/MADF_FIXHEIGHT), MUIA_MaxWidth/MaxHeight in mad_Rare */
     /* The event and timer nodes, click position and context menu state
      * are in mad_Live, made at the first MUIM_Setup (or MUI_RequestIDCMP)
      * and kept until OM_DISPOSE: objects in windows that never open do
@@ -644,13 +649,12 @@ struct MUI_AreaData
      * its input code. */
     struct MUI_AreaLive *mad_Live;
     /* The selected background and MUIA_Timer are in mad_Live, the rarely
-     * set attributes in mad_Rare (NULL until one is set): 114 bytes per
-     * object instead of 136 (MUI 3.8's Area data is 108) */
+     * set attributes in mad_Rare (NULL until one is set): 108 bytes per
+     * object instead of 136, as MUI 3.8's Area data */
     struct MUI_AreaRare *mad_Rare;
     /* MUIA_Disabled in the top bit (AREA_DISABLED_SELF), the
      * MUIA_NestedDisabled count in the others */
     UWORD mad_DisableCount;
-    BYTE mad_ehnPriority;       /* priority for mad_Live->ehn */
     /* END PRIV */
 // only 148 bytes for the struct in MUI !
 };
