@@ -72,6 +72,6 @@
     } else {
         struct Library *module = cl->cl_Dispatcher.h_Data;
         ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
-        if (module && module != MUIMasterBase) CloseLibrary(module);
+        if (module && !zune_is_master(module)) CloseLibrary(module);
     }
 }

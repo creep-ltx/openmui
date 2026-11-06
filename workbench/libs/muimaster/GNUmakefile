@@ -60,7 +60,7 @@ BBB_CFLAGS := $(shell $(CC) -fbbb=abcefhlmnprsz0 -S -o /dev/null -x c /dev/null 
 LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(BBB_CFLAGS) $(LTO_CFLAGS) \
   -fno-common -fno-builtin -fno-strict-aliasing
 SOURCES = \
-  gcc/format.c gcc/runtime.c muimaster_init.c datatypescache.c font.c \
+  gcc/format.c gcc/runtime.c muimaster_init.c identity.c datatypescache.c font.c \
   frame.c pointer.c imspec.c imspec_vector.c imspec_gradient.c muigfx.c \
   modules.c penspec.c support.c support_amigaos.c \
   support_classes.c textengine.c bubbleengine.c clipboard.c locale.c \

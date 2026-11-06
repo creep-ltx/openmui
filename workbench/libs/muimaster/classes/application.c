@@ -1368,6 +1368,8 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
     }
 
     data->app_GlobalInfo.mgi_ApplicationObject = obj;
+    /* the MUI Zune behaves as for this program (identity.c) */
+    MGI_IDENTITY(&data->app_GlobalInfo) = zune_task_identity();
     if (!(data->app_GlobalInfo.mgi_WindowsPort = CreateMsgPort()))
     {
         CoerceMethod(cl, obj, OM_DISPOSE);

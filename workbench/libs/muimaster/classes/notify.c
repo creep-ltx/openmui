@@ -810,7 +810,7 @@ static struct Library *ClassLibrary(Object *obj)
     {
         struct Library *lib = (struct Library *)c->cl_Dispatcher.h_Data;
 
-        if (lib == MUIMasterBase)
+        if (zune_is_master(lib))
             break;
         if (lib && lib->lib_Node.ln_Type == NT_LIBRARY)
             return lib;

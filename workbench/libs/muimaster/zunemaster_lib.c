@@ -20,7 +20,17 @@ void L_ExpungeLib(struct Library *base);
 #define IDSTRING "$VER: " LIBNAME " " ZUNE68_LIBRARY_VERSION_STRING \
     " (" ZUNE68_LIBRARY_DATE ") Zune68 " ZUNE68_RELEASE_STAGE "\r\n"
 
-ULONG LibReserved(void) { return 0; }
+/* The fourth vector, reserved: exec never calls it and it returns 0.
+ * Zune prefs calls it with D0 'ZnID' from its own process after saving
+ * ENV:Zune/BehaveAs, to have the library read the settings again
+ * (identity.c: Open runs under Forbid and cannot read them itself). */
+#define ZUNE_RELOAD_MAGIC 0x5A6E4944 /* 'ZnID' */
+ULONG LibReserved(ULONG magic __asm("d0"))
+{
+    if (magic == ZUNE_RELOAD_MAGIC)
+        zune_identity_load();
+    return 0;
+}
 void MUI_Priv1(void) { }
 void MUI_Priv2(void) { }
 void MUI_Priv3(void) { }
@@ -39,15 +49,23 @@ void MUIP_GetVirtualRect(Object *obj __asm("a0"), LONG *rect __asm("a1"));
  * purpose is unknown return 0. */
 ULONG MUI_PrivNone(void) { return 0; }
 Object *MUI_PrivApplist(void) { return zune_applist_get(); }
-struct Library *LibOpen(struct MUIMasterBase_intern *base __asm("a6"))
+/* Exec calls Open of the base in its library list (version in D0), and
+ * returns what Open returns: the base for the program's identity
+ * (identity.c). Close and Expunge come through that base, so through a
+ * copy too: both work on the shared base. */
+struct Library *LibOpen(struct MUIMasterBase_intern *base __asm("a6"),
+    ULONG version __asm("d0"))
 {
     base->library.lib_Flags &= ~LIBF_DELEXP;
     ++base->library.lib_OpenCnt;
-    return &base->library;
+    return zune_identity_open(version);
 }
 BPTR LibExpunge(struct MUIMasterBase_intern *base __asm("a6"))
 {
     BPTR segment;
+
+    if (&base->library != MUIMasterBase)
+        return 0;   /* through a copy: the shared base decides */
     /* Unused external classes go first, as MUI's do on a flush: they
      * hold this library open and keep its classes in use */
     ZUNE_ReleaseExternalClasses(&base->library);
@@ -65,6 +83,7 @@ BPTR LibExpunge(struct MUIMasterBase_intern *base __asm("a6"))
     }
     segment = base->seglist;
     Remove((struct Node *)base);
+    zune_identity_free();
     L_ExpungeLib(&base->library);
     FreeMem((UBYTE *)base - base->library.lib_NegSize,
         base->library.lib_NegSize + base->library.lib_PosSize);
@@ -72,6 +91,8 @@ BPTR LibExpunge(struct MUIMasterBase_intern *base __asm("a6"))
 }
 BPTR LibClose(struct MUIMasterBase_intern *base __asm("a6"))
 {
+    zune_identity_close(&base->library);
+    base = MUIMB(MUIMasterBase);
     --base->library.lib_OpenCnt;
     /* A program closing the library gives up the external classes nobody
      * uses any more: they hold this library open (each class library
@@ -101,19 +122,9 @@ struct Library *LibInit(BPTR segment __asm("a0"),
     base->library.lib_IdString = IDSTRING;
     if (L_InitLib(&base->library))
     {
-        /* Programs and classes choose their code paths by this version
-         * (TheBar sizes its virtual bar itself only below MUI 4), so the
-         * library behaves as MUI 3.8 unless Zune prefs say MUI 5
-         * (ENV:Zune/Identity "MUI5", needed by programs that require
-         * MUI 4 or 5). Read once, when the library is loaded. */
-        char id[8];
-
-        if (GetVar("Zune/Identity", id, sizeof(id), GVF_GLOBAL_ONLY) < 4
-            || (id[0] | 0x20) != 'm' || id[3] != '5')
-        {
-            base->library.lib_Version = ZUNE68_MUI38_VERSION;
-            base->library.lib_Revision = ZUNE68_MUI38_REVISION;
-        }
+        /* The "Behave as" settings (identity.c); this base reports
+         * MUI 5, each opener gets the base of its identity */
+        zune_identity_load();
         return &base->library;
     }
     FreeMem((UBYTE *)base - base->library.lib_NegSize,

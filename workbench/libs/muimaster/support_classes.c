@@ -288,8 +288,41 @@ struct ExternalClass
     Class *cl;
     struct Library *lib;
     ULONG refs;                 /* MUI_GetClass()s not yet freed */
+    UBYTE identity;             /* of the program it was loaded for */
     char name[1];               /* the name it was asked for */
 };
+
+/* A class library reads the version of its muimaster base when it is
+ * loaded (TheBar decides there whether it is MUI 4 mode), so it serves
+ * every program with the identity of the program it was loaded for
+ * (identity.c). Released classes stay in memory until a flush; the next
+ * program of another identity that asks for one gets it loaded again:
+ * the libraries released last, with the identity they were loaded for */
+#define RELEASED_MEMO 16
+static struct { struct Library *lib; UBYTE identity; } released[RELEASED_MEMO];
+static UBYTE released_next;
+
+/* Before loading classname for identity id (under Forbid): a copy in
+ * memory that nobody has open and that was loaded for another identity
+ * leaves, so that the load makes a new one */
+static void drop_other_identity(CONST_STRPTR classname, UBYTE id)
+{
+    CONST_STRPTR file = FilePart((STRPTR)classname);
+    struct Library *lib;
+    int i;
+
+    if (!(lib = (struct Library *)FindName(&SysBase->LibList, file))
+        || lib->lib_OpenCnt)
+        return;
+    for (i = 0; i < RELEASED_MEMO; i++)
+        if (released[i].lib == lib)
+        {
+            released[i].lib = NULL;
+            if (released[i].identity != id)
+                RemLibrary(lib);
+            return;
+        }
+}
 
 /* A loaded external class by name, with a new reference */
 static Class *external_find(struct MUIMasterBase_intern *base,
@@ -402,6 +435,7 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
     struct ExternalClass *ec;
     struct Library *lib = NULL;
     Class *cl;
+    UBYTE ident;
 
     ObtainSemaphore(&base->ZuneSemaphore);
     cl = external_find(base, classname);
@@ -410,9 +444,22 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
         return cl;
 
     /* Not under the semaphore: the class library's init makes its class
-     * through this library from ramlib's task. */
-    if (!(cl = external_load(classname, &lib, MUIMasterBase)))
-        return NULL;
+     * through this library from ramlib's task. That task's open of this
+     * library gets the identity of the program loading the class
+     * (IdLoader); a load nested in another class's init keeps it. */
+    {
+        UBYTE prev = base->IdLoader, id = zune_task_identity();
+
+        Forbid();
+        drop_other_identity(classname, id);
+        base->IdLoader = id;
+        Permit();
+        cl = external_load(classname, &lib, MUIMasterBase);
+        base->IdLoader = prev;
+        if (!cl)
+            return NULL;
+        ident = id;
+    }
 
     ObtainSemaphore(&base->ZuneSemaphore);
     if (external_find(base, classname))
@@ -434,6 +481,7 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
     ec->cl = cl;
     ec->lib = lib;
     ec->refs = 1;
+    ec->identity = ident;
     strcpy(ec->name, classname);
     Forbid();
     AddTail((struct List *)&base->ExternalClasses, (struct Node *)ec);
@@ -468,6 +516,9 @@ void ZUNE_ReleaseExternalClasses(struct Library *MUIMasterBase)
             if (ec->refs || ec->cl->cl_ObjectCount)
                 continue;
             Remove((struct Node *)ec);  /* under the caller's Forbid */
+            released[released_next].lib = ec->lib;
+            released[released_next].identity = ec->identity;
+            released_next = (released_next + 1) % RELEASED_MEMO;
             CloseLibrary(ec->lib);
             FreeVec(ec);
             again = TRUE;

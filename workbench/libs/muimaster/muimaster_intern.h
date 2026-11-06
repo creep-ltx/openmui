@@ -49,6 +49,14 @@
 
 #include "classfiles.h"   /* generated: ZUNE_CLASSFILE_NFILES */
 
+/* The MUI a program sees and Zune behaves as (identity.c) */
+#define ZUNE_ID_MUI38 1
+#define ZUNE_ID_MUI4  2
+#define ZUNE_ID_MUI5  3
+/* Programs (tasks) whose identity is remembered while they have the
+ * library open; one more is served by the rules without a record */
+#define ZUNE_ID_OPENERS 32
+
 struct MUIMasterBase_intern
 {
     struct Library              library;
@@ -96,6 +104,20 @@ struct MUIMasterBase_intern
     /* What MUI's private LVO -264 returns (classes/application.c) */
     Object                      *Applist;
     struct MUI_CustomClass      *ApplistClass;
+    /* Which MUI each program gets (identity.c): the copies of this base
+     * reporting MUI 3.8 and MUI 4 (this base itself reports MUI 5), the
+     * "Behave as" settings, the programs that have this library open and
+     * the identity of the program whose external class is being loaded */
+    struct Library              *IdCopy[2];
+    APTR                        IdPrograms;   /* parsed per-program list */
+    UBYTE                       IdGlobal;     /* ZUNE_ID_* or 0: automatic */
+    UBYTE                       IdLoader;     /* ZUNE_ID_* or 0 */
+    struct ZuneOpener {
+        struct Task *task;
+        UWORD count;
+        UBYTE identity;
+        UBYTE pad;
+    }                           IdOpeners[ZUNE_ID_OPENERS];
     /* The last three stay last: the checks in tests/ find them from the
      * end of the base (class list at -28, default pens at -4) */
     struct MinList              BuiltinClasses;
@@ -120,14 +142,25 @@ void zune_title_gadgets_free(void);    /* classes/window.c, at expunge */
 /* The highest of these stages any window of an application needed:
  * MUI 3.8 opens the application's later windows in it too. Kept in the
  * global info's first field, which MUI names private and Zune does not
- * otherwise use */
-#define MGI_FALLBACK(mgi) ((mgi)->priv0)
+ * otherwise use: its lowest byte. Its highest byte is the MUI Zune
+ * behaves as for the application (ZUNE_ID_*, identity.c) */
+#define MGI_FALLBACK(mgi) (((UBYTE *)&(mgi)->priv0)[3])
+#define MGI_IDENTITY(mgi) (((UBYTE *)&(mgi)->priv0)[0])
 
 #ifndef __AROS__
 extern struct Library *MUIMasterBase;
-/* The library behaves as MUI 3.8 (reports 19) unless Zune prefs choose
- * MUI 5 (zunemaster_lib.c LibInit): MUI 3.9+ behaviour only above 19 */
-#define ZUNE_MUI38() (MUIMasterBase->lib_Version < 20)
+/* Which MUI Zune behaves as for a program (identity.c): the one its
+ * application object was made with, or, with no object at hand, the one
+ * of the calling task. MUI 3.9+ behaviour only when it is not MUI 3.8. */
+UBYTE zune_task_identity(void);
+#define ZUNE_MUI38() (zune_task_identity() == ZUNE_ID_MUI38)
+#define ZUNE_APP_MUI38(obj) \
+    (MGI_IDENTITY(muiGlobalInfo(obj)) == ZUNE_ID_MUI38)
+struct Library *zune_identity_open(ULONG version);
+void zune_identity_close(struct Library *base);
+void zune_identity_load(void);     /* read ENV:Zune/BehaveAs (a process) */
+void zune_identity_free(void);     /* at expunge */
+BOOL zune_is_master(struct Library *lib); /* this base or one of its copies */
 extern struct Library *MUIScreenBase;
 extern struct Library *CyberGfxBase;
 BOOL ZUNE_FreeBuiltinClasses(struct Library *base);

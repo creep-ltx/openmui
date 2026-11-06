@@ -15,6 +15,7 @@ from amitools.vamos.machine.machine import Machine
 BASE, STACK, RAM_KIB = 0x100000, 0xf0000, 2048
 EXEC, INTUITION, MASTER, EXTERNAL = 0x68000, 0x69000, 0x6a000, 0x6b000
 ROOTCLASS, EXTCLASS, TEXT = 0x6c000, 0x6c100, 0x6d000
+TASK = 0x6e000  # FindTask(NULL): a task with no name (identity.c)
 # Classic m68k IClass and Library ABI offsets.
 SUPER, ID, REFS, SUBS, OBJECTS, FLAGS = 24, 28, 36, 40, 44, 48
 OPEN_COUNT, LIB_FLAGS = 32, 14
@@ -84,6 +85,7 @@ class Harness:
                            (552, self.open_library), (564, self.obtain),
                            (570, self.release), (576, self.attempt),
                            (684, self.alloc_vec),
+                           (294, lambda: self.cpu.w_reg(0, TASK)),
                            (690, self.free_vec), (210, self.free_mem),
                            (132, lambda: None), (138, lambda: None)]:  # Forbid, Permit
             self.trap(EXEC - offset, fn)
@@ -231,6 +233,9 @@ class Harness:
         for i, value in enumerate(args):
             self.mem.w32(STACK + 4 * i, value)
         self.cpu.w_reg(14, MASTER)
+        # LibOpen's version: 21 (MUI 5) gets this base itself, no copy
+        # (identity.c; copies are checked on an Amiga, tests/lean/idtest.c)
+        self.cpu.w_reg(0, 21)
         self.machine.prepare(self.symbols['_' + name], STACK)
         low = low_memory(self.mem)
         result = self.machine.execute(getattr(self, "cycle_budget", 100000))

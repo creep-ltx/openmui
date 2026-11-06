@@ -18,10 +18,16 @@
 #define ZUNE68_LIBRARY_VERSION 19
 #define ZUNE68_LIBRARY_REVISION 81
 #endif
-/* Lean edition: what the library reports unless Zune prefs choose MUI 5
- * (zunemaster_lib.c LibInit); MUI 3.8's muimaster.library is 19.35 */
+/* Lean edition: what a program behaving as MUI 3.8 or MUI 4 sees
+ * (identity.c; the base in the library list reports MUI 5 above, so
+ * that exec lets every program in). MUI 3.8's muimaster.library is
+ * 19.35. For MUI 4, 20.6000 is above every MUI 4 revision the open
+ * class sources test on AmigaOS 3/4 (NList 20.2326, TheBar 20.5341,
+ * TextEditor and BetterString 20.5640); it is not a real MUI 4 number. */
 #define ZUNE68_MUI38_VERSION 19
 #define ZUNE68_MUI38_REVISION 35
+#define ZUNE68_MUI4_VERSION 20
+#define ZUNE68_MUI4_REVISION 6000
 #define ZUNE68_LIBRARY_DATE "02.11.2026"
 #define ZUNE68_RELEASE_STAGE "Beta 2"
 #define ZUNE68_STRINGIFY_(x) #x

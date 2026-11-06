@@ -2416,7 +2416,7 @@ IPTR List__MUIM_Setup(struct IClass *cl, Object *obj,
      * when the program asks for it (MUIA_List_HScrollerVisibility
      * Always, a MUI 4 attribute). */
     if (!data->horiz && !data->area_replaced
-        && (!ZUNE_MUI38() || data->hscroll_visibility
+        && (!ZUNE_APP_MUI38(obj) || data->hscroll_visibility
             == MUIV_List_HScrollerVisibility_Always))
     {
         data->horiz = ScrollbarObject,

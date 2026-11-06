@@ -288,6 +288,13 @@ VOID DetachBitMapNode(struct BitMapNode *bmn)
  * requester pointer, asl's requester); Zune's file and font panels only
  * when behaving as MUI 5. */
 
+/* The identity comes from the calling task (identity.c). A request
+ * made by Zune's panels for one program may reach AslRequest or Free
+ * from a task behaving as MUI 3.8 (a subtask): once a panel request has
+ * been made, those go through the module, which tells its own requests
+ * from asl.library's. */
+static BOOL panel_requests;
+
 APTR ZuneAllocAslRequest(ULONG type, struct TagItem *tags)
 {
     if (ZUNE_MUI38())
@@ -295,6 +302,9 @@ APTR ZuneAllocAslRequest(ULONG type, struct TagItem *tags)
     {
     MODULE(ZuneRequestModule, ZMOD_REQUEST);
     APTR req = m ? m->alloc_asl(type, tags) : NULL;
+
+    if (req)
+        panel_requests = TRUE;
 
     zune_module_put(cl);
     return req;
@@ -304,7 +314,7 @@ APTR ZuneAllocAslRequest(ULONG type, struct TagItem *tags)
 BOOL ZuneAslRequest(APTR request, struct TagItem *tags)
 {
     /* the allocation opened asl.library */
-    if (ZUNE_MUI38())
+    if (!panel_requests && ZUNE_MUI38())
         return request && AslBase ? AslRequest(request, tags) : FALSE;
     {
     MODULE(ZuneRequestModule, ZMOD_REQUEST);
@@ -317,7 +327,7 @@ BOOL ZuneAslRequest(APTR request, struct TagItem *tags)
 
 void ZuneFreeAslRequest(APTR request)
 {
-    if (request && ZUNE_MUI38())
+    if (request && !panel_requests && ZUNE_MUI38())
     {
         if (AslBase)
             FreeAslRequest(request);
