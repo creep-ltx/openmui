@@ -127,9 +127,6 @@ typedef void (*VOID_FUNC)(void);
 #ifndef ZUNE_BUILTIN_ZFRAMES
 #define ZUNE_BUILTIN_ZFRAMES 1
 #endif
-#ifndef ZUNE_BUILTIN_ZIMAGES
-#define ZUNE_BUILTIN_ZIMAGES 1
-#endif
 #ifndef ZUNE_BUILTIN_ZLIST
 #define ZUNE_BUILTIN_ZLIST 1
 #endif

@@ -83,8 +83,7 @@ asm(
 extern const struct __MUIBuiltinClass _MUI_Settings_desc;
 extern const struct __MUIBuiltinClass _MUI_Zmenu_desc, _MUI_Zpicture_desc,
     _MUI_Zdragdrop_desc, _MUI_Zrequest_desc, _MUI_Zgradient_desc,
-    _MUI_Zwintitle_desc, _MUI_Zframes_desc, _MUI_Zimages_desc,
-    _MUI_Zlist_desc;
+    _MUI_Zwintitle_desc, _MUI_Zframes_desc, _MUI_Zlist_desc;
 
 static const struct __MUIBuiltinClass *const builtins[] = {
     &_MUI_Notify_desc,
@@ -208,9 +207,6 @@ static const struct __MUIBuiltinClass *const builtins[] = {
 #endif
 #if ZUNE_BUILTIN_ZFRAMES
     &_MUI_Zframes_desc,
-#endif
-#if ZUNE_BUILTIN_ZIMAGES
-    &_MUI_Zimages_desc,
 #endif
 #if ZUNE_BUILTIN_ZLIST
     &_MUI_Zlist_desc,

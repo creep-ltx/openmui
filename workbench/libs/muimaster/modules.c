@@ -30,7 +30,7 @@ extern struct Library *MUIMasterBase;
 
 static CONST_STRPTR const module_names[ZMOD_COUNT] = {
     MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient,
-    MUIC_Zwintitle, MUIC_Zframes, MUIC_Zimages, MUIC_Zlist
+    MUIC_Zwintitle, MUIC_Zframes, MUIC_Zlist
 };
 
 /* Modules a process could not load: not tried again while the library
@@ -471,22 +471,6 @@ const struct ZuneFrameGfx *zune_round_frames_get(void)
         zune_module_put(cl);
     }
     return round;
-}
-
-/* The rare vector images (imspec_vector_rare.c), looked up once: the
- * functions are kept in the image specs made from them. */
-const VECTOR_DRAW_FUNC *zune_rare_vectors_get(void)
-{
-    static const VECTOR_DRAW_FUNC *rare;
-
-    if (!rare)
-    {
-        MODULE(ZuneImagesModule, ZMOD_IMAGES);
-        if (m)
-            rare = m->vectors;
-        zune_module_put(cl);
-    }
-    return rare;
 }
 
 /* List's in-place editing (MUI 5) and drag and drop (listx.c). Without
