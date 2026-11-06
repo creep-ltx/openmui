@@ -17,9 +17,13 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 | Zune68 main | 429 KB | 535 KB | 832 KB | 334 KB | 1.9-2.0 s |
 | lean | 277 KB (+215 KB in 44 class and module files) | 289 KB | 497 KB | 222 KB | 1.5 s |
 | smaller | 262 KB (+236 KB in 47 class and module files) | 275 KB | 477 KB | 212 KB | 1.4 s |
+| memory | 263 KB (+236 KB in 47 class and module files) | 276 KB | 468 KB | 203 KB | 1.4 s |
 
 (lean measured 2026-11-05 with GCC 16.2, after the modules below; smaller
-2026-11-06 (branch `smaller`, [below](#a-smaller-library-2026-11-06-phase-3)),
+2026-11-06 (branch `smaller`, [below](#a-smaller-library-2026-11-06-phase-3));
+memory 2026-11-06 (branch `memory`, [below](#memory-per-program-2026-11-06-phase-4):
+479,064 / 207,736 bytes, MUI 3.8 the same session 460,296 / 210,696-218,824;
+this table is in KiB),
 where lean measured the same session gave 289 / 490 / 212 KB; the other
 rows 2026-11-04.)
 
@@ -646,6 +650,117 @@ the private Applist object (LVO -264, AmIRC only, ~0.5 KB), the Aboutmui,
 Settings, Settingsgroup and Mccprefs classes as one file (~1.3 KB). Beyond
 that it means rewriting the big classes smaller (roadmap "Later").
 
+## Memory per program (2026-11-06, phase 4)
+
+Branch `memory`. Target: first program <= 460 KB, each further <= 210 KB
+(MUI-Demo; MUI 3.8 460 / 211-219 KB). Measured first where the memory
+goes, then made the instance data of the classes every program uses as
+small as MUI 3.8's or smaller, and moved what only an open window needs
+into blocks made when it opens. All figures FS-UAE (A1200, OS 3.1 + 4 MB
+fast, 68000 build, GCC 16.2), emulator figures, bytes; `m.sh` (two
+`measure.sh` runs and `libonly.sh`), `lean` and MUI 3.8 in the same session:
+
+| | library file | library alone | first program | each further | first window |
+|---|---|---|---|---|---|
+| lean (= smaller) | 268,572 | 281,848 | 487,968-488,016 | 217,224-217,288 | 1.42-1.44 s |
+| memory | 269,188 | 282,368 | 479,064 | 207,704-207,768 | 1.42-1.44 s |
+| MUI 3.8 | 166,412 | 238,480 | 460,296 | 210,696 / 218,824 (it alternates) | 1.46 s |
+
+Each further program: -9.5 KB, below the target and below MUI 3.8. The
+first program: -8.9 KB, the target is not reached; what is left is library
+code (below). The library itself grew by 616 bytes of code (library alone
++520 bytes). ("KB" here is 1,000 bytes, as in the targets; the table at the
+top of this file is in KiB.)
+
+**Where the memory is** (`tally.sh`: the second MUI-Demo's own blocks,
+AllocMem/FreeMem patched; `libtally.sh`: every task's blocks while the
+library is opened or the first program runs; `tools/lean/mtreport2.py ...
+cats|tasks`):
+
+| second MUI-Demo's own task | lean | memory | MUI 3.8 |
+|---|---|---|---|
+| total | 144.6 KB / 949 blocks | 135.5 KB / 950 | 138.8 KB / 128 |
+| objects (instance data) | 84.9 KB / 334 | 76.2 KB / 334 | in ten 8 KB pool puddles (80 KB with notifications and strings) |
+| lists (pools, entries, columns) | 19.3 KB | 19.3 KB | 13 x 2 KB pools |
+| smart refresh backing store | 15.2 KB | 15.2 KB | 14.9 KB |
+| notifications | 8.4 KB | 8.4 KB | (pool) |
+| text engine, strings, Text contents | 8.8 KB | 8.3 KB | (pool) |
+
+- **The library alone is code.** `memtally lib`: ramlib holds 256.6 KB for
+  Zune (the hunks, 251.5 KB of code, and the 1,282-byte base), 204.5 KB for
+  MUI 3.8 (muimaster, muigfx, muilowlevel) plus 9 KB MUI 3.8 allocates in
+  the opener's Open; the other ~25 KB of `libonly.sh`'s figure is HoldLib's
+  process, the same on both. Zune's first program on top of the library
+  costs *less* than MUI 3.8's (206 against 222 KB: `memtally runall`,
+  the program's task 149 KB + 8.7 KB loaded by ramlib, against 136.6 KB
+  + 37 KB of class files and muirexx), so the 19 KB still missing for
+  460 KB are the 43 KB of extra code ("A smaller library" above).
+- **AllocMem rounds to 8 bytes**: an object is 12 (BOOPSI) + 28 (Notify) +
+  Area + its class's data, so data sizes count in steps of 8. MUI-Demo
+  holds 334 objects: 72 Text, 72 Image, 58 groups, 45 Rectangle, 20 Prop,
+  18 lists, 13 scrollbars, 13 listviews, 9 windows (one open).
+
+| commit | change | object size (bytes) |
+|---|---|---|
+| 072a96c4 Area, Group | Area 114 -> 108 (MUI 3.8's size): MUIA_FixWidth/FixHeight are read from mad_FixWidth/mad_FixHeight (offsets 64/68, the same values), MUIA_MaxWidth/MaxHeight go into the rare block (16 -> 20 bytes, the same 24-byte AllocVec), the event node's priority uses the unused mad_FrameOBSOLETE byte. Group 96 -> 68: counts, spacings and same-size values WORDs, no pointer to its own child list | every object -8; a group 256 -> 216 |
+| ca772188 Window | the render info's clip region stack, buffer rastport and custom frames (244 bytes, `mri_Tail`) made at the window's first setup and kept until dispose; Window data 730 -> 490 | a window 770 -> 536 (530 in the tally) |
+| b732b9e9 Image, Text | flags, states and modes as bytes: Image 36 -> 28, Text 50 -> 38 | image 192 -> 176, Text 208 -> 192 |
+| b99e43d4 Text | `zune_text_compact()`: a Text's parse, kept from setup to cleanup, is copied into a block of the size it used (the 192-byte arena's rest given back; links and inline strings moved, chunks from outside the arena relinked); `tests/check_ztext_compact.py` | -72..112 per shown title with a preparse or shortcut |
+| e7dfd36c List | the BOOLs, enums and small modes as bytes at the end: List 420 -> 392 (MUI 3.8: 390) | a list 640 -> 608 |
+| d6f43f8e | stack use as before (below) | |
+
+The objects the checks fake at fixed offsets (Area's DisableCount, Group's
+update/virt/child list, window data, render info) follow the new layouts;
+the offsets were taken with `offsetof` from the real sources.
+
+**Stack**: the smaller data first cost stack: GCC kept one more register
+in Group's dispatcher, AskMinMax and FindAreaObject (+4 bytes per nesting
+level), Image's AskMinMax, Text's and Window's dispose, List's OM_SET
+(`-fstack-usage` on `lean` and this branch, compared per function).
+d6f43f8e keeps Group's flags a ULONG (the two forwarding switches are bits:
+still 68 bytes), takes the child list through a pointer the compiler cannot
+see through, puts Image's and Text's byte fields first, keeps List's update
+mode an int: every function's frame is now that of `lean` or smaller.
+`stackrun.sh`: MUI-Demo with its eight sub-windows 5,388 -> 5,384 bytes,
+Layout 2,264, Pages 2,236, Slidorama 2,300 as before; Virtual 2,672 four
+times in a row (`lean`: 2,676, 2,732, 2,408, 2,740 and 2,676 in five runs:
+Virtual's figure moves by about 60 bytes between runs of the same library,
+a task switch at the deepest point puts the saved registers on the stack).
+
+**Speed** (perfbench, 68EC020, `bench.sh`, 15 repetitions, `lean` and
+`memory` on two instances, then swapped): create+dispose +0.6 / -1.1%,
+open+close +4.9 / -0.0%, redraw -0.2 / -0.1%, relayout -0.5 / -0.4%, list
+insert +0.2 / +0.8%, list active +0.7 / +3.2%, notify 0.0 / 0.0%, text set
+-0.0 / -0.1%. The same library on two instances differs as much
+(`memory` open+close 269,550 and 282,992 ticks; `lean` list active 823,763
+and 801,332): no batch is slower beyond that spread.
+
+Checked:
+
+- `make check` after every commit (36 checks; the new
+  `check_ztext_compact.py`).
+- fullcheck: MUI-Demo with eight sub-windows and the 18 other demos open and
+  close, no alert; "lost" 176-264 bytes per demo, 608 for MUI-Demo, as
+  `lean` in the same session (the programs' window position files).
+- Demo pixel comparison (`demopix.sh --only zune` against `smaller`'s MUI
+  3.8 shots): 18 of 27 identical, every count as `smaller`'s except Layout
+  (3,221 -> 3,168 differing pixels: the demo places its buttons at random).
+- Real-program suite (`suite.sh`): MUI 3.x group 30 of 36 as on MUI 3.8
+  (the same six differ), 36 of 36 as `smaller`'s run; MUI 4/5 group 5 of 5
+  as `smaller`'s. Memory in use per real program (the suite's new column,
+  [real-programs.md](../../tests/lean/real-programs.md)): 34 MUI 3.x programs
+  212,584 bytes less together (0.3-26.7 KB each: RO -26.7, MultiRen -25.8,
+  WookieChat -24.3, AmigaAMP-Prefs -20.1, NewsCoaster -19.1 KB), YAM 2.10
+  -92.6 KB, AmigaGPT -17.4, DizzyTorrent -7.2. Most still hold 10-110 KB
+  more than on MUI 3.8 (RO 410 against 299 KB): not traced yet.
+
+**Left open**: the first program (19 KB of library code, phase 3/"Later");
+the list pools (13 x 1 KB in a further MUI-Demo, MUI 3.8 13 x 2 KB), the
+notifications (8.4 KB, 32 bytes each) and the smart refresh backing store
+(as MUI 3.8) were not touched; Window's pens, title gadgets and snapshot
+state (~60 bytes) could join `mri_Tail`; `Register`'s titles could use
+`zune_text_compact()` too (class file, not measured).
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
@@ -665,9 +780,12 @@ that it means rewriting the big classes smaller (roadmap "Later").
   muigfx/muilowlevel), a small application and its window take the same
   time as on MUI 3.8; a second MUI-Demo with everything loaded takes 1.47
   s against 1.11 s. Where the rest goes in MUI-Demo is not found yet.
-- **Per program** 243 KB against 211-219 KB: 17 KB is smart refresh
-  backing store, the rest is spread (notifications 13 KB, list pools
-  14 KB of 1 KB puddles, MUI's own default is 2 KB, Text contents and
-  text engine 8.5 KB, Group's virtual-only fields ~4 KB).
+- **Per program**: MUI-Demo's each further 207.7 KB (bytes/1000) against
+  MUI 3.8's 210.7-218.8 since phase 4 ("Memory per program" above); real
+  programs still hold 10-110 KB more than on MUI 3.8 (RO, AmFTP,
+  AmigaAMP-Prefs, NewsCoaster), not traced yet. The first program is
+  479 against 460 KB: the library's code. (Before phase 4: 243 KB against
+  211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
+  list pools of 1 KB puddles, Text contents.)
 
 - Tested in FS-UAE only, not on real hardware; Dtpic not on an RTG screen.

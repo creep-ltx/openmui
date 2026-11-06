@@ -21,7 +21,8 @@
 #   --update       keep the other programs' lines in results.tsv (run some programs again)
 #
 # Results: $ZWORK/suite-real/TAG/results.tsv (one line per program: id, status, windows with
-# sizes, still running after quit, bytes lost on the 2nd run, alert), TAG/<id>.png and
+# sizes, still running after quit, in-use before minus after the 2nd run (negative: memory
+# kept), alert, memory in use with the 2nd run's windows open), TAG/<id>.png and
 # TAG/<id>-extraN.png, TAG/log.txt. Compare two targets with suite-compare.py.
 # Downloads: $REAL (default ~/.cache/zune68k-real/<name>/x/, see tests/lean/real-programs.md).
 set -u

@@ -35,9 +35,11 @@ the other lines. The contact sheets: `$ZWORK/suite-real/compare-zune-mui38.html`
 - Results: `$ZWORK/suite-real/TAG/results.tsv` (`$ZWORK` defaults to `~/.cache/zune68-lean`), one
   line per program: id, status (`ok`, `nowindow`, `exited`, `reset`: the machine rebooted by
   itself, `frozen`: wasabid stopped answering, `,alert`), still running after quit (1, or 2 when
-  the second run did not quit), bytes lost on the second run (negative: more free afterwards), the
-  windows as `title@x,y wxh` (screen pixels) and the extra windows. Screenshots `TAG/<id>.png`,
-  `TAG/<id>-extraN.png`, log `TAG/log.txt`.
+  the second run did not quit), "lost": in-use before the second run minus in-use after it
+  (negative: the second run left memory in use; positive: it gave some back), the
+  windows as `title@x,y wxh` (screen pixels), the extra windows, and since 2026-11-06 the memory
+  in use while the second run's windows are open (bytes, "?" without a second run). Screenshots
+  `TAG/<id>.png`, `TAG/<id>-extraN.png`, log `TAG/log.txt`.
 - `suite-compare.py A B` writes `compare-A-B.html` next to them: per program both screenshots
   side by side, the windows and their size differences, status and memory, and prints every
   program that behaves differently.
@@ -195,6 +197,75 @@ loaded in ten programs (NListtree's default node images are MUII_TapePlay, TapeD
 with those in the library, CManager, RO and ViewCSV still loaded it), so that module was taken back;
 CManager, RO, ViewCSV, the NListtree demo and YAM 2.5 run again on the final build load no new
 module. Results: `/tmp/smaller/zwork/suite-real/sm3`, `sm3b`, `sm3c`, `sm5`.
+
+**Update, branch `memory` (2026-11-06, roadmap phase 4):** smaller instance data for every object
+(docs/lean/README.md, "Memory per program"). MUI 3.x group: 30 of 36 as on MUI 3.8 (the same
+six), 36 of 36 as `smaller`'s run; MUI 4/5 group: 5 of 5 as `smaller`'s. Results:
+`/tmp/memory/zwork/suite-real/fin3`, `fin5` (this branch), `base3`, `base5` (`lean` in the same
+session), `mui38` (MUI 3.8 in the same session; its in-use column, fetched for comparison).
+
+Since this branch the suite also records each program's **memory in use** (results.tsv's sixth
+column): how much more memory is in use while the second run's windows are open than before it
+started; libraries and classes are in memory from the first run, so it is the program's own memory
+(its code, objects, windows, data). Emulator figures (FS-UAE, OS 3.1, 8 MB fast), bytes:
+
+| ID | lean | memory | change | MUI 3.8 |
+|---|---:|---:|---:|---:|
+| nlist-demo | 315,416 | 311,728 | -3,688 | 262,056 |
+| nlisttree-demo | 931,184 | 928,816 | -2,368 | 909,624 |
+| texteditor-demo | 189,960 | 186,456 | -3,504 | 158,008 |
+| thebar-demo1 | 210,344 | 208,160 | -2,184 | 194,376 |
+| thebar-demo2 | 241,984 | 235,272 | -6,712 | 197,264 |
+| thebar-demo3 | 250,320 | 243,456 | -6,864 | 207,104 |
+| thebar-demo4 | 190,544 | 188,360 | -2,184 | 174,576 |
+| thebar-demo5 | 157,920 | 155,768 | -2,152 | 145,304 |
+| thebar-demo6 | 197,160 | 194,976 | -2,184 | 181,192 |
+| thebar-demo7 | 189,760 | 189,464 | -296 | 185,600 |
+| thebar-demo8 | 183,696 | 181,512 | -2,184 | 167,728 |
+| thebar-demo9 | 280,192 | 278,016 | -2,176 | 266,192 |
+| thebar-demo10 | 158,904 | 158,368 | -536 | 151,920 |
+| textinput-demo | 124,792 | 123,064 | -1,728 | 107,768 |
+| yam25 | 1,735,880 | 1,730,000 | -5,880 | ? |
+| muimine | 142,824 | 142,432 | -392 | 146,408 |
+| installerng | 729,504 | 729,504 | 0 | 729,512 |
+| amftp | 417,568 | 405,784 | -11,784 | 308,408 |
+| atc | 513,360 | 513,360 | 0 | 513,360 |
+| newscoaster | 1,278,912 | 1,259,808 | -19,104 | 1,017,680 |
+| amirc | 992,520 | 985,128 | -7,392 | 801,336 |
+| wookiechat | 2,349,088 | 2,324,832 | -24,256 | 2,094,160 |
+| amtelnet | 370,432 | 366,048 | -4,384 | 300,872 |
+| scout | 471,584 | 469,384 | -2,200 | 428,888 |
+| muibase | 1,330,736 | 1,330,472 | -264 | 1,330,664 |
+| homebank | 502,984 | 499,408 | -3,576 | 451,928 |
+| cmanager | 748,712 | 746,928 | -1,784 | 697,560 |
+| ro | 436,472 | 409,808 | -26,664 | 298,552 |
+| multiren | 772,488 | 746,720 | -25,768 | ? |
+| archiver | 378,488 | 368,848 | -9,640 | 244,456 |
+| annotate | 883,808 | 883,808 | 0 | 883,808 |
+| amigaampprefs | 346,008 | 325,936 | -20,072 | 213,112 |
+| viewcsv | 334,640 | 324,952 | -9,688 | ? |
+| todo | 132,168 | 131,192 | -976 | 124,448 |
+| yam210 (mui5) | 3,897,864 | 3,805,256 | -92,608 | |
+| dizzytorrent (mui5) | 2,517,440 | 2,510,232 | -7,208 | |
+| amigagpt (mui5) | 2,072,568 | 2,055,136 | -17,432 | |
+
+No figure: SimpleMail (wasabid dies at its quit), IBrowse 2.5.9 and 3.0a (FS-UAE dies at the second
+quit, item 8 below), MQTTExplorer (ends at once); "?" for MUI 3.8: the second run did not quit or
+quit late. 34 MUI 3.x programs together 212,584 bytes less (0.3-26.7 KB each), the three MUI 4/5
+programs 117,248. InstallerNG, AmiTradeCenter and Annotate hold exactly the same on all three
+(not looked into: perhaps their figure is taken before their MUI windows exist). Zune still holds more
+than MUI 3.8 in most programs: 10-110 KB (RO 410 against 299 KB, AmFTP 406 against 308, AmigaAMP-Prefs
+326 against 213, NewsCoaster 1,260 against 1,018): not traced yet, the next lever for phase 4's
+follow-up (MUI-Demo's own objects are now below MUI 3.8's, so it is something these programs use
+and MUI-Demo does not).
+
+**The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
+In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second
+run minus in-use after it: a *negative* figure is memory the second run left in use, a positive one
+memory it gave back. The text above (and in earlier updates) read it the other way round: TheBar
+demo1's -27,456 bytes on Zune and -27,432 on MUI 3.8 are 27 KB still in use after its second run on
+both (TheBar.mcc's caches, as the equal figures suggest), YAM 2.5's +63,280 on MUI 3.8 is memory the
+second run gave back.
 
 **AmTelnet's reset at its second quit is FS-UAE's, not Zune's** (2026-11-06, branch `smaller`):
 AmTelnet started and quit 3-10 times per boot, with a marker file in RAM: to tell a reboot from a

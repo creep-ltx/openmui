@@ -11,8 +11,8 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 | | lean | MUI 3.8 |
 |---|---|---|
 | library code loaded at start | 261 KB (2026-11-06, `smaller`: 246 KB, file 262 KB) | 166 KB |
-| first program | ~497 KB | 449-460 KB |
-| each further program | ~222 KB | 206-219 KB |
+| first program | ~497 KB (2026-11-06, `memory`: 479,064 bytes) | 449-460 KB (460,296 bytes) |
+| each further program | ~222 KB (2026-11-06, `memory`: 207,704-207,768 bytes) | 206-219 KB (210,696-218,824 bytes) |
 | first window | 1.5 s | 1.46-1.62 s |
 
 ## Phases, in order
@@ -54,6 +54,17 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.
+   *Done 2026-11-06* (branch `memory`): measured first (memtally of every
+   task, MUI 3.8 black-box: its second MUI-Demo holds 138.8 KB, Zune's
+   144.6), then Area at MUI 3.8's 108 bytes, Group 96 -> 68, List 420 ->
+   392, Image and Text smaller, a window's clip stack, buffer rastport and
+   custom frames made when it opens, a Text's kept parse in a block of its
+   size. MUI-Demo (FS-UAE, bytes): each further 217,240 -> 207,736 (target
+   reached, below MUI 3.8's 210,696-218,824), first 488,016 -> 479,064 (not
+   reached: the rest is the library's 43 KB of extra code, phase 3; Zune's
+   first program on top of the library is 15 KB cheaper than MUI 3.8's).
+   Speed and stack as before. Details in
+   [README.md](README.md#memory-per-program-2026-11-06-phase-4).
 5. **Speed** (target: faster than MUI 3.8): start-up, window opening,
    redraw, list scrolling; measured on real 68000/68020 hardware, not
    only in the emulator, and never PiStorm figures as Amiga speeds. The
