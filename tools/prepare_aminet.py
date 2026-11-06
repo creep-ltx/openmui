@@ -11,6 +11,9 @@ def prepare(release_dir, output_dir, tag):
         raise ValueError('expected a release date tag such as v2026.10.12')
     version = tag[1:]
     archive = release_dir / f'Zune68-{version}-amigaos3-m68k.lha'
+    editions = sorted(release_dir.glob(f'Zune68k-*-{version}-amigaos3-m68k.lha'))
+    if not archive.is_file() and len(editions) == 1:
+        archive = editions[0]   # an edition: Zune68k-lean-DATE-...
     readme = archive.with_suffix('.readme')
     text = readme.read_text(encoding='ascii')
     fields = dict(re.findall(r'^([A-Za-z-]+):\s*([^\n]*)$',
@@ -24,8 +27,9 @@ def prepare(release_dir, output_dir, tag):
     if not archive.is_file() or not archive.stat().st_size:
         raise ValueError(f'missing or empty release archive: {archive}')
     output_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(archive, output_dir / 'Zune68.lha')
-    shutil.copyfile(readme, output_dir / 'Zune68.readme')
+    name = archive.name[:-len(f'-{version}-amigaos3-m68k.lha')]
+    shutil.copyfile(archive, output_dir / (name + '.lha'))
+    shutil.copyfile(readme, output_dir / (name + '.readme'))
 
 
 def main():

@@ -7,8 +7,8 @@ PLUGIN_TARGETS := $(addprefix plugin-,$(PLUGIN_DIRS))
 EXAMPLE_NAMES := HelloZune HGroup VGroup VHGroup VHGroup2 HVGroup Notify TheBarDemo
 EXAMPLES := $(addprefix $(BUILD)/Examples/,$(EXAMPLE_NAMES))
 
-.PHONY: core prefs plugins catalogs sdk examples $(PLUGIN_TARGETS)
-all: prefs plugins catalogs sdk examples
+.PHONY: core prefs plugins catalogs sdk examples tools $(PLUGIN_TARGETS)
+all: prefs plugins catalogs sdk examples tools
 prefs: $(GENERATED)
 	$(MAKE) -C ../../prefs/Zune -f GNUmakefile BUILD=$(COMPONENT_BUILD)
 plugins: $(PLUGIN_TARGETS) imageclasses
@@ -33,11 +33,19 @@ check: check-components
 .PHONY: check-components
 check-components: prefs plugins catalogs sdk examples
 	$(PYTHON) $(ROOT)/tests/check_components.py $(COMPONENT_BUILD)
+	$(PYTHON) $(ROOT)/tests/check_installer.py $(COMPONENT_BUILD)
 	$(PYTHON) $(ROOT)/tests/check_prefs_cancel.py $(COMPONENT_BUILD)/Prefs/Zune
 	$(PYTHON) $(ROOT)/tests/check_thebar.py $(COMPONENT_BUILD)
 	$(PYTHON) $(ROOT)/tests/check_bzip2.py
 	$(PYTHON) $(ROOT)/tests/check_pixmap.py $(COMPONENT_BUILD)/Libs/MUI/Pixmap.mui
 	$(PYTHON) $(ROOT)/tests/check_pixmap_render.py $(COMPONENT_BUILD)/Libs/MUI/Pixmap.mui
+# The installer's switch and uninstall tool (dist/Install, SYS:Zune68k)
+tools: $(BUILD)/Tools/ZuneSwitch
+$(BUILD)/Tools/ZuneSwitch: $(ROOT)/workbench/tools/zuneswitch/ZuneSwitch.c
+	@mkdir -p $(@D)
+	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) -Wno-pointer-sign $(PROGRAM_DEPS) -o $@ $<
+$(BUILD)/Tools/ZuneSwitch: $(BUILD)/cflags
+-include $(BUILD)/Tools/ZuneSwitch.d
 examples: $(EXAMPLES)
 $(BUILD)/Examples/%: tutorial/examples/%.c tutorial/examples/muizunesupport.h $(GENERATED)
 	@mkdir -p $(@D)

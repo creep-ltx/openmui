@@ -1,158 +1,112 @@
-Zune68 [RELEASE] - [STAGE] for AmigaOS 3.x / m68k
-===============================================
+Zune68k lean [RELEASE] for AmigaOS 3.x / m68k
+=============================================
 
-Zune68 is a user interface library based on AROS Zune, targeting
-compatibility with classic MUI applications.
-The full package contains the core libraries, the Zune preferences editor,
-[PLUGINS] optional MUI class plugins, among them the Rawimage/Pixmap
-image classes and the AROS utility classes, translation catalogs,
-opentest, eight examples, SDK headers, plugin documentation/licenses,
-and corresponding source.
-The separate core-only packaging option omits the additional components.
+Zune68k lean is a muimaster.library for AmigaOS 3.x: AROS's Zune as
+ported to AmigaOS 3 by Zune68 (Stefan Reinauer), with a diet so that it
+runs on a stock 68000 with OS 3.1 and stays close to MUI 3.8 in memory.
+This is a test build ([STAGE], [RELEASE]). The figures here were
+measured in an emulator (FS-UAE), not on a real Amiga.
 
 Requirements
 ------------
-AmigaOS 3.1 or newer, a 68000 or better, and Amiga Installer 43 or newer.
-The system IEEE double math libraries must be available; no FPU is needed.
-Installer itself is not included. The Install icon uses the default tool
-"installer". If Workbench cannot find it, set the icon's Default Tool to
-its full path, such as SYS:System/Installer on AmigaOS 3.2.3.
+AmigaOS 3.1 or newer, a 68000 or better, no FPU. Amiga Installer 43 or
+newer: OS 3.2 has SYS:System/Installer; for OS 3.1 use Installer 43.3
+(Aminet util/misc; the Installer on the OS 3.1 Install disk is older).
+The Install icon's default tool is "installer"; if Workbench cannot find
+it, set the icon's Default Tool to its full path.
 
-Installation
-------------
-Extract the archive and double-click Install inside the Zune68 drawer.
-Alternatively, change to that drawer in a Shell and run:
+Installing
+----------
+Double-click Install, or from a Shell in this drawer:
 
-  SYS:System/Installer Install MINUSER AVERAGE
+  Installer Install MINUSER AVERAGE
 
-Each library, plugin, and Prefs editor has its own Install/Skip question.
-Existing and bundled versions are shown before anything is replaced.
-Versions come from the actual files, not from the archive filename.
-Unknown versions are shown as unknown. Equal-version replacements and downgrades require the same
-explicit choice as upgrades. The default is Skip.
+The installer first shows what it found: a MUI you already have (MUI 3.x,
+4 or 5 in SYS:MUI or MUI:, its lines in S:User-Startup), every
+muimaster.library in the LIBS: drawers, and an earlier Zune. None of it
+is changed. Zune goes into the first LIBS: drawer (normally SYS:Libs),
+which programs search before MUI's MUI:Libs, so they get Zune; nothing is
+added to S:Startup-Sequence or S:User-Startup.
 
-  zunemaster.library  -> LIBS:zunemaster.library
-    Installs alongside MUI. opentest uses this name by default.
+  Libs/muimaster.library, zunemaster.library -> first LIBS: drawer
+  Libs/Zune/*        -> LIBS:Zune/ (Zune's own class files and modules,
+                        loaded when a program first needs them)
+  Libs/MUI/*         -> LIBS:MUI/ of the first LIBS: drawer, never into
+                        MUI's own MUI:Libs/mui
+  Prefs/Zune         -> SYS:Prefs/Zune
+  Locale/Catalogs/*  -> LOCALE:Catalogs/<language>/ (optional)
+  Tools/ZuneSwitch and the icons below -> SYS:Zune68k
 
-  muimaster.library   -> LIBS:muimaster.library
-    Replaces MUI for applications using the standard library name.
-    Installing this is optional; it can affect other MUI applications.
+Every file the installer replaces is kept in SYS:Zune68k/Data/Backup, and
+every file it installs is written down in SYS:Zune68k/Data/Manifest.
 
-  Prefs/Zune         -> SYS:Prefs/Zune (with Workbench icon)
-    The preferences editor used by application settings menus.
+The bundled MUI classes (NList, TextEditor, TheBar, ...): one is installed
+only when you have no same or newer version of it in a LIBS:MUI drawer; an
+older one of yours is kept in the backup. The classes that come with a
+real MUI (in MUI:Libs/mui) belong to that MUI and are not used by Zune:
+Zune gets its own copy, and the real MUI gets its own back with "Use real
+MUI". The last page of the installer lists what it did with each.
 
-  Libs/Zune/*        -> LIBS:Zune/ (no question per file)
-    The library's own rarely used classes as files (Balance.mui,
-    Floattext.mui, ...) and rarely used parts of the library (Zmenu.mui:
-    context menus, Zdragdrop.mui: drag and drop, Zrequest.mui:
-    requesters, Zpicture.mui: picture images and frames, Zgradient.mui:
-    gradients), loaded when a program first needs them, and
-    Pixmap.mui. They belong to this release's library and work with no
-    other: always install them with it.
+Running Install again offers "Install this version over it" (an update:
+the earlier installation is removed first, your files put back, then this
+one installed; your Zune settings are kept) and "Remove Zune68k".
 
-  Libs/MUI/*         -> LIBS:MUI/
-    Both go to the first directory of LIBS: (SYS:Libs on most systems),
-    never into MUI 4/5's own drawer (MUI:Libs/mui), which LIBS:MUI would
-    name on a system with MUI installed.
-    BetterString, HotkeyString, NBitmap, NBalance, NList, NListview,
-    NFloattext, NListtree, TextEditor, TheBar, TheBarVirt, TheButton,
-    the Toolbar wrapper, and their bundled MCP editors. Rawimage (with
-    Pixmap.mui from Libs/Zune) supplies image rendering for the built-in
-    preferences pages.
-    Aboutbox, AboutWindow, Busy, Calendar, Calltips, Clock, Flexgroup,
-    Graph, IconImage, Lamp, Listtree, LoginWindow, PrefsEditor, PrefsWindow,
-    QRCode and SystemPrefsWindow are the AROS utility classes. Textinput and
-    Textinputscroll 29 are names for String, which has the Textinput API.
-    These plugins open the standard muimaster.library name. For use with
-    Zune68, install its muimaster.library variant too. Side-by-side tests
-    with a different MUI implementation and these plugins are unverified.
-    Plugins are loaded on demand, not added to every application's cost.
+Novice installs everything without questions; Intermediate and Expert
+ask whether to install the translations. Pretend mode changes nothing.
 
-  Locale/Catalogs/*  -> LOCALE:Catalogs/<system-language>/
-    Translation installation is optional. The installer maps package
-    language names to Amiga names, for example german to deutsch.
-    Incomplete or unconvertible translations fall back to English.
+Use real MUI, Use Zune, Uninstall
+---------------------------------
+In SYS:Zune68k (Use real MUI and Use Zune only when a real MUI was
+found):
 
-Before replacing a file, the installer saves the original beside it as
-<component-name>.zune68-old. An existing backup is preserved. Copy or
-rename that backup back to the original name to restore it. A newer
-resident library can remain active until reboot; the installer reports
-the resident version separately and does not expunge libraries in use.
+  Use real MUI  puts Zune's libraries and classes aside (into
+                SYS:Zune68k/Data/Parked) and your own files they had
+                replaced back. After a reboot programs get your MUI.
+  Use Zune      the other way round, after a reboot programs get Zune.
+  Uninstall     deletes every file Zune installed, puts back every file
+                of yours it had replaced, and removes the drawers it made
+                when they are empty. Asks whether to keep your Zune
+                settings (ENVARC:Zune). Your MUI keeps working.
 
-To return normal MUI applications to your previous MUI installation,
-restore LIBS:muimaster.library from muimaster.library.zune68-old (after
-checking that the backup is the MUI version you want), or reinstall that
-MUI version. Close applications and reboot. Removing zunemaster.library
-alone does not restore muimaster.library: they are independent builds.
-If you also replaced MCCs, restore their saved versions as needed.
+From a Shell: SYS:Zune68k/Data/ZuneSwitch MUI, ZUNE, UNINSTALL [SETTINGS]
+or STATUS (what is installed where).
 
-Catalogs and the Prefs icon have short .old backups. Saved preferences
-are not replaced. Tests/opentest, Examples, SDK, Docs, and Source.tar.gz
-remain in the extracted package. No SDK assigns are changed, and nothing
-changes in S:Startup-Sequence or S:User-Startup.
-Pretend mode displays the choices without copying files.
+Settings
+--------
+SYS:Prefs/Zune, the Zune preferences program. MUI's own settings
+(ENVARC:MUI) are not read or changed by Zune.
 
-After installation, close applications and reboot before trying Zune68.
-Run Tests/opentest from the extracted drawer. To exercise the replacement
-name explicitly, run Tests/opentest muimaster.library.
+Each program gets the MUI it asks for: a program written for MUI 3 sees
+MUI 3.8 (muimaster.library 19.35), one asking for MUI 4 sees MUI 4, one
+asking for MUI 5 sees MUI 5 (21.227), and Zune follows the same choice.
+Zune prefs, System page, "MUI version": "Behave as" Automatic (the
+default), MUI 3.8, MUI 4 or MUI 5 for all programs, and a list of
+programs (by file name) with a MUI of their own. Many programs written
+for MUI 4/5 ask for 19 and so get MUI 3.8 under Automatic: give such a
+program MUI 5 in that list.
 
-The native executables request at least 65536 bytes of stack and free
-any replacement stack on exit.
-
-Normal builds omit Zune drawing/input traces. The test still prints its
-own progress and results. Source builds can enable tracing with TRACE=1;
-that output is deliberately excluded from performance measurements.
+Status
+------
+A test build of muimaster.library [VERSION], dated [RELEASE].
+In FS-UAE (A1200, OS 3.1, 68000 build): MUI 3.8's 19 demos open and close
+with MUI 3.8's window sizes, 18 of 27 demo windows pixel for pixel as MUI
+3.8's; of 36 MUI 3 programs, 30 behave as with MUI 3.8 (see
+Compatibility). MUI-Demo with 4 MB fast RAM: about 465 KB for the first
+program (MUI 3.8: 460 KB), about 205 KB for each further one (MUI 3.8:
+211-219 KB), first window 1.4 s (MUI 3.8: 1.5 s). Not yet measured on a
+real Amiga. Please report what works and what does not, with the
+program's version, your CPU and OS.
 
 Developing with the SDK
 -----------------------
-Add SDK/include to the include path and link with -lmui, which the
-m68k-amigaos GCC toolchains supply, for example in SDK/examples:
+Add SDK/include to the include path and link with -lmui:
 
   m68k-amigaos-gcc -noixemul -Os -I../include -o HelloZune HelloZune.c -lmui
 
-MUI_NewObject, MUI_MakeObject, MUI_Request, MUI_AllocAslRequestTags and
-MUI_AslRequestTags are then libmui functions, so the usual
-"ApplicationObject, ..., End" style compiles with any GCC version.
-Defining MUIMASTER_YES_INLINE_STDARG selects inline tag-array macros
-instead; they cannot be closed by End, and GCC 14 and later need an
-(IPTR) cast for pointer tag values. As in MUI's SDK, CheckMark, KeyButton
-and the other old shortcut macros need MUI_OBSOLETE.
-
-Status and source
------------------
-This is the second beta release, dated [RELEASE]. Its muimaster.library
-reports version [VERSION], the version of MUI 5; Zune68 releases are told
-apart by the date in the version string, so Installer shows an upgrade
-between them as a same-version replacement. IBrowse 3.0a, YAM 2.9, Odyssey,
-AmiPG and Voyager 3.5.2 run; IBrowse is pretty usable. Voyager needs
-Textinput.mcc 29 or later: copy Textinput.mcc and Textinputscroll.mcc
-over older ones in Voyager's Libs/mui drawer.
-
-All 12 built-in Prefs pages display images; MCP pages appear once. Prefs
-Test/Cancel and TheBarDemo work. See Compatibility for application results
-and known limitations.
-
-There are many ways Zune68 can still improve, and broad MUI application
-coverage needs real-world use. We need testers. Please try your MUI
-applications with Zune68 and report what works and what doesn't, with the
-application version, CPU/OS configuration, reproduction steps and any
-crash information.
-
-Windows use smart refresh by default, as in MUI 3.8; MUI 3.9 and 5 switched
-to simple refresh. Smart refresh keeps covered window contents, so
-applications that draw outside MUI's redraw (AmiPG's keyboard) stay intact,
-and uncovered windows come back faster. It needs memory for covered areas;
-choose Simple under Refresh on the Windows page to save it.
-
-The preferences editor includes the upstream PrefsWindow implementation
-and uses Rawimage/Pixmap for its built-in page icons. muiscreen.library
-is not built; public-screen enumeration has a native fallback. BetterString uses ordinary text rendering where the
-classic CyberGraphX SDK lacks alpha-text support; NBitmap uses its
-existing software alpha fallback. Imported plugins retain compiler
-warnings, and translations are partial.
-
-Project: https://github.com/reinauer/zune68
-AROS source: https://github.com/aros-development-team/AROS
-Source.tar.gz contains the corresponding sources and native build tools.
-The supplied LICENSE contains the AROS Public License; component licenses
-and copyright notices remain with their sources and under Docs.
+Source and licences
+-------------------
+Source.tar.gz has the corresponding source and the native build tools.
+Zune68: https://github.com/reinauer/zune68
+AROS:   https://github.com/aros-development-team/AROS
+LICENSE has the AROS Public License; the bundled classes keep their own
+licences and copyright notices, with their sources and under Docs.

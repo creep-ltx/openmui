@@ -32,21 +32,32 @@ def component_version(path):
 def library_version(path):
     """Return (library version, release date as YYYY.MM.DD, stage) from $VER.
 
-    The library version is the one it reports to applications; Zune68
-    releases are identified by the $VER date, and the stage names the
-    release line.
+    The library version is the one it reports to applications; releases
+    are identified by the $VER date and the text after it: "Zune68 <stage>"
+    for upstream's release lines (stage "Beta 2"), or an edition of its own
+    such as "Zune68k lean", which is then the stage.
     """
     data = path.read_bytes()
     if data[:4] != struct.pack('>I', 1011):
         raise ValueError(f'{path}: expected an Amiga Hunk load file')
     pattern = (rb'\$VER: ' + re.escape(path.name.encode()) +
-               rb' (\d+\.\d+) \((\d\d)\.(\d\d)\.(\d{4})\)(?: Zune68 ([A-Za-z0-9 ]+?))?[\r\n\0]')
+               rb' (\d+\.\d+) \((\d\d)\.(\d\d)\.(\d{4})\)(?: (Zune68[A-Za-z0-9 ]*?))?[\r\n\0]')
     versions = set(re.findall(pattern, data))
     if len(versions) != 1:
         raise ValueError(f'{path}: missing or ambiguous matching $VER string')
     version, day, month, year, stage = versions.pop()
+    stage = stage.decode()
+    if stage == 'Zune68' or stage.startswith('Zune68 '):
+        stage = stage[len('Zune68 '):]
     return (version.decode(), f'{year.decode()}.{month.decode()}.{day.decode()}',
-            stage.decode())
+            stage)
+
+
+def archive_name(date, stage):
+    """Zune68-DATE-amigaos3-m68k.lha for upstream's release lines; an
+    edition of its own goes by its name: Zune68k-lean-DATE-amigaos3-m68k.lha"""
+    prefix = stage.replace(' ', '-') if stage.startswith('Zune68k') else 'Zune68'
+    return f'{prefix}-{date}-amigaos3-m68k.lha'
 
 
 def identity(build_dir):
@@ -98,57 +109,114 @@ def package_path(name):
 
 
 def install_script(files, class_files=()):
+    """dist/Install with the package check and the catalog lines filled in.
+
+    The libraries, LIBS:Zune and the MUI classes are installed by the
+    script itself (foreach over the package's drawers); here every file is
+    checked to be in the package with a readable version, and each catalog
+    gets its line, its language drawer named the Amiga way (german ->
+    deutsch) in the first directory of LOCALE:."""
     script = (ROOT / 'dist/Install').read_text()
     files = [package_path(name) for name in files]
-    # The first directory of LIBS:, where the libraries go. "LIBS:MUI" on a
-    # system with MUI 4/5 (LIBS: + MUI:Libs) is MUI's own drawer when the
-    # first one has no MUI drawer yet: the classes would go into MUI's
-    # installation and be removed with it.
-    class_lines = ['(set #libsdir (expandpath "LIBS:"))',
-                   '(set #muidir (tackon #libsdir "MUI"))',
-                   '(set #zunedir (tackon #libsdir "Zune"))']
-    # The library's own class files belong to it: copied without a prompt
-    # each, replacing those of an earlier Zune68.
-    if class_files or any(n.startswith('Libs/Zune/') for n in files):
-        class_lines.append('(makedir #zunedir)')
-        class_lines.append('(copyfiles (source (tackon #package "Libs/Zune")) '
-                           '(dest #zunedir) (all))')
-    if not files:
-        return script.replace('; COMPONENT_INSTALL', '\n'.join(class_lines))
+    files += ['Libs/Zune/' + name for name in class_files
+              if 'Libs/Zune/' + name not in files]
     preflight = []
     for name in files:
         preflight.append('(if (<> (exists (tackon #package "' + name + '")) 1)\n'
-                         '    (abort "The package is incomplete. Extract the complete Zune68 archive."))')
+                         '    (abort "The package is incomplete. Extract the complete archive again."))')
         if name == 'Prefs/Zune' or name.startswith(('Libs/MUI/', 'Libs/Zune/')):
             preflight.append(f'(if (= (getversion (tackon #package "{name}")) 0)\n'
                              f'    (abort "Cannot read the bundled version of {name}."))')
-    lines = class_lines + ['(P_InstallFile "Prefs/Zune" "SYS:Prefs"',
-              '    "Zune68 preferences editor, opened by application settings menus." "")']
-    for name in CLASS_FILES:
-        if package_path('Libs/MUI/' + name) != 'Libs/MUI/' + name:
-            continue
-        lines.append(f'(P_InstallFile "Libs/MUI/{name}" #muidir '
-                     f'"Optional, demand-loaded MUI custom class." "{name}")')
-    lines += ['(if (askbool (prompt "Install the bundled translations to LOCALE:Catalogs?\\nExisting catalogs are backed up once as .old.")',
-              '    (help "Missing translations fall back to English. No saved preferences are replaced.")',
-              '    (choices "Install" "Skip") (default 0))', '    (']
+    lines = []
     directories = set()
     for name in files:
         if name.startswith('Locale/Catalogs/'):
             parts = Path(name).parts[2:]
             language = LANGUAGES.get(parts[0], parts[0])
-            directory = 'LOCALE:Catalogs/' + '/'.join([language, *parts[1:-1]])
-            # Make each intermediate directory explicitly for old Installer.
-            for count in range(1, len(directory.split('/')) + 1):
-                parent = '/'.join(directory.split('/')[:count])
+            relative = ['Catalogs', language, *parts[1:-1]]
+            # Each drawer on the way, for old Installer and for the record
+            for count in range(1, len(relative) + 1):
+                parent = '/'.join(relative[:count])
                 if parent not in directories:
-                    lines.append(f'        (makedir "{parent}")')
+                    lines.append(f'        (P_MakeDir (tackon #localedir "{parent}"))')
                     directories.add(parent)
-            lines.append(f'        (P_CopySupport "{name}" "{directory}")')
-    lines += ['    )', ')',
-              '(message "Examples, SDK, documentation and corresponding source remain in the extracted Zune68 drawer. No SDK assigns are changed.")']
-    return script.replace('; COMPONENT_PREFLIGHT', '\n'.join(preflight)).replace(
-        '; COMPONENT_INSTALL', '\n'.join(lines))
+            lines.append(f'        (P_Catalog "{name}" (tackon #localedir "{"/".join(relative)}"))')
+    return (script.replace('; COMPONENT_PREFLIGHT', '\n'.join(preflight))
+            .replace('; COMPONENT_CATALOGS', '\n'.join(lines)))
+
+
+# Workbench icons for the SYS:Zune68k drawer, made from the checked-in ones
+WBDRAWER, WBTOOL, WBPROJECT = 2, 3, 4
+NO_ICON_POSITION = -0x80000000
+
+
+def make_icon(template, kind, position=None, default_tool=None, tool_types=(),
+              stack=None):
+    """A DiskObject (.info) with the template's images and drawer data and
+    the given type, default tool, tool types and position."""
+    data = template.read_bytes()
+    if struct.unpack('>H', data[:2])[0] != 0xE310:
+        raise ValueError(f'{template}: not a Workbench icon')
+    (_, _, _, _, _, flags, _, _, render, select, _, _, _, _, userdata) = \
+        struct.unpack('>IhhhhHHHIIIIIHI', data[4:48])
+    drawer = struct.unpack('>I', data[66:70])[0]
+    if drawer and kind != WBDRAWER:
+        raise ValueError('a drawer template for an icon that is no drawer')
+    offset = 78 + (56 if drawer else 0)
+    for image in (render, select):
+        if image:
+            width, height, depth, pointer = struct.unpack('>hhhI', data[offset + 4:offset + 14])
+            offset += 20 + (((width + 15) // 16) * 2 * height * depth if pointer else 0)
+    header = bytearray(data[:offset])
+    header[48] = kind
+    struct.pack_into('>II', header, 50, 1 if default_tool else 0, 1 if tool_types else 0)
+    if position is not None:
+        struct.pack_into('>ii', header, 58, *position)
+    struct.pack_into('>I', header, 70, 0)       # no tool window
+    if stack is not None:
+        struct.pack_into('>I', header, 74, stack)
+    tail = b''
+
+    def string(text):
+        raw = text.encode('latin1') + b'\0'
+        return struct.pack('>I', len(raw)) + raw
+    if default_tool:
+        tail += string(default_tool)
+    if tool_types:
+        tail += struct.pack('>I', (len(tool_types) + 1) * 4)
+        for text in tool_types:
+            tail += string(text)
+    if drawer and userdata == 1:
+        tail += b'\0' * 6                     # DrawerData2: flags, view modes
+    return bytes(header) + tail
+
+
+HOME_PROJECTS = {
+    # file in SYS:Zune68k: (ACTION, its text, icon position)
+    'Use real MUI': ('MUI', 'Zune68k: double-click the icon to use your real MUI\n'
+                     'again (after a reboot). "Use Zune" switches back.\n', (24, 8)),
+    'Use Zune': ('ZUNE', 'Zune68k: double-click the icon to use Zune again\n'
+                 '(after a reboot) after "Use real MUI".\n', (120, 8)),
+    'Uninstall': ('UNINSTALL', 'Zune68k: double-click the icon to remove Zune68k and\n'
+                  'put back every file of yours it had replaced.\n', (216, 8)),
+}
+
+
+def stage_home(package):
+    """Home/: what the installer puts in SYS:Zune68k besides the tool"""
+    home = package / 'Home'
+    home.mkdir()
+    for name, (action, text, position) in HOME_PROJECTS.items():
+        (home / name).write_text(text, encoding='latin1')
+        (home / (name + '.info')).write_bytes(make_icon(
+            ROOT / 'dist/Zune.info', WBPROJECT, position,
+            default_tool='SYS:Zune68k/Data/ZuneSwitch',
+            tool_types=(f'ACTION={action}',), stack=16384))
+    readme = ROOT / 'dist/ReadMe.info'
+    (home / 'ReadMe.info').write_bytes(make_icon(
+        readme, WBPROJECT, (312, 8), default_tool='MultiView'))
+    (home / 'Zune68k.info').write_bytes(make_icon(
+        ROOT / 'dist/Zune68.info', WBDRAWER, (NO_ICON_POSITION, NO_ICON_POSITION)))
 
 
 def strip_binaries(package, strip):
@@ -165,8 +233,9 @@ def strip_binaries(package, strip):
 def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
     build_dir, output_dir = build_dir.resolve(), output_dir.resolve()
     version, date, line = identity(build_dir)
-    if not (build_dir / 'opentest').is_file():
-        raise ValueError(f'{build_dir}: missing opentest')
+    for name in ('opentest', 'Tools/ZuneSwitch'):
+        if not (build_dir / name).is_file():
+            raise ValueError(f'{build_dir}: missing {name}')
     files = component_files(build_dir) if full else []
     if full and not (build_dir / "compatcheck").is_file():
         raise ValueError(f"{build_dir}: missing compatcheck")
@@ -177,7 +246,7 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
     if strip and not stripper:
         raise ValueError(f'{strip}: Amiga strip tool not found; set STRIP or --strip')
     output_dir.mkdir(parents=True, exist_ok=True)
-    archive = output_dir / f'Zune68-{date}-amigaos3-m68k.lha'
+    archive = output_dir / archive_name(date, line)
     readme = substitute((ROOT / 'Zune68.readme').read_text(encoding='ascii'),
                         version, date, line)
     # Always assemble a fresh tree: removed files must not survive a release.
@@ -197,6 +266,10 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
             component_version(build_dir / 'Zune' / name)
             shutil.copyfile(build_dir / 'Zune' / name, package / 'Libs/Zune' / name)
             (package / 'Libs/Zune' / name).chmod(0o755)
+        (package / 'Tools').mkdir()
+        shutil.copyfile(build_dir / 'Tools/ZuneSwitch', package / 'Tools/ZuneSwitch')
+        (package / 'Tools/ZuneSwitch').chmod(0o755)
+        stage_home(package)
         shutil.copyfile(build_dir / 'opentest', package / 'Tests/opentest')
         (package / 'Tests/opentest').chmod(0o755)
         if full:

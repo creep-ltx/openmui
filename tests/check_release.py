@@ -27,6 +27,8 @@ class ReleaseTests(unittest.TestCase):
         for name in release.LIBRARIES:
             self.library(name, '35.6')
         self.library('opentest', '1.0')
+        (self.build / 'Tools').mkdir()
+        self.library('Tools/ZuneSwitch', '1.0')
 
     def library(self, name, version, date='12.10.2026', stage=' Zune68 Beta 1'):
         code = b'\x70\x00\x4e\x75' + f'$VER: {name} {version} ({date}){stage}\r\n\0'.encode()
@@ -67,6 +69,33 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('muimaster.library 35.6', readme)
         self.assertNotIn('[', readme.split('\n\n', 1)[0])
 
+    def test_lean_edition_names_the_archive(self):
+        for name in release.LIBRARIES:
+            self.library(name, '21.227', date='06.11.2026', stage=' Zune68k lean')
+        self.assertEqual(release.identity(self.build),
+                         ('21.227', '2026.11.06', 'Zune68k lean'))
+        archive = release.release(self.build, self.output, 'lha', full=False)
+        self.assertEqual(archive.name, 'Zune68k-lean-2026.11.06-amigaos3-m68k.lha')
+        readme = archive.with_suffix('.readme').read_text()
+        self.assertIn('2026.11.06', readme)
+        destination = self.root / 'aminet'
+        prepare(self.output, destination, 'v2026.11.06')
+        self.assertEqual((destination / 'Zune68k-lean.lha').read_bytes(),
+                         archive.read_bytes())
+
+    def test_switch_tool_and_home_icons(self):
+        archive = release.release(self.build, self.output, 'lha', full=False)
+        listing = subprocess.check_output(['lha', 'l', str(archive)]).decode('latin1')
+        for member in ['Zune68/Tools/ZuneSwitch', 'Zune68/Home/Uninstall.info',
+                       'Zune68/Home/Use real MUI.info', 'Zune68/Home/Zune68k.info']:
+            self.assertIn(member, listing)
+        icon = subprocess.check_output(['lha', 'pq', str(archive),
+                                        'Zune68/Home/Use real MUI.info'])
+        self.assertEqual(icon[:2], b'\xe3\x10')
+        self.assertEqual(icon[48], release.WBPROJECT)
+        self.assertIn(b'SYS:Zune68k/Data/ZuneSwitch\0', icon)
+        self.assertIn(b'ACTION=MUI\0', icon)
+
     def test_package_readmes_name_the_release(self):
         archive = release.release(self.build, self.output, 'lha', full=False)
         for member in ['Zune68/Zune68.readme', 'Zune68/ReadMe', 'Zune68/Compatibility']:
@@ -101,7 +130,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(list(self.output.iterdir()), [])
 
     def test_package_strips_copies_and_keeps_versions(self):
-        originals = {p.name: p.read_bytes() for p in self.build.iterdir()}
+        originals = {p.name: p.read_bytes() for p in self.build.iterdir() if p.is_file()}
         archive = release.release(self.build, self.output, 'lha', full=False)
         for name, original in originals.items():
             member = 'Zune68/' + ('Tests/' if name == 'opentest' else 'Libs/') + name
