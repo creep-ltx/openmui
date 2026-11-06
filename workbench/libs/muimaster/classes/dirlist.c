@@ -80,6 +80,21 @@ AROS_UFH3S(LONG, display_func,
         {
             snprintf(data->size_string, sizeof(data->size_string), "%ld",
                 (long)entry->fib.fib_Size);
+            /* MUI 3.8 groups the digits with dots whatever the locale
+             * (demopix: 6.468 on a United States locale) */
+            if (ZUNE_MUI38())
+            {
+                UBYTE *p = data->size_string;
+                LONG len = strlen(p), dots = (len - 1) / 3, i;
+
+                if (len + dots < (LONG)sizeof(data->size_string))
+                    for (i = len; dots > 0; i--)
+                    {
+                        p[i + dots] = p[i];
+                        if (i < len && (len - i) % 3 == 0)
+                            p[i + --dots] = '.';
+                    }
+            }
             *array++ = data->size_string;
         }
 
@@ -243,6 +258,12 @@ static void ReadDirectory(Object *obj, struct Dirlist_DATA *data)
                             }
                         }
 
+                        /* MUI 3.8 shows no drawers at all when they are
+                         * to be filtered and there is no accept pattern
+                         * (demopix: EnvBrowser hides ENV:Sys) */
+                        if (isdir && data->filterdrawers
+                            && !data->acceptpattern && ZUNE_MUI38())
+                            continue;
                         if (!isdir || data->filterdrawers)
                         {
                             if (data->acceptpattern)
@@ -277,6 +298,11 @@ static void ReadDirectory(Object *obj, struct Dirlist_DATA *data)
                     DoMethod(obj, MUIM_List_InsertSingle, (IPTR) fib,
                         MUIV_List_Insert_Bottom);
                 }               /* for(;;) */
+
+                /* sorted as MUIA_Dirlist_SortType, SortDirs and
+                 * SortHighLow ask (MUIM_List_Compare below), as MUI does:
+                 * drawers first, then by name, by default */
+                DoMethod(obj, MUIM_List_Sort);
 
                 SetAttrs(obj,
                     MUIA_Dirlist_NumDrawers, data->numdrawers,
@@ -346,7 +372,7 @@ IPTR Dirlist__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_Dirlist_SortDirs:
-            data->sortdirs = tidata ? TRUE : FALSE;
+            data->sortdirs = tidata;   /* First, Last or Mix */
             break;
 
         case MUIA_Dirlist_SortHighLow:
@@ -540,6 +566,51 @@ IPTR Dirlist__MUIM_Dirlist_ReRead(struct IClass *cl, Object *obj,
 }
 
 
+#ifndef MUIV_Dirlist_SortDirs_First
+#define MUIV_Dirlist_SortDirs_First 0
+#define MUIV_Dirlist_SortDirs_Last 1
+#define MUIV_Dirlist_SortDirs_Mix 2
+#define MUIV_Dirlist_SortType_Name 0
+#define MUIV_Dirlist_SortType_Date 1
+#define MUIV_Dirlist_SortType_Size 2
+#endif
+
+/* The order of two entries: drawers before or after files (or mixed),
+ * then by name (case ignored), date or size, high to low if asked */
+IPTR Dirlist__MUIM_List_Compare(struct IClass *cl, Object *obj,
+    struct MUIP_List_Compare *msg)
+{
+    struct Dirlist_DATA *data = INST_DATA(cl, obj);
+    struct FileInfoBlock *a, *b;
+    BOOL da, db;
+    LONG r;
+
+    if (!msg->entry1 || !msg->entry2)
+        return DoSuperMethodA(cl, obj, (Msg)msg);
+    a = &((struct Dirlist_Entry *)msg->entry1)->fib;
+    b = &((struct Dirlist_Entry *)msg->entry2)->fib;
+    da = a->fib_DirEntryType > 0;
+    db = b->fib_DirEntryType > 0;
+    if (da != db && data->sortdirs != MUIV_Dirlist_SortDirs_Mix)
+        return (da ? -1 : 1)
+            * (data->sortdirs == MUIV_Dirlist_SortDirs_Last ? -1 : 1);
+    switch (data->sorttype)
+    {
+    case MUIV_Dirlist_SortType_Date:
+        r = -CompareDates(&a->fib_Date, &b->fib_Date);
+        break;
+    case MUIV_Dirlist_SortType_Size:
+        r = a->fib_Size < b->fib_Size ? -1 : a->fib_Size > b->fib_Size;
+        break;
+    default:
+        r = 0;
+        break;
+    }
+    if (r == 0)
+        r = Stricmp(a->fib_FileName, b->fib_FileName);
+    return data->sorthighlow ? -r : r;
+}
+
 #if ZUNE_BUILTIN_DIRLIST
 BOOPSI_DISPATCHER(IPTR, Dirlist_Dispatcher, cl, obj, msg)
 {
@@ -556,6 +627,9 @@ BOOPSI_DISPATCHER(IPTR, Dirlist_Dispatcher, cl, obj, msg)
     case MUIM_Dirlist_ReRead:
         return Dirlist__MUIM_Dirlist_ReRead(cl, obj,
             (struct MUIP_Dirlist_ReRead *)msg);
+    case MUIM_List_Compare:
+        return Dirlist__MUIM_List_Compare(cl, obj,
+            (struct MUIP_List_Compare *)msg);
     default:
         return DoSuperMethodA(cl, obj, msg);
     }
