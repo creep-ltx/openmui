@@ -361,7 +361,7 @@ struct ExternalListEntry
     UBYTE depth;        /* nesting, 0 at the top */
     UBYTE open;         /* drawer: its entries follow */
     UBYTE root;         /* which of the image roots (IMSPEC_EXTERNAL_PREFIX*) */
-    UBYTE pad;
+    UBYTE tried;        /* file: its preview was made (or could not be) */
     Object *preview;    /* file: the preview image and its list handle */
     APTR listimage;
 };
@@ -474,9 +474,41 @@ static BOOL external_preview_fits(CONST_STRPTR spec)
 }
 
 /*
- * Copy the entry into the pool; a file gets its preview image (the list
- * is the hook's h_Data). Return NULL without memory; a preview that
- * cannot be made leaves the name alone.
+ * A file's preview image, made the first time its row is on screen
+ * (MUIM_Imageadjust_ExternalPreviews): every preview is a picture loaded
+ * through datatypes (or an image class opened), about 0.6 s each on a
+ * 14 MHz 68020, and a drawer such as default_OS3 has 39 of them. A preview
+ * that cannot be made leaves the name alone.
+ */
+static BOOL external_make_preview(Object *list, struct ExternalListEntry *entry)
+{
+    char spec[300];
+
+    entry->tried = 1;
+    snprintf(spec, sizeof(spec), "3:%s%s%s", entry->reldir,
+        *entry->reldir ? "/" : "", entry->filename);
+    if (external_preview_fits(spec + 2))
+        entry->preview = ImageObject,
+            MUIA_Image_Spec, (IPTR)spec,
+            MUIA_Image_FreeHoriz, FALSE,
+            MUIA_Image_FreeVert, FALSE,
+            End;
+    if (entry->preview)
+    {
+        entry->listimage = (APTR)DoMethod(list, MUIM_List_CreateImage,
+            (IPTR)entry->preview, 0);
+        if (!entry->listimage)
+        {
+            MUI_DisposeObject(entry->preview);
+            entry->preview = NULL;
+        }
+    }
+    return entry->listimage != NULL;
+}
+
+/*
+ * Copy the entry into the pool, without its preview (made once the row is
+ * shown). Return NULL without memory.
  */
 static struct ExternalListEntry *Imageadjust_External_Construct(struct Hook
     *h, APTR pool, struct ExternalListEntry *ele)
@@ -494,6 +526,7 @@ static struct ExternalListEntry *Imageadjust_External_Construct(struct Hook
     entry->reldir = StrDupPooled(pool, ele->reldir);
     entry->preview = NULL;
     entry->listimage = NULL;
+    entry->tried = 0;
     if (!entry->filename || !entry->reldir)
     {
         if (entry->filename)
@@ -503,29 +536,7 @@ static struct ExternalListEntry *Imageadjust_External_Construct(struct Hook
         FreePooled(pool, entry, sizeof(struct ExternalListEntry));
         return NULL;
     }
-    if (!EXTERNAL_IS_DRAWER(entry))
-    {
-        char spec[300];
-
-        snprintf(spec, sizeof(spec), "3:%s%s%s", entry->reldir,
-            *entry->reldir ? "/" : "", entry->filename);
-        if (external_preview_fits(spec + 2))
-            entry->preview = ImageObject,
-                MUIA_Image_Spec, (IPTR)spec,
-                MUIA_Image_FreeHoriz, FALSE,
-                MUIA_Image_FreeVert, FALSE,
-                End;
-        if (entry->preview)
-        {
-            entry->listimage = (APTR)DoMethod(list, MUIM_List_CreateImage,
-                (IPTR)entry->preview, 0);
-            if (!entry->listimage)
-            {
-                MUI_DisposeObject(entry->preview);
-                entry->preview = NULL;
-            }
-        }
-    }
+    (void)list;
     return entry;
 }
 
@@ -774,7 +785,10 @@ static void Imageadjust_External_DoubleClick(struct Hook *h, Object *obj,
     if (!entry)
         return;
     if (EXTERNAL_IS_DRAWER(entry))
+    {
         external_toggle(data->external_list, active);
+        DoMethod(obj, MUIM_Imageadjust_ExternalPreviews);
+    }
     else if (data->originator)
         DoMethod(_app(obj), MUIM_Application_PushMethod,
             (IPTR)data->originator, 2, MUIM_Popimage_CloseWindow, TRUE);
@@ -1333,6 +1347,18 @@ IPTR Imageadjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         DoMethod(data->external_list, MUIM_Notify,
             MUIA_Listview_DoubleClick, TRUE, (IPTR) obj, 2,
             MUIM_CallHook, (IPTR) &data->external_dclick_hook);
+
+        /* Previews for the rows on screen, once the list has shown or
+         * scrolled them; pushed, so that they are made outside the list's
+         * own layout and drawing */
+        DoMethod(data->external_list, MUIM_Notify, MUIA_List_Visible,
+            MUIV_EveryTime, MUIV_Notify_Application, 4,
+            MUIM_Application_PushMethod, (IPTR) obj, 1,
+            MUIM_Imageadjust_ExternalPreviews);
+        DoMethod(data->external_list, MUIM_Notify, MUIA_List_First,
+            MUIV_EveryTime, MUIV_Notify_Application, 4,
+            MUIM_Application_PushMethod, (IPTR) obj, 1,
+            MUIM_Imageadjust_ExternalPreviews);
     }
     Imageadjust_SetImagespec(obj, data, spec);
     return (IPTR) obj;
@@ -1572,6 +1598,48 @@ IPTR Imageadjust__MUIM_Imageadjust_ReadExternal(struct IClass *cl,
     return 0;
 }
 
+/*
+ * Private MUIM_Imageadjust_ExternalPreviews: make the preview of the
+ * first file in the rows on screen that has none yet, redraw (rows may
+ * grow) and come again for the next. Nothing while the list is not shown.
+ */
+IPTR Imageadjust__MUIM_Imageadjust_ExternalPreviews(struct IClass *cl,
+    Object *obj, Msg msg)
+{
+    struct Imageadjust_DATA *data = INST_DATA(cl, obj);
+    Object *list = data->external_list;
+    LONG first = 0, visible = 0, entries = 0, pos;
+    BOOL made = FALSE;
+
+    if (!list || !(_flags(list) & MADF_SETUP))
+        return 0;
+    get(list, MUIA_List_First, &first);
+    get(list, MUIA_List_Visible, &visible);
+    get(list, MUIA_List_Entries, &entries);
+    for (pos = first < 0 ? 0 : first; pos <= first + visible && pos < entries;
+        pos++)
+    {
+        struct ExternalListEntry *e = NULL;
+
+        DoMethod(list, MUIM_List_GetEntry, pos, (IPTR)&e);
+        if (e && !EXTERNAL_IS_DRAWER(e) && !e->tried
+            && external_make_preview(list, e))
+        {
+            made = TRUE;
+            break;
+        }
+    }
+    /* One at a time: a preview can make the rows taller and so fewer of
+     * them visible, and the user's input is handled in between */
+    if (made)
+    {
+        DoMethod(list, MUIM_List_Redraw, MUIV_List_Redraw_All);
+        DoMethod(_app(obj), MUIM_Application_PushMethod, (IPTR)obj, 1,
+            MUIM_Imageadjust_ExternalPreviews);
+    }
+    return 0;
+}
+
 #if 0
 /*
  * Inactive #if 0 helper: would queue private Popimage Close(TRUE) to
@@ -1616,6 +1684,10 @@ BOOPSI_DISPATCHER(IPTR, Imageadjust_Dispatcher, cl, obj, msg)
 
     case MUIM_Imageadjust_ReadExternal:
         return Imageadjust__MUIM_Imageadjust_ReadExternal(cl, obj,
+            (APTR) msg);
+
+    case MUIM_Imageadjust_ExternalPreviews:
+        return Imageadjust__MUIM_Imageadjust_ExternalPreviews(cl, obj,
             (APTR) msg);
 
     case MUIM_Show:
