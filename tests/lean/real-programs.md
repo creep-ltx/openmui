@@ -161,6 +161,16 @@ program after boot, was once "frozen" before its window and twice ok when run ag
 2.5.9's missing window is the window fitting; IBrowse's "frozen" second quit is FS-UAE crashing
 (8 below).
 
+**Update, branch `suitefix` (2026-11-06):** the differences 1, 4-7, 9 and 10 below worked
+through (docs/lean/README.md, "MUI 3.8's behaviour for the suite's differences"). The whole
+MUI 3.x suite on that branch: **30 of 36 programs as on MUI 3.8** (14 on `lean` measured the
+same day as the baseline); the 16 that now match are AmFTP, AmigaAMP-Prefs, Archiver, MUIMine,
+NListtree-Demo, TextEditor-Demo, the Textinput demo, TheBar demos 1, 4, 5, 6, 8 and 9, ToDo,
+WookieChat and YAM 2.5 (with its address book); none that matched before differs. Still
+different: TheBar demo2 and demo3 (18 px wider), AmIRC (256 against 236 high), AmTelnet (248 at
+y 4 against 256 at 0), IBrowse 2.5.9 (no main window) and MultiRen (only MUI 3.8's run "still
+running after quit"). Results: `$ZWORK/suite-real/after` (ZWORK ~/.cache/zune68-suitefix).
+
 **MUI 4/5 programs, Zune against MUI 5 (5 entries):** DizzyTorrent (the one that needs MUI 3.9+)
 and AmigaGPT open and quit on Zune as on MUI 5 (sizes differ by 6-72 px); IBrowse 3.0a opens,
 but the machine stops answering when its second run quits; YAM 2.10dev gets further on Zune than
@@ -228,11 +238,19 @@ gadgets, Ctrl-C). Lost: bytes less free after the second run than before it.
 ## Differences on Zune, most programs affected first
 
 Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or `mui5`), then
-`suite-compare.py` for the pictures. Not fixed here (phase 6 of the roadmap).
+`suite-compare.py` for the pictures. Phase 6 of the roadmap; what branch `suitefix` fixed is
+marked, with its commit in docs/lean/README.md.
 
 1. **Windows wider than the screen are not refitted as MUI 3.8 does** (5 programs). MUI 3.8
    draws such a window in its small font (and tightened spacing), Zune keeps topaz and opens it
-   clipped at 640 pixels, or not at all.
+   clipped at 640 pixels, or not at all. **Fixed (suitefix)** except IBrowse: MUI 3.8 has five
+   stages (helvetica 11; helvetica 9; less spacing; no inner spacing; topaz 8), measured with a
+   row of buttons as well as a column; the later windows of an application open in its stage;
+   group titles were 1 px too low (the Textinput demo fitted topaz on Zune); 2-D groups with a
+   partial last row became one row (MultiRen's preferences, 2168 px wide); Register titles
+   widened the group; List widths, a weight-0 child's default width. YAM's main window and
+   address book, the Textinput demo, MultiRen's preferences, AmFTP and Archiver now open as on
+   MUI 3.8.
    - YAM 2.5 main window (`yam25`): MUI 3.8 small font, every toolbar button and column visible;
      Zune 640 wide in topaz, toolbar cut after "Get", "Subject" cut. Its address book: Zune
      640x256, MUI 3.8 426x256.
@@ -265,7 +283,9 @@ Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or
    never returned on the resulting NewMenu array. Now "Archiver Problem!" and the main window
    open as on MUI 3.8 (their sizes differ: the window fitting, see 1).
 4. **Disabled objects are drawn like enabled ones** (3 programs). MUI 3.8 ghosts them with its
-   dot pattern; on Zune they look normal:
+   dot pattern; on Zune they look normal. **Fixed (suitefix)**: MUIA_Disabled set bit 31 of a
+   WORD, so it never disabled anything (only a disabled group's children were); the ghosting is
+   now pixel-identical to MUI 3.8's:
    - MultiRen: Remove, Clear list, Enable, Disable, Select all, Find, Restore, Undo, the string
      gadget, Rename, Undo rename, Set Comments (the list is empty).
    - TextEditor demo: Undo and Redo (nothing to undo yet).
@@ -273,13 +293,22 @@ Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or
    Compare `multiren.png`, `texteditor-demo.png`, `amftp.png` of the two runs.
 5. **Lists get a horizontal scroller that MUI 3.8 does not have** (MUI 3.9's): ToDo (`todo`)
    313x167 against 313x158 (+9 px: the scroller under its list), YAM 2.5's folder list.
+   **Fixed (suitefix)**: ToDo's is a Scrollgroup with MUIA_Scrollgroup_FreeHoriz FALSE, which
+   Zune ignored (now 313x158); Lists no longer get MUI 4's horizontal scroller when behaving as
+   MUI 3.8 (MUI 3.8's List has none). YAM's folder list is NListtree's, not Zune's List; not
+   compared again.
 6. **MUI_AslRequest() shows Zune's own requester, not asl.library's** (`cmanager`): Contact
    Manager's "Select the directory for CM's database" is an ASL requester on MUI 3.8 (OK,
    Volumes, Parent, Cancel; a system requester) and Zune's own MUI window on Zune (Parent, Back,
    Forward, Save, Cancel), run by another process. Programs and scripts that expect ASL's
-   requester (its look, its buttons, its keys) see something else.
+   requester (its look, its buttons, its keys) see something else. **Fixed (suitefix)**:
+   behaving as MUI 3.8, MUI_AllocAslRequest/MUI_AslRequest/MUI_FreeAslRequest are asl.library's
+   calls with the program's tags, as logged on MUI 3.8.
 7. **MUI_RequestA() ignores the program's font settings** (`wookiechat`): WookieChat's "Quit
    Program?" is 104x34 in the small font on MUI 3.8 (as all its windows), 188x39 in topaz on Zune.
+   **Fixed (suitefix)**: not a font setting but the application's fitting stage, which MUI 3.8
+   keeps for the application's later windows; and MUI 3.8's requester layout (measured: five
+   requesters with the same objects and sizes now).
 8. **IBrowse 3.0a: the machine stops answering when the second run quits** (`ibrowse30`, group
    mui5); its first run opens and quits like on MUI 5. Traced 2026-11-06, not fixed: it is not
    the Amiga that stops but the emulator: FS-UAE 3.2.35 aborts ("malloc(): unaligned tcache
@@ -290,7 +319,12 @@ Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or
    quit is the same.
    Next: run it in Amiberry (8.5, installed; our partner finds it more correct than FS-UAE) to
    tell an FS-UAE fault from a Zune one before chasing it further.
-9. **Window sizes** (each a few pixels; the contact sheet shows where):
+9. **Window sizes** (each a few pixels; the contact sheet shows where). **Mostly fixed
+   (suitefix)**: all below match MUI 3.8 now except TheBar demo2's control window and demo3
+   (18 px wider), AmTelnet, NListtree's tree images and the MUI 4/5 group (not looked at);
+   scrollbar arrows follow the
+   font's height, Archiver's vertical sliders (MUIA_Group_Horiz on a Slider) and its Register
+   (may grow, thick-frame spacing):
    - TheBar toolbars 3 px taller (demos 1, 4, 5, 6, 8: 125-132 against 122-129), demo2 and demo7
      22 px narrower, demo2's control window and demo3 18 px wider, demo10 +6x+6.
    - TextEditor demo opens 438x219 against 504x253; AmFTP's main window 428 against 561 wide;
@@ -303,7 +337,8 @@ Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or
      MUI 3.8.
 10. **YAM 2.5's configuration window opens much later on Zune**: with 13 s of waiting it had not
     appeared on Zune and had on MUI 3.8; with 40 s both show it (after ~50 "Error messages" about
-    missing pictures). Not timed precisely.
+    missing pictures). Not timed precisely. **suitefix**: 15 s against MUI 3.8's 12 s (timed by
+    the probe: menu picked to window open); before, not within 60 s.
 11. Tooling, not seen by programs: `wasabi ui list` shows the objects of MUI 3.8's and MUI 5's
     windows (buttons by label, class Text.mui) and none in Zune's, so scripts that click MUI
     buttons by name work on real MUI only. The suite presses keys or clicks relative positions

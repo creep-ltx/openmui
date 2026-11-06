@@ -262,6 +262,75 @@ initial window" is the window fitting: its main window's minimum height is
 361-370 pixels in every fitting stage, the screen 256.
 | 08ed5791 muimaster | "Behave as: MUI 3.8 / MUI 5" in Zune prefs (System page), MUI 3.8 by default: the library reports 19.35 (MUI 3.8) unless ENV:Zune/Identity says MUI5 (21.227, as Zune68), read when the library loads. Classes choose their code paths by this version: TheBar sized its virtual bars the MUI 5 way (demo9 cut off at 640, as on real MUI 5). Real-program suite with MUI 3.8: no new failure, 14 of 36 programs as on MUI 3.8 (12 before), TheBar demos within 1-2 px of MUI 3.8 (up to 22 before). Programs that require MUI 4/5 need the MUI 5 setting |
 
+## MUI 3.8's behaviour for the suite's differences (2026-11-06, phase 6 part 1)
+
+The differences the real-program suite found
+([tests/lean/real-programs.md](../../tests/lean/real-programs.md)), fixed in
+order of how many programs they touched. MUI 3.8 was measured black-box only:
+test programs that dump every object's minimum, default and maximum size, frame
+spacing and font (public MUI_AreaData fields; another program's windows found
+through a patch on intuition's NewObjectA), screenshots compared pixel by
+pixel, asl.library's calls logged by patching them in the test program's own
+task. Nothing of MUI 3.8 was disassembled or read. The test programs are in
+`tests/lean/probe/` (`zspy` + `objdump TITLE` dump a running program's windows,
+`stage`, `wide`, `tall`, `widef` the fitting stages, `reqtest` MUI_Request,
+`ghost` disabled objects, `asltrace` the ASL calls, `tagspy` the tags of new
+groups, `pubscr` a tall default public screen to see a window's unfitted sizes).
+
+| commit | change |
+|---|---|
+| 36fb3297 Area | MUIA_Disabled set bit 31 of a WORD: no object was ever disabled by it (get returned FALSE after set TRUE), nothing was ghosted and disabled buttons could be pressed. Now the WORD's top bit. Ghosting is pixel-identical to MUI 3.8's (buttons, string, cycle, text, list; a disabled group and its children; MUIA_Window_Sleep ghosts nothing on either). MultiRen, TextEditor-Demo's Undo/Redo, AmFTP behind its notice. Upstream bug |
+| 50945ad0 Window | fitting a too large window in MUI 3.8's five stages, measured with a row as well as a column of buttons: helvetica 11 (tiny and title 9, big 13); helvetica 9; spacing 2 beside and 1 above; no inner spacing; topaz 8 (fixed font always topaz). Zune had three, which never tried a smaller font with the normal spacing, and spaced 1 beside. Rows of 10-22 and columns of 14-22 buttons: MUI 3.8's sizes, fonts and spacing in every case |
+| 8c42267b Window | an application's later windows open in the highest stage any of its windows needed, as on MUI 3.8 (its MUI_Request after a fitted window comes in the small font, also without a reference window). Kept in MUI_GlobalInfo's private first field, no size change |
+| 1b1828cc Area | group frame titles: the frame line on the row above the baseline, contents at MAX(font height, baseline - 1 + frame + inner spacing), measured with title fonts of 8 to 13 pixels and in every stage. Topaz 8: 11 (Zune 10). The Textinput demo now needs the small font as on MUI 3.8 (240x256; was 454x256 in topaz) |
+| 34667b84 List | at least 40 and by default 100 pixels of content inside the frame (Zune: 40 with the frame, 80): Listviews 66/126 wide as MUI 3.8 |
+| 10fb2ac8 Scrollbar | arrow images as high as the font asks (5 in topaz 8, 6 in helvetica 11, 8 in 13), as MUI 3.8 |
+| 6e9cb755 Group | a horizontal group's default width counts a weight-0 child's default (MUI 3.8: 112 + 6 + 32), a vertical one keeps the minimum height. AmFTP 561 wide as MUI 3.8 (was 428) |
+| 4ad2cb25 Group | a 2-D group fills a partial last row (26 objects in 4 columns: 7 rows), instead of one row of all children: MultiRen's preferences (2168 pixels wide, never opened) open 523x220 as MUI 3.8 |
+| 2d7155df Register | titles never widen the group (MUI 3.8 cuts them; Zune's "truncate titles" setting now on by default), the group may always grow, pages 6 pixels from the sides with thick frames (5 thin). Archiver's window 321 wide in the same stage as MUI 3.8 (was 427, and fitted in topaz without a size gadget) |
+| 8da6eed7 Slider | MUIA_Group_Horiz FALSE makes a vertical slider (MUI 3.8's autodoc and own example; Archiver's sliders) |
+| 8b26c440 Scrollgroup | MUIA_Scrollgroup_FreeHoriz/FreeVert (declared, ignored): an axis that may not move has no scroller. ToDo 313x158 as MUI 3.8 (was 167, a horizontal scroller under its list); one Scrollbar less per such group |
+| 9120eecc MUI_RequestA | MUI 3.8's layout: 4 pixels round, 8 between text and buttons, the text a framed Text with 8 inside, buttons sharing the width with 4 pixel gaps and spaces. Five measured requesters have MUI 3.8's object tree and size; WookieChat's "Quit Program?" and Archiver's "Problem!" as MUI 3.8 |
+| 62a34d5f List | behaving as MUI 3.8, no MUI 4 horizontal scroller unless the program asks (MUIV_List_HScrollerVisibility_Always); ~1.3 KB less per list. Behaving as MUI 5 unchanged |
+| a76f4c5f MUI_AslRequest | behaving as MUI 3.8, asl.library's AllocAslRequest/AslRequest/FreeAslRequest with the program's tags, as MUI 3.8 makes them (logged on both: the same tags, the same pointers, asl's window). Contact Manager's drawer requester is ASL's again. Behaving as MUI 5 unchanged (Zune's panel) |
+
+YAM 2.5's configuration window came after 15 s (MUI 3.8: 12 s; before: not
+within 60 s, about 40 s in the suite's run). Each setup of it loads YAM's ~50
+pictures, which fail on OS 3.1 ("Error messages"), and the old fitting set
+YAM's windows up in more stages; how many setups that cost was not counted, so
+the cause is inferred, not traced.
+
+Library file 279,404 -> 279,844 bytes (+440); no memory per object (the list
+and scrollgroup changes save one Scrollbar each where they apply).
+
+Checked (FS-UAE, OS 3.1, 68000 build, GCC 16.2): `make check` passes after the
+last commit and every commit builds; fullcheck: the 19 MUI 3.8 demos open and
+close, no alert, memory as before (MUI-Demo 608 bytes, the others 152-264: the
+positions file); the 18 demos and 7 of MUI-Demo's 8 sub-windows now open at MUI
+3.8's sizes (before: 14 demos and 1 sub-window), MUI-Demo's Listviews 290x213 against
+MUI 3.8's 292x199; the real-program suite against MUI
+3.8: **30 of 36 programs as on MUI 3.8 (14 before)**, none that matched before
+differs now; the MUI 4/5 group with the MUI 5 identity (`--groups mui5`) runs as
+before: the same status, windows and memory for all five programs, `lean` and
+`suitefix` run the same day; only the MUI_Request windows changed their layout
+(YAM 2.10dev's "Confirmation Request" 388x88 -> 249x103, AmigaGPT's error
+564x91, was 580x91: the requester layout is Zune's look for both identities, as
+the frames are).
+
+Still different, and why:
+- TheBar demo2's control window and demo3 18 pixels wider; AmIRC's server
+  window opens 256 high (MUI 3.8 236), AmTelnet 248 at y 4 (MUI 3.8 256 at
+  0): window default sizes, not measured further yet.
+- IBrowse 2.5.9: "Couldn't open initial window" (its main window does not
+  fit even in the last stage on Zune); its later freeze is FS-UAE crashing.
+- MultiRen: the suite marks MUI 3.8's run as "still running after quit";
+  Zune's quits. Same windows and sizes.
+- An empty group: MUI 3.8 gives it a negative height (minus the spacing)
+  and caps its parent's maximum width; Zune gives it 0x0.
+- A Cycle's internal structure (Zune: a page group of texts; MUI 3.8: one
+  text) and a List's (an entry area inside the list group) differ; the
+  outer sizes are the same.
+
 ## Left open
 
 - **Library code**: 261 KB (file 279 KB) against MUI 3.8's 166 KB.
