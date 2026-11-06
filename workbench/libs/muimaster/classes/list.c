@@ -1313,17 +1313,26 @@ static int CalcVertVisible(struct IClass *cl, Object *obj)
     int old_entries_visible = data->entries_visible;
     int old_entries_top_pixel = data->entries_top_pixel;
 
-    /* Like MUI 3.9, count, draw and scroll by the rows that are at least
-     * partly visible: the last one may be cut off at the bottom
-     * (tests/native/listvisible.c) */
-    data->vertprop_visible = data->entries_visible =
-        (_mheight(data->area) - data->title_height
-        + data->entry_maxheight - 1) / data->entry_maxheight;
-
-    /* Like MUI 3.9, entries start at the top; spare space stays below
-     * them (tests/native/listvisible.c) */
+    LONG room = _mheight(data->area) - data->title_height;
 
     data->entries_top_pixel = _mtop(data->area) + data->title_height;
+    if (ZUNE_APP_MUI38(obj) && room >= data->entry_maxheight)
+    {
+        /* MUI 3.8 shows only whole rows and centres them: the spare
+         * pixels are shared above and below (demopix: the Floattext of
+         * MUI-Demo's Groups window) */
+        data->entries_visible = room / data->entry_maxheight;
+        data->entries_top_pixel +=
+            (room - data->entries_visible * data->entry_maxheight) / 2;
+    }
+    else
+        /* Like MUI 3.9, count, draw and scroll by the rows that are at
+         * least partly visible: the last one may be cut off at the bottom,
+         * entries start at the top, spare space stays below them
+         * (tests/native/listvisible.c) */
+        data->entries_visible = (room + data->entry_maxheight - 1)
+            / data->entry_maxheight;
+    data->vertprop_visible = data->entries_visible;
 
     if (data->entries_visible != old_entries_visible)
     {
@@ -1401,6 +1410,29 @@ AROS_UFH3S(int, default_compare_func,
 
 #define PROP_VERT_FIRST   1
 #define PROP_HORIZ_FIRST  2
+#define PROP_VERT_SYNC    3
+
+/* The units the scrollbar counts in: MUI 3.8 gives its Prop pixels
+ * (entries times the row height), which Intuition's prop gadget rounds
+ * into other knob sizes than rows do (demopix, tests/lean/probe/propvis.c:
+ * 232 of 232 knobs the same); MUI 3.9 gives rows. */
+static LONG List_PropScale(Object *obj, struct MUI_ListData *data)
+{
+    return (_flags(obj) & MADF_SETUP) && ZUNE_APP_MUI38(obj)
+        && data->entry_maxheight > 1 ? data->entry_maxheight : 1;
+}
+
+static void List_SyncVertProp(Object *obj, struct MUI_ListData *data)
+{
+    LONG scale = List_PropScale(obj, data);
+
+    if (data->vert)
+        SetAttrs(data->vert, MUIA_NoNotify, TRUE,
+            MUIA_Prop_DeltaFactor, scale,
+            MUIA_Prop_Entries, data->vertprop_entries * scale,
+            MUIA_Prop_Visible, data->vertprop_visible * scale,
+            MUIA_Prop_First, data->vertprop_first * scale, TAG_DONE);
+}
 
 static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
 {
@@ -1411,8 +1443,17 @@ static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
     switch (type)
     {
     case PROP_VERT_FIRST:
-        get(data->vert, MUIA_Prop_First, &val);
-        nnset(obj, MUIA_List_VertProp_First, val);
+        {
+            LONG scale = List_PropScale(obj, data);
+
+            get(data->vert, MUIA_Prop_First, &val);
+            if (scale > 1)
+                val = (val + scale / 2) / scale;
+            nnset(obj, MUIA_List_VertProp_First, val);
+        }
+        break;
+    case PROP_VERT_SYNC:
+        List_SyncVertProp(obj, data);
         break;
     case PROP_HORIZ_FIRST:
         get(data->horiz, MUIA_Prop_First, &val);
@@ -1480,11 +1521,11 @@ static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
             if (data->vert_connected)
             {
                 DoMethod(obj, MUIM_KillNotifyObj, MUIA_List_VertProp_First,
-                    (IPTR) data->vert);
+                    (IPTR) obj);
                 DoMethod(obj, MUIM_KillNotifyObj, MUIA_List_VertProp_Visible,
-                    (IPTR) data->vert);
+                    (IPTR) obj);
                 DoMethod(obj, MUIM_KillNotifyObj, MUIA_List_VertProp_Entries,
-                    (IPTR) data->vert);
+                    (IPTR) obj);
                 data->vert_connected = FALSE;
             }
 
@@ -1497,29 +1538,23 @@ static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
      * connected */
     if (data->vert && !data->vert_connected)
     {
-        LONG entries = 0, first = 0, visible = 0;
-
-        get(obj, MUIA_List_VertProp_First, &first);
-        get(obj, MUIA_List_VertProp_Visible, &visible);
-        get(obj, MUIA_List_VertProp_Entries, &entries);
-
-        SetAttrs(data->vert, MUIA_Prop_First, first,
-            MUIA_Prop_Visible, visible, MUIA_Prop_Entries, entries, TAG_DONE);
+        List_SyncVertProp(obj, data);
 
         DoMethod(data->vert, MUIM_Notify, MUIA_Prop_First, MUIV_EveryTime,
             (IPTR) obj, 4, MUIM_CallHook, (IPTR) &data->hook, PROP_VERT_FIRST,
             MUIV_TriggerValue);
 
-        /* Pass prop object as DestObj (based on code in NList) */
+        /* Pass prop object as DestObj (based on code in NList); the hook
+         * gives the scrollbar all three in its units */
         DoMethod(obj, MUIM_Notify, MUIA_List_VertProp_First, MUIV_EveryTime,
-            (IPTR) data->vert, 3, MUIM_NoNotifySet,
-            MUIA_Prop_First, MUIV_TriggerValue);
+            (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
+            PROP_VERT_SYNC);
         DoMethod(obj, MUIM_Notify, MUIA_List_VertProp_Visible, MUIV_EveryTime,
-            (IPTR) data->vert, 3, MUIM_NoNotifySet,
-            MUIA_Prop_Visible, MUIV_TriggerValue);
+            (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
+            PROP_VERT_SYNC);
         DoMethod(obj, MUIM_Notify, MUIA_List_VertProp_Entries, MUIV_EveryTime,
-            (IPTR) data->vert, 3, MUIM_NoNotifySet,
-            MUIA_Prop_Entries, MUIV_TriggerValue);
+            (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
+            PROP_VERT_SYNC);
 
         data->vert_connected = TRUE;
     }
@@ -2783,6 +2818,8 @@ IPTR List__MUIM_Layout(struct IClass *cl, Object *obj,
 
     /* So the notify happens */
     set(obj, MUIA_List_VertProp_Visible, data->entries_visible);
+    /* the scrollbar's units may have changed with the setup */
+    List_SyncVertProp(obj, data);
 
     ListLayoutEditor(obj, data);
     return rc;
