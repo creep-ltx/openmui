@@ -193,16 +193,17 @@ static void draw_effect_chunk(ZText *text, ZTextChunk *chunk_node,
             }
         }
         /* MUI 3.9 underlines a shortcut one pixel short of
-         * its advance, two rows below the baseline but within
-         * the font (tests/native/ulprobe.c) */
+         * its advance, MUI 3.8 the whole advance (demopix), two rows
+         * below the baseline but within the font
+         * (tests/native/ulprobe.c) */
         if (len > 0 && (chunk_node->style & ZTEXT_STYLE_HICHAR))
         {
             struct TextFont *font = _font(obj);
             WORD y = rp->cp_y - font->tf_Baseline;
 
             y += MIN(font->tf_Baseline + 2, font->tf_YSize - 1);
-            RectFill(rp, x, y,
-                x + MAX(chunk_node->cwidth - 2, 0), y);
+            RectFill(rp, x, y, x + MAX(chunk_node->cwidth -
+                (ZUNE_APP_MUI38(obj) ? 1 : 2), 0), y);
         }
     }
     if (foreground >= 0) ReleasePen(cm, foreground);
@@ -1225,7 +1226,8 @@ void zune_text_draw(ZText * text, Object * obj, WORD left, WORD right,
                             struct TextFont *font = _font(obj);
                             WORD y = rp->cp_y - font->tf_Baseline +
                                 MIN(font->tf_Baseline + 2, font->tf_YSize - 1);
-                            RectFill(rp, x, y, x + MAX(chunk_node->cwidth - 2, 0), y);
+                            RectFill(rp, x, y, x + MAX(chunk_node->cwidth -
+                                (ZUNE_APP_MUI38(obj) ? 1 : 2), 0), y);
                         }
                     }
                     x += chunk_node->cwidth;
