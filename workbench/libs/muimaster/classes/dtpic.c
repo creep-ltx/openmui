@@ -45,6 +45,24 @@ extern struct Library *MUIMasterBase;
 
 #define DataTypesBase data->datatypesbase
 
+/* Only the tag-array calls (NewDTObjectA, GetDTAttrsA) may be used here:
+ * the varargs forms of the inline headers are static functions made at
+ * #include time, which call through the global DataTypesBase, not the
+ * base this class opened. That global is NULL in the class file
+ * (Dtpic.mui) and in the library until something else opens datatypes
+ * (lazylib.h), so a Dtpic with a picture jumped to address -48: HomeBank
+ * 3.1 reset the machine at start (guru 8000000B). */
+static ULONG dtpic_get(struct Dtpic_DATA *data, ULONG attr, APTR store)
+{
+    struct TagItem tags[2];
+
+    tags[0].ti_Tag = attr;
+    tags[0].ti_Data = (IPTR)store;
+    tags[1].ti_Tag = TAG_DONE;
+    tags[1].ti_Data = 0;
+    return GetDTAttrsA(data->dto, tags);
+}
+
 static void killdto(struct Dtpic_DATA *data)
 {
     if (data->bm_selected) FreeBitMap(data->bm_selected);
@@ -237,11 +255,17 @@ IPTR setup_datatype(struct IClass *cl, Object *obj)
 
             me->pr_WindowPtr = (APTR) - 1;
 
-            data->dto = NewDTObject(data->name, DTA_GroupID, GID_PICTURE,
-                OBP_Precision, PRECISION_IMAGE,
-                PDTA_Screen, _screen(obj),
-                PDTA_DestMode, PMODE_V43,
-                PDTA_UseFriendBitMap, TRUE, TAG_DONE);
+            struct TagItem tags[] =
+            {
+                { DTA_GroupID, GID_PICTURE },
+                { OBP_Precision, PRECISION_IMAGE },
+                { PDTA_Screen, (IPTR)_screen(obj) },
+                { PDTA_DestMode, PMODE_V43 },
+                { PDTA_UseFriendBitMap, TRUE },
+                { TAG_DONE, 0 }
+            };
+
+            data->dto = NewDTObjectA(data->name, tags);
             me->pr_WindowPtr = oldwinptr;
 
             if (data->dto)
@@ -264,13 +288,11 @@ IPTR setup_datatype(struct IClass *cl, Object *obj)
                             else
                                 set(obj, MUIA_FillArea, FALSE);
 
-                            GetDTAttrs(data->dto, PDTA_DestBitMap,
-                                &data->bm, TAG_DONE);
+                            dtpic_get(data, PDTA_DestBitMap, &data->bm);
 
                             if (!data->bm)
                             {
-                                GetDTAttrs(data->dto, PDTA_BitMap,
-                                    &data->bm, TAG_DONE);
+                                dtpic_get(data, PDTA_BitMap, &data->bm);
                             }
 
                             if (data->bm)
@@ -614,8 +636,7 @@ IPTR Dtpic__MUIM_Draw(struct IClass *cl, Object *obj,
                 /* Transparency with mask */
                 APTR mask = NULL;
 
-                GetDTAttrs(data->dto, PDTA_MaskPlane, (IPTR) & mask,
-                    TAG_DONE);
+                dtpic_get(data, PDTA_MaskPlane, &mask);
 
                 if (mask)
                     ZuneBltMaskBitMapRastPort(data->bm, 0, 0, _rp(obj),
