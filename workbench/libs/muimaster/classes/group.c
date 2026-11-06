@@ -104,7 +104,7 @@ static const struct GroupVirtual group_novirt;
 struct MUI_GroupData
 {
     struct Hook *layout_hook;
-    UWORD flags;                /* GROUP_* */
+    ULONG flags;                /* GROUP_* (a UWORD costs stack in the recursive methods) */
     UWORD columns;
     UWORD rows;
     WORD active_page;
@@ -120,9 +120,9 @@ struct MUI_GroupData
     WORD samesize_maxmin_vert;
     UBYTE update;               /* for MUI_Redraw() 1 - do not redraw the frame
                                  * 2 - the virtual pos has changed */
-    UBYTE dont_forward_get;     /* Set temporarily to 1 so that the get method
+    UBYTE dont_forward_get:1;   /* Set temporarily to 1 so that the get method
                                  * is not forwarded */
-    UBYTE dont_forward_methods; /* Set temporarily to 1, meaning that the
+    UBYTE dont_forward_methods:1; /* Set temporarily to 1, meaning that the
                                  * methods are not forwarded to the group's
                                  * children */
     /* A virtual group's state, NULL for the others: read it through
@@ -158,7 +158,13 @@ static struct layout2d_elem *group_infos(struct layout2d_elem **infos,
 
 static inline struct MinList *group_children(struct MUI_GroupData *data)
 {
-    return &data->childlist;
+    struct MinList *list = &data->childlist;
+
+    /* The list is taken as a pointer of its own, as when the group kept
+     * one to it: GCC otherwise keeps both the data and the list live in
+     * the child walks, 4 more bytes of stack per nesting level */
+    __asm__("" : "+a"(list));
+    return list;
 }
 
 /* Family's AddHead/AddTail/Insert on the group's own list. Family's parent
@@ -5365,10 +5371,9 @@ STATIC IPTR __attribute__((noinline)) Group_Notify(struct IClass *cl, Object *ob
     }
     data->dont_forward_get = 0;
 
-    ChildList = group_children(data);
-    if (!ChildList)
-        return TRUE;
-
+    /* the list directly: through group_children() GCC keeps one more
+     * register on this recursive path */
+    ChildList = &data->childlist;
     cstate = ChildList->mlh_Head;
     while ((child = NextObject(&cstate)))
     {

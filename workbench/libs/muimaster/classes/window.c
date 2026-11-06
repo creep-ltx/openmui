@@ -1390,7 +1390,9 @@ static BOOL InitCustomFrames(Object *obj, struct MUI_RenderInfo *mri)
  * Requires initialized writable render-info state; return no status and do
  * not free the render-info structure.
  */
-static void DisposeCustomFrames(struct MUI_RenderInfo *mri)
+/* not inlined: CleanupRenderInfo's frame stays as small as before the
+ * tail's NULL test */
+static void __attribute__((noinline)) DisposeCustomFrames(struct MUI_RenderInfo *mri)
 {
     int i;
 
@@ -4694,6 +4696,14 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
  * stopped callbacks. This handler intentionally does not perform close or
  * remove membership.
  */
+/* The explicit cycle chain and the render info's tail, in one call that
+ * keeps OM_DISPOSE's frame as small as one FreeVec did */
+static void __attribute__((noinline)) WindowFreeBlocks(struct MUI_WindowData *data)
+{
+    FreeVec(data->wd_CycleOrder);
+    FreeVec(data->wd_RenderInfo.mri_Tail);
+}
+
 IPTR Window__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
@@ -4723,8 +4733,7 @@ IPTR Window__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
     if (data->wd_ChildMenustrip)
         MUI_DisposeObject(data->wd_ChildMenustrip);
     if (data->wd_MemoryPool) DeletePool(data->wd_MemoryPool);
-    FreeVec(data->wd_CycleOrder);
-    FreeVec(data->wd_RenderInfo.mri_Tail);
+    WindowFreeBlocks(data);
     return DoSuperMethodA(cl, obj, msg);
 }
 

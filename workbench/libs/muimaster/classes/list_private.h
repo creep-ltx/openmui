@@ -202,7 +202,7 @@ struct MUI_ListData
 
     /* The switches and small modes as bytes, together (they were BOOLs,
      * enums and LONGs between pointers, each with its padding) */
-    UBYTE update; /* UPDATEMODE_*: 1 - update everything, 2 - redraw
+    int update; /* UPDATEMODE_*: 1 - update everything, 2 - redraw
                    * entry at update_pos, 3 - scroll to current
                    * entries_first (old value is in update_pos) */
     UBYTE prefs_refresh;        /* ListviewRefresh */
@@ -218,7 +218,7 @@ struct MUI_ListData
     UBYTE mouse_click;          /* see below if mouse is held down */
     UBYTE doubleclick;
     UBYTE stripes, editable;
-    UBYTE ending_edit;
+    BOOL ending_edit;
     UBYTE format_layout, max_columns_explicit;
 };
 

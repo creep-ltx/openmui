@@ -111,11 +111,11 @@ def check(path):
     assert len(h.events) == 1
     parent = h.blob(bytes(400))
     h.mem.w32(OBJECT + 16, parent)
-    # Group's flags: a UWORD at offset 4 of its data (GROUP_CHANGING)
-    h.mem.w16(parent + 272 + 4, 1 << 4)
+    # Group's flags: a ULONG at offset 4 of its data (GROUP_CHANGING)
+    h.mem.w32(parent + 272 + 4, 1 << 4)
     h.call('Group__MUIM_ExitChange', CLASS, OBJECT, h.words(0))
     assert len(h.events) == 1
-    h.mem.w16(parent + 272 + 4, 0)
+    h.mem.w32(parent + 272 + 4, 0)
     h.call('Group__MUIM_ExitChange', CLASS, OBJECT, h.words(0))
     assert len(h.events) == 2
     # A custom layout hook receives the live child list and inner geometry.
@@ -154,7 +154,7 @@ def check(path):
     # A custom virtual layout may shrink its requested content extent,
     # but its public virtual dimensions must still cover the viewport.
     # This follows the grow/shrink sequence in native/relayout.c.
-    h.mem.w16(OBJECT + 272 + 4, 1 << 6)  # GROUP_VIRTUAL
+    h.mem.w32(OBJECT + 272 + 4, 1 << 6)  # GROUP_VIRTUAL
     # Lean edition: a virtual group's state is a block of its own (68
     # bytes), made at OM_NEW; its pointer is at offset 44 of Group's data.
     h.mem.w32(OBJECT + 272 + 44, h.blob(bytes(68)))

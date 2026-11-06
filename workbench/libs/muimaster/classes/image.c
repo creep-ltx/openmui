@@ -275,15 +275,15 @@ extern struct Library *MUIMasterBase;
 /* 28 bytes (was 36): with Area's an image object is 176 bytes */
 struct MUI_ImageData
 {
+    UWORD  state;
+    UBYTE  flags;
+    UBYTE  builtin;
     char *spec;
     struct MUI_ImageSpec_intern *img;
     struct  NewImage *propimage;
     struct Image *old_image;
     Object *prop; /* private hack to use prop images */
     ULONG  specnr;
-    UWORD  state; /* see IDS_* in intuition/imageclass.h */
-    UBYTE  flags; /* MIF_* */
-    UBYTE  builtin; /* MUIA_Image_BuiltinSpec below MUII_Count, else 0xff */
 };
 
 

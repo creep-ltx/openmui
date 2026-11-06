@@ -17,10 +17,10 @@ CANDRAW, SHOWME = 1 << 14, 1 << 9
 GROUP_VIRTUAL = 1 << 6
 # Lean edition: a virtual group's state is a block of its own (68 bytes),
 # pointed to from offset 44 of Group's data; the offsets are in that block.
-# Group's update field (offset 40) is a byte, its flags (offset 4) a UWORD,
+# Group's update field (offset 42) is a byte, its flags (offset 4) a ULONG,
 # its child list a MinList at offset 52.
 VIRT_POINTER = 44
-UPDATE = 40
+UPDATE = 42
 CHILDLIST = 52
 OFFX, OFFY, OLDX, OLDY, EXTW, EXTH = 24, 28, 32, 36, 40, 44
 
@@ -29,7 +29,7 @@ class ScrollHarness(BackfillHarness):
     def __init__(self, path):
         super().__init__(path)
         self.mem.w16(CLASS + 32, GROUP_OFFSET)
-        self.mem.w16(DATA + 4, GROUP_VIRTUAL)
+        self.mem.w32(DATA + 4, GROUP_VIRTUAL)
         self.virt = 0x76800
         self.mem.w_block(self.virt, bytes(68))
         self.mem.w32(DATA + VIRT_POINTER, self.virt)

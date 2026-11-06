@@ -150,7 +150,7 @@ def check_virtual_paint(path):
             # update is a byte; the offsets are in the virtual block
             virt = h.blob(bytes(68))
             h.mem.w32(data + 44, virt)
-            h.mem.w8(data + 40, update)
+            h.mem.w8(data + 42, update)
             h.mem.w32(virt + 24, (100 + dx) & 0xffffffff)
             h.mem.w32(virt + 28, (100 + dy) & 0xffffffff)
             h.mem.w32(virt + 32, 100)

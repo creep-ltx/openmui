@@ -270,6 +270,13 @@ struct TextMark
 /* 38 bytes (was 50): with Area's a Text object is 192 bytes */
 struct MUI_TextData
 {
+    UBYTE mtd_Flags;    /* MTDF_* */
+    TEXT hichar;
+    TEXT controlchar;
+    UBYTE update;       /* type of update: 1 - everything,
+                         * 2 - insert char, no scroll */
+    UBYTE copy_contents;
+    BYTE shorten;       /* MUIV_Text_Shorten_* */
     STRPTR contents;
     ULONG contents_size;    /* allocated bytes of contents */
     CONST_STRPTR preparse;
@@ -278,13 +285,6 @@ struct MUI_TextData
     STRPTR owned_contents;
     Object *textdata;
     struct TextMark *mark;
-    UBYTE mtd_Flags;    /* MTDF_* */
-    TEXT hichar;
-    TEXT controlchar;
-    UBYTE update;       /* type of update: 1 - everything,
-                         * 2 - insert char, no scroll */
-    UBYTE copy_contents;
-    BYTE shorten;       /* MUIV_Text_Shorten_* */
 };
 
 #define MTDF_SETMIN    (1<<0)
