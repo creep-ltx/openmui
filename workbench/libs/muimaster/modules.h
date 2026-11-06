@@ -25,10 +25,12 @@
 #define MUIC_Zdragdrop  "Zdragdrop.zmod"    /* Zdragdrop.mui: dragndrop.c */
 #define MUIC_Zrequest   "Zrequest.zmod"     /* Zrequest.mui: requesters.c, mui_request.c */
 #define MUIC_Zgradient  "Zgradient.zmod"    /* Zgradient.mui: imspec_gradientdraw.c */
+#define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
 
 enum
 {
     ZMOD_MENU, ZMOD_PICTURE, ZMOD_DRAGDROP, ZMOD_REQUEST, ZMOD_GRADIENT,
+    ZMOD_WINTITLE,
     ZMOD_COUNT
 };
 
@@ -109,6 +111,28 @@ struct ZuneGradientModule
         struct MUI_RenderInfo *, WORD, WORD, WORD, WORD, WORD, WORD, WORD,
         WORD, WORD, WORD, WORD);
 };
+
+/* The extra title bar gadgets (wintitle.c); classes/window.c calls the
+ * library's functions of these names */
+struct Window;
+struct Gadget;
+struct DrawInfo;
+#define ZUNE_TITLE_BOX 23   /* width of a title gadget's box */
+/* the window menu's actions, in its order */
+enum { ZUNE_TA_ICONIFY, ZUNE_TA_SNAPSHOT, ZUNE_TA_UNSNAPSHOT,
+    ZUNE_TA_SETTINGS, ZUNE_TA_ABOUT };
+struct ZuneWintitleModule
+{
+    void (*create)(struct Window *, ULONG, LONG, struct Gadget **,
+        Class **);
+    int (*menu)(struct Window *, struct DrawInfo *, struct Gadget *, BOOL);
+};
+void zune_wintitle_create(struct Window *win, ULONG buttons, LONG right,
+    struct Gadget **gadgets, Class **clp);
+int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
+    struct Gadget *popup, BOOL has_id);
+/* in classes/window.c: is the window object asleep (MUIA_Window_Sleep) */
+BOOL zune_window_sleeping(Object *win);
 
 /* In a module built as a file: take the library bases over again before
  * code that reads CyberGfxBase, which the library opens at the first

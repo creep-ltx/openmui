@@ -34,6 +34,9 @@
 
 #define TG_WIDTH 13
 
+/* TITLEGLYPHS_NAMES_ONLY: only the names above (classes/window.c) */
+#ifndef TITLEGLYPHS_NAMES_ONLY
+
 #define TGR(p, x0, y0, x1, y1) (p), ((x0) << 4 | (x1)), ((y0) << 4 | (y1))
 #define TGB(n) (15 - (n))   /* n rows above the bottom row */
 
@@ -124,5 +127,7 @@ static void DrawTitleGlyph(struct RastPort *rp, const UWORD *pens,
         RectFill(rp, x + (r[1] >> 4), y0, x + (r[1] & 15), y1);
     }
 }
+
+#endif /* TITLEGLYPHS_NAMES_ONLY */
 
 #endif

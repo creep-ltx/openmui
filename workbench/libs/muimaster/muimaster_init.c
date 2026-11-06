@@ -90,13 +90,13 @@ void L_ExpungeLib(struct Library *library)
     struct MUIMasterBase_intern *base = MUIMB(library);
     unsigned i = sizeof(dependencies) / sizeof(dependencies[0]);
     MUIGfx_Remove();
+#ifdef ZUNE68_GCC_NATIVE
+    zune_title_gadgets_free();      /* its dispatcher is in a module */
+#endif
 #if ZUNE_CLASSFILE_NFILES
     ZUNE_CloseClassFiles(library);  /* their classes are freed by now */
 #endif
     zune_vector_free_templates();
-#ifdef ZUNE68_GCC_NATIVE
-    zune_title_gadgets_free();
-#endif
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
     CyberGfxBase = NULL;
     Locale_Deinitialize();

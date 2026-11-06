@@ -27,7 +27,8 @@
 extern struct Library *MUIMasterBase;
 
 static CONST_STRPTR const module_names[ZMOD_COUNT] = {
-    MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient
+    MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient,
+    MUIC_Zwintitle
 };
 
 /* Modules a process could not load: not tried again while the library
@@ -395,4 +396,25 @@ VOID zune_gradient_draw(struct MUI_ImageSpec_intern *spec,
 {
     zune_gradient_drawfast(spec, mri->mri_RastPort,
         mri, 0, x1, y1, x2, y2, x1, y1, x2, y2, xoff, yoff);
+}
+
+/* The extra title bar gadgets (wintitle.c): only made when the prefs
+ * switch one on; without the module a window opens without them. */
+void zune_wintitle_create(struct Window *win, ULONG buttons, LONG right,
+    struct Gadget **gadgets, Class **clp)
+{
+    MODULE(ZuneWintitleModule, ZMOD_WINTITLE);
+    if (m)
+        m->create(win, buttons, right, gadgets, clp);
+    zune_module_put(cl);
+}
+
+int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
+    struct Gadget *popup, BOOL has_id)
+{
+    MODULE(ZuneWintitleModule, ZMOD_WINTITLE);
+    int choice = m ? m->menu(pw, dri, popup, has_id) : -1;
+
+    zune_module_put(cl);
+    return choice;
 }
