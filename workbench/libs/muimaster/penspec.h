@@ -40,6 +40,14 @@ BOOL zune_pen_string_to_intern(CONST_STRPTR spec,
 BOOL zune_pen_intern_to_spec(const struct MUI_PenSpec_intern *intern,
     struct MUI_PenSpec *spec);
 void zune_penspec_fill_muipen(struct MUI_PenSpec_intern *psi, LONG muipen);
+/* The graphics pen to draw psi with in mri: a MUI pen is read from mri
+ * (shared specs are never set up), the others were found by setup */
+static inline ULONG zune_penspec_pen(const struct MUI_PenSpec_intern *psi,
+    const struct MUI_RenderInfo *mri)
+{
+    return psi->p_type == PST_MUI && (ULONG)psi->p_mui < MPEN_COUNT
+        ? mri->mri_Pens[psi->p_mui] : psi->p_pen;
+}
 void zune_penspec_fill_rgb(struct MUI_PenSpec_intern *psi, ULONG r, ULONG g,
     ULONG b);
 

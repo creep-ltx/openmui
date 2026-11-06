@@ -3026,7 +3026,8 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
      * every fill. */
     LONG pen;
 
-    if (bg && zune_imspec_fill_pen(bg, &pen) && data->mad_Frame <= 100
+    if (bg && zune_imspec_fill_pen(bg, data->mad_RenderInfo, &pen)
+        && data->mad_Frame <= 100
         && muiGlobalInfo(obj)->mgi_Prefs->frames[data->mad_Frame].type
             < FST_CUSTOM1)
     {

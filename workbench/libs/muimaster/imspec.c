@@ -116,10 +116,20 @@ static void spec_parse_long(CONST_STRPTR s, LONG *val)
 static struct MUI_ImageSpec_intern
     pattern_specs[MUII_MARKBACKGROUND - MUII_SHADOWBACK + 1];
 
+/* The same for the four plain MUI pens (MUII_BACKGROUND, MUII_SHADOW,
+ * MUII_SHINE, MUII_FILL), the background most objects get from the
+ * settings ("0:128" and friends): a PST_MUI pen is read from the render
+ * info it is drawn with (zune_penspec_pen), so one constant serves every
+ * window and screen; it is never set up, cleaned up or freed. */
+static struct MUI_ImageSpec_intern
+    color_specs[MUII_FILL - MUII_BACKGROUND + 1];
+
 static BOOL is_shared_spec(const struct MUI_ImageSpec_intern *spec)
 {
-    return spec >= &pattern_specs[0]
-        && spec < &pattern_specs[MUII_MARKBACKGROUND - MUII_SHADOWBACK + 1];
+    return (spec >= &pattern_specs[0]
+        && spec < &pattern_specs[MUII_MARKBACKGROUND - MUII_SHADOWBACK + 1])
+        || (spec >= &color_specs[0]
+        && spec < &color_specs[MUII_FILL - MUII_BACKGROUND + 1]);
 }
 
 static struct MUI_ImageSpec_intern *get_pattern_imspec(LONG in)
@@ -128,21 +138,20 @@ static struct MUI_ImageSpec_intern *get_pattern_imspec(LONG in)
 
     if (in >= MUII_BACKGROUND && in <= MUII_FILL)
     {
-        if ((spec = mui_alloc_struct(struct MUI_ImageSpec_intern)))
-        {
-            UWORD color;
-            if (in == MUII_BACKGROUND)
-                color = MPEN_BACKGROUND;
-            else if (in == MUII_SHADOW)
-                color = MPEN_SHADOW;
-            else if (in == MUII_SHINE)
-                color = MPEN_SHINE;
-            else
-                color = MPEN_FILL;
+        UWORD color;
+        if (in == MUII_BACKGROUND)
+            color = MPEN_BACKGROUND;
+        else if (in == MUII_SHADOW)
+            color = MPEN_SHADOW;
+        else if (in == MUII_SHINE)
+            color = MPEN_SHINE;
+        else
+            color = MPEN_FILL;
 
-            spec->type = IST_COLOR;
-            zune_penspec_fill_muipen(&spec->u.penspec, color);
-        }
+        spec = &color_specs[in - MUII_BACKGROUND];
+        /* Idempotent: every caller writes the same values */
+        spec->type = IST_COLOR;
+        zune_penspec_fill_muipen(&spec->u.penspec, color);
         return spec;
     }
     else if (in >= MUII_SHADOWBACK && in <= MUII_MARKBACKGROUND)
@@ -559,7 +568,8 @@ struct MUI_ImageSpec_intern *zune_imspec_setup(IPTR s,
         break;
 
     case IST_COLOR:
-        zune_penspec_setup(&spec->u.penspec, mri);
+        if (!is_shared_spec(spec))
+            zune_penspec_setup(&spec->u.penspec, mri);
         break;
 
     case IST_BOOPSI:
@@ -671,7 +681,8 @@ void zune_imspec_cleanup(struct MUI_ImageSpec_intern *spec)
         break;
 
     case IST_COLOR:
-        zune_penspec_cleanup(&spec->u.penspec);
+        if (!is_shared_spec(spec))
+            zune_penspec_cleanup(&spec->u.penspec);
         break;
 
     case IST_BOOPSI:
@@ -720,11 +731,11 @@ BOOL zune_imspec_is_position_free(const struct MUI_ImageSpec_intern *spec)
 }
 
 BOOL zune_imspec_fill_pen(const struct MUI_ImageSpec_intern *spec,
-    LONG *pen)
+    struct MUI_RenderInfo *mri, LONG *pen)
 {
     if (!spec || spec->type != IST_COLOR)
         return FALSE;
-    *pen = spec->u.penspec.p_pen;
+    *pen = zune_penspec_pen(&spec->u.penspec, mri);
     return TRUE;
 }
 

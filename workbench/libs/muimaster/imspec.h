@@ -39,7 +39,7 @@ struct MUI_ImageSpec_intern *zune_imspec_setup_dummy(IPTR s);
 void zune_imspec_cleanup(struct MUI_ImageSpec_intern *spec);
 /* For a plain pen fill set *pen to its resolved pen and return TRUE */
 BOOL zune_imspec_fill_pen(const struct MUI_ImageSpec_intern *spec,
-    LONG *pen);
+    struct MUI_RenderInfo *mri, LONG *pen);
 /* TRUE when the pixels a fill paints do not depend on where its
  * rectangle starts: plain pens and patterns */
 BOOL zune_imspec_is_position_free(const struct MUI_ImageSpec_intern *spec);

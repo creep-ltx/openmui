@@ -302,8 +302,12 @@ void zune_penspec_drawdirect(struct MUI_PenSpec_intern *psi,
         D(bug("drawing with 0x%p, pen=%ld, at %ld, %ld => %ld, %ld\n",
                 psi, psi->p_pen, left, top, right, bottom));
     }
-    if (rp->FgPen != (BYTE) psi->p_pen)
-        SetAPen(rp, psi->p_pen);
+    {
+        ULONG pen = zune_penspec_pen(psi, mri);
+
+        if (rp->FgPen != (BYTE) pen)
+            SetAPen(rp, pen);
+    }
     RectFill(rp, left, top, right, bottom);
 }
 
