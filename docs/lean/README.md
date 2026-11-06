@@ -869,6 +869,146 @@ Text contents copies and object data are about MUI 3.8's. What is left
 against MUI 3.8 in data: RO +7 KB, AmigaAMP-Prefs +22 KB (AmFTP -54 KB).
 The code is the larger difference now (library and class files).
 
+## The installer, image classes and the External list (2026-11-06)
+
+Branch `installer`. Our partner: "Make a good installer that handles
+things".
+
+| commit | change |
+|---|---|
+| 7e6c547a Version | `$VER` of the libraries and class files: "muimaster.library 21.227 (DD.MM.YYYY) Zune68k lean", the date of the build (`$(BUILD)/build-date.h`, written only when it changes; `ZUNE68_DATE=DD.MM.YYYY` for a fixed one). Was "Zune68 Beta 2" and 02.11.2026 by hand. lib_Version and the identity logic unchanged; "Zune68" stays in the id string for what looks for it. The archive is `Zune68k-lean-YYYY.MM.DD-amigaos3-m68k.lha` |
+| fdd845c1 Installer | `dist/Install` rewritten, `ZuneSwitch` (`workbench/tools/zuneswitch`), SYS:Zune68k with Use real MUI / Use Zune / Uninstall, a readme for the lean edition, `tests/check_installer.py` in `make check` |
+| d0e433d8 Image specs | "3:<name>.image" (external BOOPSI image classes) drawn |
+| d99e67f7 Imageadjust | the External page's previews made only for the rows on screen |
+| ac600950 Zune prefs | a real MUI's own classes (MUI:Libs/mui) not opened |
+| f4bf2d84 check_resources | the "3:" spec's class library answered "not found" in the host harness |
+| 6be56048 ZuneSwitch | the Zune68k drawer also removed after an uninstall from a Shell |
+
+### What the installer does
+
+- **Looks first, changes nothing of MUI.** It reports a MUI (MUI: or
+  SYS:MUI, its muimaster.library version: 19 MUI 3, 20 MUI 4, 21 MUI 5),
+  MUI's block in S:User-Startup (`Search ";BEGIN MUI"`), muimaster.library
+  in every LIBS: directory (Zune or not, `ZuneSwitch ISZUNE` looks for
+  "Zune68" in the file; the directories from `ZuneSwitch LIBSDIR n`,
+  Installer cannot walk a multi-assign), an earlier Zune, ENVARC:Zune and
+  ENVARC:MUI. Zune goes into the first LIBS: directory (`expandpath
+  "LIBS:"`), which ramlib searches before MUI:Libs; nothing is written to
+  the startup files (Zune needs no assign).
+- **A record of everything.** SYS:Zune68k/Data/Manifest: `NEW path`,
+  `REPLACED path` + `BACKUP name` (the old file in Data/Backup), `DIR
+  path`, paths as SYS:... when on the boot volume. Installer 43's strings
+  end at 10,000 characters (measured: `cat` fails above), so the lines
+  are appended in parts (`textfile` with `include` of the file so far).
+- **MCCs.** A bundled class is installed into <first LIBS:>/MUI unless the
+  same or a newer one is in a LIBS:MUI drawer (the first, or another LIBS:
+  directory, up to three); an older one there goes to the backup. MUI's
+  own drawer (MUI:Libs/mui) does not count: its classes are that MUI's
+  (MUI 5's Aboutbox, Busy, Calltips, Clock, Lamp, Listtree, Rawimage,
+  Textinput are all newer than Zune's and written for MUI 5's private
+  interface); Zune uses its own and "Use real MUI" gives MUI its own back.
+  The last page lists what happened to each class.
+- **Update and remove.** Install again: "Install this version over it"
+  (the earlier installation is removed first with `ZuneSwitch UNINSTALL
+  QUIET`, so the backups come back and the new installation starts from
+  the user's own files; settings kept) or "Remove Zune68k" (asks whether
+  to keep ENVARC:Zune).
+- **SYS:Zune68k**: Use real MUI, Use Zune (only when a real MUI was found),
+  Uninstall, ReadMe; project icons whose default tool is
+  SYS:Zune68k/Data/ZuneSwitch with `ACTION=MUI|ZUNE|UNINSTALL`. From a
+  Shell: `ZuneSwitch MUI|ZUNE|UNINSTALL [SETTINGS] [QUIET] [HOME=dir]`,
+  `STATUS`. Use real MUI moves every recorded file in the LIBS: directory
+  (both libraries, LIBS:Zune's files, the classes) to Data/Parked and the
+  user's replaced files back, after checking that a real MUI will then be
+  found; a failed move undoes the ones before it. Uninstall deletes Zune's
+  files, puts back the backups, removes the drawers it made when empty;
+  from Workbench the drawer it runs from is deleted by a script started
+  after it (`T:Zune68k-remove`, tries for two minutes: a Workbench window
+  of the drawer locks it).
+- **Installer versions.** 43 or newer (OS 3.1: 43.3, the one MUI 3.8's
+  archive carries; OS 3.2.1: 47.19). The Installer on the OS 3.1 Install
+  disk reports @installer-version 0: the script stops with a message
+  naming Installer 43.3. Novice installs everything without questions,
+  Intermediate/Expert ask about the translations, pretend mode changes
+  nothing (checked: the drive identical to before).
+
+### Tested (FS-UAE, the three test machines, every step a reboot between)
+
+Screenshots in `/tmp/installer/shots/` (not kept in git).
+
+| machine | install | program gets | Use real MUI | Use Zune | update | remove | after removal |
+|---|---|---|---|---|---|---|---|
+| a1200-31 (3.1, no MUI; Installer 43.3 put in C:) | Intermediate, 250 files | Zune (MUI-Demo) | not offered | - | - | Uninstall icon, "Remove all": nothing of Zune left (drive compared with the clean machine) | - |
+| a1200-31-mui38 (MUI 3.8) | Intermediate, 254 files; Busy and Listtree: MUI 3.8's stay for MUI 3.8 | Zune | icon: MUI 3.8 19.35 after reboot | Shell: Zune after reboot | Intermediate, settings kept | Install again, "Remove Zune68k", settings removed | drive identical to the clean machine; MUI-Demo on MUI 3.8 |
+| a1200-32-mui5 (3.2.1, MUI 5, Installer 47.19) | Expert pretend (nothing changed), Novice 253 files; a user Busy.mcc 16.36 replaced (backup), a user Listtree.mcc 21.40 kept | Zune | Shell: MUI 5 after reboot, the user's Busy 16.36 back | Shell: Zune | Expert, translations skipped | Uninstall icon, both "keep settings" and "Remove all" | user's Busy/Listtree byte-identical to before, MUI-Demo on MUI 5 |
+
+Found on the way:
+- **Zune prefs reset the MUI 5 machine** 3 s after its start: it opens
+  every .mcc/.mcp of every LIBS: directory, MUI 5's own Listtree.mcp,
+  LayGroup.mcp, Hyperlink.mcp... among them (lean before this branch too).
+  Fixed in Zune prefs (ac600950). It still needs 84 s to open its window on
+  the emulated 68020: 60 s without a DOS call after the settings are read
+  (`wasabi snoop`), presumably the window fitting stages of its large
+  window on a 640x256 screen; not looked into further.
+- The "user's newer class is kept" rule also keeps a newer copy of a real
+  MUI's own class that a user put in SYS:Libs/MUI (the test's MUI 5
+  Listtree.mcc 21.40): Zune then loads it. Not changed: the rule is the
+  user's choice; the installer says so on its last page.
+- Two packs with an image class of the same file name: exec finds an
+  already loaded library by its name, so the first one loaded serves both.
+
+Regression checks on the final build (FS-UAE, 2026-11-06/07): `make check`
+passes (with `check_installer.py`); fullcheck: 19 demos + MUI-Demo's 8
+sub-windows open and close, no alert, lost bytes as before (MUI-Demo 608,
+the others 176-264: the positions files); demopix 18 of 27 windows
+pixel-identical (as before); suite: MUI 3 group 29 of 36 as on MUI 3.8 -
+the six known differences plus SimpleMail "nowindow", which the lean
+baseline run (suitefix `after`) also had (SimpleMail takes wasabid down);
+MUI 4/5 group: all five run, 4 of 5 the same as the lean baseline, AmigaGPT
+2 pixels lower (as noted for `identity`).
+
+### External BOOPSI image classes ("3:<name>.image")
+
+`imspec_boopsi.c`, in the picture module: OpenLibrary of the file by path
+(the image drawers LIBS:Zune/Images/ and MUI:Images/, or the name as it is
+with a volume; Lock first, pr_WindowPtr -1), NewObject of the public class
+(file name, then without ".image", then a ClassLibrary's cl_Class),
+DrawImageState at the object's size (IA_Width/IA_Height set when the area
+differs), IDS_SELECTED for a selected image, DisposeObject + CloseLibrary at
+cleanup. The sizes: an image class written for MUI answers method
+0x80427157 (longs at 12..32: minimum, maximum, default width/height; at 36
+the MUI_RenderInfo it keeps for MUI's pens), seen in the dispatcher of the
+kmel images that ship with MUI 5 (third-party code, not MUI's); MUI 5 shows
+a fixed image at its minimum. Other classes get their object's size (an
+imageclass object without a size is 80x40, no IM_DOMAINFRAME in the kmel
+classes, `tests/lean/probe/imgclass.c`).
+
+Measured (FS-UAE, OS 3.2.1, `tests/lean/boopsiimg.c`, black box against
+MUI 5): the 19 kmel images and Misc/mui-stdcycle.image have the same sizes
+as on MUI 5 (4x4 arrows, 8x8 for the "2" ones, 12x8 checkmark, 16x8 cycle,
+3x3/7x7 knobs, 6x8 popfile/popup, 15x9 stdcycle), a 40x24 stretched image
+too; the pictures look the same. Library +416 bytes (the setup, cleanup,
+size and draw cases and two module calls), Zpicture.mui +1,264 bytes.
+
+### The External page
+
+Every listed file got its preview when it was listed: an Image object whose
+picture datatypes loaded at the list's setup, about 0.6 s each on the
+emulated 14 MHz 68020. Now files are listed by name and the previews of the
+rows on screen are made afterwards (the list notifies MUIA_List_Visible and
+MUIA_List_First; opening a drawer asks too), one per pushed method so that
+rows that grow make fewer of them visible and input is handled in between;
+the header check that keeps logos out moved with them. Closing a drawer
+frees its previews as before.
+
+| FS-UAE A1200 3.2.1, MUI 5's MUI:Images (emulator) | before | after |
+|---|---|---|
+| External page shown (MUI:Images: 10 drawers, 13 pictures) | 8.2 s | 0.6-1.2 s |
+| default_OS3 opened (39 pictures) | 11.2 s | 4.2 s (the 4-5 on screen) |
+| kmel opened (19 image classes) | - | 0.6 s |
+
+Imageadjust.mui +492 bytes.
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
