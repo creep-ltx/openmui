@@ -717,13 +717,25 @@ static int Menuitem_FillNewMenu(Object *obj, struct NewMenu *menu,
         if (depth == 0)
         {
             SIPTR type = 0;
-            get(child, MUIA_Menuitem_Type, &type);
+            struct MinList *kids = NULL;
 
-            if (type == MUIV_Menuitem_Type_Menuitem) {
-                /* Depth 0 Menuitems are to become items of current menu,
-                 * not menus. MUI behavior */
+            get(child, MUIA_Menuitem_Type, &type);
+            get(child, MUIA_Family_List, &kids);
+
+            /* A Menuitem directly in the strip is a menu when it has items
+             * of its own, or comes first: MUI 3.8 makes every object of
+             * the strip a menu (measured: Menuitems with and without
+             * children all became menu titles), and Archiver 2.3 builds
+             * its "Project" and "Special" menus from Menuitems. As items
+             * (NM_ITEM, then their children NM_SUB) the NewMenu array
+             * began with an item and gadtools' LayoutMenusA() never
+             * returned: Archiver looped without a window. A childless
+             * Menuitem after a menu stays an item of that menu, as Zune
+             * did (AROS: "MUI behavior"). */
+            if (type == MUIV_Menuitem_Type_Menuitem && num > 0
+                && (!kids || IsListEmpty((struct List *)kids)))
                 menu->nm_Type = NM_ITEM;
-            } else
+            else
                 menu->nm_Type = NM_TITLE;
         }
         else if (depth == 1)
