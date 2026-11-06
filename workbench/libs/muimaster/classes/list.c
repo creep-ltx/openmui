@@ -2967,6 +2967,17 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
                 text->truncate = TRUE;
                 zune_text_draw(text, obj, x1, MIN(x2 - 1, _mright(data->area)), y_offset);
             }
+            else if (x1 + text->width - 1 > _mright(data->area)
+                && ZUNE_APP_MUI38(obj))
+            {
+                /* MUI 3.8 draws only the whole characters of a too long
+                 * entry that end before the area's last column (demopix:
+                 * the long lines of MUI-Demo's String window); text that
+                 * fits goes up to the edge (its Floattexts) */
+                text->truncate = TRUE;
+                zune_text_draw(text, obj, x1, _mright(data->area) - 1,
+                    y_offset);
+            }
             else zune_text_draw(text, obj, x1, x2, y_offset);
             if (!borrowed) zune_text_destroy(text);
         }
@@ -3075,7 +3086,10 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     }
     else if (data->title)
     {
-        data->title_height = data->entries[ENTRY_TITLE]->height + 2;
+        /* MUI 3.8: a pixel below the title, no separator lines (demopix:
+         * MUI-Demo's Dirlist) */
+        data->title_height = data->entries[ENTRY_TITLE]->height
+            + (ZUNE_APP_MUI38(obj) ? 1 : 2);
     }
     else
     {
@@ -3117,6 +3131,8 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
                 List_NeedClip(obj, data, &clip);
             List_DrawEntry(cl, obj, ENTRY_TITLE, y, &clip);
             y += data->entries[ENTRY_TITLE]->height;
+            if (ZUNE_APP_MUI38(obj))
+                goto title_done;
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
             Move(_rp(obj), _mleft(data->area), y);
             Draw(_rp(obj), _mright(data->area), y);
@@ -3124,6 +3140,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             y++;
             Move(_rp(obj), _mleft(data->area), y);
             Draw(_rp(obj), _mright(data->area), y);
+          title_done:;
         }
     }
 
