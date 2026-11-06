@@ -1,13 +1,14 @@
 /* smaller: one window with everything the lean edition's "smaller library"
  * step (roadmap phase 3) moved into modules, to compare its pixels with
  * the build before: the rounded frame types 5, 7, 8, A and B (Zframes.mui),
- * the vector images MUII_Drawer to MUII_TapeDown (Zimages.mui), and a
+ * the vector images MUII_Drawer to MUII_TapeDown (tried as a module, in the
+ * library again), and a
  * button whose press opens a menu strip with MUIM_Menustrip_Popup
  * (Zmenu.mui; the pop-up stays until Esc or a click). The window has an ID,
  * so the title bar gadgets (Zwintitle.mui) show when the settings switch
  * them on. Test tool only.
  * Build: m68k-amigaos-gcc -m68000 -noixemul -Os -I<build>/include \
- *        -Wl,-u,___stkinit smaller.c -o smaller -lamiga */
+ *        -Wl,-u,___stkinit smaller.c -o smaller -lmui -lamiga */
 #include <libraries/mui.h>
 #include <libraries/gadtools.h>
 #include <proto/exec.h>
