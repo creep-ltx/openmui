@@ -180,6 +180,13 @@ AmigaGPT and MQTTExplorer ask for 19 (MUI 3.8), DizzyTorrent for 20 (MUI 4);
 4 of 5 the same as with the MUI 5 setting, AmigaGPT 2 pixels lower.
 Results: `/tmp/identity/zwork/suite-real/id3`, `id5` (ZWORK of that run).
 
+**Update, branch `demopix` (2026-11-06, roadmap phase 2):** MUI 3.8's drawing details from the
+demo-set comparison (docs/lean/README.md, "The demo set pixel by pixel against MUI 3.8"). The
+whole suite twice on that branch: MUI 3.x group 30 of 36 as on MUI 3.8 (the same six differ),
+36 of 36 as `identity`'s run in the first, 35 in the second: AmTelnet reset the machine at its
+second quit once; three runs of AmTelnet alone right after were clean (left 0 bytes). MUI 4/5
+group: all 5 as `identity`'s. Results: `/tmp/demopix/zwork/suite-real/dp3`, `dp3b`, `dp5`, `dp5b`.
+
 **MUI 4/5 programs, Zune against MUI 5 (5 entries):** DizzyTorrent (the one that needs MUI 3.9+)
 and AmigaGPT open and quit on Zune as on MUI 5 (sizes differ by 6-72 px); IBrowse 3.0a opens,
 but the machine stops answering when its second run quits; YAM 2.10dev gets further on Zune than
@@ -326,8 +333,17 @@ marked, with its commit in docs/lean/README.md.
    packets IBrowse sends to the drive (logged with a PutMsg patch) are the same on both up to
    the crash; what in Zune sets off the corruption is not found. IBrowse 2.5.9's frozen second
    quit is the same.
-   Next: run it in Amiberry (8.5, installed; our partner finds it more correct than FS-UAE) to
-   tell an FS-UAE fault from a Zune one before chasing it further.
+   **Run in Amiberry 2026-11-06: FS-UAE's fault, not Zune's.** The same drive (the suite's
+   installed copy of a1200-31 with Zune at `demopix`'s start, IBrowse 3.0a and 2.5.9 and their
+   classes) in Amiberry 8.5.0 (A1200, Kickstart 3.1, 68020 + 68882, 2 MB chip + 8 MB fast,
+   directory drive, bsdsocket emulation, headless: `SDL_VIDEO_DRIVER=offscreen`, no display), run
+   by `suite.sh` through an `amiga-test` stand-in: 4 of 4 runs of both programs, two starts and
+   quits each, ok; IBrowse 3.0a leaves 64 bytes on the second run (MUI 5: 4,568), 2.5.9 0.
+   The same suite run in FS-UAE died in the first run of IBrowse 3.0a and of 2.5.9 ("malloc():
+   unaligned tcache chunk detected", the emulator aborting, not the Amiga). IBrowse 2.5.9 still
+   opens no main window on Zune (the window fitting, 1 above) in both emulators. A run where two
+   suite runs drove the same Amiberry instance by mistake reset the machine; with one driver it
+   never did.
 9. **Window sizes** (each a few pixels; the contact sheet shows where). **Mostly fixed
    (suitefix)**: all below match MUI 3.8 now except TheBar demo2's control window and demo3
    (18 px wider), AmTelnet, NListtree's tree images and the MUI 4/5 group (not looked at);

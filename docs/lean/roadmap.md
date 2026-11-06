@@ -30,6 +30,12 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    demos and MUI-Demo's sub-windows, screenshotted on Zune and MUI 3.8
    with the same settings, compared pixel by pixel; a report of every
    difference. The goal is pixel-identical at default settings.
+   *Built 2026-11-06* (branch `demopix`): `tests/lean/scripts/demopix.sh`
+   with an HTML report; 8 of 27 windows pixel-identical on `lean`, 19
+   after the fixes (25 can be compared at all). What is left (group
+   distribution, Virtual's border scrollers, the Volumelist's spacing, scaled
+   images and the Knob/Levelmeter look, the last two an artwork question) in
+   [README.md](README.md#the-demo-set-pixel-by-pixel-against-mui-38-2026-11-06-phase-2).
 3. **Smaller library** (target: code loaded at start <= 166 KB). More
    rarely used code into files loaded on demand (window snapshot and
    title gadgets, list editing and drag, string extras, ...), then the

@@ -450,6 +450,87 @@ Limits:
   another exec that passes neither D0 nor D2 would make every program
   MUI 3.8 under Automatic (the per-program list still works).
 
+## The demo set pixel by pixel against MUI 3.8 (2026-11-06, phase 2)
+
+`tests/lean/scripts/demopix.sh` shoots the 19 MUI 3.8 demos and MUI-Demo's
+eight sub-windows on Zune (`a1200-31` with the library) and on MUI 3.8
+(`a1200-31-mui38`), both with 8 MB fast RAM, default settings (no ENV:MUI,
+no ENV:Zune), the same 640x256 4-colour Workbench and topaz 8; each shot
+waits until two grabs in a row are the same. `demopix-compare.py` crops every
+window, matches them by title, counts the differing pixels and writes
+`$ZWORK/demopix/report.html` (both windows, a difference picture, the
+counts) and `results.tsv`. One run of both sides takes about 3 minutes;
+`--only zune` re-shoots one side, `SHOT...` some shots.
+
+```
+make -C workbench/libs/muimaster -f GNUmakefile core prefs plugins BUILD=/tmp/b LDFLAGS=-s
+tests/lean/scripts/demopix.sh --lib /tmp/b/muimaster.library      # ports 1442 and 1443
+```
+
+**Result: 8 of 27 windows pixel-identical on `lean`, 19 now** (25 can be
+compared: Layout places its buttons at random, InputHandler's text changes
+every second). Every one of the 27 has MUI 3.8's size but MUI-Demo's
+Listviews (2 pixels narrower). MUI 3.8 was measured black-box only:
+screenshots, test programs reading public fields (`tests/lean/probe/`:
+`propvis` the scrollbars of 232 lists, `objdump`/`zspy` object trees,
+`tests/native/hdist.c` group distribution), its autodocs and examples.
+All changes are for programs that get MUI 3.8 (identity, phase 8); MUI 3.9+
+programs keep MUI 3.9's behaviour.
+
+| commit | change (demopix windows it fixed) |
+|---|---|
+| 3ca0136c Text | a shortcut underline as long as the letter's advance (MUI 3.9: one pixel shorter). Popup |
+| 276cef2c Images | MUI 3.8's PopDrawer glyph, 10 rows (MUI 3.9's 9). Popup |
+| 226976dd List | whole rows only, the spare pixels shared above and below them (MUI 3.9: a cut-off last row); the scrollbar gets entries, visible and first in pixels (rows x row height, delta factor the row height): Intuition's prop gadget rounds those into other knobs than rows, `propvis` measured 232 lists, now all knobs as MUI 3.8's (137 differed). Groups, Notify, DragnDrop, Strings, ... |
+| d11963cd Floattext | justifies to the whole entry area (MUI 3.9 leaves 4 pixels). Cycle |
+| bd517f42, 49da8e37 Rectangle | with thick frames a VBar is two dark and two light columns and bars are at least 4 pixels wide (`objdump`: MUIO_VBar 1 and 2). Menus |
+| 898869bf Text | a line with bold parts is centred as if wider by each part's overhang plus one (sizes unchanged). MUI-Demo's title |
+| ae436362 Area | background patterns start at the window's corner, not the object's. Backfill |
+| dbd7b283 Dirlist | sorted as MUIA_Dirlist_SortType/SortDirs/SortHighLow ask (drawers first, then by name: it was ExNext order, for every identity); behaving as MUI 3.8 no drawers with FilterDrawers and no accept pattern, sizes grouped with dots whatever the locale (6.468 on a United States locale). EnvBrowser |
+| a6248bfb Volumelist | only devices whose handler runs (no CON:, PIPE:...), each kind sorted by name, a disk image for DF0:/DH0:, a chip for RAM:. Listviews |
+| 66ef521b, ba21361a List | the title is the first row of the entry area, one empty pixel row below it, no separator (MUI 3.9's title buttons above the frame are not MUI 3.8's); a too long entry shows only its whole characters that end before the area's last column. Listviews (height), Strings |
+| 23a0600c Register | spare pixels widen the last tabs, the right corner rounded in the fill pen, titles centred on the tab's own width, the active one a row lower, the page frame's sides doubled with thick frames. Pages |
+| 01882b1b Text | a line starting in italics moves right by the italics' overhang left of its start (the flag in a padding byte). Virtual's "Hello User !" |
+
+Measured (FS-UAE, OS 3.1, 4 MB fast, MUI-Demo cold, three runs each,
+`lean` / now): first program 501,048 / 501,848 bytes (+800: the library
+file is 900 bytes larger), each further 218,392-218,504 / 217,224 (1.2 KB
+less: no title strip, whole rows), first window 1.44-1.48 / 1.42 s.
+`make check`, fullcheck (MUI-Demo with 8 sub-windows and the 18 others:
+no alert, the same "lost" figures as `lean`, which are its ENV: window
+records) and the real-program suite pass: MUI 3.x 30 of 36 as on MUI 3.8,
+the same six as before, every program as on `identity`'s run but one
+AmTelnet reset at its second quit in one of two whole runs (three runs of
+it alone after that were clean); MUI 4/5 group all five as before.
+
+Still different (`$ZWORK/demopix/report.html`):
+
+- **Balancing** (1,085 pixels) and **Subtask** (450): how a group shares
+  out spare pixels. MUI 3.8 gives them to the first children where a
+  child of fixed size or a Balance is in the group (Balancing's rows,
+  Subtask's Start button 10/8/9 against Zune's 9/8/10), but to the last ones
+  in `hdist`'s rows of free objects (99/99/101), and leaves a child with a
+  maximum of 40 at 39 (`tests/lean/probe/hdist-mui38.txt`,
+  `vdist-mui38.txt`: 393 + 253 measured rows; Zune's MUI 3.9 algorithm
+  matches 375 and every MUI 3.9 row). No rule found that fits all rows: a
+  search of about 2,000 variants of the MUI 3.9 algorithm (initial split,
+  divisor, rounding, which end gets the rest) got to 18 rows off.
+- **Virtual** (432): the window-border scrollers of the first page show
+  other knobs (MUI 3.8: horizontal about 64 %, vertical 44 %, which is the
+  page's view against its virtual size; Zune 48 % and 50 %). The same
+  Scrollgroup alone (`tests/lean/probe/borderprop.c`) gives its two Props
+  the same numbers on both (432/282, 240/99), so the difference is in how
+  the demo's window updates its border gadgets. Not traced further.
+- **Listviews** (6,227): the Volumelist has 2 more pixels of inner spacing
+  on the left (`objdump`: add 6 against Dirlist's 4), which makes the window
+  292 wide; the assign image differs.
+- **Images** (2,334): MUI 3.8 scales the vector images to the space given
+  (the "Scale Engine" column), and its HardDisk, Disk, Chip and Drawer
+  images differ from Zune's in a few pixels each. Copying the images pixel
+  by pixel from screenshots would be copying artwork: left for a decision.
+- **Slidorama** (6,921): MUI 3.8's Knob and Levelmeter look different
+  (a dial, readable numbers): the same artwork question.
+
 ## Left open
 
 - **Library code**: 261 KB (file 279 KB) against MUI 3.8's 166 KB.
