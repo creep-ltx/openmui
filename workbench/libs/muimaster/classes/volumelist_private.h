@@ -17,6 +17,7 @@ struct Volumelist_Entry
     char free[20];
     char used[20];
     int  type;
+    UBYTE image;       /* a device's MUII_ image */
 };
 
 #endif /* _VOLUMELIST_PRIVATE_H_ */

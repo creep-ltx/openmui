@@ -5,6 +5,7 @@
 #define MUIMASTER_YES_INLINE_STDARG
 
 #include <exec/memory.h>
+#include <dos/filehandler.h>
 #include <clib/alib_protos.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -169,7 +170,11 @@ AROS_UFH3S(LONG, display_func,
     {
         if (entry->type == DLT_DEVICE)
         {
-            *array++ = "\33I[6:24]";
+            static const char images[3][9] = {
+                "\33I[6:23]", "\33I[6:24]", "\33I[6:25]" };
+            *array++ = entry->image >= MUII_HardDisk
+                && entry->image <= MUII_Chip ?
+                (char *)images[entry->image - MUII_HardDisk] : "\33I[6:24]";
         }
         else if (entry->type == DLT_VOLUME)
         {
@@ -199,6 +204,39 @@ AROS_UFH3S(LONG, display_func,
     AROS_USERFUNC_EXIT
 }
 
+
+/* Where an entry goes: MUI 3.8 sorts devices, volumes and assigns each
+ * by name (demopix: MUI-Demo's Listviews window); MUI 3.9's order is the
+ * DOS list's, every entry at the bottom */
+static LONG vl_position(Object *obj, LONG group_start, LONG n,
+    CONST_STRPTR name, BOOL sorted)
+{
+    LONG i;
+
+    if (!sorted)
+        return MUIV_List_Insert_Bottom;
+    for (i = group_start; i < n; i++)
+    {
+        struct Volumelist_Entry *e = NULL;
+
+        DoMethod(obj, MUIM_List_GetEntry, i, (IPTR)&e);
+        if (e && Stricmp(name, e->name) < 0)
+            return i;
+    }
+    return MUIV_List_Insert_Bottom;
+}
+
+/* MUI 3.8's image for a device: a disk for one with a disk device (DF0:,
+ * DH0:), a chip for a handler without one (RAM:) */
+static UBYTE vl_device_image(struct DosList *dl)
+{
+    BPTR startup = dl->dol_misc.dol_handler.dol_Startup;
+
+    if ((ULONG)startup < 1024
+        || !(TypeOfMem(BADDR(startup)) & (MEMF_CHIP | MEMF_FAST | MEMF_PUBLIC)))
+        return MUII_Chip;
+    return MUII_Disk;
+}
 
 /*
  * Construct List with overridable format, install private record hooks, and
@@ -235,6 +273,9 @@ IPTR Volumelist__OM_NEW(struct IClass *cl, Object *obj,
             (IPTR) & data->destruct_hook, MUIA_List_DisplayHook,
             (IPTR) & data->display_hook, TAG_DONE);
 
+        BOOL mui38 = ZUNE_MUI38();
+        LONG group = 0, count = 0;
+
         dl = LockDosList(LDF_READ | LDF_VOLUMES | LDF_ASSIGNS |
             LDF_DEVICES);
 
@@ -243,11 +284,17 @@ IPTR Volumelist__OM_NEW(struct IClass *cl, Object *obj,
         {
             struct Volumelist_Entry entry;
 
+            /* MUI 3.8 lists only devices whose handler runs (DF0:, DH0:,
+             * RAM:), not CON:, PIPE:, SER: and the like */
+            if (mui38 && !actdl->dol_Task)
+                continue;
+
             entry.full[0] = '\0';
             entry.free[0] = '\0';
             entry.used[0] = '\0';
 
             entry.type = DLT_DEVICE;
+            entry.image = mui38 ? vl_device_image(actdl) : MUII_Disk;
 
             strncpy(entry.name, AROS_BSTR_ADDR(actdl->dol_Name),
                 sizeof(entry.name));
@@ -255,8 +302,10 @@ IPTR Volumelist__OM_NEW(struct IClass *cl, Object *obj,
             strcat(entry.name, ":");
 
             DoMethod(obj, MUIM_List_InsertSingle, (IPTR) & entry,
-                MUIV_List_Insert_Bottom);
+                vl_position(obj, group, count, entry.name, mui38));
+            count++;
         }
+        group = count;
 
         actdl = dl;
         while ((actdl = NextDosEntry(actdl, LDF_VOLUMES)))
@@ -303,8 +352,10 @@ IPTR Volumelist__OM_NEW(struct IClass *cl, Object *obj,
             }
 
             DoMethod(obj, MUIM_List_InsertSingle, (IPTR) & entry,
-                MUIV_List_Insert_Bottom);
+                vl_position(obj, group, count, entry.name, mui38));
+            count++;
         }
+        group = count;
 
         actdl = dl;
         while ((actdl = NextDosEntry(actdl, LDF_ASSIGNS)))
@@ -323,7 +374,8 @@ IPTR Volumelist__OM_NEW(struct IClass *cl, Object *obj,
             strcat(entry.name, ":");
 
             DoMethod(obj, MUIM_List_InsertSingle, (IPTR) & entry,
-                MUIV_List_Insert_Bottom);
+                vl_position(obj, group, count, entry.name, mui38));
+            count++;
         }
 
         UnLockDosList(LDF_READ | LDF_VOLUMES | LDF_ASSIGNS | LDF_DEVICES);
