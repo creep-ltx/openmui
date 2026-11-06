@@ -24,7 +24,8 @@
 /*  FUNCTION
         Release an allocated ASL requester and the result storage it owns.
         A MUI-managed requester also releases the ASL requester allocated
-        with it. Other requesters go to asl.library/FreeAslRequest().
+        with it. Other requesters, and every requester when behaving as
+        MUI 3.8, go to asl.library/FreeAslRequest().
 
     INPUTS
         requester - Requester allocated by MUI_AllocAslRequest() or

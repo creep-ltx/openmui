@@ -27,7 +27,9 @@
         MUI-managed requester from MUI_AllocAslRequest() opens as a MUI
         file or font panel in a separate process, unless tagList adds tags
         the panel does not support. Other requesters run through
-        asl.library/AslRequest().
+        asl.library/AslRequest(). Behaving as MUI 3.8 (the default), every
+        requester runs through asl.library/AslRequest() with the program's
+        tags, as on MUI 3.8.
 
     INPUTS
         requester - Requester allocated by MUI_AllocAslRequest() or

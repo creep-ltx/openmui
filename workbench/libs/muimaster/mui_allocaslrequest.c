@@ -27,7 +27,9 @@
         For a file or font requester whose tags are all supported by the
         MUI file or font panel, return a MUI-managed requester instead,
         which MUI_AslRequest() runs as a MUI panel. Other requesters are
-        returned as allocated by ASL.
+        returned as allocated by ASL. Behaving as MUI 3.8 (the default; see
+        Zune prefs, "Behave as"), every requester is asl.library's, as MUI
+        3.8 allocates it: the same tags, the same pointer.
 
     INPUTS
         reqType - ASL_FileRequest, ASL_FontRequest, or ASL_ScreenModeRequest.

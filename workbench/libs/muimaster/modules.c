@@ -12,6 +12,7 @@
 #include <proto/intuition.h>
 #include <proto/utility.h>
 #include <proto/muimaster.h>
+#include <proto/asl.h>
 
 #include "muimaster_intern.h"
 #include "support.h"
@@ -281,29 +282,47 @@ VOID DetachBitMapNode(struct BitMapNode *bmn)
 }
 
 /* MUI_AllocAslRequest(), MUI_AslRequest(), MUI_FreeAslRequest()
- * (requesters.c) and MUI_RequestA()'s requester window (mui_request.c) */
+ * (requesters.c) and MUI_RequestA()'s requester window (mui_request.c).
+ * Behaving as MUI 3.8, the three are asl.library's own calls with the
+ * program's tags, as MUI 3.8 makes them (measured: same tags, same
+ * requester pointer, asl's requester); Zune's file and font panels only
+ * when behaving as MUI 5. */
 
 APTR ZuneAllocAslRequest(ULONG type, struct TagItem *tags)
 {
+    if (ZUNE_MUI38())
+        return ZUNE_ASL() ? AllocAslRequest(type, tags) : NULL;
+    {
     MODULE(ZuneRequestModule, ZMOD_REQUEST);
     APTR req = m ? m->alloc_asl(type, tags) : NULL;
 
     zune_module_put(cl);
     return req;
+    }
 }
 
 BOOL ZuneAslRequest(APTR request, struct TagItem *tags)
 {
+    /* the allocation opened asl.library */
+    if (ZUNE_MUI38())
+        return request && AslBase ? AslRequest(request, tags) : FALSE;
+    {
     MODULE(ZuneRequestModule, ZMOD_REQUEST);
     BOOL ok = m && request ? m->asl(request, tags) : FALSE;
 
     zune_module_put(cl);
     return ok;
+    }
 }
 
 void ZuneFreeAslRequest(APTR request)
 {
-    if (request)
+    if (request && ZUNE_MUI38())
+    {
+        if (AslBase)
+            FreeAslRequest(request);
+    }
+    else if (request)
     {
         MODULE(ZuneRequestModule, ZMOD_REQUEST);
         if (m)
