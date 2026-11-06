@@ -237,24 +237,27 @@ static void muiDataStreamFromFormat(CONST_STRPTR format, APTR dataStream,  ULONG
         MUIA_Window_TopEdge,      MUIV_Window_TopEdge_Centered,
         MUIA_Window_CloseGadget,  FALSE,
         MUIA_Window_SizeGadget,   FALSE,
+        /* MUI 3.8's layout (measured): 4 pixels around and 8 between
+         * the text and the buttons in every fitting stage, the text in
+         * a frame of its own with 8 pixels inside, sized to it */
         WindowContents, (IPTR)VGroup,
             MUIA_Background,       MUII_RequesterBack,
-            Child, (IPTR)HGroup,
+            MUIA_InnerLeft,        4,
+            MUIA_InnerRight,       4,
+            MUIA_InnerTop,         4,
+            MUIA_InnerBottom,      4,
+            MUIA_Group_Spacing,    8,
+            Child, (IPTR)TextObject,
                 TextFrame,
                 MUIA_Background,    MUII_TextBack,
-                Child, (IPTR)HSpace(0),
-                Child, (IPTR)TextObject,
-                    MUIA_InnerBottom,   8,
-                    MUIA_InnerLeft,     8,
-                    MUIA_InnerRight,    8,
-                    MUIA_InnerTop,      8,
-                    MUIA_Text_SetMax,   TRUE,
-                    MUIA_Text_Contents, (IPTR)reqtxt,
-                    End,
-                Child, (IPTR)HSpace(0),
+                MUIA_InnerBottom,   8,
+                MUIA_InnerLeft,     8,
+                MUIA_InnerRight,    8,
+                MUIA_InnerTop,      8,
+                MUIA_Text_SetMax,   TRUE,
+                MUIA_Text_Contents, (IPTR)reqtxt,
                 End,
-            Child, (IPTR)VSpace(2),
-            Child, (IPTR)(req_group = HGroup, End),
+            Child, (IPTR)(req_group = HGroup, MUIA_Group_Spacing, 0, End),
             End,
         End;
 
@@ -295,11 +298,15 @@ static void muiDataStreamFromFormat(CONST_STRPTR format, APTR dataStream,  ULONG
             FreeVec(gadgs);
             DoMethod(req_group, MUIM_Group_InitChange);
 
-            /* if this is only one button lets add it separatly */
+            /* MUI 3.8: one button between two pairs of spaces, several
+             * with a 4 pixel gap and a space between each two; buttons
+             * and spaces share the width equally */
             if (num_gads == 1)
             {
                 DoMethod(req_group, OM_ADDMEMBER, (IPTR)HSpace(0));
+                DoMethod(req_group, OM_ADDMEMBER, (IPTR)HSpace(0));
                 DoMethod(req_group, OM_ADDMEMBER, (IPTR)req_but[0]);
+                DoMethod(req_group, OM_ADDMEMBER, (IPTR)HSpace(0));
                 DoMethod(req_group, OM_ADDMEMBER, (IPTR)HSpace(0));
                 DoMethod(req_but[0], MUIM_Notify, MUIA_Pressed, FALSE,
                          (IPTR)app, 2, MUIM_Application_ReturnID, 2);
@@ -312,6 +319,7 @@ static void muiDataStreamFromFormat(CONST_STRPTR format, APTR dataStream,  ULONG
                 {
                     if (j > 0)
                     {
+                        DoMethod(req_group, OM_ADDMEMBER, (IPTR)HSpace(4));
                         DoMethod(req_group, OM_ADDMEMBER, (IPTR)HSpace(0));
                     }
                     DoMethod(req_group, OM_ADDMEMBER, (IPTR)req_but[j]);
