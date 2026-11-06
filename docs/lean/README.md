@@ -228,6 +228,39 @@ black-box description of MUI 3.8 (measured on MUI 3.8, not disassembled):
   next window thin (two buttons 70x54), "auto" again 72x54.
 - Not done: the two small preview boxes MUI 3.8 shows beside each choice.
 
+## Crashes found by the real-program suite (2026-11-06)
+
+Four programs that reset or hung on Zune and not on MUI 3.8
+([tests/lean/real-programs.md](../../tests/lean/real-programs.md)). Each
+cause was found on the machine, not guessed: a trap recorder (the exception
+vectors moved to a table of our own, frame, registers and stack kept in
+memory that survives the reboot, exec's Alert() recorded too), the saved
+context of a looping task sampled, and trace builds printing setup,
+cleanup and window opening. MUI 3.8 and MUI 5 were measured by calling them
+from test programs (not read from their code).
+
+| commit | fix |
+|---|---|
+| 31b35e04 muimaster | MUI 3.8's whole jump table (down to LVO -306, lib_NegSize 308); Zune's ended at -240. AmIRC 3.6.2 calls the private -264 at start: the call went into whatever lay below the library base, a guru (8000000B, 80000008 or 80000004 by what was there), which on OS 3.1 reboots. On MUI 3.8 and MUI 5, -264 returns one global object (a Semaphore subclass, MUI 5's Applist.mui) whose private method 0x8042e50f finds an application by an attribute's string (AmIRC: a free ARexx base name); Zune now has both, the other private slots return 0. Zune68 main had the same hole |
+| 907955da Dtpic | NewDTObject() and GetDTAttrs() called through the global DataTypesBase (the varargs forms of the inline headers are made at #include time), not the base Dtpic opens: NULL in Dtpic.mui and in the library until something else opens datatypes. HomeBank 3.1 jumped to address -48 at start (guru 8000000B, reset). Now only NewDTObjectA/GetDTAttrsA |
+| 6b2c626f Group | a child's failed MUIM_Setup left the group's own Area part set up; Window's dispose then sent the group MUIM_Cleanup, passed on to children never set up. MUIMine 1.2 (its mine field window does not fit, as on MUI 3.8) reset the machine when it quit. The group now undoes its own setup too. Upstream bug, harmless there until the next row's change |
+| 1aab8260 Area | MUIM_Cleanup does nothing on an object that is not set up: since mad_Live is made at the first setup, a Cleanup of a never set up object read its handler nodes and selected-state image through NULL, wrote into the exception vectors (vector 21) and freed a pointer read from them (exec alert 0100000F) |
+| ec9d8706 Menuitem | a Menuitem with items directly in a Menustrip is a menu, as on MUI 3.8 (where every object of the strip is a menu). Zune (AROS, 2015) made it an item, so Archiver 2.3.24's NewMenu array began with an item and gadtools' LayoutMenusA() never returned: no window, task busy. Archiver's menu strip now dumps identical to MUI 3.8's. A childless Menuitem after a menu stays an item (MUI 3.8: an empty menu; MUI 5 not checked) |
+
+Checked: `make check` passes after each commit; the whole MUI 3.x suite on
+Zune with all five gives 32 of 36 lines as before them and the 4 that differ
+are AmIRC, HomeBank, MUIMine and Archiver, now as on MUI 3.8 (memory kept by a
+second run: -56, -4232, 0, -56 bytes).
+
+Not fixed: IBrowse 3.0a and 2.5.9 "freeze" at a later run because the
+emulator process itself dies (FS-UAE 3.2.35 aborts with "malloc(): unaligned
+tcache chunk detected" in its filesystem thread: host heap corruption), 4 of
+4 times on Zune, 0 of 3 on MUI 3.8 (two runs each). IBrowse's DOS packets to
+the drive are the same on both up to the crash (logged with a PutMsg patch);
+what in Zune sets it off is not found. IBrowse 2.5.9's "Couldn't open
+initial window" is the window fitting: its main window's minimum height is
+361-370 pixels in every fitting stage, the screen 256.
+
 ## Left open
 
 - **Library code**: 261 KB (file 279 KB) against MUI 3.8's 166 KB.

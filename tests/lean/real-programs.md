@@ -153,6 +153,14 @@ to its small font), disabled buttons not ghosted, an extra list scroller, or Zun
 requester. No program keeps memory on Zune: the second run left at most 48 bytes (MUI 3.8: up to
 63 KB for YAM 2.5; negative figures are memory the first run had and the second gave back).
 
+**Update, branch `crashfix` (2026-11-06):** AmIRC, HomeBank, MUIMine and Archiver now run and
+quit as on MUI 3.8 (rows below marked "crashfix"; causes and fixes in docs/lean/README.md,
+"Crashes found by the real-program suite"). The whole MUI 3.x suite run again on that branch:
+32 of 36 lines as in the run above, the 4 that differ are these four (NList-Demo, the first
+program after boot, was once "frozen" before its window and twice ok when run again). IBrowse
+2.5.9's missing window is the window fitting; IBrowse's "frozen" second quit is FS-UAE crashing
+(8 below).
+
 **MUI 4/5 programs, Zune against MUI 5 (5 entries):** DizzyTorrent (the one that needs MUI 3.9+)
 and AmigaGPT open and quit on Zune as on MUI 5 (sizes differ by 6-72 px); IBrowse 3.0a opens,
 but the machine stops answering when its second run quits; YAM 2.10dev gets further on Zune than
@@ -186,19 +194,19 @@ gadgets, Ctrl-C). Lost: bytes less free after the second run than before it.
 | thebar-demo9 | ok, 0, -49832 | ok, 0, -55656 | TheBar Demo9 640x133 / TheBar Demo9 627x110 |
 | thebar-demo10 | ok, 0, 48 | ok, 0, 0 | TheBar Demo1 162x64 / TheBar Demo1 156x58 |
 | textinput-demo | ok, 0, 0 | ok, 0, -48 | TextInput Demo 454x256 / TextInput Demo 240x256 |
-| muimine | ok,reset-at-quit, ?, ? | ok, 0, 0 | MUI Mine 436x131 / MUI Mine 420x131 |
+| muimine | ok,reset-at-quit, ?, ?; crashfix: ok, 0, 0 | ok, 0, 0 | MUI Mine 436x131 / MUI Mine 420x131 |
 | installerng | ok, 0, -216 | ok, 0, -168 | InstallerNG 1.5 (Feb 21 2001) 300x131 / InstallerNG 1.5 (Feb 21 2001) 300x131 |
 | atc | ok, 0, 0 | ok, 0, 0 | AmiTradeCenter 194x65 / AmiTradeCenter 194x65 |
 | simplemail | ok,reset-at-quit, ?, ? | ok,reset-at-quit, ?, ? | SimpleMail 0.45 640x256 / SimpleMail 0.45 640x256 |
 | newscoaster | ok, 0, -112 | ok, 0, -8168 | NewsCoaster 640x256 / NewsCoaster 640x256 |
 | ibrowse25 | ok, 0, ?(frozen at 2nd quit) | ok, 0, -8240 | IBrowse request 276x67; IBrowse Error 574x80 / [1] IBrowse: About IBrowse 2.5.9 480x192 |
-| amirc | reset, ?, ? | ok, 0, -72 | - / AMIRC.1 · Server selection 550x236 |
+| amirc | reset, ?, ?; crashfix: ok, 0, -56 | ok, 0, -72 | crashfix: AMIRC.1 · Server selection 550x256 / AMIRC.1 · Server selection 550x236 |
 | amtelnet | ok, 0, -72 | ok, 0, -8192 | amtelnet.1 · not connected (77x23) 640x248 / AMTELNET.1 · not connected (77x24) 640x256 |
 | scout | ok, 0, 0 | ok, 0, 0 | SCOUT [OS3/68k] 639x114 / SCOUT [OS3/68k] 639x114 |
 | muibase | ok, 0, -128 | ok, 0, -5184 | Unnamed 400x256 / Unnamed 400x256 |
-| homebank | reset, ?, ? | ok, 0, -4176 | - / HomeBank (nobody) (PROGDIR:Wallets/) 640x256 |
+| homebank | reset, ?, ?; crashfix: ok, 0, -4232 | ok, 0, -4176 | crashfix: HomeBank (nobody) (PROGDIR:Wallets/) 640x256 / HomeBank (nobody) (PROGDIR:Wallets/) 640x256 |
 | ro | ok, 0, -64 | ok, 0, -5160 | RO 1.27 (5.12.98) -- Copyright © 1994-1998 by Oliver Rummeyer 570x219 / RO 1.27 (5.12.98) -- Copyright © 1994-1998 by Oliver Rummeyer 570x219 |
-| archiver | nowindow,busy, 1, ? | ok, 0, -16464 | - / Archiver Problem! 184x150; Archiver V2.3.24 © by Jürgen Späth 27.12.2001 321x249 |
+| archiver | nowindow,busy, 1, ?; crashfix: ok, 0, -56 | ok, 0, -16464 | crashfix: Archiver Problem! 324x139; Archiver V2.3.24 © by Jürgen Späth 27.12.2001 418x249 / Archiver Problem! 184x150; Archiver V2.3.24 © by Jürgen Späth 27.12.2001 321x249 |
 | annotate | ok, 0, -1176 | ok, 0, -1128 | Annotate 3.1.1 640x240 / Annotate 3.1.1 640x240 |
 | viewcsv | ok, 0, -2552 | ok, 0, -552 | ViewCSV - No file loaded 615x256 / ViewCSV - No file loaded 615x256 |
 | todo | ok, 0, 0 | ok, 0, 0 | ToDo 313x167 / ToDo 313x158 |
@@ -238,20 +246,24 @@ Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or
      open, so the menu works). Probably Register asking for the full width of every title.
    - IBrowse 2.5.9 (`ibrowse25`): Zune "IBrowse request: Couldn't open initial window" plus four
      "IBrowse Error" requesters (the TransferAnimation datatype errors, on MUI 3.8 too); MUI 3.8
-     opens its window and the demo notice. The second run then froze the machine when it quit.
-     The cause is a guess (the window does not fit): not traced.
-2. **The machine resets** (3 programs; no alert, wasabid comes back after the reboot).
-   - AmIRC 3.6.2 68000 (`amirc`): at start, before its first window, after it loaded
-     Listtree.mcc and NListtree.mcc (`wasabi debug --with-snoop`: the last calls are
-     OpenLibrary("MUI/NListtree.mcc") from ramlib). Same with MUI 3.8's own Listtree.mcc and with
-     Zune's (`make plugins`). MUI 3.8: "Server selection" 550x236.
-   - HomeBank 3.1 (`homebank`): at start; the trace ends at OpenLibrary("MUI/NList.mcc") (NList
-     0.128, the same file NList-Demo uses without trouble). MUI 3.8: "HomeBank (nobody)" 640x256.
-   - MUIMine 1.2 (`muimine`): it shows "Error: Could not open Mine Field Window" on both (its
-     pictures do not load in this setup); clicking Exit resets the machine on Zune, MUI 3.8 quits.
-3. **Archiver 2.3.24 loops without a window** (`archiver`): after probing C:Lha, C:Lzx... the
-   task stays in state "ready" (never waits), no window, wasabid answers slowly. MUI 3.8 opens
-   "Archiver Problem!" (184x150, the missing archivers) over its 321x249 main window.
+     opens its window and the demo notice. Traced (2026-11-06, a trace build): it is the window
+     fitting, the main window's minimum height is 367 in topaz, 370, 364 and 361 in the three
+     fitting stages, on a 256-line screen. The later "freeze" is the emulator dying, see 8.
+2. **The machine resets** (3 programs). **Fixed 2026-11-06** (docs/lean/README.md, "Crashes
+   found by the real-program suite"); the suite now gives the same as MUI 3.8 for all three.
+   - AmIRC 3.6.2 68000 (`amirc`): reset at start. Cause: AmIRC calls muimaster.library's private
+     LVO -264, which MUI 3.8 and MUI 5 have and Zune's jump table (ending at -240) did not: a
+     guru, which reboots OS 3.1. Not Listtree's fault (the snoop showed the last call before the
+     reset, not the one that crashed).
+   - HomeBank 3.1 (`homebank`): reset at start. Cause: Dtpic called datatypes through a NULL
+     DataTypesBase (guru 8000000B at address -48); not NList.
+   - MUIMine 1.2 (`muimine`): reset when it quit. Cause: a failed setup of its mine field window
+     left the root group marked as set up, and its Cleanup reached children never set up, whose
+     Cleanup went through NULL into the exception vectors.
+3. **Archiver 2.3.24 loops without a window** (`archiver`). **Fixed 2026-11-06**: its menus are
+   Menuitems placed directly in the Menustrip, which Zune made items; gadtools' LayoutMenusA()
+   never returned on the resulting NewMenu array. Now "Archiver Problem!" and the main window
+   open as on MUI 3.8 (their sizes differ: the window fitting, see 1).
 4. **Disabled objects are drawn like enabled ones** (3 programs). MUI 3.8 ghosts them with its
    dot pattern; on Zune they look normal:
    - MultiRen: Remove, Clear list, Enable, Disable, Select all, Find, Restore, Undo, the string
@@ -269,7 +281,13 @@ Each with how to reproduce: `suite.sh zune ID...` and `suite.sh mui38 ID...` (or
 7. **MUI_RequestA() ignores the program's font settings** (`wookiechat`): WookieChat's "Quit
    Program?" is 104x34 in the small font on MUI 3.8 (as all its windows), 188x39 in topaz on Zune.
 8. **IBrowse 3.0a: the machine stops answering when the second run quits** (`ibrowse30`, group
-   mui5); its first run opens and quits like on MUI 5.
+   mui5); its first run opens and quits like on MUI 5. Traced 2026-11-06, not fixed: it is not
+   the Amiga that stops but the emulator: FS-UAE 3.2.35 aborts ("malloc(): unaligned tcache
+   chunk detected", in its filesystem thread; `coredumpctl`), sometimes already in the first run.
+   On the OS 3.1 machine: 4 of 4 tries (two runs each) died on Zune, 0 of 3 on MUI 3.8. The DOS
+   packets IBrowse sends to the drive (logged with a PutMsg patch) are the same on both up to
+   the crash; what in Zune sets off the corruption is not found. IBrowse 2.5.9's frozen second
+   quit is the same.
 9. **Window sizes** (each a few pixels; the contact sheet shows where):
    - TheBar toolbars 3 px taller (demos 1, 4, 5, 6, 8: 125-132 against 122-129), demo2 and demo7
      22 px narrower, demo2's control window and demo3 18 px wider, demo10 +6x+6.
