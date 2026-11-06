@@ -65,7 +65,9 @@ struct MUI_ImageSpec_intern /* _intern */
 	/* IST_BOOPSI */
 	struct {
 	    CONST_STRPTR filename;
-	    Object *obj;
+	    Object *obj;            /* between setup and cleanup */
+	    struct Library *base;   /* the class library, opened by path */
+	    UWORD size[4];          /* min width, height, max width, height */
 	} boopsi;
 	/* IST_BRUSH */
 	struct {

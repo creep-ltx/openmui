@@ -43,6 +43,8 @@
 #include "prefs.h"
 #include "penspec.h"
 #include "imspec_intern.h"
+#include "modules.h"
+#include <intuition/imageclass.h>
 
 extern struct Library *MUIMasterBase;
 
@@ -240,6 +242,7 @@ static struct MUI_ImageSpec_intern *get_boopsi_imspec(CONST_STRPTR filename)
             return NULL;
         }
         spec->u.boopsi.obj = NULL;
+        spec->u.boopsi.base = NULL;
         spec->type = IST_BOOPSI;
         return spec;
     }
@@ -573,6 +576,8 @@ struct MUI_ImageSpec_intern *zune_imspec_setup(IPTR s,
         break;
 
     case IST_BOOPSI:
+        zune_boopsi_image_open(spec->u.boopsi.filename, mri,
+            &spec->u.boopsi.base, &spec->u.boopsi.obj, spec->u.boopsi.size);
         break;
 
     case IST_BRUSH:
@@ -686,6 +691,9 @@ void zune_imspec_cleanup(struct MUI_ImageSpec_intern *spec)
         break;
 
     case IST_BOOPSI:
+        zune_boopsi_image_close(spec->u.boopsi.base, spec->u.boopsi.obj);
+        spec->u.boopsi.base = NULL;
+        spec->u.boopsi.obj = NULL;
         break;
 
     case IST_BRUSH:
@@ -772,7 +780,28 @@ BOOL zune_imspec_askminmax(struct MUI_ImageSpec_intern *spec,
         break;
 
     case IST_BOOPSI:
-        /* ??? */
+        /* the class's sizes (imspec_boopsi.c): a fixed image at its
+         * minimum, as MUI 5 shows them; larger when the object may grow
+         * (drawn with IA_Width/IA_Height set) */
+        if (spec->u.boopsi.obj)
+        {
+            minmax->MinWidth = spec->u.boopsi.size[0];
+            minmax->MinHeight = spec->u.boopsi.size[1];
+            minmax->DefWidth = minmax->MinWidth;
+            minmax->DefHeight = minmax->MinHeight;
+            minmax->MaxWidth = spec->u.boopsi.size[2];
+            minmax->MaxHeight = spec->u.boopsi.size[3];
+        }
+        else
+        {
+            minmax->MinWidth = 3;
+            minmax->MinHeight = 3;
+            minmax->DefWidth = 8;
+            minmax->DefHeight = 8;
+            minmax->MaxWidth = MUI_MAXMAX;
+            minmax->MaxHeight = MUI_MAXMAX;
+            return FALSE;
+        }
         break;
 
     case IST_BRUSH:
@@ -915,7 +944,8 @@ static void imspec_draw(struct MUI_ImageSpec_intern *spec,
     }
 
     if ((spec->type == IST_BITMAP && !spec->u.bitmap.dt)
-        || (spec->type == IST_BRUSH && !spec->u.brush.dt[0]))
+        || (spec->type == IST_BRUSH && !spec->u.brush.dt[0])
+        || (spec->type == IST_BOOPSI && !spec->u.boopsi.obj))
     {
         def.type = IST_COLOR;
         zune_penspec_fill_muipen(&def.u.penspec, MPEN_BACKGROUND);
@@ -971,6 +1001,17 @@ static void imspec_draw(struct MUI_ImageSpec_intern *spec,
         break;
 
     case IST_BOOPSI:
+        {
+            struct Image *im = (struct Image *)spec->u.boopsi.obj;
+
+            /* the class draws at the size it has */
+            if (im->Width != width || im->Height != height)
+                SetAttrs(spec->u.boopsi.obj, IA_Width, width,
+                    IA_Height, height, TAG_DONE);
+            DrawImageState(rp, im, left - dx, top - dy,
+                state == IDS_SELECTED ? IDS_SELECTED : IDS_NORMAL,
+                mri->mri_DrawInfo);
+        }
         break;
 
     case IST_BRUSH:

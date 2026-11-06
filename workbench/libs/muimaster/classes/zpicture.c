@@ -1,5 +1,6 @@
 /* The picture module (modules.h): datatype pictures for brush and bitmap
- * image specs and menu images, and custom frames (the module half of
+ * image specs and menu images, external BOOPSI image classes ("3:" specs,
+ * imspec_boopsi.c), and custom frames (the module half of
  * datatypescache.c, and frame_tile.c). The library calls them through modules.c under the
  * names datatypescache.h gives them. */
 
@@ -14,6 +15,7 @@
 #define dt_do_frame_rects zmod_do_frame_rects
 #include "../datatypescache.c"
 #include "../frame_tile.c"
+#include "../imspec_boopsi.c"
 #include <clib/alib_protos.h>
 #include "mui.h"
 #include "support.h"
@@ -22,7 +24,8 @@
 static const struct ZunePictureModule picture_module = {
     zmod_load_picture, zmod_dispose_picture, zmod_put_on_rastport,
     zmod_put_mim_on_rastport, zmod_put_on_rastport_tiled,
-    zmod_load_custom_frame, zmod_dispose_custom_frame, zmod_do_frame_rects
+    zmod_load_custom_frame, zmod_dispose_custom_frame, zmod_do_frame_rects,
+    zmod_boopsi_open, zmod_boopsi_close
 };
 
 BOOPSI_DISPATCHER(IPTR, Zpicture_Dispatcher, cl, obj, msg)

@@ -64,6 +64,8 @@ IPTR zune_menustrip_popup(Object *obj, struct MUIP_Menustrip_Popup *msg);
 
 struct dt_node;
 struct dt_frame_image;
+struct MUI_RenderInfo;
+struct Library;
 struct NewImage;
 struct RastPort;
 struct Screen;
@@ -81,7 +83,15 @@ struct ZunePictureModule
     void (*dispose_custom_frame)(struct dt_frame_image *);
     void (*do_frame_rects)(struct RastPort *, struct dt_frame_image *,
         struct NewImage *, int, int, int, int, int, int, int, int);
+    /* "3:<name>.image" specs (imspec_boopsi.c) */
+    BOOL (*boopsi_open)(CONST_STRPTR, struct MUI_RenderInfo *,
+        struct Library **, Object **, UWORD *);
+    void (*boopsi_close)(struct Library *, Object *);
 };
+/* The library's names for them (imspec.c) */
+BOOL zune_boopsi_image_open(CONST_STRPTR name, struct MUI_RenderInfo *mri,
+    struct Library **base, Object **obj, UWORD *sizes);
+void zune_boopsi_image_close(struct Library *base, Object *obj);
 
 struct DragNDrop;
 struct BitMapNode;

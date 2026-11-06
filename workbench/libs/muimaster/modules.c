@@ -236,6 +236,29 @@ void dt_do_frame_rects(struct RastPort *rp, struct dt_frame_image *fi,
     zune_module_put(cl);
 }
 
+/* External BOOPSI image classes ("3:<name>.image", imspec_boopsi.c): a
+ * spec that cannot be opened draws as the background, as a missing brush */
+BOOL zune_boopsi_image_open(CONST_STRPTR name, struct MUI_RenderInfo *mri,
+    struct Library **base, Object **obj, UWORD *sizes)
+{
+    MODULE(ZunePictureModule, ZMOD_PICTURE);
+    BOOL ok = m ? m->boopsi_open(name, mri, base, obj, sizes) : FALSE;
+
+    zune_module_put(cl);
+    return ok;
+}
+
+void zune_boopsi_image_close(struct Library *base, Object *obj)
+{
+    if (base || obj)
+    {
+        MODULE(ZunePictureModule, ZMOD_PICTURE);
+        if (m)
+            m->boopsi_close(base, obj);
+        zune_module_put(cl);
+    }
+}
+
 /* Drag and drop images (dragndrop.c) */
 
 struct DragNDrop *CreateDragNDropA(struct TagItem *tlist)
