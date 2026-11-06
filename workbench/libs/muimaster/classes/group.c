@@ -3119,8 +3119,8 @@ minmax_2d_columns_pass(struct MUI_GroupData *data, struct MinList *children,
 }
 
 /*
- * Derive grid dimensions from total child count; nondivisible requests fall
- * back to one full row/column. Replace owned constraint arrays, scan child
+ * Derive grid dimensions from total child count, the last row filled as
+ * far as the children go. Replace owned constraint arrays, scan child
  * limits and perform row/column passes. Add spacing and aggregate
  * constraints to message. Allocation failure returns early with no status
  * and can leave only one newly allocated array; later Layout must validate
@@ -3139,26 +3139,15 @@ group_minmax_2d(struct IClass *cl, Object *obj,
     WORD maxdef_width;
     WORD maxdef_height;
 
+    /* MUI 3.8 fills a last row that is not full (MultiRen: 26 objects in
+     * 4 columns, 7 rows); Zune made one row of all children, 2168 pixels
+     * wide. Given rows become the columns they need, then the rows those
+     * columns need, so that every pass agrees. */
     if (!data->columns)
-    {
-        if (data->num_children % data->rows)
-        {
-            data->columns = 1;
-            data->rows = data->num_children;
-        }
-        else
-            data->columns = data->num_children / data->rows;
-    }
-    else
-    {
-        if (data->num_children % data->columns)
-        {
-            data->rows = 1;
-            data->columns = data->num_children;
-        }
-        else
-            data->rows = data->num_children / data->columns;
-    }
+        data->columns = (data->num_children + data->rows - 1) / data->rows;
+    if (data->columns < 1)
+        data->columns = 1;
+    data->rows = (data->num_children + data->columns - 1) / data->columns;
 
     if (data->columns < 1)
         data->columns = 1;
@@ -4528,8 +4517,7 @@ group_layout_2d(struct IClass *cl, Object *obj, struct MinList *children)
 
     if (data->rows == 0 || data->columns == 0)
         return;
-    if (data->num_children % data->rows
-        || data->num_children % data->columns)
+    if (data->num_children > data->rows * data->columns)
         return;
     if (data->row_infos == NULL || data->col_infos == NULL)
         return;
