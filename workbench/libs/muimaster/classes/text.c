@@ -697,6 +697,8 @@ static void setup_text(struct MUI_TextData *data, Object *obj)
         data->ztext = zune_text_new(data->preparse, contents,
             ZTEXT_ARG_NONE, 0);
     }
+    /* kept until cleanup: give back the rest of its arena */
+    data->ztext = zune_text_compact(data->ztext);
     zune_text_get_bounds(data->ztext, obj);
     data->plain_chunk = (data->mtd_Flags & (MTDF_HICHAR | MTDF_HICHARIDX))
         ? NULL : zune_text_plain_chunk(data->ztext, contents);

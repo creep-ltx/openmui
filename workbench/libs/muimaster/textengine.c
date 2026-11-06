@@ -404,6 +404,56 @@ ZText *zune_text_new(CONST_STRPTR preparse, CONST_STRPTR content,
 }
 
 /**************************************************************************
+A parse that is kept (a Text's, from its setup until its cleanup) used a
+part of its 192-byte arena: a button title with a shortcut ("_Ok": a line
+and two chunks) about 120 bytes, a centred word 80. Copy the header and
+the used arena into a block of their size and move every pointer into the
+old block (the list links, the inline chunk strings) by the distance;
+lines and chunks outside the arena stay where they are.
+**************************************************************************/
+#define ZT_MOVED(p) (((UBYTE *)(p) >= lo && (UBYTE *)(p) < hi) \
+    ? (APTR)((UBYTE *)(p) + d) : (APTR)(p))
+ZText *zune_text_compact(ZText *text)
+{
+    UBYTE *lo, *hi;
+    ULONG used;
+    LONG d;
+    ZText *copy;
+    struct MinNode *ln, *cn;
+    struct MinList *chunks;
+
+    if (!text || text->arena_end - text->arena_next < 16)
+        return text;
+    lo = (UBYTE *)text;
+    hi = text->arena_end;
+    used = text->arena_next - lo;
+    if (!(copy = AllocVec(used, MEMF_ANY)))
+        return text;
+    CopyMem(text, copy, used);
+    d = (UBYTE *)copy - lo;
+    copy->lines.mlh_Head = ZT_MOVED(copy->lines.mlh_Head);
+    copy->lines.mlh_TailPred = ZT_MOVED(copy->lines.mlh_TailPred);
+    for (ln = copy->lines.mlh_Head; ln->mln_Succ; ln = ln->mln_Succ)
+    {
+        ln->mln_Succ = ZT_MOVED(ln->mln_Succ);
+        ln->mln_Pred = ZT_MOVED(ln->mln_Pred);
+        chunks = &((ZTextLine *)ln)->chunklist;
+        chunks->mlh_Head = ZT_MOVED(chunks->mlh_Head);
+        chunks->mlh_TailPred = ZT_MOVED(chunks->mlh_TailPred);
+        for (cn = chunks->mlh_Head; cn->mln_Succ; cn = cn->mln_Succ)
+        {
+            cn->mln_Succ = ZT_MOVED(cn->mln_Succ);
+            cn->mln_Pred = ZT_MOVED(cn->mln_Pred);
+            ((ZTextChunk *)cn)->str = ZT_MOVED(((ZTextChunk *)cn)->str);
+        }
+    }
+    copy->arena_next = copy->arena_end = (UBYTE *)copy + used;
+    FreeVec(text);
+    return copy;
+}
+#undef ZT_MOVED
+
+/**************************************************************************
 If a ZText holds nothing but the plain string s (one line, one text
 chunk), return that chunk, so that zune_text_set_plain() can give it a
 new plain string without parsing; otherwise NULL.

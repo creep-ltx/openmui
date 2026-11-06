@@ -85,6 +85,10 @@ enum {
 ZText *zune_text_new (CONST_STRPTR preparse, CONST_STRPTR content,
     int argtype, TEXT arg);
 void zune_text_destroy (ZText *text);
+/* For a text kept as long as its object (Text's): the same text in a block
+ * of the size its parse used; the old one is freed. Returns text itself
+ * when there is nothing to give back or no memory. */
+ZText *zune_text_compact (ZText *text);
 /* Borrow one unformatted string for synchronous measurement/drawing.
  * The caller owns all storage and must not call zune_text_destroy(). */
 BOOL zune_text_init_plain(ZText *text, ZTextLine *line, ZTextChunk *chunk,
