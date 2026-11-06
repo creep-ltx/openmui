@@ -522,12 +522,20 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
         else if (data->Type == RECTANGLE_TYPE_VBAR)
         {
             int x = _mleft(obj) + _mwidth(obj) / 2 - 1;
+            /* with thick frames MUI 3.8 doubles both lines, like the
+             * sides of a frame (demopix: the Menus demo) */
+            int thick = !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
+                && _width(obj) >= 4;
 
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
             draw_line(_rp(obj), x, _mtop(obj), x, _mbottom(obj));
+            if (thick)
+                draw_line(_rp(obj), x - 1, _mtop(obj), x - 1, _mbottom(obj));
 
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
             draw_line(_rp(obj), x + 1, _mtop(obj), x + 1, _mbottom(obj));
+            if (thick)
+                draw_line(_rp(obj), x + 2, _mtop(obj), x + 2, _mbottom(obj));
         }
         else
         {
