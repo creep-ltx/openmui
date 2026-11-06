@@ -15,6 +15,7 @@
 #endif
 
 /* listview class */
+extern BOOL zune_identity_mui5;   /* zune.c: System page -> ENV:Zune/Identity */
 extern struct MUI_CustomClass *ClassListview_CLASS;
 struct MUI_CustomClass *create_listview_class(void);
 void delete_listview_class(void);

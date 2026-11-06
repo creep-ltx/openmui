@@ -16,6 +16,7 @@
 #include <proto/utility.h>
 #include <proto/intuition.h>
 #include <proto/muimaster.h>
+#include <dos/var.h>
 #include <proto/dos.h>
 #include <string.h>
 #include <stdio.h>
@@ -266,6 +267,7 @@ struct MUI_SystemPData
     Object *show_menu_checkmark;
     Object *on_startup_checkmark;
     Object *arexx_checkmark;
+    Object *identity_cycle;
     Object *first_bubble_slider;
     Object *next_bubble_slider;
     struct Hook psiHook;
@@ -297,6 +299,10 @@ static IPTR ExecuteScreenInspectorFunc(struct Hook *hook, Object *caller, void *
     
     return (IPTR) TRUE;
 }
+
+/* What the library tells programs it is (ENV:Zune/Identity, read by the
+ * library when it is loaded): MUI 3.8 by default, or MUI 5 */
+static CONST_STRPTR identity_labels[] = { "MUI 3.8", "MUI 5", NULL };
 
 static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
 {
@@ -366,6 +372,14 @@ static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                 Child, (IPTR) (d.arexx_checkmark = MakeCheck(NULL)),
                 Child, HSpace(0),
                 End,
+            Child, (IPTR) HGroup,
+                Child, (IPTR) Label1("Behave as:"),
+                Child, (IPTR) (d.identity_cycle = MakeCycle("Behave as:", identity_labels)),
+                MUIA_ShortHelp, (IPTR) "Which MUI programs and classes see.\n"
+                    "MUI 3.8: everything as on MUI 3.8.\n"
+                    "MUI 5: programs that need MUI 4 or 5 start.\n"
+                    "Takes effect when the library is next loaded.",
+                End,
             Child, (IPTR) VSpace(0),
             End,
 
@@ -418,6 +432,13 @@ static IPTR SystemP_ConfigToGadgets(struct IClass *cl, Object *obj,
     ConfigToCheckmark(msg->configdata, MUICFG_Iconification_ShowMenu, data->show_menu_checkmark);
     ConfigToCheckmark(msg->configdata, MUICFG_Iconification_OnStartup, data->on_startup_checkmark);
     ConfigToCheckmark(msg->configdata, MUICFG_Interfaces_EnableARexx, data->arexx_checkmark);
+    {
+        char id[8];
+
+        set(data->identity_cycle, MUIA_Cycle_Active,
+            GetVar("Zune/Identity", id, sizeof(id), GVF_GLOBAL_ONLY) >= 4
+            && (id[0] | 0x20) == 'm' && id[3] == '5');
+    }
     ConfigToSlider(msg->configdata, MUICFG_BubbleHelp_FirstDelay, data->first_bubble_slider);
     ConfigToSlider(msg->configdata, MUICFG_BubbleHelp_NextDelay, data->next_bubble_slider);
 
@@ -437,6 +458,7 @@ static IPTR SystemP_GadgetsToConfig(struct IClass *cl, Object *obj,
     CheckmarkToConfig(data->show_menu_checkmark, msg->configdata, MUICFG_Iconification_ShowMenu);
     CheckmarkToConfig(data->on_startup_checkmark, msg->configdata, MUICFG_Iconification_OnStartup);
     CheckmarkToConfig(data->arexx_checkmark, msg->configdata, MUICFG_Interfaces_EnableARexx);
+    zune_identity_mui5 = XGET(data->identity_cycle, MUIA_Cycle_Active) == 1;
     SliderToConfig(data->first_bubble_slider, msg->configdata, MUICFG_BubbleHelp_FirstDelay);
     SliderToConfig(data->next_bubble_slider, msg->configdata, MUICFG_BubbleHelp_NextDelay);
     

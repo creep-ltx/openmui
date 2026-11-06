@@ -16,6 +16,7 @@
 
 #include <clib/alib_protos.h>
 #include <proto/exec.h>
+#include <dos/var.h>
 #include <proto/dos.h>
 #include <proto/intuition.h>
 #include <proto/utility.h>
@@ -699,6 +700,9 @@ void main_open_menu(void)
 /****************************************************************
  Saves the done prefs
 *****************************************************************/
+/* Set by the System page: the library behaves as MUI 5 (see systemp.c) */
+BOOL zune_identity_mui5;
+
 void save_prefs(CONST_STRPTR name, BOOL envarc)
 {
     Object *configdata;
@@ -730,6 +734,10 @@ void save_prefs(CONST_STRPTR name, BOOL envarc)
         }
         snprintf(buf, 255, "ENV:zune/%s.prefs", name);
         DoMethod(configdata, MUIM_Configdata_Save, (IPTR)buf);
+        /* The identity is global: the library reads it when it loads */
+        if (!strcmp(name, "global"))
+            SetVar("Zune/Identity", zune_identity_mui5 ? "MUI5" : "MUI3.8",
+                -1, GVF_GLOBAL_ONLY | (envarc ? GVF_SAVE_VAR : 0));
 
         MUI_DisposeObject(configdata);
 /*      D(bug("zune::save_prefs: disposed configdata %p\n", configdata)); */

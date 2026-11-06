@@ -18,6 +18,10 @@
 #define ZUNE68_LIBRARY_VERSION 19
 #define ZUNE68_LIBRARY_REVISION 81
 #endif
+/* Lean edition: what the library reports unless Zune prefs choose MUI 5
+ * (zunemaster_lib.c LibInit); MUI 3.8's muimaster.library is 19.35 */
+#define ZUNE68_MUI38_VERSION 19
+#define ZUNE68_MUI38_REVISION 35
 #define ZUNE68_LIBRARY_DATE "02.11.2026"
 #define ZUNE68_RELEASE_STAGE "Beta 2"
 #define ZUNE68_STRINGIFY_(x) #x

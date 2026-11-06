@@ -4,6 +4,8 @@
 #include <proto/exec.h>
 #include <exec/resident.h>
 #include <exec/execbase.h>
+#include <dos/var.h>
+#include <proto/dos.h>
 #include "muimaster_intern.h"
 #include "native_version.h"
 #include "gates.h"
@@ -97,7 +99,23 @@ struct Library *LibInit(BPTR segment __asm("a0"),
     base->library.lib_Version = ZUNE68_LIBRARY_VERSION;
     base->library.lib_Revision = ZUNE68_LIBRARY_REVISION;
     base->library.lib_IdString = IDSTRING;
-    if (L_InitLib(&base->library)) return &base->library;
+    if (L_InitLib(&base->library))
+    {
+        /* Programs and classes choose their code paths by this version
+         * (TheBar sizes its virtual bar itself only below MUI 4), so the
+         * library behaves as MUI 3.8 unless Zune prefs say MUI 5
+         * (ENV:Zune/Identity "MUI5", needed by programs that require
+         * MUI 4 or 5). Read once, when the library is loaded. */
+        char id[8];
+
+        if (GetVar("Zune/Identity", id, sizeof(id), GVF_GLOBAL_ONLY) < 4
+            || (id[0] | 0x20) != 'm' || id[3] != '5')
+        {
+            base->library.lib_Version = ZUNE68_MUI38_VERSION;
+            base->library.lib_Revision = ZUNE68_MUI38_REVISION;
+        }
+        return &base->library;
+    }
     FreeMem((UBYTE *)base - base->library.lib_NegSize,
         base->library.lib_NegSize + base->library.lib_PosSize);
     return NULL;
