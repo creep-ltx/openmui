@@ -248,6 +248,8 @@ check-core: $(BUILD)/list-repaint-probe $(BUILD)/config-init-probe $(MUI5_PROBE_
 	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_virtual_notify.py \
 	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	$(PYTHON) ../../../tests/check_area_live.py \
+	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_virtual_scroll.py \
 	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_resources.py \

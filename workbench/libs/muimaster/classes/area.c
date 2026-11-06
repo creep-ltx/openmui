@@ -1537,6 +1537,18 @@ struct MUI_AreaLive *zune_area_live(Object *obj, struct IClass *cl)
     return live;
 }
 
+/* Whether a setup needs the live block: an object that reacts to the
+ * mouse or keys (input mode, context menu, shortcut, cycle chain). One
+ * that does not (a label, an image, a group, a spacer: most objects of a
+ * real program's window) gets it only when something asks for it later
+ * (MUI_RequestIDCMP, MUIA_Timer, one of these set while it is shown). */
+static BOOL area_wants_live(struct MUI_AreaData *data)
+{
+    return data->mad_InputMode != MUIV_InputMode_None
+        || AREA_CONTEXTMENU(data) || data->mad_ControlChar
+        || (data->mad_Flags & MADF_CYCLECHAIN);
+}
+
 /* Free the owned duplicated background specification, then return Notify
  * disposal result. Caller must first end show/setup, timer registration and
  * callbacks; this handler does not perform Hide or Cleanup and does not
@@ -1819,6 +1831,10 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_ContextMenu:
             if ((tag->ti_Data || data->mad_Rare) && zune_area_rare(data))
                 data->mad_Rare->ContextMenu = (Object *)tag->ti_Data;
+            /* events forwarded to Area need the live block (Setup makes
+             * it for an object that has a menu then) */
+            if (tag->ti_Data && (_flags(obj) & MADF_SETUP))
+                zune_area_live(obj, cl);
             break;
 
         case MUIA_Font:
@@ -1839,8 +1855,10 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         data->mad_Flags &= ~MADF_DISABLED;
 
     if (change_disable) {
-        /* Simulate left mouse button release if the area becomes disabled */
-        if (_flags(obj) & MADF_SETUP)
+        /* Simulate left mouse button release if the area becomes disabled
+         * (an object without the live block takes no input: nothing to
+         * release, and no handler to go back to) */
+        if ((_flags(obj) & MADF_SETUP) && data->mad_Live)
             handle_release(cl, obj, TRUE);
         MUI_Redraw(obj, MADF_DRAWOBJECT | MADF_DRAWFRAME);
     }
@@ -3107,7 +3125,9 @@ Area__MUIM_DrawBackgroundBuffered(struct IClass *cl, Object *obj,
 static void setup_control_char(struct MUI_AreaData *data, Object *obj,
                                struct IClass *cl)
 {
-    if (data->mad_ControlChar != 0 || data->mad_Flags & MADF_CYCLECHAIN) {
+    /* the live block may not exist yet when either was set while shown */
+    if ((data->mad_ControlChar != 0 || data->mad_Flags & MADF_CYCLECHAIN)
+            && zune_area_live(obj, cl)) {
         data->mad_Live->ccn.ehn_Events = data->mad_ControlChar;
         switch (data->mad_InputMode) {
         case MUIV_InputMode_RelVerify:
@@ -3135,7 +3155,8 @@ static void setup_control_char(struct MUI_AreaData *data, Object *obj,
  */
 static void cleanup_control_char(struct MUI_AreaData *data, Object *obj)
 {
-    if (data->mad_ControlChar != 0 || data->mad_Flags & MADF_CYCLECHAIN) {
+    if (data->mad_Live
+            && (data->mad_ControlChar != 0 || data->mad_Flags & MADF_CYCLECHAIN)) {
         DoMethod(_win(obj), MUIM_Window_RemControlCharHandler,
                  (IPTR)&data->mad_Live->ccn);
     }
@@ -3294,8 +3315,9 @@ static IPTR Area__MUIM_Setup(struct IClass *cl, Object *obj,
     const struct MUI_FrameSpec_intern *frame;
     struct MUI_FrameSpec_intern tempframe;
 
-    /* Handler nodes are made on the first setup and kept until dispose */
-    if (!zune_area_live(obj, cl))
+    /* Handler nodes are made at the first setup that needs them and kept
+     * until dispose */
+    if ((data->mad_Live || area_wants_live(data)) && !zune_area_live(obj, cl))
         return FALSE;
 
     muiRenderInfo(obj) = msg->RenderInfo;
@@ -3336,7 +3358,7 @@ static IPTR Area__MUIM_Setup(struct IClass *cl, Object *obj,
     }
 
     /* Those are filled by RequestIDCMP() */
-    if (data->mad_Live->hiehn.ehn_Events)
+    if (data->mad_Live && data->mad_Live->hiehn.ehn_Events)
         DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->hiehn);
 
     setup_control_char(data, obj, cl);
@@ -3402,7 +3424,7 @@ static IPTR Area__MUIM_Cleanup(struct IClass *cl, Object *obj,
      * from the window's lists, wrote into the exception vectors and freed
      * a pointer read from them; a second Cleanup went through the render
      * info the first one cleared. */
-    if (!(_flags(obj) & MADF_SETUP) || !data->mad_Live)
+    if (!(_flags(obj) & MADF_SETUP))
         return TRUE;
 
     _flags(obj) &= ~MADF_SETUP;
@@ -3410,19 +3432,23 @@ static IPTR Area__MUIM_Cleanup(struct IClass *cl, Object *obj,
     //    cleanup_cycle_chain (data, obj);
     cleanup_control_char(data, obj);
 
-    if (data->mad_Live->Timer.ihn_Millis) {
-        DoMethod(_app(obj), MUIM_Application_RemInputHandler,
-                 (IPTR)&data->mad_Live->Timer);
-        data->mad_Live->Timer.ihn_Millis = 0;
+    /* An object without the live block (it was not needed) has no nodes
+     * to remove */
+    if (data->mad_Live) {
+        if (data->mad_Live->Timer.ihn_Millis) {
+            DoMethod(_app(obj), MUIM_Application_RemInputHandler,
+                     (IPTR)&data->mad_Live->Timer);
+            data->mad_Live->Timer.ihn_Millis = 0;
+        }
+
+        /* Remove the handler if it is added */
+        if (data->mad_Live->hiehn.ehn_Events)
+            DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->hiehn);
+
+        /* Remove the event handler if it has been added */
+        if (data->mad_Live->ehn.ehn_Events)
+            DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->ehn);
     }
-
-    /* Remove the handler if it is added */
-    if (data->mad_Live->hiehn.ehn_Events)
-        DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->hiehn);
-
-    /* Remove the event handler if it has been added */
-    if (data->mad_Live->ehn.ehn_Events)
-        DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->ehn);
 
     D(bug("Area cleanup %p active=%p\n", obj,
           (Object *)XGET(_win(obj), MUIA_Window_ActiveObject)));
@@ -3432,7 +3458,7 @@ static IPTR Area__MUIM_Cleanup(struct IClass *cl, Object *obj,
     }
 
     /* It's safe to call the following function with NULL */
-    if ((data->mad_Flags & MADF_SHOWSELSTATE) &&
+    if ((data->mad_Flags & MADF_SHOWSELSTATE) && data->mad_Live &&
             (data->mad_InputMode != MUIV_InputMode_None)) {
         zune_imspec_cleanup(data->mad_Live->SelBack);
         data->mad_Live->SelBack = NULL;
@@ -4021,7 +4047,7 @@ static IPTR Area__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
 
-    if (data->mad_DisableCount)
+    if (data->mad_DisableCount || !data->mad_Live)
         return 0;
     if (data->mad_InputMode == MUIV_InputMode_None && !AREA_CONTEXTMENU(data))
         return 0;
