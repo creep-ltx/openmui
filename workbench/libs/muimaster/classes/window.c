@@ -1236,6 +1236,8 @@ struct MUI_WindowData
 #define MUIWF_TOOLBOX           (1<<17) /* Window should be opened as
                                          * ToolBox */
 #define MUIWF_ACTIVEEVENT       (1<<18) /* Reporting IDCMP_ACTIVEWINDOW */
+#define MUIWF_REFITPENDING      (1<<19) /* MUIM_Window_Refit pushed: the
+                                         * contents outgrew the screen */
 
 /* Bubble help delays in IntuiTicks (1/10 s), from the settings as on
  * MUI 3.8 (2.0 s and 0.3 s by default); Zune used fixed 1.0 and 0.3 s */
@@ -2752,11 +2754,25 @@ static BOOL WindowResize(struct MUI_WindowData *data)
 
     if (dx || dy)
     {
+        struct Screen *scr = win->WScreen;
+        WORD left = win->LeftEdge, top = win->TopEdge;
+
         /* Temporarily disable window limits to let SizeWindow below work
            regardless of the previous limits */
         WindowLimits(win, 1, 1, -1, -1);
 /*      D(bug("_zune_window_resize : dx=%d, dy=%d\n", dx, dy)); */
-        SizeWindow(win, dx, dy);
+        /* A window that grows past the screen's right or bottom edge is
+         * moved left or up just enough, as MUI 3.8 does (measured:
+         * docs/lean/README.md "A window that grows past the screen");
+         * SizeWindow alone stopped at the edge and cut the contents. */
+        if (scr && left + win->Width + dx > scr->Width)
+            left = MAX(0, scr->Width - (win->Width + dx));
+        if (scr && top + win->Height + dy > scr->Height)
+            top = MAX(0, scr->Height - (win->Height + dy));
+        if (left != win->LeftEdge || top != win->TopEdge)
+            ChangeWindowBox(win, left, top, win->Width + dx, win->Height + dy);
+        else
+            SizeWindow(win, dx, dy);
     }
 
     /* Set new window limits. A zero-delta SizeWindow would still make
@@ -5672,6 +5688,7 @@ static ULONG WindowClose(struct IClass *cl, Object *obj)
     struct MUI_WindowData *data = INST_DATA(cl, obj);
 
     CancelWindowGuards(data);
+    data->wd_Flags &= ~MUIWF_REFITPENDING;
 
     if (data->wd_ActiveObject != NULL)
     {
@@ -5748,6 +5765,21 @@ IPTR Window__MUIM_RecalcDisplay(struct IClass *cl, Object *obj,
      * asking them a second time. Groups skip hidden children, so an
      * object inside a hidden subtree is still asked itself. */
     WindowMinMax(obj, data);
+
+    /* Contents that no longer fit the screen at all: MUI 3.8 closes the
+     * window and opens it again, which fits it stage by stage (smaller
+     * fonts and spacing) and centres it; a window that fits no stage
+     * stays closed (measured: docs/lean/README.md "A window that grows
+     * past the screen"). Done from the application's input loop, since
+     * the change may come from an object inside this window; until then
+     * the window is laid out as before. */
+    if (!WindowFits(data) && !(data->wd_Flags & MUIWF_REFITPENDING)
+        && _app(obj))
+    {
+        data->wd_Flags |= MUIWF_REFITPENDING;
+        DoMethod(_app(obj), MUIM_Application_PushMethod, (IPTR) obj, 1,
+            MUIM_Window_Refit);
+    }
     while (current_obj != NULL)
     {
         Object *o;
@@ -6975,6 +7007,26 @@ static IPTR Window__MUIM_Import(struct IClass *cl, Object *obj,
  * selected MethodID; header-only declarations do not add dispatcher
  * behavior.
  */
+/* Private MUIM_Window_Refit, pushed by RecalcDisplay when the contents
+ * outgrew the screen: close the window and open it again, which fits it
+ * stage by stage as at the first opening. Nothing if the window was closed
+ * (or opened again) since. */
+static IPTR Window__MUIM_Refit(struct IClass *cl, Object *obj)
+{
+    struct MUI_WindowData *data = INST_DATA(cl, obj);
+
+    if ((data->wd_Flags & (MUIWF_REFITPENDING | MUIWF_OPENED))
+        == (MUIWF_REFITPENDING | MUIWF_OPENED))
+    {
+        set(obj, MUIA_Window_Open, FALSE);
+        /* at its default size, as a first opening (MUI 3.8 too) */
+        data->wd_Width = data->wd_Height = 0;
+        set(obj, MUIA_Window_Open, TRUE);
+    }
+    data->wd_Flags &= ~MUIWF_REFITPENDING;
+    return 0;
+}
+
 BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
 {
     switch (msg->MethodID)
@@ -7017,6 +7069,8 @@ BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
         return Window__MUIM_DisconnectParent(cl, obj, (APTR) msg);
     case MUIM_Window_RecalcDisplay:
         return Window__MUIM_RecalcDisplay(cl, obj, (APTR) msg);
+    case MUIM_Window_Refit:
+        return Window__MUIM_Refit(cl, obj);
     case MUIM_Window_Setup:
         return Window__MUIM_Setup(cl, obj, (APTR) msg);
     case MUIM_Window_Cleanup:

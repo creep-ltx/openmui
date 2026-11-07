@@ -111,6 +111,9 @@ struct MUIP_Window_ToFront
     (MUIB_Window | 0x00000007)   /* Zune: V1, PRIV don't use it! */
 #define MUIM_Window_Refresh      /* PRIV */ \
     (MUIB_Window | 0x00000008)   /* Zune: V1, PRIV don't use it! */
+#define MUIM_Window_Refit        /* PRIV */ \
+    (MUIB_Window | 0x00000009)   /* Zune68: close and open again to fit the
+                                  * screen, PRIV don't use it! */
 
 struct MUIP_Window_AddControlCharHandler
 {
