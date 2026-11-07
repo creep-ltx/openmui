@@ -1111,9 +1111,9 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
 
               Child, VGroup,
                 GroupFrameT(tr(MSG_SCROLLCONTROL)),
-                Child, VSpace(0),
 
-                // Zune68 lean: both checkmarks in one row, so the page fits 640x256
+                // Zune68 lean: both checkmarks in one row and no spaces
+                // above and below, so the page fits 640x256
                 Child, HGroup,
                   Child, HSpace(0),
                   Child, HGroup,
@@ -1166,8 +1166,6 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
                     MUIA_ShortHelp, tr(MSG_WHEEL_FAST_HELP),
                   End,
                 End,
-
-                Child, VSpace(0),
               End,
 
 
@@ -1505,9 +1503,11 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
       Child, group5,
     End,
 
+    // Zune68 lean: the credits crawl through one line (three before), so
+    // the page fits Zune prefs on a 640x256 screen
     Child, CrawlingObject,
       TextFrame,
-      MUIA_FixHeightTxt, infotext1,
+      MUIA_FixHeightTxt, " ",
       MUIA_Background,   "m1",
 
       Child, TextObject,
