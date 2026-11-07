@@ -27,6 +27,9 @@ struct Pixmap_DATA
     APTR ditheredMask;
     LONG ditheredPenMap[256];
     struct BitMap *ditheredBitmap;
+    /* the dithered image of the last setup, its pens given back: the
+     * next setup uses it again if the same pens come back (KEEP_PIXELS) */
+    BOOL kept;
 };
 
 #endif /* _PIXMAP_PRIVATE_H_ */

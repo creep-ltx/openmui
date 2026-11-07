@@ -205,11 +205,72 @@ static void FreeRendered(struct Pixmap_DATA *data)
     data->ditheredMask = NULL;
     for (i = 0; i < 256; i++)
     {
-        if (data->ditheredPenMap[i] >= 0 && data->colorMap)
+        if (data->ditheredPenMap[i] >= 0 && data->colorMap && !data->kept)
             ReleasePen(data->colorMap, data->ditheredPenMap[i]);
         data->ditheredPenMap[i] = -1;
     }
     data->colorMap = NULL;
+    data->kept = FALSE;
+}
+
+/* A window is set up several times while it opens when it does not fit
+ * the screen (smaller fonts, stage by stage), and again on every reopen:
+ * small dithered images are kept over a cleanup with their pens given
+ * back, and used again if the next setup gets the same pens for the same
+ * colours (the pixels are pen numbers, so the picture is then exactly
+ * what dithering again would make). Larger ones are freed as before. */
+#define KEEP_PIXELS 4096
+
+static void KeepRendered(struct Pixmap_DATA *data)
+{
+    ULONG i;
+    if (!data->ditheredBitmap || data->width * data->height > KEEP_PIXELS)
+    {
+        FreeRendered(data);
+        return;
+    }
+    for (i = 0; i < 256; i++)
+        if (data->ditheredPenMap[i] >= 0)
+            ReleasePen(data->colorMap, data->ditheredPenMap[i]);
+    data->colorMap = NULL;
+    data->kept = TRUE;
+}
+
+static BOOL ReuseRendered(struct Pixmap_DATA *data, struct ColorMap *cm,
+    ULONG depth)
+{
+    const ULONG *colors = data->clut ? data->clut : defaultColorMap;
+    struct TagItem tags[] = {{OBP_Precision, PRECISION_IMAGE}, {TAG_DONE, 0}};
+    ULONG i, j;
+
+    if (!data->kept) return FALSE;
+    if (GetBitMapAttr(data->ditheredBitmap, BMA_DEPTH) != depth)
+    {
+        FreeRendered(data);
+        return FALSE;
+    }
+    for (i = 0; i < 256; i++)
+    {
+        LONG pen;
+        ULONG rgb = colors[i];
+        if (data->ditheredPenMap[i] < 0) continue;
+        pen = ObtainBestPenA(cm, ((rgb >> 16) & 255) * 0x01010101UL,
+            ((rgb >> 8) & 255) * 0x01010101UL, (rgb & 255) * 0x01010101UL,
+            tags);
+        if (pen != data->ditheredPenMap[i])
+        {
+            /* another pen: give back the ones obtained now, dither again */
+            if (pen >= 0) ReleasePen(cm, pen);
+            for (j = 0; j < i; j++)
+                if (data->ditheredPenMap[j] >= 0)
+                    ReleasePen(cm, data->ditheredPenMap[j]);
+            FreeRendered(data);
+            return FALSE;
+        }
+    }
+    data->colorMap = cm;
+    data->kept = FALSE;
+    return TRUE;
 }
 
 static BOOL DitherImage(struct IClass *cl, Object *obj)
@@ -231,6 +292,7 @@ static BOOL DitherImage(struct IClass *cl, Object *obj)
     /* The last colours matched against the CLUT, by a hash of the colour:
      * the search is 256 colours with three multiplies each */
     struct { ULONG rgb; WORD index; } match[64];
+    ULONG lastkey = ~0UL, lastindex = 0;
     BOOL ok = FALSE;
 
     data->colorMap = _screen(obj)->ViewPort.ColorMap;
@@ -302,12 +364,23 @@ static BOOL DitherImage(struct IClass *cl, Object *obj)
                     }
                 }
                 else
-                    index = ((red * 7 + 127) / 255 << 5) |
+                {
+                    /* the same colour as the pixel before: no divisions */
+                    ULONG key = (red << 16) | (green << 8) | blue;
+                    if (key != lastkey)
+                    {
+                        lastkey = key;
+                        lastindex = ((red * 7 + 127) / 255 << 5) |
                             ((green * 7 + 127) / 255 << 2) |
                             ((blue * 3 + 127) / 255);
+                    }
+                    index = lastindex;
+                }
                 rgb = colors[index];
             }
-            alpha = (alpha * (data->alpha >> 24) + 127) / 255;
+            /* (a * 255 + 127) / 255 is a: no division for a solid image */
+            if (data->alpha < 0xff000000UL)
+                alpha = (alpha * (data->alpha >> 24) + 127) / 255;
             if (mask)
             {
                 if (alpha <= coverage[(y & 3) * 4 + (x & 3)] * 16 + 7)
@@ -393,7 +466,10 @@ static BOOL DecompressBZip2(struct IClass *cl, Object *obj,
     if (!buffer) return FALSE;
     memset(&stream, 0, sizeof(stream));
     #ifdef ZUNE68_GCC_NATIVE
-    result = BZ2_bzDecompressInitBounded(&stream, 0, 1, uncompressedSize);
+    /* bzip2's small mode searches for every output byte (BZ2_indexIntoF):
+     * for small images the fast mode's tables are only a few KB */
+    result = BZ2_bzDecompressInitBounded(&stream, 0,
+        uncompressedSize > 65536, uncompressedSize);
 #else
     result = BZ2_bzDecompressInit(&stream, 0, 1);
 #endif
@@ -451,7 +527,11 @@ IPTR Pixmap__MUIM_Setup(struct IClass *cl, Object *obj, struct MUIP_Setup *msg)
     if (!DoSuperMethodA(cl, obj, (Msg)msg)) return FALSE;
     data->setup = TRUE;
     data->screenDepth = GetBitMapAttr(_screen(obj)->RastPort.BitMap, BMA_DEPTH);
-    if (DecompressImage(cl, obj) && data->screenDepth <= 8)
+    if (data->screenDepth > 8)
+        FreeRendered(data);
+    if (DecompressImage(cl, obj) && data->screenDepth <= 8
+        && !ReuseRendered(data, _screen(obj)->ViewPort.ColorMap,
+            data->screenDepth))
         DitherImage(cl, obj);
     SetSuperAttrs(cl, obj, MUIA_FillArea, TRUE, TAG_DONE);
     return TRUE;
@@ -460,7 +540,7 @@ IPTR Pixmap__MUIM_Setup(struct IClass *cl, Object *obj, struct MUIP_Setup *msg)
 IPTR Pixmap__MUIM_Cleanup(struct IClass *cl, Object *obj, Msg msg)
 {
     struct Pixmap_DATA *data = INST_DATA(cl, obj);
-    FreeRendered(data);
+    KeepRendered(data);
     data->setup = FALSE;
     return DoSuperMethodA(cl, obj, msg);
 }

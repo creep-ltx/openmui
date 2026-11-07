@@ -57,8 +57,12 @@ class RenderPixmap(Pixmap):
 
 
 class PlanarPixmap(Pixmap):
-    def __init__(self, path, bitmap_fail=False, mask_fail=False, pen_fail=0):
+    def __init__(self, path, bitmap_fail=False, mask_fail=False, pen_fail=0,
+                 stable=False):
         super().__init__(path, fail=1 if mask_fail else 0)
+        # stable: the same colour gets the same pen again (a real screen's
+        # shared pens); otherwise every ObtainBestPen gives a new pen
+        self.stable = stable
         self.bitmap_fail = bitmap_fail
         self.bitmap = False
         self.pen_fail = pen_fail
@@ -112,6 +116,11 @@ class PlanarPixmap(Pixmap):
         assert self.cpu.r_reg(8) == 0x76500
         if self.pen_count == self.pen_fail:
             self.cpu.w_reg(0, 0xffffffff)
+        elif self.stable:
+            pen = 1 + ((self.cpu.r_reg(1) >> 24) * 3 + (self.cpu.r_reg(2) >> 24) * 5
+                       + (self.cpu.r_reg(3) >> 24) * 7) % 250
+            self.pens.add(pen)
+            self.cpu.w_reg(0, pen)
         else:
             self.pens.add(self.pen_count)
             self.cpu.w_reg(0, self.pen_count)
@@ -134,10 +143,17 @@ class PlanarPixmap(Pixmap):
         self.cpu.w_reg(0, 0)
 
     def clean(self):
+        # A small image's dithered bitmap and mask may be kept for the next
+        # setup; its pens are given back and no ColorMap is kept
         self.call('MUIM_Cleanup', MESSAGE)
-        assert not self.bitmap and not self.rowbitmap
-        assert not self.pens and not self.allocated
+        assert not self.rowbitmap
+        assert not self.pens
+        assert self.bitmap or not self.allocated
         assert not self.mem.r32(DATA + 52)  # no retained ColorMap
+
+    def finish(self):
+        super().finish()
+        assert not self.bitmap and not self.rowbitmap
 
 
 def check_planar(path):
@@ -157,10 +173,27 @@ def check_planar(path):
             assert not h.bitmap and not h.pens and not h.allocated
         h.clean()
         if not failure:
+            # other pens on the second setup: dithered again
+            h.points = []
             h.call('MUIM_Setup', MESSAGE)
             assert h.bitmap and len(h.pens) == 3
+            assert h.points == [(0, 0), (1, 0), (3, 0)]
             h.clean()
         h.finish()
+
+    # the same pens on the second setup: the kept image is used again
+    h = PlanarPixmap(path, stable=True)
+    assert h.decode(argb, 0, 4, format=2)
+    h.mem.w32(DATA + 28, 0xffffffff)
+    h.call('MUIM_Setup', MESSAGE)
+    assert h.bitmap and len(h.pens) == 3 and h.points == [(0, 0), (1, 0), (3, 0)]
+    pens = set(h.pens)
+    h.clean()
+    h.points = []
+    h.call('MUIM_Setup', MESSAGE)
+    assert h.bitmap and h.pens == pens and h.points == []
+    h.clean()
+    h.finish()
 
 
 def check(path):
