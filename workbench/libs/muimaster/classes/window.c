@@ -56,6 +56,7 @@
 #endif
 
 #include "muimaster_intern.h"
+#include "font.h"
 #ifdef ZUNE68_GCC_NATIVE
 #include <proto/cybergraphics.h>
 #endif
@@ -5421,8 +5422,40 @@ static __attribute__((noinline)) void WindowScreenMax(
         data->wd_MinMax.MaxHeight = MAX(maxh, data->wd_MinMax.MinHeight);
 }
 
+/* MUI 3.8 has every preset's font open while a window is set up (its
+ * render info holds them all); MUI 3 programs read them there (IBrowse
+ * 2.5.9's toolbar). Zune opens a preset's font when an object first uses
+ * it: for MUI 3 programs, open them all before the sizes are asked. */
+static __attribute__((noinline)) void OpenAllPresetFonts(Object *root)
+{
+    struct MUI_RenderInfo *mri = muiRenderInfo(root);
+    LONG i;
+
+    if (!ZUNE_APP_MUI38(root))
+        return;
+    for (i = -1; i > (LONG)MUIV_Font_NegCount; i--)
+    {
+        struct TextFont *f = zune_font_get(root, (IPTR)i);
+
+        /* a preset without a font of its own gets the normal font
+         * uncached: keep a reference of its own in its slot, closed
+         * with the others at cleanup */
+        if (f && !mri->mri_Fonts[-i])
+        {
+            struct TextAttr ta;
+
+            ta.ta_Name = f->tf_Message.mn_Node.ln_Name;
+            ta.ta_YSize = f->tf_YSize;
+            ta.ta_Style = f->tf_Style;
+            ta.ta_Flags = f->tf_Flags;
+            mri->mri_Fonts[-i] = OpenFont(&ta);
+        }
+    }
+}
+
 static void WindowMinMax(Object *obj, struct MUI_WindowData *data)
 {
+    OpenAllPresetFonts(data->wd_RootObject);
     SetRootObjInnerSpacing(obj, data);
     /* inquire about sizes; like MUI, Area stores them in the root's own
      * minmax */

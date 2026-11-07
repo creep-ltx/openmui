@@ -389,6 +389,14 @@ struct MUI_RenderInfo
                                  * MUIM_Setup/MUIM_Cleanup */
 
     /* the following stuff is private */
+
+    /* Opened text fonts, done by zune_get_font(). Right after the public
+     * part, where MUI 3.8 keeps them too (MUI 3.8's render info holds a
+     * pointer to each preset's font at offsets 32-60, measured by
+     * tests/lean/probe/rpminmax.c): IBrowse 2.5.9 reads its toolbar's
+     * font there and measured 248 pixels a character from Zune's pens */
+    struct TextFont *mri_Fonts[-MUIV_Font_NegCount];
+
     struct ColorMap *mri_Colormap;
     UWORD mri_Fallback;         /* MUI 3.8's fitting stage for a window
                                  * larger than the screen (smaller fonts
@@ -398,9 +406,6 @@ struct MUI_RenderInfo
     UWORD mri_Reserved2;
     UWORD mri_PensStorage[MPEN_COUNT];  /* storage for pens, mri_Pens points
                                          * to here */
-
-    /* Opened text fonts, done by zune_get_font() */
-    struct TextFont *mri_Fonts[-MUIV_Font_NegCount];
 
     /* the clip regions (mri_Tail->rArray), the buffer rastport and the
      * custom frames; valid between MUIM_Setup/MUIM_Cleanup */
