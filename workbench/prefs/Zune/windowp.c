@@ -162,8 +162,10 @@ static IPTR WindowP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                       Child, (IPTR) (d.refresh_cycle = MakeCycle(_(MSG_REFRESH), refresh_labels)),
                       Child, (IPTR) Label(_(MSG_REDRAW)),
                       Child, (IPTR) (d.redraw_cycle = MakeCycle(_(MSG_REDRAW), redraw_labels)),
-                      Child, (IPTR) Label("Frame thickness:"),
-                      Child, (IPTR) (d.thickness_cycle = MakeCycle("Frame thickness:", thickness_labels)),
+                      /* "Frames:", not "Frame thickness:": the page
+                       * fits Zune prefs on 640x256 (docs/lean/README.md) */
+                      Child, (IPTR) Label("Frames:"),
+                      Child, (IPTR) (d.thickness_cycle = MakeCycle("Frames:", thickness_labels)),
                       Child, (IPTR) Label("Gadgets:"),
                       Child, (IPTR) HGroup,
                          MUIA_Group_Spacing, 0,

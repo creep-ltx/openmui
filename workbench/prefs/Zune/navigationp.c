@@ -178,7 +178,9 @@ static IPTR NavigationP_New(struct IClass *cl, Object *obj, struct opSet *msg)
         Child, (IPTR) VGroup,
         MUIA_Group_VertSpacing, 0,
         Child, (IPTR) VSpace(3),
-        Child, (IPTR) Label(_(MSG_COLOR_ACTIVE_OBJ)),
+        /* "Active object:", not "Color of active object:": the page
+         * fits Zune prefs on 640x256 (docs/lean/README.md) */
+        Child, (IPTR) Label("Active object:"),
         Child, (IPTR) VSpace(3),
         End, // VGroup label
         Child, (IPTR) (d.active_poppen = MakePoppen()),

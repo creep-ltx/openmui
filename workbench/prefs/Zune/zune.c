@@ -141,6 +141,27 @@ void ts(const char *what)
 #define TS(x)
 #endif
 
+#ifdef PREFS_SIZES
+/* the minimum size of every object under a page, four levels deep */
+static void sizes_dump(Object *obj, int depth)
+{
+    struct List *l = (struct List *)XGET(obj, MUIA_Group_ChildList);
+    Object *cstate = l ? (Object *)l->lh_Head : NULL, *child;
+    static const char sp[] = "                ";
+
+    while (cstate && (child = NextObject(&cstate)))
+    {
+        Class *c = OCLASS(child);
+        while (c && !c->cl_ID) c = c->cl_Super;
+        Printf("%s%3ld x %3ld %s\n", (LONG)(sp + 16 - 2 * depth),
+            (LONG)_minwidth(child), (LONG)_minheight(child),
+            (LONG)(c ? (CONST_STRPTR)c->cl_ID : (CONST_STRPTR)"?"));
+        if (depth < 6)
+            sizes_dump(child, depth + 1);
+    }
+}
+#endif
+
 void close_classes(void)
 {
     delete_system_classes();
@@ -1070,16 +1091,17 @@ int main(void)
                             (LONG)_minheight(main_page_group_displayed),
                             (LONG)_minwidth(root), (LONG)_minheight(root),
                             (LONG)(w ? w->Width : -1), (LONG)(w ? w->Height : -1));
-                        {
-                            struct List *l = (struct List *)XGET(main_page_group_displayed, MUIA_Group_ChildList);
-                            Object *cstate = l ? (Object *)l->lh_Head : NULL, *child;
-
-                            while (cstate && (child = NextObject(&cstate)))
-                                Printf("    child %3ld x %3ld\n", (LONG)_minwidth(child), (LONG)_minheight(child));
-                        }
+                        sizes_dump(main_page_group_displayed, 1);
                         Flush(Output());
                     }
-                    set(main_page_list, MUIA_List_Active, 0);
+                    /* ENV:PrefsPage=n: leave page n shown (for screenshots) */
+                    {
+                        char buf[8];
+                        LONG n = 0;
+                        if (GetVar("PrefsPage", buf, sizeof(buf), 0) > 0)
+                            StrToLong(buf, &n);
+                        set(main_page_list, MUIA_List_Active, n);
+                    }
                 }
 #endif
                 if (XGET(main_wnd,MUIA_Window_Open))

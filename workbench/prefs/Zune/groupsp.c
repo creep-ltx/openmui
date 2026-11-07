@@ -60,8 +60,9 @@ static IPTR GroupsP_New(struct IClass *cl, Object *obj, struct opSet *msg)
     obj = (Object *) DoSuperNewTags
     (
         cl, obj, NULL,
-            
-        MUIA_Group_SameWidth, TRUE,
+
+        /* columns of their own widths and a short register label: the
+         * page fits Zune prefs on 640x256 (docs/lean/README.md) */
         MUIA_Group_Horiz, TRUE,
         Child, (IPTR) VGroup,
             Child, (IPTR) VGroup,
@@ -95,10 +96,11 @@ static IPTR GroupsP_New(struct IClass *cl, Object *obj, struct opSet *msg)
             Child, (IPTR) VGroup,
                 GroupFrameT(_(MSG_REGISTER)),
                 Child, (IPTR) VSpace(0),
-                Child, (IPTR) VGroup,
-                    Child, (IPTR) VSpace(0),
-                    Child, (IPTR) Label1(_(MSG_DEFAULT_SIZE_TRUNCATE_TITLES)),
+                Child, (IPTR) HGroup,
+                    Child, (IPTR) HSpace(0),
+                    Child, (IPTR) Label1("Truncate titles:"),
                     Child, (IPTR) (d.truncate_titles_checkmark = MakeCheck(NULL)),
+                    Child, (IPTR) HSpace(0),
                 End, /* Register */
                 Child, (IPTR) VSpace(0),
             End,

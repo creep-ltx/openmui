@@ -72,8 +72,9 @@ static IPTR ListviewsP_New(struct IClass *cl, Object *obj, struct opSet *msg)
     (
         cl, obj, NULL,
         
+        /* columns of their own widths, Design beside Control: the page
+         * fits Zune prefs on 640x256 (docs/lean/README.md) */
         MUIA_Group_Columns, 2,
-        MUIA_Group_SameSize, TRUE,
         Child, (IPTR) VGroup,
             GroupFrameT(_(MSG_CONTROL)),
             MUIA_Group_VertSpacing, 0,
@@ -94,6 +95,20 @@ static IPTR ListviewsP_New(struct IClass *cl, Object *obj, struct opSet *msg)
             Child, (IPTR) VSpace(0),
         End, /* Control VGroup */
     
+        Child, (IPTR) ColGroup(3),
+            GroupFrameT(_(MSG_DESIGN)),
+            MUIA_Group_VertSpacing, 2,
+            Child, (IPTR) FreeLabel(_(MSG_INPUT_LISTS)),
+            Child, (IPTR) (d.input_popframe = MakePopframe()),
+            Child, (IPTR) (d.input_popimage = MakeBackgroundPopimage()),
+            Child, (IPTR) FreeLabel(_(MSG_READONLY_LISTS)),
+            Child, (IPTR) (d.readonly_popframe = MakePopframe()),
+            Child, (IPTR) (d.readonly_popimage = MakeBackgroundPopimage()),
+            Child, (IPTR) VSpace(0),
+            Child, (IPTR) CLabel(_(MSG_FRAME)),
+            Child, (IPTR) CLabel(_(MSG_BACKGROUND)),
+        End, /* Design ColGroup(3) */
+            
         Child, (IPTR) VGroup,
             GroupFrameT(_(MSG_FONTS)),
             MUIA_Group_VertSpacing, 0,
@@ -110,20 +125,6 @@ static IPTR ListviewsP_New(struct IClass *cl, Object *obj, struct opSet *msg)
             End, /* ColGroup */
             Child, (IPTR) VSpace(0),
         End, /* Fonts */
-            
-        Child, (IPTR) ColGroup(3),
-            GroupFrameT(_(MSG_DESIGN)),
-            MUIA_Group_VertSpacing, 2,
-            Child, (IPTR) FreeLabel(_(MSG_INPUT_LISTS)),
-            Child, (IPTR) (d.input_popframe = MakePopframe()),
-            Child, (IPTR) (d.input_popimage = MakeBackgroundPopimage()),
-            Child, (IPTR) FreeLabel(_(MSG_READONLY_LISTS)),
-            Child, (IPTR) (d.readonly_popframe = MakePopframe()),
-            Child, (IPTR) (d.readonly_popimage = MakeBackgroundPopimage()),
-            Child, (IPTR) VSpace(0),
-            Child, (IPTR) CLabel(_(MSG_FRAME)),
-            Child, (IPTR) CLabel(_(MSG_BACKGROUND)),
-        End, /* Design ColGroup(3) */
             
         Child, (IPTR) ColGroup(3),
             GroupFrameT(_(MSG_CURSOR)),
