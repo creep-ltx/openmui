@@ -5428,13 +5428,16 @@ static void WindowMinMax(Object *obj, struct MUI_WindowData *data)
 /*            data->wd_MinMax.MinHeight, */
 /*            data->wd_MinMax.MaxWidth, data->wd_MinMax.MaxHeight)); */
 
-    /* The inner maximum leaves room for the window borders on screen */
+    /* The inner maximum leaves room for the window borders on screen:
+     * the real ones, a size gadget in the right border leaves a thin
+     * bottom border (AmTelnet opens 256 high on MUI 3.8, was 248) */
     {
         struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
-        LONG maxw = mri->mri_Screen->Width - mri->mri_BorderLeft
-            - mri->mri_BorderRight;
-        LONG maxh = mri->mri_Screen->Height - mri->mri_BorderTop
-            - mri->mri_BorderBottom;
+        LONG right, bottom, maxw, maxh;
+
+        WindowRealBorders(data, &right, &bottom);
+        maxw = mri->mri_Screen->Width - mri->mri_BorderLeft - right;
+        maxh = mri->mri_Screen->Height - mri->mri_BorderTop - bottom;
 
         if (data->wd_MinMax.MaxWidth > maxw)
             data->wd_MinMax.MaxWidth = MAX(maxw, data->wd_MinMax.MinWidth);
