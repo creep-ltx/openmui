@@ -2462,6 +2462,19 @@ static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
             mm->MinHeight = _minheight(data->area);
             mm->DefHeight = _defheight(data->area);
             mm->MaxHeight = _maxheight(data->area);
+            if (data->area_replaced)
+            {
+                /* Listtree's NListtree area: sized as MUI 3.8's own
+                 * Listtree, a List (tests/lean/probe/lvrows.c), not by
+                 * NList's 240-pixel default */
+                LONG row = MAX(_font(obj)->tf_YSize
+                    + data->prefs_linespacing, data->entry_minheight);
+
+                mm->MinWidth = _subwidth(data->area) + 40;
+                mm->DefWidth = _subwidth(data->area) + 100;
+                mm->MinHeight = _subheight(data->area) + 3 * row;
+                mm->DefHeight = _subheight(data->area) + 8 * row;
+            }
             if (vert)
             {
                 mm->MinWidth += _minwidth(vert);
@@ -2536,10 +2549,11 @@ IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     }
     else
     {
-        /* Three rows minimum and eight by default, from the font rather
-         * than the entries. The group result already holds the scroller,
+        /* Three rows minimum and eight by default, from the font (or
+         * MUIA_List_MinLineHeight when higher) rather than the entries.The group result already holds the scroller,
          * so the rows must not be stacked on top of it. */
-        LONG row = _font(obj)->tf_YSize + data->prefs_linespacing;
+        LONG row = MAX(_font(obj)->tf_YSize + data->prefs_linespacing,
+            data->entry_minheight);
 
         /* the scroller beside the title strip counts against both */
         LONG frame = _subheight(obj) + _subheight(data->area) + strip;

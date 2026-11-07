@@ -246,6 +246,7 @@ Object *Listtree__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         switch (tag->ti_Tag)
         {
         CONV(MUIA_Frame,                    MUIA_Frame)
+        CONV(MUIA_Font,                     MUIA_Font)
         CONV(MUIA_Listtree_Format,          MUIA_NListtree_Format)
         CONV(MUIA_Listtree_Title,           MUIA_NListtree_Title)
         CONV(MUIA_Listtree_DragDropSort,    MUIA_NListtree_DragDropSort)
@@ -256,12 +257,21 @@ Object *Listtree__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     }
     convtags[i].ti_Tag  = TAG_DONE;
 
-    /* Copy tags designated for super class */
-    for (i = 0, tags = msg->ops_AttrList; (tag = NextTagItem(&tags)); )
+    /* Copy tags designated for super class. MUI 3.8's Listtree has rows
+     * of at least 10 pixels, also without MUIA_List_MinLineHeight: List
+     * sizes the view by them (tests/lean/probe/lvrows.c) */
+    supertags[0].ti_Tag = MUIA_List_MinLineHeight;
+    supertags[0].ti_Data = 10;
+    for (i = 1, tags = msg->ops_AttrList; (tag = NextTagItem(&tags)); )
     {
         switch (tag->ti_Tag)
         {
         COPY(MUIA_ContextMenu) /* ContextMenuBuild/Choice will be called on child classes of Listtree */
+        COPY(MUIA_Font)
+        case MUIA_List_MinLineHeight:
+            if (tag->ti_Data > 10)
+                supertags[0].ti_Data = tag->ti_Data;
+            break;
         }
     }
     supertags[i].ti_Tag  = TAG_DONE;
