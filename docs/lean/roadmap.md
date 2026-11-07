@@ -154,9 +154,9 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    [README.md](README.md#zune-prefs-opens-in-6-s-instead-of-84-2026-11-07). *2026-11-07 (branch `rtgfix`)*: the
    window fits 640x256 at its normal fonts (System page 472 x 217 -> 407 x 162), opens after one
    setup (4.7 -> 3.3 s); a larger page shown later reopens the window to fit it.
-   *2026-11-07 (branch `prefsfit`)*: all 17 pages fit the 640x256 Workbench at topaz 8 (Windows, Groups,
-   Listviews, Navigation, TextEditor.mcp, NListviews.mcp and NListtree.mcp rearranged, every setting kept), so
-   the reopen never happens there; TheBar.mcp's page (8 x 8) shows its settings (Scrollgroup with AutoBars on
+   *2026-11-07 (branch `prefsfit`)*: 16 of 17 pages fit the 640x256 Workbench at topaz 8 (Windows, Groups,
+   Listviews, Navigation, TextEditor.mcp, NListviews.mcp and NListtree.mcp rearranged, every setting kept);
+   the reopen happens there only for NListviews (still about 20 px too tall); TheBar.mcp's page (8 x 8) shows its settings (Scrollgroup with AutoBars on
    an axis that does not scroll); and the library now does what MUI 3.8 does when a window's contents grow
    past the screen (moved up, or closed and opened again in a smaller stage, or closed), measured black-box.
    Details in [README.md](README.md#every-settings-page-fits-640x256-a-window-that-grows-past-the-screen-2026-11-07).

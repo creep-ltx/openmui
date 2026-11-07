@@ -1150,7 +1150,7 @@ numbers were taken). Page minimum sizes:
 | Listviews | 486 x 133 | 422 x 129 | columns of their own widths, Design beside Control |
 | Navigation | 467 x 154 | 434 x 154 | "Active:" for "Color of active object:"; the drag frame in the rows above "Look:" |
 | TextEditor.mcp | 502 x 230 | 415 x 171 | the Settings tab split: Control, Design (two columns), Separator; a new tab "Cursor" (its catalog string) with Fonts and Cursor |
-| NListviews.mcp | 536 x 272 | 384 x 195 | Options split into Options, Drag&Drop and Miscellaneous (their catalog strings); the colour options on Miscellaneous; the two scrolling checkmarks in one row |
+| NListviews.mcp | 536 x 272 | 428 x 192, still too tall (below) | Options split into Options, Drag&Drop and Miscellaneous (their catalog strings); the colour options on Miscellaneous; Layout beside the fonts; the two scrolling checkmarks in one row |
 | NListtree.mcp | 442 x 221 | 394 x 172 | images and pens in two rows with the labels beside; the example's buttons one above the other |
 | TheBar.mcp | 8 x 8 | 314 x 8 | Scrollgroup fix below |
 | the other 9 | fit | fit (System 421 x 162) | |
@@ -1159,7 +1159,7 @@ Every setting is still there, with the same objects and the same
 catalog strings; only three labels are new English text (the catalog's
 were too long; translations of the other strings may still be wider).
 On the 640x256 Workbench the window now opens and stays in topaz 8 on
-every page: no page triggers Zune prefs' "open again smaller" any more
+every page but NListviews (below): the other pages no longer trigger Zune prefs' "open again smaller"
 (kept as a safety net). Screenshots of all 17 pages were taken in the
 session (`/tmp/prefsfit/shots3/page-N.png`, kept outside the repository).
 
@@ -1199,8 +1199,25 @@ an opening. Nothing happens if the window was closed in between. Stack:
 Window_Dispatcher 28 bytes as before, RecalcDisplay 68 (88 before), the
 new code not inlined (`-fstack-usage`); Scrollgroup's frames unchanged.
 
-Checks: `make check` passes. Fullcheck, demopix and the real-program
-suite: below.
+**Not finished: NListviews.mcp.** Its page is now 428 x 192 (the Layout
+options beside the Fonts, Options keeps Multiselect and Balancing), but
+on the 640x256 Workbench Zune prefs still opens in helvetica when that
+page is shown (seen 2026-11-07 with the page at 195 and at 192 high): the
+window's real vertical extra is larger than the 21 pixels the budget
+assumed (TextEditor's root, 211 high, fits; 232 does not). The tallest
+tabs are Scrolling (137) and Fonts (132) plus the 31-pixel crawling
+banner; about 20 pixels less are still needed. The other 16 pages open
+and stay in topaz 8.
+
+Checks (FS-UAE, final library; NListviews.mcp's last change after them):
+`make check` passes; fullcheck: MUI-Demo's 8 sub-windows and the 18 other
+demos open and close, no alert, lost bytes as on `rtgfix` (608, 200,
+AppWindow 264); demopix: 18 of 27 windows pixel-identical with MUI 3.8,
+the same 9 differing as before; real-program suite, MUI 3 group, a subset
+(yam25 with its settings and address book, amftp, cmanager, ro, multiren
+with its settings, archiver, the NList, NListtree, TextEditor and TheBar
+demo9 demos): all ok, the six programs' windows identical to `rtgfix`'s
+run. The whole MUI 3 group (36 programs, about 70 minutes) was not run.
 
 ## Left open
 
