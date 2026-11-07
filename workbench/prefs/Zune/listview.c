@@ -48,6 +48,13 @@ IPTR ClassListview__OM_NEW(struct IClass *CLASS, Object *obj, struct opSet *mess
     return (IPTR)obj;
 }
 
+#ifdef PREFS_TIMING
+void ts(const char *what);
+#define TS(x) ts(x)
+#else
+#define TS(x)
+#endif
+
 IPTR ClassListview__MUIM_Setup(struct IClass *CLASS, Object *obj, struct MUIP_Setup *message)
 {
     struct ClassListview_DATA        *data = INST_DATA(CLASS, obj);
@@ -56,6 +63,7 @@ IPTR ClassListview__MUIM_Setup(struct IClass *CLASS, Object *obj, struct MUIP_Se
     if (!DoSuperMethodA(CLASS, obj, (Msg) message)) return (IPTR)NULL;
 
     DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->ehn);
+    TS("list setup");
 
     for(i = 0; ; i++)
     {
@@ -73,6 +81,7 @@ IPTR ClassListview__MUIM_Setup(struct IClass *CLASS, Object *obj, struct MUIP_Se
         D(bug("listview setup image %p listimage %p\n",
             entry->mcp_icon, entry->mcp_listimage));
     }
+    TS("list images made");
     return 1;
 }
 
@@ -82,6 +91,7 @@ IPTR ClassListview__MUIM_Cleanup(struct IClass *CLASS, Object *obj, struct MUIP_
     LONG i;
 
     DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->ehn);
+    TS("list cleanup");
 
     for(i = 0; ; i++)
     {

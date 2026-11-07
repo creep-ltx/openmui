@@ -124,6 +124,23 @@ static Object *main_page_space; /* a space object */
 
 char titlebuf[255];
 
+#ifdef PREFS_TIMING
+static LONG ts_start = -1;
+void ts(const char *what)
+{
+    struct DateStamp d;
+    LONG t;
+    DateStamp(&d);
+    t = d.ds_Minute * 60 * 50 + d.ds_Tick;
+    if (ts_start < 0) ts_start = t;
+    Printf("%6ld ms %s\n", (t - ts_start) * 20, what);
+    Flush(Output());
+}
+#define TS(x) ts(x)
+#else
+#define TS(x)
+#endif
+
 void close_classes(void)
 {
     delete_system_classes();
@@ -187,6 +204,33 @@ static void main_page_list_display(struct Hook *h, char **strings, struct page_e
 
 
 /****************************************************************
+ Pages are made when first shown: making all 17 at start took more
+ time than anything else but opening the window. A page made later
+ shows the settings the others were last given (LastSavedConfigdata);
+ everything that reads or replaces all pages' settings makes the
+ missing ones first (all_pages()).
+*****************************************************************/
+static Object *page_group(struct page_entry *p)
+{
+    if (!p->group && p->cl)
+    {
+        if ((p->group = NewObject(p->cl->mcc_Class, NULL, TAG_DONE))
+            && LastSavedConfigdata)
+            DoMethod(p->group, MUIM_Settingsgroup_ConfigToGadgets,
+                (IPTR)LastSavedConfigdata);
+    }
+    return p->group;
+}
+
+static void all_pages(void)
+{
+    struct page_entry *p;
+
+    for (p = main_page_entries; p->name; p++)
+        page_group(p);
+}
+
+/****************************************************************
  A new entry has been selected
 *****************************************************************/
 void main_page_active(void)
@@ -198,7 +242,7 @@ void main_page_active(void)
         new_group = main_page_space;
     else
     {
-        new_group = main_page_entries[new_active].group;
+        new_group = page_group(&main_page_entries[new_active]);
         if (!new_group)
             new_group = main_page_space;
     }
@@ -276,7 +320,11 @@ void find_mcps(void)
     {
         "Zune/#?.(mcp|mcc)",
         "Classes/Zune/#?.(mcp|mcc)",
-        "MUI/#?.(mcp|mcc)",
+        /* MUI's drawer: settings classes only. Opening every .mcc there
+         * to ask it for a settings class loaded ~35 class files (most of
+         * the start-up time from disk, all kept until a flush), and
+         * none of them has one: an .mcc's settings come as its .mcp */
+        "MUI/#?.mcp",
         NULL,
     };
     CONST_STRPTR const *pathptr;
@@ -330,7 +378,9 @@ void find_mcps(void)
                                 
                                 pe->cl = mcp;
                                 pe->mcp_library = mcclib;
+                                TS(ap->ap_Buf);
                                 pe->mcp_icon = (Object *)MCC_Query(2); /* Get MCP image */
+                                TS("icon");
                                 D(bug("[Zune Prefs/find_mcps] image %p\n", pe->mcp_icon));
 
                                 mcclib = NULL;
@@ -427,6 +477,7 @@ int init_gui(void)
 {
     STRPTR wintitle;
     
+    TS("init_gui");
     main_page_entries[ 0].name = (char *)_(MSG_DSC_SYSTEM);
     main_page_entries[ 0].mcp_icon = systemclass_get_icon();
     main_page_entries[ 1].name = (char *)_(MSG_DSC_WINDOWS);
@@ -452,6 +503,7 @@ int init_gui(void)
     main_page_entries[11].name = (char *)_(MSG_DSC_FRAMES);
     main_page_entries[11].mcp_icon = framesclass_get_icon();
 
+    TS("icons made");
     main_open_menu_hook.h_Entry = HookEntry;
     main_open_menu_hook.h_SubEntry = (HOOKFUNC)main_open_menu;
 
@@ -542,6 +594,7 @@ int init_gui(void)
             End,
         End;
 
+    TS("app made");
     if (app)
     {
         int i;
@@ -565,7 +618,8 @@ int init_gui(void)
 
             if (!p->cl && p->desc) p->cl = create_class(p->desc);
 
-            if (!(p->cl && (p->group = NewObject(p->cl->mcc_Class, NULL, TAG_DONE))))
+            /* the page itself is made when first shown (page_group()) */
+            if (!p->cl)
             {
                 if (p->mcp_library) continue;
                 deinit_gui();
@@ -725,6 +779,8 @@ void main_open_menu(void)
             //LastSavedConfigdata = configdata;
             DoMethod(configdata, MUIM_Configdata_Load,filename);
 
+            all_pages(); /* every page takes the file's settings */
+
             /* Call MUIM_Settingsgroup_ConfigToGadgets for every group */
             for (i=0;main_page_entries[i].name;i++)
             {
@@ -785,6 +841,8 @@ void save_prefs(CONST_STRPTR name, BOOL envarc)
 {
     Object *configdata;
 
+    all_pages(); /* every page writes its settings */
+
     configdata = MUI_NewObject(MUIC_Configdata,
                     //MUIA_Configdata_ApplicationBase, name,
                                MUIA_Configdata_Application,appaddr,
@@ -841,6 +899,8 @@ void main_saveas_menu(void)
         configdata = MUI_NewObject(MUIC_Configdata,
                      MUIA_Configdata_ApplicationBase, "dummyfile",
                      TAG_DONE);
+
+        all_pages(); /* every page writes its settings */
 
         /* check for ".prefs" suffix in filename, add if not existing */
         if ( !strstr( filename, ".prefs") ) strcat(filename, ".prefs");
@@ -902,6 +962,7 @@ int main(void)
     IPTR args[] = { 0,0 };
     enum { ARG_APPNAME = 0,ARG_APPADDR=1 };
 
+    TS("start");
     if (!open_libs()) { close_libs(); return RETURN_FAIL; }
     Locale_Initialize();
 
@@ -924,14 +985,19 @@ int main(void)
 
         if (open_classes())
         {
+            TS("classes");
             find_mcps();
+            TS("mcps found");
             NewDir = Lock("RAM:", SHARED_LOCK);
             if (NewDir)
                 OldDir = CurrentDir(NewDir);
             if (init_gui())
             {
+                TS("gui made");
                 load_prefs((STRPTR)args[ARG_APPNAME]);
+                TS("prefs loaded");
                 set(main_wnd, MUIA_Window_Open, TRUE);
+                TS("window open");
                 if (XGET(main_wnd,MUIA_Window_Open))
                 {
                     loop();
