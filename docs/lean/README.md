@@ -1009,6 +1009,65 @@ frees its previews as before.
 
 Imageadjust.mui +492 bytes.
 
+## Zune prefs opens in 6 s instead of 84 (2026-11-07)
+
+Branch `prefsfast`. SYS:Prefs/Zune took 84 s to open its window in
+FS-UAE (A1200 68EC020, OS 3.1, 8 MB fast RAM, 640x256 Workbench, 68000
+build), about 60 s of it CPU with no disk access. Measured with time
+stamps in the program (`-DPREFS_TIMING` builds print them) and a small
+profiler (`tests/lean/pcsample.c`: every tick it keeps the saved PC and
+48 stack longs of the named task while that task is ready; it finds
+the hunks of the program, muimaster/zunemaster, their class files and of
+class libraries; `tests/lean/scripts/pcsample.py` maps it to functions
+through the unstripped files, `CHAINS=label` prints callers).
+
+Where the time went and what was done (emulator times, cold boot):
+
+| | before | after |
+|---|---|---|
+| NBitmap dithering the five MCP icons (256-colour nearest search, three software multiplies per colour per pixel, 256 ObtainBestPen per setup) | 55 s | 0.2 s |
+| Pixmap bzip2 of the twelve page icons (small mode: a search per output byte) | 2.1 s | 0.8 s |
+| making all 17 pages before the window | 2.4 s | 0.2 s (the shown page only) |
+| opening every .mcc in LIBS:MUI to ask for a settings class | 1.9 s | 0.9 s (.mcp files only) |
+| five window setups (the window does not fit 640x256 at stage 0, see below), list images dithered again each time | 5 x 1.3 s | 0.6 s + 4 x 0.3 s |
+| **window open, from the command** | **84 s** | **5.7 s** |
+
+- **NBitmap.mcc** (`DitherImage.c`, `NBitmap.c`): the default colour map
+  is a 3-3-2 cube, so the nearest colour is the nearest level per channel
+  (checked equal to the full search, ties included, for every colour on
+  the PC); other maps search with 16-bit multiplies, and a pixel the same
+  colour as the one before is not searched again. Pens are obtained only
+  for the colours the images use (all 256 before, on every setup).
+- **Pixmap** (`classes/pixmap.c`, the Rawimage/Pixmap.mui file): bzip2 fast
+  mode for images up to 64 KB (a few KB of tables for an icon); a small
+  dithered image (<= 4096 pixels) is kept over a cleanup with its pens
+  given back, and the next setup uses it if the same colours get the same
+  pens again (the pixels are pen numbers: the picture is exactly what
+  dithering again gives; other pens: dithered again). No division per
+  pixel for a solid image or a repeated colour. `tests/check_pixmap_render.py`
+  checks both the reuse and the dither-again path.
+- **Zune prefs** (`zune.c`): pages are made when first shown, with the
+  settings last given to all pages; Save, Use, Test, Save As and Open make
+  the missing pages first (the first Test or Save in a run takes up to
+  2 s more for that). Saved settings are the same as before (compared
+  byte by byte from the same start: equal except one item, below).
+  `find_mcps` opens only `#?.mcp` in LIBS:MUI (MUI's `.mcc` files give no
+  settings class; the AROS drawers Zune/ and Classes/Zune/ still take both).
+
+Found, not changed:
+
+- The window is 670 x 257 at stage 0 on a 640x256 screen, so it is set up
+  five times (helvetica 11 - larger than topaz 8 -, helvetica 9, less
+  spacing, topaz 8) and opens in topaz with tight spacing. Making the
+  System page ~30 px narrower and ~17 px lower would open it at once, in
+  the normal fonts.
+- One 6-byte item of global.prefs (bytes 577-582 of 1598, after `0027ffff`)
+  holds different bytes on every Save, with the old program too
+  (`0f00000100`, `7200122c0008`, `000000000000`): something writes
+  uninitialised memory there.
+- Pixmap.mui carries bzip2's compressor (BZ2_bzCompress, blockSort,
+  ~20 KB) that nothing calls.
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
