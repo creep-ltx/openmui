@@ -2744,7 +2744,8 @@ static void CreateWindowScrollbars(Object *obj,
  * requested, not whether Intuition completed a resize. Borrow data and
  * window; no new ownership.
  */
-static BOOL WindowResize(struct MUI_WindowData *data)
+/* not inlined: its locals stay off the stack of RecalcDisplay's layout */
+static __attribute__((noinline)) BOOL WindowResize(struct MUI_WindowData *data)
 {
     struct Window *win = data->wd_RenderInfo.mri_Window;
     int hborders = win->BorderLeft + win->BorderRight;
@@ -5738,6 +5739,16 @@ static ULONG WindowClose(struct IClass *cl, Object *obj)
  * Area originator or NULL and stable hierarchy; intermediate results are
  * ignored.
  */
+/* Push MUIM_Window_Refit to the application's input loop (not inlined:
+ * its message stays off the stack of RecalcDisplay's layout) */
+static __attribute__((noinline)) void WindowRefitLater(Object *obj,
+    struct MUI_WindowData *data)
+{
+    data->wd_Flags |= MUIWF_REFITPENDING;
+    DoMethod(_app(obj), MUIM_Application_PushMethod, (IPTR) obj, 1,
+        MUIM_Window_Refit);
+}
+
 IPTR Window__MUIM_RecalcDisplay(struct IClass *cl, Object *obj,
     struct MUIP_Window_RecalcDisplay *msg)
 {
@@ -5775,11 +5786,7 @@ IPTR Window__MUIM_RecalcDisplay(struct IClass *cl, Object *obj,
      * the window is laid out as before. */
     if (!WindowFits(data) && !(data->wd_Flags & MUIWF_REFITPENDING)
         && _app(obj))
-    {
-        data->wd_Flags |= MUIWF_REFITPENDING;
-        DoMethod(_app(obj), MUIM_Application_PushMethod, (IPTR) obj, 1,
-            MUIM_Window_Refit);
-    }
+        WindowRefitLater(obj, data);
     while (current_obj != NULL)
     {
         Object *o;
@@ -7011,7 +7018,8 @@ static IPTR Window__MUIM_Import(struct IClass *cl, Object *obj,
  * outgrew the screen: close the window and open it again, which fits it
  * stage by stage as at the first opening. Nothing if the window was closed
  * (or opened again) since. */
-static IPTR Window__MUIM_Refit(struct IClass *cl, Object *obj)
+static __attribute__((noinline)) IPTR Window__MUIM_Refit(struct IClass *cl,
+    Object *obj)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
 
