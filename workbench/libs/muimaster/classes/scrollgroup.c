@@ -332,6 +332,36 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
                 lm->lm_MinMax.MaxWidth = _maxwidth(data->contents);
                 lm->lm_MinMax.MaxHeight = _maxheight(data->contents);
 
+                /* An axis that does not scroll (FreeHoriz or FreeVert
+                 * FALSE) still needs the contents' whole minimum, plus
+                 * the other axis' scroller: TheBar.mcp's settings, in such
+                 * a group with AutoBars, measured 8 x 8. MUI 3.8 ignores
+                 * AutoBars (a MUI 4 tag) and gives 300 + 18 for a
+                 * 300-pixel column (tests/lean/probe/sgfree.c). */
+                if (!data->usewinborder)
+                {
+                    struct MUI_MinMax *mm = &lm->lm_MinMax;
+                    LONG v;
+
+                    if (!data->horiz)
+                    {
+                        v = _minwidth(data->contents);
+                        get(data->contents, MUIA_Virtgroup_MinWidth, &v);
+                        v += data->vert ? _minwidth(data->vert) : 0;
+                        mm->MinWidth = MAX(mm->MinWidth, v);
+                        mm->DefWidth = MAX(mm->DefWidth, mm->MinWidth);
+                        mm->MaxWidth = MAX(mm->MaxWidth, mm->DefWidth);
+                    }
+                    if (!data->vert)
+                    {
+                        v = _minheight(data->contents);
+                        get(data->contents, MUIA_Virtgroup_MinHeight, &v);
+                        v += data->horiz ? _minheight(data->horiz) : 0;
+                        mm->MinHeight = MAX(mm->MinHeight, v);
+                        mm->DefHeight = MAX(mm->DefHeight, mm->MinHeight);
+                        mm->MaxHeight = MAX(mm->MaxHeight, mm->DefHeight);
+                    }
+                }
             }
             else
             {
