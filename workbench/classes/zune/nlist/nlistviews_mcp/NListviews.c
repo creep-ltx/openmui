@@ -284,7 +284,7 @@ static const char *MainTextArray[] =
 */
 
 // static arrays which we fill up later on
-static const char *Pages[6];
+static const char *Pages[8];
 static const char *RS_ColWidthDrag[4];
 static const char *RS_VSB[4];
 static const char *RS_HSB[5];
@@ -681,7 +681,7 @@ MakeStaticHook(DestructHook, DestructFunc);
 static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
 {
   struct NListviews_MCP_Data *data;
-  APTR group1, group2, group3, group4, group5;
+  APTR group1, group2, group3, group4, group5, group6, group7;
   char *exampleText;
   BOOL mui39;
   BOOL safeNotifies;
@@ -701,7 +701,7 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
 
   data = INST_DATA(cl,obj);
 
-  group1 = group2 = group3 = group4 = group5 = NULL;
+  group1 = group2 = group3 = group4 = group5 = group6 = group7 = NULL;
 
   data->mcp_group = NULL;
   data->mcp_list1 = NULL;
@@ -866,7 +866,8 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
           End,
       End;
 
-  group2 = VGroup,
+  // Zune68 lean: side by side, so the page fits 640x256
+  group2 = HGroup,
              Child, VGroup,
               GroupFrameT(tr(MSG_COLORS)),
               GroupSpacing(2),
@@ -1073,7 +1074,8 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
                 GroupFrameT(tr(MSG_SCROLLCONTROL)),
                 Child, VSpace(0),
 
-                Child, ColGroup(2),
+                // Zune68 lean: both checkmarks in one row, so the page fits 640x256
+                Child, HGroup,
                   Child, HSpace(0),
                   Child, HGroup,
                     Child, data->mcp_B_Smooth = ImageObject,
@@ -1089,7 +1091,6 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
                     Child, HSpace(0),
                   End,
 
-                  Child, HSpace(0),
                   Child, HGroup,
                     Child, data->mcp_WheelMMB = ImageObject,
                       ImageButtonFrame,
@@ -1104,6 +1105,10 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
                     Child, HSpace(0),
                   End,
 
+                  Child, HSpace(0),
+                End,
+
+                Child, ColGroup(2),
                   Child, Label(tr(MSG_WHEEL_STEP)),
                   Child, data->mcp_WheelStep = SliderObject,
                     MUIA_CycleChain,    1,
@@ -1149,9 +1154,10 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
   RS_Menu[2] = tr(MSG_CMENU_NEVER);
   RS_Menu[3] = NULL;
 
-  group4 = VGroup,
+  // Zune68 lean: the Options page (526 x 217 at topaz 8) split into Options,
+  // Drag&Drop and Miscellaneous so each fits Zune prefs on a 640x256 screen
+  group4 = HGroup,
 
-              Child, HGroup,
                 Child, VGroup,
                   Child, HGroup,
                     GroupFrameT(tr(MSG_MULTISELECT)),
@@ -1265,7 +1271,25 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
                 End,
 
                 Child, VGroup,
+                  Child, HGroup,
+                    GroupFrameT(tr(MSG_BALANCING_COLS)),
+                    Child, HSpace(0),
+                    Child, VGroup,
+                      Child, VSpace(0),
+                      Child, data->mcp_ColWidthDrag = RadioObject,
+                        MUIA_Radio_Entries, RS_ColWidthDrag,
+                      End,
+                      MUIA_ShortHelp, tr(MSG_BALANCING_COLS_HELP),
+                      Child, VSpace(0),
+                    End,
+                    Child, HSpace(0),
+                  End,
 
+                  Child, VSpace(0),
+                End,
+            End;
+
+  group6 = VGroup,
                   Child, HGroup,
                     GroupFrameT(tr(MSG_DRAGDROP)),
 
@@ -1318,23 +1342,10 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
 
                   End,
 
-                  Child, HGroup,
-                    GroupFrameT(tr(MSG_BALANCING_COLS)),
-                    Child, HSpace(0),
-                    Child, VGroup,
-                      Child, VSpace(0),
-                      Child, data->mcp_ColWidthDrag = RadioObject,
-                        MUIA_Radio_Entries, RS_ColWidthDrag,
-                      End,
-                      MUIA_ShortHelp, tr(MSG_BALANCING_COLS_HELP),
-                      Child, VSpace(0),
-                    End,
-                    Child, HSpace(0),
-                  End,
+              Child, VSpace(0),
+            End;
 
-                End,
-              End,
-
+  group7 = VGroup,
               Child, VGroup,
                 GroupFrameT(tr(MSG_GROUP_MISC)),
                 MUIA_VertWeight, 10,
@@ -1471,7 +1482,9 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
   Pages[1] = tr(MSG_PAGE_COLORS);
   Pages[2] = tr(MSG_PAGE_SCROLLING);
   Pages[3] = tr(MSG_PAGE_OPTIONS);
-  Pages[4] = tr(MSG_PAGE_KEYBINDINGS);
+  Pages[4] = tr(MSG_DRAGDROP);
+  Pages[5] = tr(MSG_GROUP_MISC);
+  Pages[6] = tr(MSG_PAGE_KEYBINDINGS);
 
   data->mcp_group = VGroup,
 
@@ -1482,6 +1495,8 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
       Child, group2,
       Child, group3,
       Child, group4,
+      Child, group6,
+      Child, group7,
       Child, group5,
     End,
 

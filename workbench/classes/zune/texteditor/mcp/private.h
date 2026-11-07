@@ -160,7 +160,7 @@ struct InstData_MCP
   Object *inactiveCursor;
   Object *selectPointer;
 
-  const char *gTitles[5];
+  const char *gTitles[6];
   const char *functions[41];
   const char *execution[3];
   const char *cycleentries[5];

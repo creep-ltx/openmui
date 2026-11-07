@@ -328,12 +328,14 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
       */
       Child, VGroup,
 
-        Child, HGroup, GroupFrameT(tr(MSG_GROUP_IMAGES_COLORS)),
+        // Zune68 lean: images in one row, pens in the next, labels beside them
+        // (was two columns with the labels above: 95 -> about 55 pixels high at
+        // topaz 8), so the page fits Zune prefs on a 640x256 screen
+        Child, ColGroup(6), GroupFrameT(tr(MSG_GROUP_IMAGES_COLORS)),
           MUIA_HorizWeight, 1,
 
-          Child, VGroup,
 
-            Child, FreeKeyCLabel(tr(MSG_BUTTON_LABEL_CLOSED), msg_closed_key),
+            Child, FreeKeyLabel(tr(MSG_BUTTON_LABEL_CLOSED), msg_closed_key),
             Child, data->PI_ImageClosed     = PopimageObject,
               MUIA_Imagedisplay_UseDefSize,   TRUE,
               MUIA_Imageadjust_Type,          MUIV_Imageadjust_Type_Image,
@@ -345,7 +347,7 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
             End,
 
 
-            Child, FreeKeyCLabel(tr(MSG_BUTTON_LABEL_OPEN), msg_open_key),
+            Child, FreeKeyLabel(tr(MSG_BUTTON_LABEL_OPEN), msg_open_key),
             Child, data->PI_ImageOpen       = PopimageObject,
               MUIA_Imagedisplay_UseDefSize,   TRUE,
               MUIA_Imageadjust_Type,          MUIV_Imageadjust_Type_Image,
@@ -356,7 +358,7 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
               MUIA_ShortHelp,                 tr(MSG_HELP_OPEN_IMAGE),
             End,
 
-            Child, FreeKeyCLabel(tr(MSG_BUTTON_LABEL_FOLDER), msg_folder_key),
+            Child, FreeKeyLabel(tr(MSG_BUTTON_LABEL_FOLDER), msg_folder_key),
             Child, data->PI_ImageFolder     = PopimageObject,
               MUIA_Imagedisplay_UseDefSize,   TRUE,
               MUIA_Imageadjust_Type,          MUIV_Imageadjust_Type_Image,
@@ -368,12 +370,10 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
               MUIA_ShortHelp,                 tr(MSG_HELP_FOLDER_IMAGE),
             End,
 
-          End,
 
 
-          Child, VGroup,
 
-            Child, FreeKeyCLabel(tr(MSG_BUTTON_LABEL_LINES), msg_lines_key),
+            Child, FreeKeyLabel(tr(MSG_BUTTON_LABEL_LINES), msg_lines_key),
             Child, data->PP_LinePen = PoppenObject,
               MUIA_Disabled,      MUICFGV_NListtree_LineType_Default == MUICFGV_NListtree_LineType_Disabled,
               MUIA_ControlChar,   msg_lines_key,
@@ -382,7 +382,7 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
               MUIA_ShortHelp,     tr(MSG_HELP_LINES_COLOR),
             End,
 
-            Child, FreeKeyCLabel(tr(MSG_BUTTON_LABEL_SHADOW), msg_shadow_key),
+            Child, FreeKeyLabel(tr(MSG_BUTTON_LABEL_SHADOW), msg_shadow_key),
             Child, data->PP_ShadowPen = PoppenObject,
               MUIA_Disabled,      MUICFGV_NListtree_LineType_Default != MUICFGV_NListtree_LineType_Shadow,
               MUIA_ControlChar,   msg_shadow_key,
@@ -391,7 +391,7 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
               MUIA_ShortHelp,     tr(MSG_HELP_SHADOW_COLOR),
             End,
 
-            Child, FreeKeyCLabel(tr(MSG_BUTTON_LABEL_GLOW), msg_glow_key),
+            Child, FreeKeyLabel(tr(MSG_BUTTON_LABEL_GLOW), msg_glow_key),
             Child, data->PP_GlowPen = MUI_NewObject( MUIC_Poppen,
               MUIA_Disabled,          MUICFGV_NListtree_LineType_Default != MUICFGV_NListtree_LineType_Glow,
               MUIA_ControlChar,       msg_glow_key,
@@ -400,7 +400,6 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
               MUIA_ShortHelp,         tr(MSG_HELP_GLOW_COLOR),
             End,
 
-          End,
 
         End,
 

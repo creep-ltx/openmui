@@ -393,6 +393,9 @@ Object *CreatePrefsGroup(struct InstData_MCP *data)
     Child, RegisterGroup(data->gTitles),
       MUIA_CycleChain, TRUE,
       MUIA_Background, MUII_RegisterBack,
+      // page 1: Control beside Design, Separator and Fonts; the cursor on
+      // page 2 (Zune68 lean: 426 x 135 at topaz 8, was 492 x 175, so the
+      // page fits Zune prefs on a 640x256 screen)
       Child, HGroup,
         Child, VGroup,
           Child, VGroup,
@@ -432,7 +435,10 @@ Object *CreatePrefsGroup(struct InstData_MCP *data)
             End,
             Child, VSpace(0),
           End,
+          Child, VSpace(0),
+        End,
 
+        Child, VGroup,
           Child, ColGroup(4),
 //            MUIA_VertWeight, 0,
             MUIA_Group_SameHeight, FALSE,
@@ -485,9 +491,7 @@ Object *CreatePrefsGroup(struct InstData_MCP *data)
               MUIA_CycleChain, TRUE,
             End,
           End,
-        End,
 
-        Child, VGroup,
           Child, VGroup,
 //            MUIA_VertWeight, 0,
             MUIA_Background, MUII_GroupBack,
@@ -517,7 +521,12 @@ Object *CreatePrefsGroup(struct InstData_MCP *data)
               End,
             End,
           End,
+        End,
+      End,
 
+      // page 2: the cursor, a page of its own (Zune68 lean)
+      Child, HGroup,
+        Child, HSpace(0),
           Child, VGroup,
 //            MUIA_VertWeight, 0,
             MUIA_Background, MUII_GroupBack,
@@ -566,9 +575,7 @@ Object *CreatePrefsGroup(struct InstData_MCP *data)
               Child, HSpace(0),
             End,
           End,
-
-        End,
-
+        Child, HSpace(0),
       End,
 
       Child, VGroup,

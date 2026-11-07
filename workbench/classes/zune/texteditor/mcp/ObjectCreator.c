@@ -215,6 +215,7 @@ static Object *PrefsObject(struct InstData_MCP *data)
 {
   static const void *titles[] = {
     MSG_Page_Settings,
+    MSG_GroupTitle_Cursor, // Zune68 lean: the cursor has a page of its own
     MSG_Page_Keybindings,
     MSG_Page_SpellChecker,
     MSG_Page_Sample
