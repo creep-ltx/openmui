@@ -1393,21 +1393,36 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         return 0;
     }
 
-    if (!data->app_SingleTask)
+    /* MUI 3.8 gives the base back in upper case, as the ARexx port's
+     * name (tests/lean/probe/appbase.c); AmTelnet titles its window
+     * with it */
     {
-        /* must append .1, .2, ... to the base name */
-        LONG i;
         char portname[255];
+        char *c;
 
-        for (i = 1; i < 1000; i++)
+        if (!data->app_SingleTask)
         {
-            snprintf(portname, 255, "%s.%d", data->app_Base, (int)i);
-            if (!find_application_by_base(cl, obj, portname))
-                break;
+            /* must append .1, .2, ... to the base name */
+            LONG i;
+
+            for (i = 1; i < 1000; i++)
+            {
+                snprintf(portname, 255, "%s.%d", data->app_Base, (int)i);
+                for (c = portname; *c; c++)
+                    *c = toupper(*c);
+                if (!find_application_by_base(cl, obj, portname))
+                    break;
+            }
+        }
+        else
+        {
+            snprintf(portname, 255, "%s", data->app_Base);
+            for (c = portname; *c; c++)
+                *c = toupper(*c);
         }
         data->app_Base = StrDup(portname);
     }
-    else
+    if (data->app_Base && data->app_SingleTask)
     {
         Object *other_app;
 
@@ -1419,11 +1434,10 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
             DoMethod(other_app, MUIM_Application_PushMethod,
                 (IPTR) other_app, 3, MUIM_Set, MUIA_Application_DoubleStart,
                 TRUE);
+            FreeVec(data->app_Base);
             data->app_Base = NULL;
         }
         ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
-
-        data->app_Base = StrDup(data->app_Base);
     }
 
     if (!data->app_Base)
