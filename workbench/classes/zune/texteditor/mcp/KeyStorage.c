@@ -476,7 +476,11 @@ void ExportKeys(struct InstData_MCP *data, void *config)
   {
     struct te_key *buffer = entries+c;
 
+    // the end marker: qual and act too, or the saved settings carry six
+    // bytes of whatever the allocation held (different on every save)
     buffer->code = -1;
+    buffer->qual = 0;
+    buffer->act  = 0;
     while(c--)
     {
       DoMethod(data->keybindings, MUIM_List_GetEntry, c, &entry);
