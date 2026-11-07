@@ -5,7 +5,8 @@ from pathlib import Path
 from check_notifications import NotifyHarness
 from check_class_lifetime import EXEC, INTUITION
 
-CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71040
+# DATA: the window's render info, 4 bytes into its data (wd_AreaRenderInfo first)
+CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71044
 POOL, CHAIN, ORDER = DATA + 166, DATA + 170, DATA + 408
 SETUP, CYCLE = 1 << 28, 1 << 5
 

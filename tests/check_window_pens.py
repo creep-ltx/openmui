@@ -14,7 +14,8 @@ CLASS, OBJECT, GLOBAL, PREFS = 0x70000, 0x71000, 0x72000, 0x73000
 SCREEN, DRAWINFO, DRAWPENS, COLORMAP = 0x75000, 0x76000, 0x76100, 0x77000
 GFX, SPECS, MESSAGE = 0x78000, 0x79000, 0x7a000
 # Native offsets checked with offsetof against window.c and the classic SDK.
-DATA = OBJECT + 64
+# The window's render info: 4 bytes into its data (wd_AreaRenderInfo first)
+DATA = OBJECT + 68
 USER_SCREEN, CREATE_FLAGS = DATA + 378, DATA + 222
 PUBLIC_PENS = DATA + 36
 

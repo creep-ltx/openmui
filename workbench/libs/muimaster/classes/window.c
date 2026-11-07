@@ -1104,8 +1104,22 @@ struct WindowEventCursor
     struct MinNode *next;
 };
 
+/* What the area macros read on a Window object. The SDK's _window(),
+ * _screen(), _rp(), ... are for area objects: on a Window object they
+ * read the long right after the notify data as a MUI_RenderInfo pointer.
+ * MUI 3.8 has a pointer there to a block whose public fields are all 0
+ * (measured: _window(win) and _screen(win) are NULL, open or closed), so
+ * a program that passes _window(win) as ASLFR_Window gets asl.library's
+ * default screen. Zune had its own render info there, whose first field
+ * (the window object) was then read as the render info: _window(win) was
+ * a pointer into the notify data, which asl.library took for a window
+ * (FALSE at once on an RTG screen, a reset on the A1200). The fields up
+ * to mri_Flags, all 0. */
+static const IPTR window_area_renderinfo[8];
+
 struct MUI_WindowData
 {
+    const IPTR *wd_AreaRenderInfo;  /* window_area_renderinfo, see above */
     struct MUI_RenderInfo wd_RenderInfo;
     struct MUI_MinMax wd_MinMax;
     struct IBox wd_AltDim;      /* zoomed dimensions */
@@ -4480,6 +4494,7 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     /* Initial local instance data */
     data = INST_DATA(cl, obj);
 
+    data->wd_AreaRenderInfo = window_area_renderinfo;
     data->wd_Opacity = 255;
     data->wd_Class = cl;
     data->wd_EventCursors = NULL;

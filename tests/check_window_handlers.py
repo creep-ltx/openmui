@@ -10,7 +10,8 @@ from pathlib import Path
 from check_class_lifetime import Harness, EXEC, INTUITION
 
 CLASS, OBJECT, ROOT, IWINDOW = 0x70000, 0x71000, 0x71800, 0x71a00
-DATA = OBJECT + 28
+# The window's render info: 4 bytes into its data (wd_AreaRenderInfo first)
+DATA = OBJECT + 32
 EH, CC, ACTIVE, DEFAULT, CURSORS = [DATA + n for n in (182, 194, 226, 234, 470)]
 GLOBAL, PREFS, MESSAGE, NESTED, DEADKEY = 0x78000, 0x79000, 0x7b000, 0x7b100, 0x7b200
 HANDLE, PARENT = 0x80426d66, 0x8042e35f
