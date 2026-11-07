@@ -321,8 +321,21 @@ IPTR Radio__MUIM_Setup(struct IClass *cl, Object *obj, Msg msg)
     if (!DoSuperMethodA(cl, obj, msg))
         return FALSE;
 
-    set(obj, MUIA_Group_HorizSpacing,
-        muiGlobalInfo(obj)->mgi_Prefs->radiobutton_hspacing);
+    /* MUI 3.8 has no radio spacing setting: 1 pixel between the
+     * entries of a horizontal Radio too, 4 between a button and its
+     * label (tests/lean/probe/radio.c) */
+    if (ZUNE_APP_MUI38(obj))
+    {
+        int i;
+
+        SetAttrs(obj, MUIA_Group_Forward, FALSE,
+            MUIA_Group_HorizSpacing, 1, TAG_DONE);
+        for (i = 0; i < data->entries_num; i++)
+            set(data->buttons[i], MUIA_Group_HorizSpacing, 4);
+    }
+    else
+        set(obj, MUIA_Group_HorizSpacing,
+            muiGlobalInfo(obj)->mgi_Prefs->radiobutton_hspacing);
     set(obj, MUIA_Group_VertSpacing,
         muiGlobalInfo(obj)->mgi_Prefs->radiobutton_vspacing);
 
