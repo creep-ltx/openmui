@@ -328,6 +328,22 @@ DizzyTorrent 2,510,232 -> 2,498,568 / 2,852,424 -> 2,841,360, AmigaGPT 2,055,136
 this session on all three (wasabid on FS-UAE's bsdsocket). InstallerNG's first-run figure moved by
 16 KB with no change in its second run (it equals MUI 3.8's): not looked into.
 
+**Update, branch `diffs` (2026-11-07, phase 6):** the remaining window differences worked through
+(docs/lean/README.md, "The suite's last differences against MUI 3.8"): TheBar demo2's control window
+and demo3 381 wide (were 399), AmIRC's server window 550x236 at 45,10 (was 256 high at y 0), AmTelnet
+"AMTELNET.1 ... (77x24)" 640x256 at 0 (was "amtelnet.1 ... (77x23)", 248 high at y 4), IBrowse 2.5.9's
+main window "[1] IBrowse: About IBrowse 2.5.9" 480x192 at 80,32 (none before): all as on MUI 3.8. The
+whole MUI 3 group on the final library: **35 of 36 programs behave as on MUI 3.8** in windows and sizes
+(the comparison script counts 32: YAM 2.5 shows its "Update notification" window on Zune since about
+05:00 that day, also with the previous build of the branch, so YAM's own date-driven update check, not a
+Zune difference; IBrowse's frozen second quit is FS-UAE's, 8 below; MultiRen differs only in MUI 3.8's
+run being "still running after quit"); SimpleMail had no window (wasabid on FS-UAE's bsdsocket, run
+three times this session, the same before these changes). MUI 4/5 group: 5 of 5 the same as `lean`'s run
+the same day (windows and memory). Note: the `zune5` reference in `~/.cache/zune68-suite` is older than
+`suitefix`; YAM 2.10's "Confirmation Request" 249x103 and AmigaGPT's 564x91 error already came from
+`lean`. Results: `/tmp/diffs/zwork/suite-real/fin` (MUI 3 group), `s5` and `l5` (MUI 4/5, this branch
+and `lean`).
+
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second
 run minus in-use after it: a *negative* figure is memory the second run left in use, a positive one
@@ -418,7 +434,7 @@ marked, with its commit in docs/lean/README.md.
 
 1. **Windows wider than the screen are not refitted as MUI 3.8 does** (5 programs). MUI 3.8
    draws such a window in its small font (and tightened spacing), Zune keeps topaz and opens it
-   clipped at 640 pixels, or not at all. **Fixed (suitefix)** except IBrowse: MUI 3.8 has five
+   clipped at 640 pixels, or not at all. **Fixed (suitefix)**, IBrowse too since `diffs` (its toolbar read the preset fonts from the render info): MUI 3.8 has five
    stages (helvetica 11; helvetica 9; less spacing; no inner spacing; topaz 8), measured with a
    row of buttons as well as a column; the later windows of an application open in its stage;
    group titles were 1 px too low (the Textinput demo fitted topaz on Zune); 2-D groups with a
@@ -505,7 +521,7 @@ marked, with its commit in docs/lean/README.md.
    never did.
 9. **Window sizes** (each a few pixels; the contact sheet shows where). **Mostly fixed
    (suitefix)**: all below match MUI 3.8 now except TheBar demo2's control window and demo3
-   (18 px wider), AmTelnet, NListtree's tree images and the MUI 4/5 group (not looked at);
+   (18 px wider; **fixed in `diffs`** with AmTelnet and AmIRC), AmTelnet, NListtree's tree images and the MUI 4/5 group (not looked at);
    scrollbar arrows follow the
    font's height, Archiver's vertical sliders (MUIA_Group_Horiz on a Slider) and its Register
    (may grow, thick-frame spacing):

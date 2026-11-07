@@ -160,3 +160,16 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    an axis that does not scroll); and the library now does what MUI 3.8 does when a window's contents grow
    past the screen (moved up, or closed and opened again in a smaller stage, or closed), measured black-box.
    Details in [README.md](README.md#every-settings-page-fits-640x256-a-window-that-grows-past-the-screen-2026-11-07).
+   *2026-11-07 (branch `diffs`)*: NListviews.mcp's page fits too (428 x 171: the credits crawl through
+   one line); Zune prefs stays in topaz 8 on every page. Details in
+   [README.md](README.md#the-suites-last-differences-against-mui-38-2026-11-07).
+
+## Phase 6 progress
+
+- *2026-11-07 (branch `diffs`)*: the suite's last window differences against MUI 3.8 worked through,
+  measured black-box: horizontal Radio spacing (TheBar demo2/demo3), the application base name in upper
+  case and the window maximum from the real borders (AmTelnet), List/Listtree sizes (AmIRC), the preset
+  fonts in the render info where MUI 3.8 keeps them (IBrowse 2.5.9 opens its main window). Left: MUI-Demo's
+  Listviews window (2 px), the group spare-pixel distribution, the ARexx port made at once, AmIRC's and
+  AmTelnet's logos. Details in
+  [README.md](README.md#the-suites-last-differences-against-mui-38-2026-11-07).

@@ -1219,6 +1219,47 @@ with its settings, archiver, the NList, NListtree, TextEditor and TheBar
 demo9 demos): all ok, the six programs' windows identical to `rtgfix`'s
 run. The whole MUI 3 group (36 programs, about 70 minutes) was not run.
 
+## The suite's last differences against MUI 3.8 (2026-11-07)
+
+Branch `diffs`. Each cause measured black-box on FS-UAE `a1200-31-mui38`
+with a probe in `tests/lean/probe/` (object dumps of the programs' windows
+with `zspy` + `objdump`), then Zune made to give the same:
+
+| program | before | MUI 3.8 | cause | fix |
+|---|---|---|---|---|
+| TheBar demo2's control window, demo3 | 399 wide | 381 | a horizontal Radio's entries 4 px apart (Zune prefs' radio spacing); MUI 3.8: 1, a button and its label 4, no setting (`radio.c`) | Radio: 1 and 4 for MUI 3 programs (MUI 4/5 programs keep the setting) |
+| AmTelnet | "amtelnet.1", 640x248 at y 4 | "AMTELNET.1", 640x256 at 0 | MUIA_Application_Base reads back upper case on MUI 3.8 (`appbase.c`); the window's inner maximum took the bottom border with the size gadget (10) although AmTelnet's size gadget is in the right border (2): 8 px too low, the terminal lost a row | base name upper case; the maximum from the real borders |
+| AmIRC's server window | 550x256 at 45,0 | 550x236 at 45,10 | Zune's Listtree (a List around an NListtree) took NList's default size (359 x 255); MUI 3.8's Listtree.mcc is sized as a List: 3/8 rows of at least 10 px, 40/100 wide; MUI 3.8's List also uses MUIA_List_MinLineHeight for those rows (`lvrows.c`) | List: rows from MinLineHeight when higher, a replaced entry area sized by List's rules; Listtree: rows of at least 10, MUIA_Font passed on |
+| IBrowse 2.5.9 | no main window (min height 367) | 480x192 at 80,32 | its toolbar buttons (40x36 on MUI 3.8) measured 998x276: 248 px a character. MUI 3.8's render info holds every preset's font at offsets 32-60, all open by AskMinMax (`rpminmax.c`); IBrowse reads its font there, Zune had its pens there and opened presets only on use (248 = 0x00F8, what a UWORD read through a NULL font gives from the ROM vectors) | `mri_Fonts` right after the public fields; for MUI 3 programs every preset's font opened after each setup of the root |
+
+IBrowse 2.5.9's window now has the same objects and sizes as on MUI 3.8
+(its object dump differs only in a few maximum heights). The other item,
+**Zune prefs' NListviews.mcp page** (192 high, Zune prefs fell back to
+helvetica on 640x256 when it was shown): the credits crawl through one
+line instead of three and the Scrolling tab lost two empty spaces: 428 x
+171, Zune prefs opens and stays in topaz 8 with that page on FS-UAE's
+640x256 Workbench (screenshot taken). Every setting is still there.
+
+Stack (`-fstack-usage` against `lean`): no function grew. The new code
+sits in helpers that are not inlined (WindowScreenMax 28 bytes,
+OpenAllPresetFonts 36, AppBaseName 44, all shallow calls); Radio's setup
+160 (168).
+
+Not done: MUI-Demo's Listviews window (2 px narrower) and the group
+spare-pixel distribution (item 5 of the session's list): no time left.
+Seen on the way, not fixed: Zune has no ARexx port right after
+ApplicationObject (`appbase.c`: MUI 3.8 has it at once); AmIRC's and
+AmTelnet's logos (Bitmap.mui objects of the same size) stay empty on Zune.
+
+Checks (FS-UAE, final library): `make check` passes; fullcheck: MUI-Demo's
+8 sub-windows and the 18 other demos open and close, no alert, lost bytes
+as before (608, 200, AppWindow 264); demopix: 18 of 27 windows
+pixel-identical with MUI 3.8, the same 9 differing; real-program suite:
+MUI 3 group 35 of 36 as on MUI 3.8 (was 30; SimpleMail windowless in
+FS-UAE as before), MUI 4/5 group 5 of 5 as `lean`'s. Details in
+[tests/lean/real-programs.md](../../tests/lean/real-programs.md),
+"Update, branch `diffs`".
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
