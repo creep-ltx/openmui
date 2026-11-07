@@ -34,6 +34,27 @@
 
 #define RAWIDTH(w)                      ((((UWORD)(w))+15)>>3 & 0xFFFE)
 
+/* NBitmap.c: a 3-3-2 colour cube, red and green in 8 levels, blue in 4 */
+extern const uint32 defaultColorMap[256];
+
+static const uint8 levels8[8] = { 0x00, 0x24, 0x49, 0x6d, 0x92, 0xb6, 0xdb, 0xff };
+static const uint8 levels4[4] = { 0x00, 0x55, 0xaa, 0xff };
+
+/* The nearest of N levels to V, the lower one on a tie. In a colour cube
+ * the nearest colour is the nearest level in each channel, and the lower
+ * level on every tie gives the lowest index among equally near colours,
+ * which is what the full search below returns. */
+static uint32 nearest_level(uint32 v, const uint8 *lv, uint32 n)
+{
+  uint32 k = 0;
+
+  while(k + 1 < n && lv[k + 1] <= v)
+    k++;
+  if(k + 1 < n && lv[k + 1] - v < v - lv[k])
+    k++;
+  return k;
+}
+
 APTR DitherImageA(CONST_APTR data, struct TagItem *tags)
 {
   struct TagItem *tag;
@@ -99,6 +120,18 @@ APTR DitherImageA(CONST_APTR data, struct TagItem *tags)
         mPtr = mask;
       }
 
+      /* the same colour as the pixel before: the same index */
+      uint32 lastRGB = 0xffffffffUL;
+      int32 lastIndex = -1;
+      /* checked here so that a changed defaultColorMap only costs speed */
+      BOOL cube = (colorMap == defaultColorMap);
+
+      for(y = 0; y < 8 && cube; y++)
+        if(colorMap[y << 5] != (uint32)levels8[y] << 16 ||
+           colorMap[y << 2] != (uint32)levels8[y] << 8 ||
+           (y < 4 && colorMap[y] != levels4[y]))
+          cube = FALSE;
+
       for(y = 0; y < height; y++)
       {
         uint32 x;
@@ -150,16 +183,24 @@ APTR DitherImageA(CONST_APTR data, struct TagItem *tags)
           bestIndex = -1;
           bestError = 0xffffffffUL;
 
+          if((((uint32)r << 16) | ((uint32)g << 8) | b) == lastRGB)
+            bestIndex = lastIndex;
+          else if(cube)
+            bestIndex = (nearest_level(r, levels8, 8) << 5) |
+                        (nearest_level(g, levels8, 8) << 2) |
+                         nearest_level(b, levels4, 4);
+          else
           for(i = 0; i < 256; i++)
           {
-            int32 dr, dg, db;
+            int16 dr, dg, db;
             uint32 error;
 
             // calculate the geometric difference to the current color
-            dr = (int32)((colorMap[i] >> 16) & 0xff) - (int32)r;
-            dg = (int32)((colorMap[i] >>  8) & 0xff) - (int32)g;
-            db = (int32)((colorMap[i] >>  0) & 0xff) - (int32)b;
-            error = dr * dr + dg * dg + db * db;
+            // (16-bit operands: one muls.w each on a 68000, not a call)
+            dr = (int16)((colorMap[i] >> 16) & 0xff) - (int16)r;
+            dg = (int16)((colorMap[i] >>  8) & 0xff) - (int16)g;
+            db = (int16)((colorMap[i] >>  0) & 0xff) - (int16)b;
+            error = (uint32)((int32)dr * dr) + (uint32)((int32)dg * dg) + (uint32)((int32)db * db);
 
             if(bestError > error)
             {
@@ -172,6 +213,9 @@ APTR DitherImageA(CONST_APTR data, struct TagItem *tags)
                 break;
             }
           }
+
+          lastRGB = ((uint32)r << 16) | ((uint32)g << 8) | b;
+          lastIndex = bestIndex;
 
           // put the calculated color number into the destination LUT8 image
           // using an additional pen map if available

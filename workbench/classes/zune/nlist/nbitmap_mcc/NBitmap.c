@@ -794,18 +794,16 @@ BOOL NBitmap_SetupImage(struct IClass *cl, Object *obj)
             colorMap = defaultColorMap;
           }
 
-          D(DBF_ALWAYS, "obtaining pens");
-          // allocate all pens
+          // Pens only for the colours the images use: the images are
+          // dithered to colour map indices first, then each index met is
+          // given a pen (all 256 were obtained on every setup before; on
+          // a 4-colour screen that was most of the time a setup took)
+          UBYTE tried[256 / 8];
+          ULONG n = data->width * data->height;
+
+          memset(tried, 0, sizeof(tried));
           for(i = 0; i < 256; i++)
-          {
-            data->ditherPenMap[i] = ObtainBestPen(_screen(obj)->ViewPort.ColorMap, ((colorMap[i] >> 16) & 0x000000ffUL) << 24,
-                                                                                   ((colorMap[i] >>  8) & 0x000000ffUL) << 24,
-                                                                                   ((colorMap[i] >>  0) & 0x000000ffUL) << 24,
-                                                                                   OBP_Precision, PRECISION_IMAGE,
-                                                                                   TAG_DONE);
-            if(data->ditherPenMap[i] == -1)
-              E(DBF_ALWAYS, "failed to obtain pen %ld RGB=%06lx", i, colorMap[i]);
-          }
+            data->ditherPenMap[i] = -1;
 
           for(i = 0; i < 3; i++)
           {
@@ -817,9 +815,31 @@ BOOL NBitmap_SetupImage(struct IClass *cl, Object *obj)
                                                                               DITHERA_Height, data->height,
                                                                               DITHERA_Format, data->type,
                                                                               DITHERA_ColorMap, (IPTR)colorMap,
-                                                                              DITHERA_PenMap, (IPTR)data->ditherPenMap,
                                                                               DITHERA_MaskPlane, (IPTR)&data->ditheredMask[i],
                                                                               TAG_DONE);
+              if(data->ditheredImage[i] != NULL)
+              {
+                UBYTE *p = data->ditheredImage[i];
+                ULONG k;
+
+                for(k = 0; k < n; k++)
+                {
+                  ULONG c = p[k];
+
+                  if(!(tried[c >> 3] & (1 << (c & 7))))
+                  {
+                    tried[c >> 3] |= 1 << (c & 7);
+                    data->ditherPenMap[c] = ObtainBestPen(_screen(obj)->ViewPort.ColorMap, ((colorMap[c] >> 16) & 0x000000ffUL) << 24,
+                                                                                           ((colorMap[c] >>  8) & 0x000000ffUL) << 24,
+                                                                                           ((colorMap[c] >>  0) & 0x000000ffUL) << 24,
+                                                                                           OBP_Precision, PRECISION_IMAGE,
+                                                                                           TAG_DONE);
+                    if(data->ditherPenMap[c] == -1)
+                      E(DBF_ALWAYS, "failed to obtain pen %ld RGB=%06lx", c, colorMap[c]);
+                  }
+                  p[k] = data->ditherPenMap[c];
+                }
+              }
 
               #if !defined(__amigaos4__)
               // CyberGraphics cannot blit raw data through a mask, thus we have to
