@@ -5455,7 +5455,6 @@ static __attribute__((noinline)) void OpenAllPresetFonts(Object *root)
 
 static void WindowMinMax(Object *obj, struct MUI_WindowData *data)
 {
-    OpenAllPresetFonts(data->wd_RootObject);
     SetRootObjInnerSpacing(obj, data);
     /* inquire about sizes; like MUI, Area stores them in the root's own
      * minmax */
@@ -5626,6 +5625,7 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
     }
 
     /* inquire about sizes */
+    OpenAllPresetFonts(data->wd_RootObject);
     WindowMinMax(obj, data);
 
     /* Like MUI 3.8, set a window larger than the screen up again with
@@ -5648,6 +5648,7 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
             CleanupRenderInfo(obj, data, mri);
             return FALSE;
         }
+        OpenAllPresetFonts(data->wd_RootObject);
         WindowMinMax(obj, data);
     }
     if (data->wd_RenderInfo.mri_Fallback > MGI_FALLBACK(muiGlobalInfo(obj)))
