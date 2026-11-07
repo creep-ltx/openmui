@@ -135,6 +135,12 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    0x08008FC2, next to input.device's task. Next: reproduce on an emulated RTG (uaegfx) OS 3.2 screen.
    *2026-11-07 (branch `prefsfast`)*: the test is kept as `tests/lean/asltest.c` (`asltest <version> [raw]`);
    the RTG reproduction is not done yet (the session went to item 3 first).
+   *Fixed 2026-11-07 (branch `rtgfix`)*: reproduced in FS-UAE on a uaegfx 1280x1024 24-bit screen
+   (Picasso96 3.6.3). The cause was the window pointer, not asl: the test and PFS3Doctor passed
+   `_window(win)`, an area macro, on a Window object; Zune's Window data made it a pointer into the
+   object, MUI 3.8's makes it NULL (measured). A Window now gives NULL there as on MUI 3.8, and the
+   requester opens. Details in
+   [README.md](README.md#rtg-mui_aslrequest-zune-prefs-on-640x256-2026-11-07).
 2. **A List eats every key while the pointer is over it** (found 2026-11-06 with PFS3Doctor, FS-UAE with the
    A1200's muimaster 21.227): List's HandleEvent, IDCMP_RAWKEY, sets `result = MUI_EventHandlerRC_Eat`
    whenever the pointer is over the list or its scroller, outside the switch that only handles the wheel
@@ -145,5 +151,6 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    too). *Fixed 2026-11-07* (branch `prefsfast`): 5.7 s. NBitmap's dithering of the MCP icons (55 s),
    Pixmap's bzip2 small mode, all pages made at start, every .mcc opened to look for settings classes, list
    images dithered again on each of the five setups a too-big window gets. Details in
-   [README.md](README.md#zune-prefs-opens-in-6-s-instead-of-84-2026-11-07). Left: the window does not fit
-   640x256 at its normal fonts (670 x 257), so it opens in topaz after five setups.
+   [README.md](README.md#zune-prefs-opens-in-6-s-instead-of-84-2026-11-07). *2026-11-07 (branch `rtgfix`)*: the
+   window fits 640x256 at its normal fonts (System page 472 x 217 -> 407 x 162), opens after one
+   setup (4.7 -> 3.3 s); a larger page shown later reopens the window to fit it.

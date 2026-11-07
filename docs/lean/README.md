@@ -1054,19 +1054,82 @@ Where the time went and what was done (emulator times, cold boot):
   `find_mcps` opens only `#?.mcp` in LIBS:MUI (MUI's `.mcc` files give no
   settings class; the AROS drawers Zune/ and Classes/Zune/ still take both).
 
-Found, not changed:
+Found then, fixed on branch `rtgfix` (next section): the window did not
+fit 640x256 at its normal fonts (670 x 257); one 6-byte item of
+global.prefs held different bytes on every Save; Pixmap.mui carried
+bzip2's compressor.
 
-- The window is 670 x 257 at stage 0 on a 640x256 screen, so it is set up
-  five times (helvetica 11 - larger than topaz 8 -, helvetica 9, less
-  spacing, topaz 8) and opens in topaz with tight spacing. Making the
-  System page ~30 px narrower and ~17 px lower would open it at once, in
-  the normal fonts.
-- One 6-byte item of global.prefs (bytes 577-582 of 1598, after `0027ffff`)
-  holds different bytes on every Save, with the old program too
-  (`0f00000100`, `7200122c0008`, `000000000000`): something writes
-  uninitialised memory there.
-- Pixmap.mui carries bzip2's compressor (BZ2_bzCompress, blockSort,
-  ~20 KB) that nothing calls.
+## RTG: MUI_AslRequest, Zune prefs on 640x256 (2026-11-07)
+
+Branch `rtgfix`.
+
+**The asl requester that returned at once on the A1200** (roadmap "Bugs
+found from outside" 1). Reproduced in FS-UAE on an RTG screen: A1200 OS
+3.2.1 (the `a1200-32-mui5` machine, its MUI 5 classes moved aside) with a
+68030, `graphics_card = uaegfx-z3`, Picasso96 3.6.3 (iComp, from the
+user's Picasso96.adf; FS-UAE has its own uaegfx.card, the monitor needs
+the tool type `BOARDTYPE=uaegfx`) and a 1280x1024 24-bit Workbench.
+`asltest 19` and `asltest 21` returned FALSE at once there, as on the
+A1200; `asltest 19 raw` (asl.library called directly) too. The test
+passed `_window(win)` as `ASLFR_Window`, as PFS3Doctor 0.1b1 did. With
+`MUIA_Window_Window` all of them opened the requester: the window pointer
+was the fault.
+
+`_window()`, `_screen()`, `_rp()`, ... are the SDK's macros for area
+objects: they read the long after the notify data as a `MUI_RenderInfo`
+pointer. On a Window object Zune had its own render info there, so its
+first field (the window object) was read as the render info and
+`_window(win)` gave a pointer into the notify data (`mnd_NotifyList`'s
+area), which asl.library took for a window: FALSE on the RTG screen, a
+jump into garbage (the A1200's illegal-instruction reset) when called
+directly. On planar 640x256 machines the garbage happened to pass.
+MUI 3.8, measured black-box (`winprobe`: the object's longs, FS-UAE
+a1200-31-mui38): the long points to a block whose public fields are all
+0, so `_window(win)` and `_screen(win)` are NULL, open or closed, and the
+requester opens on the default public screen. Zune's Window now starts
+with a pointer to such a block (`window_area_renderinfo`, 32 bytes of
+zeros; 4 bytes more per Window object). Checked: all four `asltest`
+variants with `macro` open the requester on the RTG screen.
+
+**Zune prefs fits 640x256 at the default fonts.** Every page's minimum
+size, printed by a `-DPREFS_SIZES` build (stage 0, RTG 1280x1024; the
+page list and the buttons add 178 x 40, the window 16 x 21 more, so a
+page may be 446 x 195 on 640x256):
+
+| page | before | after |
+|---|---|---|
+| System | 472 x 217 | 407 x 162 |
+| Windows, Groups, Listviews, Navigation | 470-486 wide | the same |
+| TextEditor, NListviews, NListtree (MCPs) | 502 x 230, 536 x 272, 442 x 221 | the same |
+| the other 8 | fit | fit |
+
+The System page's groups are two columns of their own (a 2-column grid
+gave each row the height of its larger group) and the Public screen
+group's rows no longer share one label column ("Pop to front:" widened
+the name's label column). On the OS 3.1 640x256 Workbench the window now
+opens at once in the normal fonts: one list setup instead of five, window
+open 4.7 -> 3.3 s (FS-UAE, `PREFS_TIMING`, same instance and boot state).
+The seven pages that are still larger than 640x256 at stage 0 were cut
+off at the screen's edge when shown (seen on the Listviews page): Zune
+prefs now opens its window again when a page does not fit, after the
+input event, and the window's fitting takes it from the application's
+stage down as at the first opening (Listviews then shows in helvetica;
+the stage stays for the rest of the run).
+
+**global.prefs changed on every Save**: TextEditor.mcp's `ExportKeys`
+set only the key list's end marker's code; its qualifier and action (6
+bytes, offsets 577-582 of a default file) came from `AllocVec`. Two Saves
+now give the same file (before: 4 of the 6 bytes differed).
+
+**Pixmap.mui without bzip2's compressor**: `bzlib.c`'s compressor behind
+`BZ_NO_COMPRESS`, `blocksort.c` and `compress.c` not linked. Code hunk
+37,976 -> 22,856 bytes, file 44,120 -> 28,708 (68000 build with symbols).
+
+Checks: `make check` passes (four window checks' instance offsets moved
+by 4); fullcheck (19 demos, 8 MUI-Demo sub-windows) all open and close,
+no alert, the same memory figures as `lean`'s build in the same session;
+real-program suite, MUI 3 programs with file requesters or settings
+windows (cmanager, ro, yam25, amftp, multiren, archiver) as before.
 
 ## Left open
 
@@ -1098,4 +1161,4 @@ Found, not changed:
   211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
   list pools of 1 KB puddles, Text contents.)
 
-- Tested in FS-UAE only, not on real hardware; Dtpic not on an RTG screen.
+- Tested in FS-UAE only, not on real hardware; RTG only as uaegfx with Picasso96 3.6.3 (rtgfix).
