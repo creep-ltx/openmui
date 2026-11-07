@@ -125,7 +125,7 @@ def check_font_fallback(path):
     h.mem.w32(OBJECT, GLOBAL)
     h.mem.w32(OBJECT + 28, mri)
     h.mem.w32(GLOBAL + 20, prefs)
-    h.mem.w32(mri + 52 + 4, normal)  # Normal owns its cached font.
+    h.mem.w32(mri + 28 + 4, normal)  # Normal owns its cached font (mri_Fonts at 28, as in MUI 3.8).
     h.mem.w32(h.symbols['_DOSBase'], dos)
     h.mem.w32(h.symbols['_DiskfontBase'], diskfont)
     # Lean edition: graphics.library's OpenFont is asked first (a font in
@@ -164,7 +164,7 @@ def check_font_fallback(path):
         h.mem.w32(prefs + 4 * preset, PAYLOAD)
         assert h.call('zune_font_get', OBJECT, (-preset) & 0xffffffff) == normal
         assert disk_calls[-1] == ('helvetica.font', size)
-        assert h.mem.r32(mri + 52 + 4 * preset) == 0
+        assert h.mem.r32(mri + 28 + 4 * preset) == 0
         assert not h.allocations
 
     count = len(disk_calls)
@@ -174,7 +174,7 @@ def check_font_fallback(path):
 
     disk_result = opened
     assert h.call('zune_font_get', OBJECT, 0xfffffffd) == opened
-    assert h.mem.r32(mri + 52 + 12) == opened
+    assert h.mem.r32(mri + 28 + 12) == opened
     count = len(disk_calls)
     assert h.call('zune_font_get', OBJECT, 0xfffffffd) == opened
     assert len(disk_calls) == count and not h.allocations

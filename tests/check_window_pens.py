@@ -17,7 +17,7 @@ GFX, SPECS, MESSAGE = 0x78000, 0x79000, 0x7a000
 # The window's render info: 4 bytes into its data (wd_AreaRenderInfo first)
 DATA = OBJECT + 68
 USER_SCREEN, CREATE_FLAGS = DATA + 378, DATA + 222
-PUBLIC_PENS = DATA + 36
+PUBLIC_PENS = DATA + 72  # after mri_Fonts (9 pointers), which follow mri_Flags as in MUI 3.8
 
 
 class PenHarness(Harness):

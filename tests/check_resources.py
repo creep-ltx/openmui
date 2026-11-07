@@ -200,7 +200,7 @@ def check(path):
     h.finish()
 
     h = ResourceHarness(path)
-    h.mem.w32(MRI + 28, 123)
+    h.mem.w32(MRI + 64, 123)  # mri_Colormap, after mri_Fonts (9 pointers at 28)
     pen = h.blob(bytes(32))
     h.call('zune_penspec_fill_rgb', pen, 0, 0, 0)
     assert h.call('zune_penspec_setup', pen, MRI)
