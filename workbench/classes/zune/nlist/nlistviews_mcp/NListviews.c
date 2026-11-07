@@ -866,8 +866,9 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
           End,
       End;
 
-  // Zune68 lean: side by side, so the page fits 640x256
-  group2 = HGroup,
+  // Zune68 lean: the colour options are on the Miscellaneous page, so the
+  // page fits Zune prefs on 640x256
+  group2 = VGroup,
              Child, VGroup,
               GroupFrameT(tr(MSG_COLORS)),
               GroupSpacing(2),
@@ -978,27 +979,6 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
 
              End,
 
-             Child, VGroup,
-              GroupFrameT(tr(MSG_COLOR_OPTIONS)),
-              MUIA_VertWeight, 15,
-
-              Child, VSpace(0),
-              Child, HGroup,
-                Child, HSpace(0),
-                Child, data->mcp_ForcePen = ImageObject,
-                  ImageButtonFrame,
-                  MUIA_InputMode,      MUIV_InputMode_Toggle,
-                  MUIA_Image_Spec,     MUII_CheckMark,
-                  MUIA_Image_FreeVert, TRUE,
-                  MUIA_Background,     MUII_ButtonBack,
-                  MUIA_ShowSelState,   FALSE,
-               End,
-               Child, Label(tr(MSG_FORCE_SELECT_PEN)),
-               MUIA_ShortHelp, tr(MSG_FORCE_SELECT_PEN_HELP),
-               Child, HSpace(0),
-              End,
-              Child, VSpace(0),
-             End,
            End;
 
   RS_VSB[0] = tr(MSG_VSB_ALWAYS);
@@ -1396,6 +1376,27 @@ static IPTR mNL_MCP_New(struct IClass *cl,Object *obj,struct opSet *msg)
                 Child, VSpace(0),
               End,
 
+              Child, VGroup,
+              GroupFrameT(tr(MSG_COLOR_OPTIONS)),
+              MUIA_VertWeight, 15,
+
+              Child, VSpace(0),
+              Child, HGroup,
+                Child, HSpace(0),
+                Child, data->mcp_ForcePen = ImageObject,
+                  ImageButtonFrame,
+                  MUIA_InputMode,      MUIV_InputMode_Toggle,
+                  MUIA_Image_Spec,     MUII_CheckMark,
+                  MUIA_Image_FreeVert, TRUE,
+                  MUIA_Background,     MUII_ButtonBack,
+                  MUIA_ShowSelState,   FALSE,
+               End,
+               Child, Label(tr(MSG_FORCE_SELECT_PEN)),
+               MUIA_ShortHelp, tr(MSG_FORCE_SELECT_PEN_HELP),
+               Child, HSpace(0),
+              End,
+              Child, VSpace(0),
+             End,
             End;
 
   functions_names[0] = tr(MSG_FUNC_MULTISELQUAL);

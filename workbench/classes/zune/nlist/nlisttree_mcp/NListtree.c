@@ -505,7 +505,8 @@ static IPTR _NewP( struct IClass *cl, Object *obj, Msg msg )
           End,
         End,
 
-        Child, HGroup,
+        // Zune68 lean: one above the other, so the page fits 640x256
+        Child, VGroup,
           Child, data->BT_Sample_Expand    = KeyButton(tr(MSG_BUTTON_LABEL_EXPAND), msg_bt_expand_key),
           Child, data->BT_Sample_Collapse  = KeyButton(tr(MSG_BUTTON_LABEL_COLLAPSE), msg_bt_collapse_key),
         End,

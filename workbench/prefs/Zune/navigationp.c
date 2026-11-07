@@ -131,10 +131,14 @@ static IPTR NavigationP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                        MUIA_Numeric_Min, 1,
                        MUIA_Numeric_Max, 20,
         End), // Slider
-        End, // ColGroup(3)
-        Child, ColGroup(2),
+        /* the frame in the rows above, so "Look:" alone sets the
+         * width of the cycle's label: the page fits Zune prefs on
+         * 640x256 (docs/lean/README.md) */
         Child, (IPTR) FreeLabel(_(MSG_FRAME_COLON)),
         Child, (IPTR) (d.dnd_popframe = MakePopframe()),
+        Child, (IPTR) HSpace(0),
+        End, // ColGroup(3)
+        Child, ColGroup(2),
         Child, (IPTR) Label(_(MSG_LOOK_COLON)),
         Child, (IPTR) (d.drag_look_cycle = MakeCycle(NULL, dnd_labels)),
         End, // ColGroup(2),
@@ -178,9 +182,9 @@ static IPTR NavigationP_New(struct IClass *cl, Object *obj, struct opSet *msg)
         Child, (IPTR) VGroup,
         MUIA_Group_VertSpacing, 0,
         Child, (IPTR) VSpace(3),
-        /* "Active object:", not "Color of active object:": the page
-         * fits Zune prefs on 640x256 (docs/lean/README.md) */
-        Child, (IPTR) Label("Active object:"),
+        /* "Active:", not "Color of active object:": the page fits
+         * Zune prefs on 640x256 (docs/lean/README.md) */
+        Child, (IPTR) Label("Active:"),
         Child, (IPTR) VSpace(3),
         End, // VGroup label
         Child, (IPTR) (d.active_poppen = MakePoppen()),
