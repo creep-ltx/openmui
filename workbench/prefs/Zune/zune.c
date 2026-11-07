@@ -231,6 +231,50 @@ static void all_pages(void)
 }
 
 /****************************************************************
+ A page larger than the screen. The window opens in the stage of fonts
+ and spacing it fits the screen in with the page shown first (MUI 3.8's
+ fitting, window.c); a larger page shown later would be cut off at the
+ screen's edge, so the window is opened again, which fits it once more
+ from the application's stage down. The window's own share of its size
+ (borders, spacing) is taken when it opens, while the root object's box
+ still matches the window.
+*****************************************************************/
+static struct Hook main_refit_hook;
+static LONG window_extra_w, window_extra_h;
+
+static void window_extra(void)
+{
+    struct Window *w = (struct Window *)XGET(main_wnd, MUIA_Window_Window);
+    Object *root = (Object *)XGET(main_wnd, MUIA_Window_RootObject);
+
+    if (w && root)
+    {
+        window_extra_w = w->Width - _width(root);
+        window_extra_h = w->Height - _height(root);
+    }
+}
+
+static BOOL page_fits(void)
+{
+    struct Window *w = (struct Window *)XGET(main_wnd, MUIA_Window_Window);
+    Object *root = (Object *)XGET(main_wnd, MUIA_Window_RootObject);
+
+    if (!w || !root)
+        return TRUE;
+    return _minwidth(root) + window_extra_w <= w->WScreen->Width
+        && _minheight(root) + window_extra_h <= w->WScreen->Height;
+}
+
+static void main_refit(void)
+{
+    if (page_fits())
+        return;
+    set(main_wnd, MUIA_Window_Open, FALSE);
+    set(main_wnd, MUIA_Window_Open, TRUE);
+    window_extra();
+}
+
+/****************************************************************
  A new entry has been selected
 *****************************************************************/
 void main_page_active(void)
@@ -255,6 +299,10 @@ void main_page_active(void)
     DoMethod(main_page_group, OM_ADDMEMBER, (IPTR)new_group);
     DoMethod(main_page_group, MUIM_Group_ExitChange);
     main_page_group_displayed = new_group;
+    /* after this input event: the list that called us is in the window */
+    if (!page_fits())
+        DoMethod(app, MUIM_Application_PushMethod, (IPTR)app, 2,
+                 MUIM_CallHook, (IPTR)&main_refit_hook);
 }
 
 /****************************************************************
@@ -512,6 +560,8 @@ int init_gui(void)
 
     main_page_active_hook.h_Entry = HookEntry;
     main_page_active_hook.h_SubEntry = (HOOKFUNC)main_page_active;
+    main_refit_hook.h_Entry = HookEntry;
+    main_refit_hook.h_SubEntry = (HOOKFUNC)main_refit;
 
     page_display_hook.h_Entry = HookEntry;
     page_display_hook.h_SubEntry = (APTR)main_page_list_display;
@@ -997,7 +1047,41 @@ int main(void)
                 load_prefs((STRPTR)args[ARG_APPNAME]);
                 TS("prefs loaded");
                 set(main_wnd, MUIA_Window_Open, TRUE);
+                window_extra();
                 TS("window open");
+#ifdef PREFS_SIZES
+                /* every page's minimum size and the window's, in the
+                 * fonts the window opened with (see "Zune prefs fits
+                 * 640x256" in docs/lean/README.md) */
+                if (XGET(main_wnd, MUIA_Window_Open))
+                {
+                    struct Window *w = (struct Window *)XGET(main_wnd, MUIA_Window_Window);
+                    Object *root = (Object *)XGET(main_wnd, MUIA_Window_RootObject);
+                    int i;
+
+                    Printf("screen %ld x %ld\n", (LONG)w->WScreen->Width, (LONG)w->WScreen->Height);
+                    for (i = 0; main_page_entries[i].name; i++)
+                    {
+                        set(main_page_list, MUIA_List_Active, i);
+                        w = (struct Window *)XGET(main_wnd, MUIA_Window_Window);
+                        Printf("page %2ld %-12s page %3ld x %3ld  root %3ld x %3ld  window %3ld x %3ld\n",
+                            (LONG)i, (LONG)main_page_entries[i].name,
+                            (LONG)_minwidth(main_page_group_displayed),
+                            (LONG)_minheight(main_page_group_displayed),
+                            (LONG)_minwidth(root), (LONG)_minheight(root),
+                            (LONG)(w ? w->Width : -1), (LONG)(w ? w->Height : -1));
+                        {
+                            struct List *l = (struct List *)XGET(main_page_group_displayed, MUIA_Group_ChildList);
+                            Object *cstate = l ? (Object *)l->lh_Head : NULL, *child;
+
+                            while (cstate && (child = NextObject(&cstate)))
+                                Printf("    child %3ld x %3ld\n", (LONG)_minwidth(child), (LONG)_minheight(child));
+                        }
+                        Flush(Output());
+                    }
+                    set(main_page_list, MUIA_List_Active, 0);
+                }
+#endif
                 if (XGET(main_wnd,MUIA_Window_Open))
                 {
                     loop();
