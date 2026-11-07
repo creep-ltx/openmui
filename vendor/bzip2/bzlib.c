@@ -112,6 +112,7 @@ void default_bzfree ( void* opaque, void* addr )
 }
 
 
+#ifndef BZ_NO_COMPRESS  /* Zune68: decompress-only builds (Pixmap.mui) */
 /*---------------------------------------------------*/
 static
 void prepare_new_block ( EState* s )
@@ -482,6 +483,7 @@ int BZ_API(BZ2_bzCompressEnd)  ( bz_stream *strm )
 
    return BZ_OK;
 }
+#endif /* BZ_NO_COMPRESS */
 
 
 /*---------------------------------------------------*/
@@ -1262,6 +1264,7 @@ void BZ_API(BZ2_bzReadGetUnused)
 /*--- Misc convenience stuff                      ---*/
 /*---------------------------------------------------*/
 
+#ifndef BZ_NO_COMPRESS  /* Zune68: decompress-only builds (Pixmap.mui) */
 /*---------------------------------------------------*/
 int BZ_API(BZ2_bzBuffToBuffCompress) 
                          ( char*         dest, 
@@ -1312,6 +1315,7 @@ int BZ_API(BZ2_bzBuffToBuffCompress)
    BZ2_bzCompressEnd ( &strm );
    return ret;
 }
+#endif /* BZ_NO_COMPRESS */
 
 
 /*---------------------------------------------------*/

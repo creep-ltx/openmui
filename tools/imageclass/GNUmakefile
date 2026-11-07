@@ -20,7 +20,9 @@ FLAGS := $(CPUFLAGS) -noixemul $(CFLAGS) -fno-builtin -fno-common \
  -DMUIMASTER_NAME='"muimaster.library"' \
  -I$(BUILD)/include -I$(MASTER)/include -I$(RAW) -iquote $(MASTER)/classes \
  -I$(ROOT)/workbench/prefs/Zune/include -I$(COMMON) -I$(BZ)
-BZFILES := bzlib decompress huffman crctable randtable blocksort compress
+# decoder only: Pixmap.mui never compresses (bzlib.c without BZ_NO_COMPRESS
+# and blocksort.c + compress.c add ~20 KB)
+BZFILES := bzlib decompress huffman crctable randtable
 BZOBJS := $(addprefix $(OBJ)/bz2/,$(addsuffix .o,$(BZFILES)))
 .PHONY: all
 all: $(BUILD)/Libs/MUI/Rawimage.mcc $(BUILD)/Libs/MUI/Pixmap.mui \
@@ -39,7 +41,7 @@ $(OBJ)/listtree.o: listtree_library.c $(wildcard $(LISTTREE)/*.[ch])
 	$(CC) $(FLAGS) -Wno-incompatible-pointer-types -I. -I$(LISTTREE) -MMD -MP -c $< -o $@
 $(OBJ)/bz2/%.o: $(BZ)/%.c $(BZ)/bzlib.h $(BZ)/bzlib_private.h
 	@mkdir -p $(@D)
-	$(CC) $(FLAGS) -DBZ_NO_STDIO -Wno-unused-but-set-variable -MMD -MP -c $< -o $@
+	$(CC) $(FLAGS) -DBZ_NO_STDIO -DBZ_NO_COMPRESS -Wno-unused-but-set-variable -MMD -MP -c $< -o $@
 $(OBJ)/superattrs.o: ../plugin/superattrs.c
 	@mkdir -p $(@D)
 	$(CC) $(FLAGS) -MMD -MP -c $< -o $@
