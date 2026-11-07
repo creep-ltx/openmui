@@ -1131,6 +1131,77 @@ no alert, the same memory figures as `lean`'s build in the same session;
 real-program suite, MUI 3 programs with file requesters or settings
 windows (cmanager, ro, yam25, amftp, multiren, archiver) as before.
 
+## Every settings page fits 640x256; a window that grows past the screen (2026-11-07)
+
+Branch `prefsfit`.
+
+**Every page of Zune prefs fits a 640x256 screen at the default fonts.**
+Measured with a `-DPREFS_SIZES` build (it now prints every object four
+levels deep, and `ENV:PrefsPage=n` leaves page n shown) on FS-UAE
+`a1200-31`'s 640x256 Workbench, topaz 8, thick frames (the screen is
+2:1): a page may be 440 x 195 there (446 x 195 with thin frames, as on
+the 640x1024 screen of `tests/lean/probe/pubscr.c`, where the first
+numbers were taken). Page minimum sizes:
+
+| page | before (thin frames) | after (640x256, thick) | what changed |
+|---|---|---|---|
+| Windows | 470 x 165 | 432 x 165 | "Frames:" for "Frame thickness:" |
+| Groups | 478 x 180 | 414 x 163 | columns of their own widths; "Truncate titles:" beside its checkmark |
+| Listviews | 486 x 133 | 422 x 129 | columns of their own widths, Design beside Control |
+| Navigation | 467 x 154 | 434 x 154 | "Active:" for "Color of active object:"; the drag frame in the rows above "Look:" |
+| TextEditor.mcp | 502 x 230 | 415 x 171 | the Settings tab split: Control, Design (two columns), Separator; a new tab "Cursor" (its catalog string) with Fonts and Cursor |
+| NListviews.mcp | 536 x 272 | 384 x 195 | Options split into Options, Drag&Drop and Miscellaneous (their catalog strings); the colour options on Miscellaneous; the two scrolling checkmarks in one row |
+| NListtree.mcp | 442 x 221 | 394 x 172 | images and pens in two rows with the labels beside; the example's buttons one above the other |
+| TheBar.mcp | 8 x 8 | 314 x 8 | Scrollgroup fix below |
+| the other 9 | fit | fit (System 421 x 162) | |
+
+Every setting is still there, with the same objects and the same
+catalog strings; only three labels are new English text (the catalog's
+were too long; translations of the other strings may still be wider).
+On the 640x256 Workbench the window now opens and stays in topaz 8 on
+every page: no page triggers Zune prefs' "open again smaller" any more
+(kept as a safety net). Screenshots of all 17 pages were taken in the
+session (`/tmp/prefsfit/shots3/page-N.png`, kept outside the repository).
+
+**TheBar's settings page measured 8 x 8.** For MUI 3 (the version Zune
+reports to a MUI 3.8 program) TheBar.mcp puts its settings into a
+Scrollgroup with `MUIA_Scrollgroup_FreeHoriz` FALSE and
+`MUIA_Scrollgroup_AutoBars` TRUE around a virtual group. Zune's
+Scrollgroup with AutoBars took the virtual group's own minimum, 8 x 8,
+also on the axis that does not scroll. MUI 3.8, measured with
+`tests/lean/probe/sgfree.c` (a 300-pixel-wide, 640-pixel-tall column):
+min 318 x 34 with or without AutoBars (it ignores that MUI 4 tag); Zune
+gave 318 x 34 without and 8 x 8 with it. Now an axis without a scroller
+takes the contents' whole minimum plus the other axis' scroller in both
+cases: 318 x 8 with AutoBars (the height stays free: the bar appears when
+needed). The TheBar page is 314 x 8 and shows its settings at full width.
+
+**A window whose contents grow past the screen** (a library limit found
+with Zune prefs). Measured black-box on MUI 3.8 (`tests/lean/probe/grow.c`:
+a window with one button, then N "Button" buttons added with
+InitChange/OM_ADDMEMBER/ExitChange, or a page of N buttons added to a
+page group and shown; FS-UAE `a1200-31-mui38`, 640x256):
+
+| N | MUI 3.8 | Zune before | Zune now |
+|---|---|---|---|
+| 10 (fits the screen, not below the window's top) | moved up just enough: 288,105 64x45 -> 288,64 72x192, same fonts | sized to 72 x 151 (Intuition stops at the screen's edge), contents cut | as MUI 3.8 |
+| 15 (does not fit at topaz 8) | closed and opened again: fitted stage by stage (helvetica 9) and centred, 298,4 44x247 | 72 x 151, contents cut | as MUI 3.8, the window pixel-identical |
+| 30 (fits no stage) | the window closes (MUIA_Window_Open FALSE) | 72 x 151, contents cut | as MUI 3.8 |
+
+The page-group variant behaves the same. In Zune: WindowResize moves the
+window (ChangeWindowBox) when the new size would leave the screen;
+RecalcDisplay, when the new minimum does not fit the screen at all, pushes
+a private MUIM_Window_Refit to the application's input loop (the change
+may come from an object inside the window), which closes the window and
+opens it again at its default size: the opening's fitting does the rest,
+and the application keeps the higher stage for its later windows as at
+an opening. Nothing happens if the window was closed in between. Stack:
+Window_Dispatcher 28 bytes as before, RecalcDisplay 68 (88 before), the
+new code not inlined (`-fstack-usage`); Scrollgroup's frames unchanged.
+
+Checks: `make check` passes. Fullcheck, demopix and the real-program
+suite: below.
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
