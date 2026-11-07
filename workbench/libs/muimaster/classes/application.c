@@ -1210,6 +1210,34 @@ static BOOL application_do_pushed_method(struct MUI_ApplicationData *data)
  * retain the returned object.
  */
 static Object *find_application_by_base(struct IClass *cl, Object *obj,
+    STRPTR base);
+
+/* The application's base name in portname (255 bytes), returned as a
+ * copy (NULL without memory): MUI 3.8 gives it back in upper case, as the
+ * ARexx port's name, with .1, .2 unless single task
+ * (tests/lean/probe/appbase.c); AmTelnet titles its window with it. Not
+ * inlined, the buffer the caller's: OM_NEW's frame stays as it was. */
+static __attribute__((noinline)) STRPTR AppBaseName(struct IClass *cl,
+    Object *obj, char *portname, CONST_STRPTR base, BOOL single)
+{
+    char *c;
+    LONG i;
+
+    for (i = 1; i < 1000; i++)
+    {
+        if (single)
+            snprintf(portname, 255, "%s", base);
+        else
+            snprintf(portname, 255, "%s.%d", base, (int)i);
+        for (c = portname; *c; c++)
+            *c = toupper(*c);
+        if (single || !find_application_by_base(cl, obj, portname))
+            break;
+    }
+    return StrDup(portname);
+}
+
+static Object *find_application_by_base(struct IClass *cl, Object *obj,
     STRPTR base)
 {
     struct MUIMasterBase_intern *intZuneBase = (struct MUIMasterBase_intern *)MUIMasterBase;
@@ -1393,34 +1421,11 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         return 0;
     }
 
-    /* MUI 3.8 gives the base back in upper case, as the ARexx port's
-     * name (tests/lean/probe/appbase.c); AmTelnet titles its window
-     * with it */
     {
         char portname[255];
-        char *c;
 
-        if (!data->app_SingleTask)
-        {
-            /* must append .1, .2, ... to the base name */
-            LONG i;
-
-            for (i = 1; i < 1000; i++)
-            {
-                snprintf(portname, 255, "%s.%d", data->app_Base, (int)i);
-                for (c = portname; *c; c++)
-                    *c = toupper(*c);
-                if (!find_application_by_base(cl, obj, portname))
-                    break;
-            }
-        }
-        else
-        {
-            snprintf(portname, 255, "%s", data->app_Base);
-            for (c = portname; *c; c++)
-                *c = toupper(*c);
-        }
-        data->app_Base = StrDup(portname);
+        data->app_Base = AppBaseName(cl, obj, portname, data->app_Base,
+            data->app_SingleTask);
     }
     if (data->app_Base && data->app_SingleTask)
     {
