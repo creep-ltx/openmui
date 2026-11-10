@@ -246,21 +246,41 @@ IPTR Title__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     LONG index = 0;
     struct List *list = TitleChildren(obj);
     APTR state = list->lh_Head;
+    struct RastPort *rp = _rp(obj);
+    LONG base = _bottom(obj), edge = _left(obj);
     DoSuperMethodA(cl, obj, (Msg)msg);
     if (!(msg->flags & (MADF_DRAWOBJECT | MADF_DRAWUPDATE))) return 0;
+    /* Register tabs as MUI 5 draws them: shine on the left and top with
+     * cut corners, shadow on the right; the active tab stands 2 pixels
+     * higher and is open at the bottom, a shine line runs under the
+     * others and on to the right edge */
     while ((child = NextObject(&state)))
     {
         if (index >= data->first && index <= data->last)
         {
             LONG left = _left(child) - 4;
             LONG right = _right(child) + 4 + (data->closable ? 12 : 0);
-            SetAPen(_rp(obj), _pens(obj)[index == data->activetab ? MPEN_SHINE : MPEN_SHADOW]);
-            Move(_rp(obj), left, _bottom(obj)); Draw(_rp(obj), left, _top(obj));
-            Draw(_rp(obj), right, _top(obj)); Draw(_rp(obj), right, _bottom(obj));
+            BOOL active = index == data->activetab;
+            LONG top = _top(obj) + (active ? 0 : 2);
+            SetAPen(rp, _pens(obj)[MPEN_SHINE]);
+            Move(rp, edge, base); Draw(rp, left, base);
+            Move(rp, left, active ? base : base - 1);
+            Draw(rp, left, top + 2); Draw(rp, left + 2, top);
+            Draw(rp, right - 2, top);
+            if (!active)
+            {
+                Move(rp, left, base); Draw(rp, right, base);
+            }
+            SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
+            Move(rp, right - 1, top + 1); Draw(rp, right, top + 2);
+            Draw(rp, right, active ? base : base - 1);
+            edge = right + 1;
             if (data->closable) TitleGlyph(obj, _right(child) + 3, 'x');
         }
         index++;
     }
+    SetAPen(rp, _pens(obj)[MPEN_SHINE]);
+    Move(rp, edge, base); Draw(rp, _right(obj), base);
     LONG right = _mright(obj) - (data->newable ? 17 : -1);
     if (data->newable) TitleGlyph(obj, _mright(obj) - 17, '+');
     if (data->overflow)
