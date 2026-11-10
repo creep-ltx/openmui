@@ -1347,6 +1347,32 @@ static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
     }
 }
 
+/* MUI 3.8 puts a List's inner spacing inside its frame: the caller's
+ * MUIA_InnerLeft replaces the frame's (tests/lean/probe/vlinner.c:
+ * InputListFrame + InnerLeft 0 adds 2 on the left, InnerLeft 2 adds 4).
+ * Zune's frame is on the entry area, so the spacing given goes there and
+ * the group around it keeps none. MUI 5 keeps it outside (as Zune did):
+ * MUI 3.8 programs only. Not inlined: OM_NEW's frame stays. */
+static __attribute__((noinline)) void List_InnerToArea(Object *obj,
+    Object *area, struct TagItem *attrs)
+{
+    struct MUI_AreaData *g = muiAreaData(obj), *a = muiAreaData(area);
+    struct TagItem *tag;
+
+    if ((tag = FindTagItem(MUIA_InnerLeft, attrs)))
+        a->mad_Flags |= MADF_INNERLEFT, a->mad_InnerLeft = tag->ti_Data;
+    if ((tag = FindTagItem(MUIA_InnerRight, attrs)))
+        a->mad_Flags |= MADF_INNERRIGHT, a->mad_InnerRight = tag->ti_Data;
+    if ((tag = FindTagItem(MUIA_InnerTop, attrs)))
+        a->mad_Flags |= MADF_INNERTOP, a->mad_InnerTop = tag->ti_Data;
+    if ((tag = FindTagItem(MUIA_InnerBottom, attrs)))
+        a->mad_Flags |= MADF_INNERBOTTOM, a->mad_InnerBottom = tag->ti_Data;
+    g->mad_Flags |= MADF_INNERLEFT | MADF_INNERRIGHT | MADF_INNERTOP
+        | MADF_INNERBOTTOM;
+    g->mad_InnerLeft = g->mad_InnerRight = g->mad_InnerTop =
+        g->mad_InnerBottom = 0;
+}
+
 /**************************************************************************
  OM_NEW
 **************************************************************************/
@@ -1447,8 +1473,12 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         msg->ops_AttrList);
 
     if (!area)
+    {
         area = RectangleObject, MUIA_FillArea, FALSE, TAG_MORE,
             (IPTR) rectattrs, End;
+        if (area && ZUNE_MUI38())
+            List_InnerToArea(obj, area, msg->ops_AttrList);
+    }
     else
         data->area_replaced = TRUE;
     data->area = area;

@@ -257,6 +257,10 @@ IPTR Volumelist__OM_NEW(struct IClass *cl, Object *obj,
     (
         cl, obj, NULL,
         format ? TAG_IGNORE : MUIA_List_Format, (IPTR)",,P=\33r,P=\33r,P=\33r",
+        /* MUI 3.8: 4 inside the frame on the left unless given, also
+         * without a frame; MUI 5 none (tests/lean/probe/vlinner.c) */
+        !ZUNE_MUI38() || FindTagItem(MUIA_InnerLeft, msg->ops_AttrList)
+            ? TAG_IGNORE : MUIA_InnerLeft, 4,
         TAG_MORE, (IPTR) msg->ops_AttrList
     );
 
