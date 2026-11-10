@@ -539,9 +539,10 @@ struct timerequest_ext
 *
 *   FUNCTION
 *       Request a public Rexx message port named from the uppercased actual
-*       Base when rexxsyslib.library is available. Default TRUE when a
-*       non-NULL Commands table or RexxHook is supplied at initialization,
-*       otherwise FALSE.
+*       Base, made by OM_NEW. Default TRUE, with or without a Commands table
+*       or RexxHook (as MUI 3.8: tests/lean/probe/rexxport.c). The name is
+*       not checked against other programs' ports, only against other
+*       applications' bases, as on MUI 3.8.
 *
 *   INPUTS
 *       BOOL; initialize only.
@@ -559,8 +560,7 @@ struct timerequest_ext
 *
 *   FUNCTION
 *       Store a borrowed command table terminated by an entry whose mc_Name is
-*       NULL. Default NULL. A non-NULL table at initialization also enables
-*       the Rexx-port request unless UseRexx is given.
+*       NULL. Default NULL.
 *
 *   INPUTS
 *       MUI_Command table pointer; initialize, set, get.
@@ -1594,15 +1594,8 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
             }
             break;
 
-        case MUIA_Application_UseRexx:
-            data->app_UseRexx = tag->ti_Data ? TRUE : FALSE;
-            break;
-
         case MUIA_Application_Commands:
             data->app_Commands = (struct MUI_Command *)tag->ti_Data;
-            /* MUI by default enables Rexx port. Zune does not. Enable port at least
-             * if the commands are passed */
-            data->app_UseRexx = TRUE;
             break;
 
         case MUIA_Application_RexxHook:
@@ -1626,11 +1619,10 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         }
     }
 
-    if (GetTagData(MUIA_Application_UseRexx,
-            data->app_Commands || data->app_RexxHook, msg->ops_AttrList))
-        data->app_UseRexx = TRUE;
-    else
-        data->app_UseRexx = FALSE;
+    /* MUI 3.8 makes the port at once, also without Commands or a RexxHook
+     * (tests/lean/probe/rexxport.c) */
+    data->app_UseRexx =
+        GetTagData(MUIA_Application_UseRexx, TRUE, msg->ops_AttrList) ? TRUE : FALSE;
 
     /* create MUIA_Application_Version if NULL */
     if (data->app_Version == NULL

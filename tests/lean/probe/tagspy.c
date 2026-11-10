@@ -1,6 +1,7 @@
 /* tagspy: log (KPrintF, read with wasabi debug) every NewObjectA and
  * SetAttrsA whose tags include MUIA_Group_Columns, _Rows or _Horiz, with
- * the whole tag list.  Ctrl-C removes the patches. */
+ * the whole tag list.  "tagspy TAG..." (hex) logs those tags instead.
+ * Ctrl-C removes the patches. */
 #include <libraries/mui.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -8,10 +9,13 @@
 #include <proto/utility.h>
 #include <clib/alib_protos.h>
 #include <clib/debug_protos.h>
+#include <stdlib.h>
 
 extern struct IntuitionBase *IntuitionBase;
 struct Library *UtilityBase;
 static APTR oldnew, oldset;
+static ULONG want[16] = { MUIA_Group_Columns, MUIA_Group_Rows };
+static int nwant = 2;
 
 APTR callnew(APTR f __asm("a3"), struct IClass *c __asm("a0"), UBYTE *id __asm("a1"),
     struct TagItem *t __asm("a2"), struct Library *b __asm("a6"));
@@ -22,9 +26,11 @@ __asm(".text\n.globl _callset\n_callset:\n\tjmp (a3)\n");
 static int interesting(struct TagItem *t)
 {
     struct TagItem *st = t, *x;
+    int i;
     while ((x = NextTagItem(&st)))
-        if (x->ti_Tag == MUIA_Group_Columns || x->ti_Tag == MUIA_Group_Rows)
-            return 1;
+        for (i = 0; i < nwant; i++)
+            if (x->ti_Tag == want[i])
+                return 1;
     return 0;
 }
 static void dump(const char *what, APTR o, struct TagItem *t)
@@ -49,8 +55,12 @@ static ULONG myset(Object *o __asm("a0"), struct TagItem *t __asm("a1"), struct 
     return callset(oldset, o, t, b);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    int i;
+    if (argc > 1)
+        for (nwant = 0, i = 1; i < argc && nwant < 16; i++)
+            want[nwant++] = strtoul(argv[i], NULL, 16);
     UtilityBase = OpenLibrary("utility.library", 37);
     Forbid();
     oldnew = SetFunction((struct Library *)IntuitionBase, -636, (APTR)mynew);
