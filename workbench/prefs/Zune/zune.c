@@ -38,6 +38,7 @@
 #include "navigationp.h"
 #include "framesp.h"
 #include "zunestuff.h"
+#include "mui38import.h"
 
 #define DEBUG 0
 #include <aros/debug.h>
@@ -95,6 +96,7 @@ void save_prefs(CONST_STRPTR name, BOOL envarc);
 void test_prefs(void);
 void main_open_menu(void);
 void main_saveas_menu(void);
+void main_import_menu(void);
 void restore_prefs(CONST_STRPTR name);
 
 /************************************************************************/
@@ -102,6 +104,7 @@ void restore_prefs(CONST_STRPTR name);
 
 static struct Hook main_open_menu_hook;
 static struct Hook main_saveas_menu_hook;
+static struct Hook main_import_menu_hook;
 static struct Hook main_page_active_hook;
 static struct Hook page_display_hook;
 
@@ -109,6 +112,7 @@ static Object *app;
 static Object *open_menuitem;
 static Object *append_menuitem;
 static Object *saveas_menuitem;
+static Object *import_menuitem;
 static Object *aboutzune_menuitem;
 static Object *quit_menuitem;
 static Object *LastSavedConfigdata = NULL;
@@ -578,6 +582,8 @@ int init_gui(void)
 
     main_saveas_menu_hook.h_Entry = HookEntry;
     main_saveas_menu_hook.h_SubEntry = (HOOKFUNC)main_saveas_menu;
+    main_import_menu_hook.h_Entry = HookEntry;
+    main_import_menu_hook.h_SubEntry = (HOOKFUNC)main_import_menu;
 
     main_page_active_hook.h_Entry = HookEntry;
     main_page_active_hook.h_SubEntry = (HOOKFUNC)main_page_active;
@@ -611,6 +617,9 @@ int init_gui(void)
                 MUIA_Family_Child, append_menuitem = MenuitemObject, MUIA_Menuitem_Title, _(MSG_MEN_APPEND), End,
                 MUIA_Family_Child, saveas_menuitem = MenuitemObject,
                     MUIA_Menuitem_Title, _(MSG_MEN_SAVEAS), MUIA_Menuitem_Shortcut, _(MSG_MEN_SAVEAS_SC),
+                End,
+                MUIA_Family_Child, import_menuitem = MenuitemObject,
+                    MUIA_Menuitem_Title, "Import MUI 3.8 settings...",
                 End,
                 MUIA_Family_Child, MenuitemObject, MUIA_Menuitem_Title, NM_BARLABEL, End,
                 MUIA_Family_Child, aboutzune_menuitem = MenuitemObject,
@@ -679,6 +688,12 @@ int init_gui(void)
         DoMethod(saveas_menuitem, MUIM_Notify, MUIA_Menuitem_Trigger,
                  MUIV_EveryTime, (IPTR)app, 2, MUIM_CallHook,
                  (IPTR)&main_saveas_menu_hook);
+        DoMethod(import_menuitem, MUIM_Notify, MUIA_Menuitem_Trigger,
+                 MUIV_EveryTime, (IPTR)app, 2, MUIM_CallHook,
+                 (IPTR)&main_import_menu_hook);
+        /* MUI 3.8's global settings go into the global editor only */
+        if (strcmp(appname, "global"))
+            set(import_menuitem, MUIA_Menuitem_Enabled, FALSE);
         DoMethod(aboutzune_menuitem, MUIM_Notify, MUIA_Menuitem_Trigger,
                  MUIV_EveryTime, (IPTR)app, 2, MUIM_Application_AboutMUI,
                  (IPTR)main_wnd);
@@ -830,43 +845,71 @@ void main_cancel_pressed(void)
  open given prefs file from menue
 *****************************************************************/
 
+/* Show a settings file's settings in every page and Test them (Save or
+ * Use keeps them, Cancel goes back) */
+static void open_file(CONST_STRPTR filename)
+{
+    Object *configdata;
+
+    configdata = MUI_NewObject(MUIC_Configdata,
+                 MUIA_Configdata_ApplicationBase,appname,
+                 TAG_DONE);
+
+    if (configdata != NULL)
+    {
+        int i;
+
+        DoMethod(configdata, MUIM_Configdata_Load,filename);
+
+        all_pages(); /* every page takes the file's settings */
+
+        /* Call MUIM_Settingsgroup_ConfigToGadgets for every group */
+        for (i=0;main_page_entries[i].name;i++)
+        {
+            struct page_entry *p = &main_page_entries[i];
+
+            if (p->group) DoMethod(p->group, MUIM_Settingsgroup_ConfigToGadgets, (IPTR)configdata);
+        }
+
+        /* activate prefs in test mode */
+        test_prefs();
+
+        MUI_DisposeObject(configdata);
+    }
+}
+
 void main_open_menu(void)
 {
     static char dirpart[500]="ENVARC:Zune",filepart[500],filename[1000];
 
     if (aslfilerequest ("Load a Zune Prefs File", (char *)&dirpart, (char *)&filepart, (char *)&filename, prefstags))
+        open_file(filename);
+}
+
+/****************************************************************
+ Import MUI 3.8's settings (ENVARC:MUI, only read): every program's own
+ file that Zune has none of into ENVARC:zune and ENV:zune, the global
+ settings into this editor as Open does (Save or Use keeps them)
+*****************************************************************/
+void main_import_menu(void)
+{
+    static const char tmp[] = "ENV:zune/MUI38-import.prefs";
+    char from[300];
+    LONG programs = mui38_import_programs();
+    BOOL global = mui38_global_file(from, sizeof(from))
+        && mui38_convert_file(from, tmp);
+
+    if (global)
     {
-        Object *configdata;
-
-        configdata = MUI_NewObject(MUIC_Configdata,
-                     MUIA_Configdata_ApplicationBase,appname,
-                     TAG_DONE);
-
-        if (configdata != NULL)
-        {
-            int i;
-
-            /*      D(bug("zune::load_prefs: created configdata %p\n", configdata)); */
-            //LastSavedConfigdata = configdata;
-            DoMethod(configdata, MUIM_Configdata_Load,filename);
-
-            all_pages(); /* every page takes the file's settings */
-
-            /* Call MUIM_Settingsgroup_ConfigToGadgets for every group */
-            for (i=0;main_page_entries[i].name;i++)
-            {
-                struct page_entry *p = &main_page_entries[i];
-                
-                if (p->group) DoMethod(p->group, MUIM_Settingsgroup_ConfigToGadgets, (IPTR)configdata);
-            }
-
-            /* activate prefs in test mode */
-            test_prefs();
-
-            MUI_DisposeObject(configdata);
-        }
-                          
+        open_file(tmp);
+        DeleteFile(tmp);
     }
+    MUI_Request(app, main_wnd, 0, "Zune", "*_OK", global
+        ? "MUI 3.8's settings are shown and in use for a test:\n"
+          "Save or Use keeps them, Cancel goes back.\n"
+          "Programs' own MUI 3.8 settings copied: %ld."
+        : "No global MUI 3.8 settings in ENVARC:MUI.\n"
+          "Programs' own MUI 3.8 settings copied: %ld.", programs);
 }
 
 /****************************************************************
@@ -1070,6 +1113,14 @@ int main(void)
                 set(main_wnd, MUIA_Window_Open, TRUE);
                 window_extra();
                 TS("window open");
+                /* First run: no Zune settings yet, MUI 3.8's there */
+                if (XGET(main_wnd, MUIA_Window_Open)
+                    && !strcmp(appname, "global") && mui38_first_run()
+                    && MUI_Request(app, main_wnd, 0, "Zune",
+                        "_Import|_Not now",
+                        "Zune has no settings yet, and MUI 3.8's settings\n"
+                        "were found. Import them?") == 1)
+                    main_import_menu();
 #ifdef PREFS_SIZES
                 /* every page's minimum size and the window's, in the
                  * fonts the window opened with (see "Zune prefs fits
