@@ -64,6 +64,16 @@ P ibrowse30    mui5 ibrowse30/x/IBrowse3.0-OS3             IBrowse              
 P dizzytorrent mui5 dizzytorrent/x/dizzytorrent2.22        DizzyTorrent         60 -
 P amigagpt     mui5 amigagpt/x/AmigaGPT/AmigaGPT           AmigaGPT_OS3         90 -
 P mqttexplorer mui5 mqttexplorer/x/MQTTExplorer            MqttExplorer         40 -
+# MUI 5's own demos that MUI 3.8 does not have (MUI 4/5 classes and features); each copies the
+# whole Demos drawer (anim.gif, boing.png are used by some)
+for d in Aboutbox Animals Calltips Class4 Clock ElidedText EmbeddedImages GIFAnim Hyperlink \
+         LayGroup List1 MenuImages Pointers Textdata Title; do
+  P mui5-${d,,} mui5 mui5/x/MUI/Demos $d 30 -
+done
+P passpocket   mui5 "passpocket/x/PassPocket/PassPocket OS3" PassPocket       40 -
+P ticklish     mui5 ticklish/x/Ticklish                    Ticklish             60 -
+P tabgroup-demo mui5 tabgroup/x/MCC_TabGroup/Demos         TabGroup-Demo        30 -
+P lumizip      mui5 lumizip/x/LumiZip                      LumiZip              40 -
 
 # ---- hooks ----
 # YAM: two "Ignore always" requesters (charset, AmiSSL: underlined a), then the error window
@@ -185,6 +195,7 @@ CLASSES=(
   guigfxmcc/x/MCC_Guigfx/Libs/MUI/Guigfx.mcc
   "amigagpt/x/AmigaGPT/MCC/ActionTextEditor_OS3.mcc ActionTextEditor.mcc"
   "amigagpt/x/AmigaGPT/MCC/AudioPlayer_OS3.mcc AudioPlayer.mcc"
+  tabgroup/x/MCC_TabGroup/Libs/MUI/TabGroup.mcc tabgroup/x/MCC_TabGroup/Libs/MUI/TabGroup.mcp
 )
 # Libraries into SYS:Libs (left alone where the machine has the library already)
 LIBRARIES=(
@@ -235,4 +246,9 @@ FETCH=(
   "dizzytorrent https://aminet.net/comm/tcp/dizzytorrent2.lha"
   "amigagpt https://aminet.net/util/misc/AmigaGPT.lha"
   "mqttexplorer https://aminet.net/comm/net/MQTTExplorer.lha"
+  "mui5 https://github.com/amiga-mui/muidev/releases/download/MUI-5.0-20210831/MUI-5.0-20210831-os3.lha"
+  "passpocket https://aminet.net/util/misc/PassPocket.lha"
+  "ticklish https://aminet.net/util/misc/Ticklish_m68k.lha"
+  "tabgroup https://aminet.net/dev/mui/MCC_TabGroup.lha"
+  "lumizip https://aminet.net/util/arc/LumiZip.lha"
 )
