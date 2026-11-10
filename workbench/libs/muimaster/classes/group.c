@@ -3798,39 +3798,6 @@ static void Layout1D_minmax_constraints_and_redistrib(struct MinList
 
 }
 
-/* MUI 3.8's first split (tests/lean/probe/hdist-mui38.txt and
- * vdist-mui38.txt, 642 of 644 rows with the passes below): every child
- * its weight's share of the whole, truncated, not of what the children
- * before it left; the space shared is the group's less twice the minimum
- * of each child of weight 0. For MUI 3.8 programs only (the others
- * keep the split made before). Not inlined: the layout's frame stays. */
-static __attribute__((noinline)) void Layout1D_mui38_split(
-    struct MinList *children, WORD total_size, ULONG total_weight,
-    BOOL group_horiz)
-{
-    APTR cstate;
-    Object *child;
-    LONG space = total_size;
-
-    if (!ZUNE_MUI38())
-        return;
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-        if (!IS_HIDDEN(child)
-            && !(group_horiz ? _hweight(child) : _vweight(child)))
-            space -= 2 * (group_horiz ? _minwidth(child) : _minheight(child));
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (IS_HIDDEN(child))
-            continue;
-        if (group_horiz)
-            _width(child) = space * _hweight(child) / (LONG)total_weight;
-        else
-            _height(child) = space * _vweight(child) / (LONG)total_weight;
-    }
-}
-
 /* MUI 3.9's redistribution (tests/native/hdist.c): after the weighted
  * first split, each pass clamps every child to its range and then adds
  * to each child that can still move its weight's share of that pass's
@@ -3845,12 +3812,8 @@ static void Layout1D_mui_redistrib(struct MinList *children, WORD total_size,
     Object *child;
     LONG remainder;
     int pass;
-    /* MUI 3.8 (hdist-mui38.txt): passes 0-7 truncated as MUI 3.9's,
-     * then up to eight more that give each child that can move a pixel
-     * (towards the remainder), 16 the last clamp, the rest as MUI 3.9's.
-     * MUI 3.9: passes 32-39, 40 the last clamp (one counter: no more
-     * stack) */
-    for (pass = ZUNE_MUI38() ? 0 : 32; ; pass++)
+
+    for (pass = 0; pass <= 8; pass++)
     {
         LONG start;
         BOOL moved;
@@ -3871,7 +3834,7 @@ static void Layout1D_mui_redistrib(struct MinList *children, WORD total_size,
         }
         if (remainder == 0)
             return;
-        if (pass == 16 || pass == 40)
+        if (pass == 8)
             break;
 
         start = remainder;
@@ -3891,18 +3854,13 @@ static void Layout1D_mui_redistrib(struct MinList *children, WORD total_size,
             if ((start > 0 && *size >= max) || (start < 0 && *size <= min))
                 continue;
             delta = start * weight / (LONG)total_weight;
-            /* MUI 3.8's later passes: a pixel each */
-            if ((ULONG)(pass - 8) < 24 && weight)
-                delta = start > 0 ? 1 : -1;
             if (delta)
             {
                 *size += delta;
                 moved = TRUE;
             }
         }
-        /* MUI 3.8's first eight passes run on when none moved (they
-         * move nothing then): the later ones follow */
-        if (!moved && pass >= 8)
+        if (!moved)
             break;
     }
 
@@ -4156,12 +4114,8 @@ static void group_layout_vert(struct IClass *cl, Object *obj,
     }
 
     if (!(data->flags & GROUP_SAME_HEIGHT) && data->vert_weight_sum > 0)
-    {
-        Layout1D_mui38_split(children, total_size, data->vert_weight_sum,
-            FALSE);
         Layout1D_mui_redistrib(children, total_size,
             data->vert_weight_sum, FALSE);
-    }
     else
         Layout1D_minmax_constraints_and_redistrib(children,
             total_size,
@@ -4287,12 +4241,8 @@ static void group_layout_horiz(struct IClass *cl, Object *obj,
     }
 
     if (!(data->flags & GROUP_SAME_WIDTH) && data->horiz_weight_sum > 0)
-    {
-        Layout1D_mui38_split(children, total_size, data->horiz_weight_sum,
-            TRUE);
         Layout1D_mui_redistrib(children, total_size,
             data->horiz_weight_sum, TRUE);
-    }
     else
         Layout1D_minmax_constraints_and_redistrib(children,
             total_size,
