@@ -127,9 +127,13 @@ struct MUI_ApplicationData
     struct DateStamp        app_Created;        /* prefs older than this were read */
     APTR                    app_SpareStack;     /* see zune_deep_call() */
     BOOL                    app_SpareBusy;
+    struct AppMenuItem      *app_AppMenu;  /* Tools menu item while iconified */
 };
 
 #define WINPOS(data) ((struct windowpos *)((data)->app_WinPos + 1))
+
+/* CxSender id of the settings' iconification hotkey */
+#define ICONIFY_HOTKEY_ID 0x5A49434F
 #define WINPOS_MAX (MAXWINS - 1)
 
 /* Make room for at least cap records (at most WINPOS_MAX), cleared. */
@@ -1716,6 +1720,19 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
 
             if (data->app_Broker)
             {
+                /* The settings' iconification hotkey (System page)
+                 * iconifies and shows the program again, as on MUI 3.8 */
+                CONST_STRPTR hk =
+                    data->app_GlobalInfo.mgi_Prefs->iconification_hotkey;
+                CxObj *filter;
+
+                if (hk && hk[0] && (filter = CxFilter(hk)))
+                {
+                    AttachCxObj(filter,
+                        CxSender(data->app_BrokerPort, ICONIFY_HOTKEY_ID));
+                    AttachCxObj(filter, CxTranslate(NULL));
+                    AttachCxObj(data->app_Broker, filter);
+                }
                 if (data->app_Active)
                     ActivateCxObj(data->app_Broker, 1);
             }
@@ -1780,6 +1797,10 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         (struct Node *)&data->app_TrackingNode);
     data->app_is_TNode_in_list = TRUE;
     ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
+
+    /* The settings may start every program iconified (System page) */
+    if (data->app_GlobalInfo.mgi_Prefs->iconification_on_startup)
+        set(obj, MUIA_Application_Iconified, TRUE);
 
     return (IPTR) obj;
 }
@@ -1966,6 +1987,8 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
     if (data->app_RexxString)
         FreeVec(data->app_RexxString);
 
+    if (data->app_AppMenu)
+        RemoveAppMenuItem(data->app_AppMenu);
     if (data->app_AppIcon)
         RemoveAppIcon(data->app_AppIcon);
 
@@ -2133,9 +2156,12 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
 
                     nnset(obj, MUIA_ShowMe, !data->app_Iconified);
 
-                    /* Inform workbench.library */
+                    /* Inform workbench.library: an icon and a Tools menu
+                     * item, as the settings say (System page) */
                     if (data->app_Iconified)
                     {
+                        struct ZunePrefsNew *prefs =
+                            data->app_GlobalInfo.mgi_Prefs;
                         STRPTR appname =
                             data->app_Title ? data->
                             app_Title : (STRPTR) "Unnamed";
@@ -2143,6 +2169,11 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
                             (struct DiskObject *)XGET(obj,
                             MUIA_Application_DiskObject);
 
+                        if (prefs->iconification_show_menu && ZUNE_WB())
+                            data->app_AppMenu = AddAppMenuItemA(0L, 0L,
+                                appname, data->app_AppPort, NULL);
+                        if (!prefs->iconification_show_icon)
+                            break;
                         if (dobj == NULL && ZUNE_ICON())
                         {
                             /* Get default AppIcon in ENV:SYS or ENVARC:SYS */
@@ -2186,6 +2217,11 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
                     }
                     else
                     {
+                        if (data->app_AppMenu)
+                        {
+                            RemoveAppMenuItem(data->app_AppMenu);
+                            data->app_AppMenu = NULL;
+                        }
                         if (data->app_AppIcon)
                         {
                             RemoveAppIcon(data->app_AppIcon);
@@ -3152,6 +3188,12 @@ static IPTR application_input(struct IClass *cl, Object *obj,
                         break;
                     }
                     break;
+
+                case CXM_IEVENT:
+                    if (CxMsgID(msg) == ICONIFY_HOTKEY_ID)
+                        set(obj, MUIA_Application_Iconified,
+                            !data->app_Iconified);
+                    break;
                 }
 
                 if (data->app_BrokerHook)
@@ -3210,9 +3252,9 @@ static IPTR application_input(struct IClass *cl, Object *obj,
             while ((appmsg =
                     (struct AppMessage *)GetMsg(data->app_AppPort)))
             {
-                if ((appmsg->am_Type == AMTYPE_APPICON)
-                    && (appmsg->am_NumArgs == 0)
-                    && (appmsg->am_ArgList == NULL)
+                if (((appmsg->am_Type == AMTYPE_APPICON
+                    && appmsg->am_NumArgs == 0 && appmsg->am_ArgList == NULL)
+                    || appmsg->am_Type == AMTYPE_APPMENUITEM)
                     && (XGET(obj, MUIA_Application_Iconified) == TRUE))
                 {
                     /* Reply before removing AppIcon */
@@ -3321,6 +3363,10 @@ static IPTR Application__MUIM_Input(struct IClass *cl, Object *obj,
 
     if (data->app_AppPort)
         signal |= (1L << data->app_AppPort->mp_SigBit);
+
+    /* commodities (Exchange's commands, the iconification hotkey) */
+    if (data->app_Broker)
+        signal |= (1L << data->app_BrokerPort->mp_SigBit);
 
     if (data->app_CfgNotifyPort)
         signal |= (1L << data->app_CfgNotifyPort->mp_SigBit);

@@ -1155,7 +1155,9 @@ int main(void)
                     }
                 }
 #endif
-                if (XGET(main_wnd,MUIA_Window_Open))
+                /* or started iconified (settings, System page) */
+                if (XGET(main_wnd,MUIA_Window_Open)
+                    || XGET(app, MUIA_Application_Iconified))
                 {
                     loop();
                 }
