@@ -196,6 +196,10 @@ CLASSES=(
   "amigagpt/x/AmigaGPT/MCC/ActionTextEditor_OS3.mcc ActionTextEditor.mcc"
   "amigagpt/x/AmigaGPT/MCC/AudioPlayer_OS3.mcc AudioPlayer.mcc"
   tabgroup/x/MCC_TabGroup/Libs/MUI/TabGroup.mcc tabgroup/x/MCC_TabGroup/Libs/MUI/TabGroup.mcp
+  # MUI 5 brings its own LayGroup and GIFAnim (kept there); MUI 3.8 and Zune users install
+  # the classic Aminet ones
+  laygroup/x/MCC_LayGroup-19.2/Libs/MUI/LayGroup.mcc laygroup/x/MCC_LayGroup-19.2/Libs/MUI/LayGroup.mcp
+  gifanim/x/MCC_GIFAnim/MUI/GIFAnim.mcc
 )
 # Libraries into SYS:Libs (left alone where the machine has the library already)
 LIBRARIES=(
@@ -251,4 +255,6 @@ FETCH=(
   "ticklish https://aminet.net/util/misc/Ticklish_m68k.lha"
   "tabgroup https://aminet.net/dev/mui/MCC_TabGroup.lha"
   "lumizip https://aminet.net/util/arc/LumiZip.lha"
+  "laygroup https://aminet.net/dev/mui/MCC_LayGroup-19.2.lha"
+  "gifanim https://aminet.net/dev/mui/MCC_GIFAnim.lha"
 )
