@@ -949,12 +949,8 @@ IPTR Notify__MUIM_CallHook(struct IClass *cl, Object *obj,
 IPTR Notify__MUIM_FindUData(struct IClass *cl, Object *obj,
     struct MUIP_FindUData *msg)
 {
-    struct MUI_NotifyData *data = INST_DATA(cl, obj);
-
-    if (data->mnd_UserData == msg->udata)
-    {
+    if (ZUNE_FIND_MATCH(obj, msg))
         return (IPTR) obj;
-    }
     return 0L;
 }
 
@@ -1664,6 +1660,7 @@ BOOPSI_DISPATCHER(IPTR, Notify_Dispatcher, cl, obj, msg)
     case MUIM_Export:
         return TRUE;
     case MUIM_FindUData:
+    case MUIM_FindObject:
         return Notify__MUIM_FindUData(cl, obj, (APTR) msg);
     case MUIM_GetUData:
         return Notify__MUIM_GetUData(cl, obj, (APTR) msg);

@@ -5207,7 +5207,7 @@ IPTR Window__MUIM_FindUData(struct IClass *cl, Object *obj,
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
 
-    if (muiNotifyData(obj)->mnd_UserData == msg->udata)
+    if (ZUNE_FIND_MATCH(obj, msg))
         return (IPTR) obj;
 
     if (data->wd_RootObject)
@@ -7122,6 +7122,7 @@ BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
     case OM_GET:
         return Window__OM_GET(cl, obj, (struct opGet *)msg);
     case MUIM_FindUData:
+    case MUIM_FindObject:
         return Window__MUIM_FindUData(cl, obj,
             (struct MUIP_FindUData *)msg);
     case MUIM_GetUData:

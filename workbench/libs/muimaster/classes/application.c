@@ -3549,7 +3549,7 @@ static IPTR Application__MUIM_FindUData(struct IClass *cl, Object *obj,
 {
     struct MUI_ApplicationData *data = INST_DATA(cl, obj);
 
-    if (muiNotifyData(obj)->mnd_UserData == msg->udata)
+    if (ZUNE_FIND_MATCH(obj, msg))
         return (IPTR) obj;
 
     return DoMethodA(data->app_WindowFamily, (Msg) msg);
@@ -4909,6 +4909,7 @@ BOOPSI_DISPATCHER(IPTR, Application_Dispatcher, cl, obj, msg)
     case MUIM_Application_ReturnID:
         return Application__MUIM_ReturnID(cl, obj, (APTR) msg);
     case MUIM_FindUData:
+    case MUIM_FindObject:
         return Application__MUIM_FindUData(cl, obj, (APTR) msg);
     case MUIM_GetUData:
         return Application__MUIM_GetUData(cl, obj, (APTR) msg);

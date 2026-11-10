@@ -28,6 +28,7 @@ struct MUI_NotifyData
 /*** Methods ****************************************************************/
 #define MUIM_CallHook            (MUIB_MUI | 0x0042b96b)  /* MUI: V4  */
 #define MUIM_Export              (MUIB_MUI | 0x00420f1c)  /* MUI: V12 */
+#define MUIM_FindObject          (MUIB_MUI | 0x0042038f)  /* MUI: V13 */
 #define MUIM_FindUData           (MUIB_MUI | 0x0042c196)  /* MUI: V8  */
 #define MUIM_GetConfigItem       (MUIB_MUI | 0x00423edb)  /* MUI: V11 */
 #define MUIM_GetUData            (MUIB_MUI | 0x0042ed0c)  /* MUI: V8  */
@@ -62,6 +63,20 @@ struct MUIP_FindUData
     STACKED ULONG MethodID;
     STACKED IPTR udata;
 };
+
+struct MUIP_FindObject
+{
+    STACKED ULONG MethodID;
+    STACKED Object *findme;
+};
+
+/* MUIM_FindObject walks the tree as MUIM_FindUData does (same message
+ * shape) and matches the object itself: the found object or 0, from
+ * Application, Window, Group, Family or any object itself (as MUI 5;
+ * MUI 3.8 answers it from a Group and the object itself only) */
+#define ZUNE_FIND_MATCH(obj, msg) ((msg)->MethodID == MUIM_FindObject \
+    ? (IPTR)(obj) == (msg)->udata \
+    : muiNotifyData(obj)->mnd_UserData == (msg)->udata)
 
 struct MUIP_GetConfigItem
 {

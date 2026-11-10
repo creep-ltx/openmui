@@ -4887,7 +4887,7 @@ IPTR Group__MUIM_FindUData(struct IClass *cl, Object *obj,
     Object *cstate = (Object *)data->childlist.mlh_Head;
     Object *child;
 
-    if (muiNotifyData(obj)->mnd_UserData == msg->udata)
+    if (ZUNE_FIND_MATCH(obj, msg))
         return (IPTR) obj;
 
     while ((child = NextObject(&cstate)))
@@ -5460,6 +5460,7 @@ BOOPSI_DISPATCHER(IPTR, Group_Dispatcher, cl, obj, msg)
         return Group__MUIM_Draw(cl, obj, (APTR) msg);
 
     case MUIM_FindUData:
+    case MUIM_FindObject:
         return Group__MUIM_FindUData(cl, obj, (APTR) msg);
     case MUIM_GetUData:
         return Group__MUIM_GetUData(cl, obj, (APTR) msg);
