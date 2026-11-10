@@ -399,8 +399,13 @@ static void remap_bitmap(struct IClass *cl, Object *obj)
 
     }
 
+    /* Read/WritePixelLine8's temporary rastport is "a copy of rp": one
+     * row with a plane for each of rp's (graphics autodoc). With one
+     * plane, OS 3.1 read a 5-plane logo as pen 0 and 1 only (AmIRC's
+     * and AmTelnet's logos stayed empty: tests/lean/probe/bmlogo.c). */
     InitRastPort(&temprp);
-    temprp.BitMap = AllocBitMap(width, 1, 1, 0, NULL);
+    temprp.BitMap = AllocBitMap(width, 1,
+        MAX(bmdepth, (LONG)GetBitMapAttr(data->bm, BMA_DEPTH)), 0, NULL);
 
     InitRastPort(&bmrp);
 

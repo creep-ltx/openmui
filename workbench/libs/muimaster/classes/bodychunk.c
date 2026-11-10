@@ -286,8 +286,9 @@ static BOOL make_bitmap(struct IClass *cl, Object *obj)
         return FALSE;
     }
 
+    /* a plane for each of the bitmap's: "a copy of rp" (bitmap.c) */
     InitRastPort(&temprp);
-    temprp.BitMap = AllocBitMap(data->width, 1, 1, 0, NULL);
+    temprp.BitMap = AllocBitMap(data->width, 1, data->depth, 0, NULL);
 
     InitRastPort(&bmrp);
     bmrp.BitMap = data->bm;
