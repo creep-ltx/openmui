@@ -1003,7 +1003,12 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             D(bug("[group.mui] Adding child 0x%p\n", tag->ti_Data));
             if (tag->ti_Data)
             {
-                DoMethod(obj, OM_ADDMEMBER, tag->ti_Data);
+                /* Group's own insertion, not OM_ADDMEMBER through the
+                 * object's class: MUI 3.8 and MUI 5 do not send the
+                 * initial children to a subclass (TabGroup.mcc forwards
+                 * OM_ADDMEMBER to a page group that does not exist yet
+                 * and lost every child on Zune) */
+                CoerceMethod(cl, obj, OM_ADDMEMBER, tag->ti_Data);
                 /* Set first child as group title */
                 if ((frame == MUIV_Frame_Register)
                     && (data->titlegroup == NULL))
