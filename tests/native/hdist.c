@@ -2,12 +2,14 @@
  * minimum, default and maximum widths and weights (Voyager's fast link
  * row, YAM's panes). Each case lays out a row of custom objects at
  * several window widths and prints their widths to hdist.txt ("hdist v":
- * a column at several window heights, into vdist.txt). Compare native
- * and MUI 3.9.
+ * a column at several window heights, into vdist.txt; "d" or "vd": the
+ * window at its default size; with "s" the children 4 pixels apart).
+ * Compare native and MUI 3.9.
  * Build: m68k-amigaos-gcc -m68000 -noixemul -Os \
  *        -Wl,-u,___stkinit hdist.c -o hdist -lamiga
  */
 #include <stdio.h>
+#include <string.h>
 #include <libraries/mui.h>
 #include <proto/exec.h>
 #include <proto/intuition.h>
@@ -119,6 +121,11 @@ int main(int argc, char **argv)
     int c, i, k;
 
     int vert = argc > 1 && argv[1][0] == 'v';
+    /* "hdist d", "hdist vd": each case once, the window at its default
+     * size (the group at the sum of its children's defaults) */
+    int dflt = argc > 1 && strchr(argv[1], 'd') != NULL;
+    /* "s" in the argument: the group spacing 4 instead of 0 */
+    int spacing = argc > 1 && strchr(argv[1], 's') != NULL ? 4 : 0;
 
     freopen(vert ? "vdist.txt" : "hdist.txt", "w", stdout);
     if (!(MUIMasterBase = OpenLibrary("muimaster.library", 19)))
@@ -138,6 +145,8 @@ int main(int argc, char **argv)
 
             if (vert && widths[i] > 520)
                 continue;
+            if (dflt && i > 0)
+                break;
 
             for (k = 0; k < cases[c].n; k++)
             {
@@ -153,11 +162,12 @@ int main(int argc, char **argv)
             gtags[k].ti_Tag = MUIA_Group_Horiz;
             gtags[k++].ti_Data = !vert;
             gtags[k].ti_Tag = MUIA_Group_Spacing;
-            gtags[k++].ti_Data = 0;
+            gtags[k++].ti_Data = spacing;
             gtags[k].ti_Tag = TAG_DONE;
             g = MUI_NewObjectA(MUIC_Group, gtags);
             app = ApplicationObject, SubWindow, win = WindowObject,
-                vert ? MUIA_Window_Height : MUIA_Window_Width, widths[i],
+                dflt ? TAG_IGNORE : vert ? MUIA_Window_Height : MUIA_Window_Width,
+                widths[i],
                 WindowContents, g,
                 End, End;
             if (!app)
