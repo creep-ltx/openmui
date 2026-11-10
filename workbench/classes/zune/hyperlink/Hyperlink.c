@@ -40,8 +40,9 @@
 #define MUIV_PointerType_Link 13
 #endif
 
-/* blue and underlined, as MUI 5's default link look */
-#define LINK_PREPARSE "\033u\033P[0000CC]"
+/* underlined in the screen's fill pen (blue on a default Workbench), as
+ * MUI 5's links look on a 4-colour Workbench */
+#define LINK_PREPARSE "\033u\0335"
 
 static STRPTR hl_strdup(CONST_STRPTR s)
 {
