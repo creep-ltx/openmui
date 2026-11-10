@@ -51,6 +51,7 @@ struct MUIP_Pixmap_DrawSection
 #define MUIV_Pixmap_Compression_None 0
 #define MUIV_Pixmap_Compression_RLE 1
 #define MUIV_Pixmap_Compression_BZip2 2
+#define MUIV_Pixmap_Compression_Z 3
 #define MUIV_Pixmap_Format_CLUT8 0
 #define MUIV_Pixmap_Format_RGB24 1
 #define MUIV_Pixmap_Format_ARGB32 2

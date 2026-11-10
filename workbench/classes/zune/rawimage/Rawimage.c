@@ -48,6 +48,16 @@ static BOOL setRawimage(struct IClass *cl, Object *obj, struct MUI_RawimageData 
             compression = MUIV_Pixmap_Compression_BZip2;
             break;
 
+        case RAWIMAGE_FORMAT_Z_ARGB_ID:
+            format = MUIV_Pixmap_Format_ARGB32;
+            compression = MUIV_Pixmap_Compression_Z;
+            break;
+
+        case RAWIMAGE_FORMAT_Z_RGB_ID:
+            format = MUIV_Pixmap_Format_RGB24;
+            compression = MUIV_Pixmap_Compression_Z;
+            break;
+
         case RAWIMAGE_FORMAT_RLE_ARGB_ID:
             format = MUIV_Pixmap_Format_ARGB32;
             compression = MUIV_Pixmap_Compression_RLE;

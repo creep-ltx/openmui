@@ -490,6 +490,24 @@ static BOOL DecompressBZip2(struct IClass *cl, Object *obj,
     return TRUE;
 }
 
+#include "zinflate.c"
+
+/* MUI 5's "Z" compression (a zlib stream), MUIV_Pixmap_Compression_Z */
+static BOOL DecompressZ(struct IClass *cl, Object *obj, ULONG uncompressedSize)
+{
+    struct Pixmap_DATA *data = INST_DATA(cl, obj);
+    APTR buffer = AllocVec(uncompressedSize, MEMF_SHARED);
+    if (!buffer) return FALSE;
+    if (!zune_inflate(data->data, data->compressedSize, buffer, uncompressedSize))
+    {
+        FreeVec(buffer);
+        return FALSE;
+    }
+    data->uncompressedData = buffer;
+    data->ownsData = TRUE;
+    return TRUE;
+}
+
 static BOOL DecompressImage(struct IClass *cl, Object *obj)
 {
     struct Pixmap_DATA *data = INST_DATA(cl, obj);
@@ -517,6 +535,7 @@ static BOOL DecompressImage(struct IClass *cl, Object *obj)
     {
     case MUIV_Pixmap_Compression_RLE: return DecompressRLE(cl, obj, size);
     case MUIV_Pixmap_Compression_BZip2: return DecompressBZip2(cl, obj, size);
+    case MUIV_Pixmap_Compression_Z: return DecompressZ(cl, obj, size);
     default: return FALSE;
     }
 }
