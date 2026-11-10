@@ -2723,8 +2723,11 @@ static const struct
     {"help", "FILE/A"}
 };
 
-/* MUI 3.9 replies -4 when the arguments do not match the template. */
+/* MUI 3.8 and 3.9 reply -4 when the arguments do not match the template
+ * (an INFO item it does not know too), MUI 3.8 -3 for a command it does
+ * not know (measured with wasabi arexx). */
 #define REXX_BAD_ARGS (-4)
+#define REXX_UNKNOWN (-3)
 
 static void rexx_help_section(BPTR fh, CONST_STRPTR title)
 {
@@ -2783,7 +2786,7 @@ static LONG rexx_info(struct MUI_ApplicationData *data, CONST_STRPTR item)
     case 4: value = data->app_Description; break;
     case 5: value = data->app_Version; break;
     case 6: value = ""; break;
-    default: return RETURN_ERROR;
+    default: return REXX_BAD_ARGS;
     }
     copy = StrDup(value ? value : (CONST_STRPTR)"?");
     if (!copy)
@@ -2868,8 +2871,9 @@ static void application_rexx(struct MUI_ApplicationData *data, Object *obj,
         }
         if (!cmd || !cmd->mc_Name)
         {
-            if (data->app_RexxHook)
-                result = CallHookPkt(data->app_RexxHook, obj, rmsg);
+            result = data->app_RexxHook
+                ? (LONG)CallHookPkt(data->app_RexxHook, obj, rmsg)
+                : REXX_UNKNOWN;
             goto done;
         }
         if ((STRPTR)cmd->mc_Template == MC_TEMPLATE_ID)
@@ -3165,7 +3169,11 @@ static IPTR application_input(struct IClass *cl, Object *obj,
             struct RexxMsg *rmsg;
             while ((rmsg = (struct RexxMsg *)GetMsg(data->app_RexxPort)))
             {
-                if (ZUNE_REXX() && IsRexxMsg(rmsg))
+                /* Not IsRexxMsg(): that is TRUE only for messages ARexx
+                 * itself sent; MUI 3.8 also takes a host's own
+                 * CreateRexxMsg (wasabi arexx) */
+                if (ZUNE_REXX()
+                    && (rmsg->rm_Action & RXCODEMASK) == RXCOMM)
                     application_rexx(data, obj, rmsg);
 
                 ReplyMsg((struct Message *)rmsg);

@@ -192,7 +192,7 @@ class ApplicationHarness(NotifyHarness):
 
     def rexx(self, command):
         msg = self.blob(bytes(128))
-        self.mem.w32(msg + 28, 1 << 17)  # RXFF_RESULT
+        self.mem.w32(msg + 28, 0x01000000 | 1 << 17)  # RXCOMM | RXFF_RESULT
         self.mem.w32(msg + 40, self.blob(command.encode() + b'\0'))
         self.queues[REXX_PORT].append(msg)
         return msg
@@ -340,10 +340,19 @@ def check(path):
     assert h.mem.r32(msg + 32) == 10 and not h.mem.r32(msg + 36)
     h.finish()
 
+    # MUI 3.8 answers -3 to a command it does not know (wasabi arexx).
     h = ApplicationHarness(path)
     msg = h.rexx('UNKNOWN')
     h.dispatch(BUFFERED)
-    assert h.mem.r32(msg + 32) == 10 and h.replies == [msg]
+    assert h.mem.r32(msg + 32) == 0xfffffffd and h.replies == [msg]
+    h.finish()
+
+    # A message that is not a command (rm_Action RXFUNC) is only replied.
+    h = ApplicationHarness(path)
+    msg = h.rexx('UNKNOWN')
+    h.mem.w32(msg + 28, 0x02000000)
+    h.dispatch(BUFFERED)
+    assert h.mem.r32(msg + 32) == 0 and h.replies == [msg]
     h.finish()
 
     h = ApplicationHarness(path)
