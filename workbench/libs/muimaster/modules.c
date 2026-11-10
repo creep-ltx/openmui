@@ -564,3 +564,14 @@ IPTR zune_list_create_drag_image(struct IClass *icl, Object *obj,
     zune_module_put(cl);
     return img;
 }
+
+/* The sort mark on a SORTABLE column's title (MUI 4/5 lists; MUI 3.8's
+ * format has no SORTABLE, so MUI 3 programs never get here) */
+void zune_list_draw_sort_mark(Object *obj, struct MUI_ListData *data,
+    LONG x1, LONG y, LONG h)
+{
+    MODULE(ZuneListModule, ZMOD_LIST);
+    if (m)
+        m->draw_sort_mark(obj, data, x1, y, h);
+    zune_module_put(cl);
+}

@@ -328,3 +328,37 @@ IPTR zune_list_end_edit(struct IClass *cl, Object *obj, ULONG mode, BOOL force)
     return TRUE;
 }
 
+
+/* The sort mark of a SORTABLE column's title (MUI 5 List1 demo): an
+ * outlined triangle at the right end of the sort column's title cell
+ * (starting at x1, row y of height h), pointing up for ascending, down
+ * for descending, in the text pen. */
+void zune_list_draw_sort_mark(Object *obj, struct MUI_ListData *data,
+    LONG x1, LONG y, LONG h)
+{
+    struct RastPort *rp = _rp(obj);
+    LONG x2 = MIN(x1 + ColumnWidth(data, data->sort_column),
+        _mright(data->area));
+    BOOL descending = data->ci[data->sort_column].descending;
+    LONG th = (_font(obj)->tf_YSize + 1) / 2, tw = th * 2 - 1;
+    LONG left = x2 - tw - 2, top = y + (h - th) / 2, bottom = top + th - 1;
+    LONG mid = left + th - 1;
+
+    if (th < 3 || left < x1)
+        return;
+    SetAPen(rp, muiRenderInfo(obj)->mri_Pens[MPEN_TEXT]);
+    if (descending)
+    {
+        Move(rp, left, top);
+        Draw(rp, left + tw - 1, top);
+        Draw(rp, mid, bottom);
+        Draw(rp, left, top);
+    }
+    else
+    {
+        Move(rp, left, bottom);
+        Draw(rp, left + tw - 1, bottom);
+        Draw(rp, mid, top);
+        Draw(rp, left, bottom);
+    }
+}

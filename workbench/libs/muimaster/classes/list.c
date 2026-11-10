@@ -1028,14 +1028,21 @@ static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
                 /* entry height changed, redraw all entries later */
                 ret = 1;
             }
-            data->entries[pos]->widths[j] = text->width;
+            LONG width = text->width;
 
-            if (text->width > data->ci[j].entries_width)
+            /* a SORTABLE column's title has room for the sort mark
+             * (zune_list_draw_sort_mark: a triangle two half-lines wide
+             * and a gap on each side), as on MUI 5 */
+            if (pos == ENTRY_TITLE && data->ci[j].sortable)
+                width += (_font(obj)->tf_YSize + 1) / 2 * 2 + 5;
+            data->entries[pos]->widths[j] = width;
+
+            if (width > data->ci[j].entries_width)
             {
                 /* This entry has a greater width for this column than any
                  * other entry, so we store this value
                  */
-                data->ci[j].entries_width = text->width;
+                data->ci[j].entries_width = width;
                 /* column width changed, redraw all entries later */
                 ret = 1;
             }
@@ -2812,6 +2819,9 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
             else zune_text_draw(text, obj, x1, x2, y_offset);
             if (!borrowed) zune_text_destroy(text);
         }
+        if (entry_pos == ENTRY_TITLE && col == data->sort_column
+            && data->ci[col].sortable)
+            zune_list_draw_sort_mark(obj, data, x1, y, row_height);
         x1 = x2 + data->ci[col].delta + (data->ci[col].bar ? BAR_WIDTH : 0);
     }
 }

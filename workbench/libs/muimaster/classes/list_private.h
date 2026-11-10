@@ -257,5 +257,7 @@ IPTR zune_list_drag_drop(struct IClass *cl, Object *obj,
     struct MUIP_DragDrop *msg);
 IPTR zune_list_create_drag_image(struct IClass *cl, Object *obj,
     struct MUIP_CreateDragImage *msg);
+void zune_list_draw_sort_mark(Object *obj, struct MUI_ListData *data,
+    LONG x1, LONG y, LONG h);
 
 #endif

@@ -194,6 +194,7 @@ struct ZuneListModule
     IPTR (*drag_drop)(struct IClass *, Object *, struct MUIP_DragDrop *);
     IPTR (*create_drag_image)(struct IClass *, Object *,
         struct MUIP_CreateDragImage *);
+    void (*draw_sort_mark)(Object *, struct MUI_ListData *, LONG, LONG, LONG);
 };
 
 /* In a module built as a file: take the library bases over again before
