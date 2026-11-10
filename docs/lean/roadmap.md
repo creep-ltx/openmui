@@ -90,6 +90,18 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 7. **Settings program as complete as MUI 3.8's**, including reading
    existing MUI 3.8 settings files (their item ids are known for the
    title gadgets; the rest to be measured).
+   *First round 2026-11-10* (branch `prefs38`): the inventory (every page
+   of MUI 3.8's settings program against Zune prefs and the library) and
+   MUI 3.8's file format, measured black-box, in
+   [settings-mui38.md](settings-mui38.md). Zune prefs already offered every
+   MUI 3.8 setting except Listtree.mcc's and Busy.mcc's pages. The file is
+   Zune's own format; ten items have other ids, frame types 5-10 other
+   numbers, brushes another prefix, windows their own chunk. Zune prefs
+   imports them (menu, or a question on the first run; the MUI files are
+   only read). The library now honours the ARexx switch, the drag
+   settings and the iconification settings (hotkey, icon, Tools menu item,
+   iconified at start). Left: cycle popup speed, middle-button drag, drag
+   look, active object colour, the two third-party pages.
 8. **Each program gets the MUI it was written for** (decided with our
    partner 2026-11-06, done right after the phase 1 fixes): a MUI 3
    program sees and behaves as MUI 3.8, a MUI 4 program as MUI 4, a MUI 5

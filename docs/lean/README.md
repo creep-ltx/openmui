@@ -1347,6 +1347,42 @@ file (stripped): 271,256 bytes. Details in
 [tests/lean/real-programs.md](../../tests/lean/real-programs.md),
 "Update, branch `leftovers`".
 
+## Settings: against MUI 3.8's, and reading its files (2026-11-10, phase 7)
+
+Branch `prefs38`. The full inventory, the file format and what is left:
+[settings-mui38.md](settings-mui38.md). In short, all measured black-box on
+FS-UAE `a1200-31-mui38`:
+
+- Zune prefs already offered every setting of MUI 3.8's settings program
+  except the pages of two third-party classes MUI 3.8 ships (Listtree,
+  Busy). The library ignored the ARexx switch, the drag settings and the
+  iconification settings (now honoured, below), the cycle popup speed, the
+  middle-button drag, the drag look and the active object colour (still).
+- MUI 3.8's files are Zune's own format (Zune took its ids from them) with
+  differences found by changing one setting at a time: ten items under
+  other ids (System page, frame thickness, refresh) and the title gadgets
+  as four items, frame types 5-10 numbered differently, brushes as `3:`,
+  window positions in a `MUIW` chunk. MUI 3.8 writes only what differs from
+  its defaults.
+
+| commit | what | library |
+|---|---|---|
+| 91bf8549 Zune prefs | "Import MUI 3.8 settings..." in the Project menu, and a question when Zune has no settings yet and ENVARC:MUI has MUI 3.8's: the global file into the editor (tested; Save or Use keeps it), each program's file into ENVARC:zune and ENV:zune unless Zune has one; pictures that cannot be found left out; the MUI files only read. `tests/check_mui38_import.py` runs the converter on the PC | none (Zune prefs +2.9 KB) |
+| fb82c055 muimaster | the ARexx switch (no port when off) and the drag settings (autostart and its distance, the left-button qualifier) honoured; defaults as before | +136 bytes |
+| 4b98b612 muimaster | the iconification settings honoured (icon, Tools menu item, iconified at start, the hotkey; measured on MUI 3.8 first); MUIM_Application_NewInput returns the commodities port's signal too (Exchange's commands and the hotkey waited for other input) | +412 bytes (library file, stripped: 271,256 -> 271,804 bytes for the branch) |
+
+Tests with the branch's last library (FS-UAE, 2026-11-10): `make check`
+(with the new `check_mui38_import.py`); fullcheck: MUI-Demo's 8
+sub-windows and the 18 other demos open and close, no alert, lost bytes as
+before (608, 200, AppWindow 264); demopix: 18 of 27 windows pixel-identical
+with MUI 3.8, as `leftovers`; suite MUI 3 group: 35 of 36 as on MUI 3.8
+(SimpleMail windowless in FS-UAE as before, also run again on its own with
+the other late programs; IBrowse 2.5.9's frozen second quit and MultiRen's
+"still running" are the known differences); MUI 4/5 group: 5 of 5 with the
+same results as the earlier Zune run. Zune prefs' window unchanged (the
+import is a menu item and requesters). Stack: no new deep paths (the drag
+check is inlined into the motion handler).
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
