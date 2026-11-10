@@ -68,8 +68,12 @@ P mqttexplorer mui5 mqttexplorer/x/MQTTExplorer            MqttExplorer         
 # whole Demos drawer (anim.gif, boing.png are used by some)
 for d in Aboutbox Animals Calltips Class4 Clock ElidedText EmbeddedImages GIFAnim Hyperlink \
          LayGroup List1 MenuImages Pointers Textdata Title; do
-  P mui5-${d,,} mui5 mui5/x/MUI/Demos $d 30 -
+  # EmbeddedImages unpacks and dithers five 125x125 ARGB pictures: over 30 s on the 68020
+  w=30; [ $d = EmbeddedImages ] && w=150
+  P mui5-${d,,} mui5 mui5/x/MUI/Demos $d $w -
 done
+# its task name (Workbench:Real/mui5-embeddedimages/EmbeddedImages) is longer than wasabi shows
+TITLE[mui5-embeddedimages]='^Embedded images'
 P passpocket   mui5 "passpocket/x/PassPocket/PassPocket OS3" PassPocket       40 -
 P ticklish     mui5 ticklish/x/Ticklish                    Ticklish             60 -
 P tabgroup-demo mui5 tabgroup/x/MCC_TabGroup/Demos         TabGroup-Demo        30 -
