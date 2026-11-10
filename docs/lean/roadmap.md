@@ -124,6 +124,19 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    measurements and the other limits in
    [README.md](README.md#each-program-gets-the-mui-it-asked-for-2026-11-06-phase-8).
 
+## Phase 6, MUI 4/5 side
+
+- *2026-11-10 (branch `mui45`)*: the MUI 4/5 group widened from 5 to 24 entries (MUI 5's 15 own
+  demos that MUI 3.8 lacks, PassPocket, Ticklish, the TabGroup demo, LumiZip), baselined on MUI 5
+  and on Zune (Automatic and MUI 5 forced). Added under the partners' rule (MUI 3 programs pay
+  nothing): Hyperlink.mcc as a class file, MUI 5's "Z" (zlib) images in the Pixmap class file,
+  MUI 5's scrollable contents for a window larger than the screen (in the title gadget module,
+  only for programs that get MUI 5), elided texts whole by default, Textdata's quotes; and a
+  MUI 3.8 fix that TabGroup.mcc needed (Group adds its initial children itself). The library
+  file is smaller than `lean`'s: the settings-only classes Settings and Settingsgroup became class
+  files. Details, results and what is left in
+  [README.md](README.md#mui-45-programs-a-wider-test-set-and-what-they-missed-2026-11-10-phase-6).
+
 ## Later (wanted, not scheduled)
 
 1. Hand-written 68000 assembly in the hottest drawing and layout loops.

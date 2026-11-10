@@ -19,6 +19,7 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 | smaller | 262 KB (+236 KB in 47 class and module files) | 275 KB | 477 KB | 212 KB | 1.4 s |
 | memory | 263 KB (+236 KB in 47 class and module files) | 276 KB | 468 KB | 203 KB | 1.4 s |
 | realmem | 263 KB (+236 KB in 47 class and module files) | 276 KB | 465 KB | 200 KB | 1.4 s |
+| mui45 | 265 KB (+ class and module files; Hyperlink.mcc, Settings.mui, Settingsgroup.mui new) | 278 KB | 467 KB | 200 KB | 1.4-1.5 s |
 
 (lean measured 2026-11-05 with GCC 16.2, after the modules below; smaller
 2026-11-06 (branch `smaller`, [below](#a-smaller-library-2026-11-06-phase-3));
@@ -28,7 +29,10 @@ this table is in KiB); realmem 2026-11-06 (branch `realmem`,
 [below](#real-programs-memory-against-mui-38-2026-11-06-phase-4-follow-up):
 476,368 / 204,456-204,504 bytes),
 where lean measured the same session gave 289 / 490 / 212 KB; the other
-rows 2026-11-04.)
+rows 2026-11-04; mui45 2026-11-10, branch `mui45`,
+[below](#mui-45-programs-a-wider-test-set-and-what-they-missed-2026-11-10-phase-6):
+271,132-byte file, 284,536 / 478,016 / 204,520-204,584 bytes; `lean` the same session 285,136 /
+478,616 / 204,520-204,584.)
 
 perfbench (68EC020, same session): lean is faster than MUI 3.8 in seven of
 eight batches; "list active" is 4% slower (Zune68 main 7%).
@@ -1382,6 +1386,132 @@ the other late programs; IBrowse 2.5.9's frozen second quit and MultiRen's
 same results as the earlier Zune run. Zune prefs' window unchanged (the
 import is a menu item and requesters). Stack: no new deep paths (the drag
 check is inlined into the motion handler).
+
+## MUI 4/5 programs: a wider test set and what they missed (2026-11-10, phase 6)
+
+Branch `mui45`. The rule (our partners'): MUI 3, 4 and 5 programs run as fully as possible,
+but a MUI 3 program never pays for MUI 4/5: every MUI 4/5-only piece is a file loaded on
+demand (a class file or a module) or behind the per-program identity, and a MUI 3 program
+loads none of it; its memory, speed and the library's code do not grow.
+
+**The test set** (tests/lean/real-programs.md): the MUI 4/5 group grew from 5 to 24 entries.
+Programs that need MUI 4/5 on a 68k Amiga are still rare (Aminet's readme search for
+"MUI 5", "MUI 4", "MUI 3.9"); most want MUI 3.8 and use MUI 4/5 extras. Added: MUI 5's own
+15 demos that MUI 3.8 does not have (from MUI-5.0-20210831-os3.lha, whose `SDK/MUI` also has
+the autodocs and the demos' sources), PassPocket 1.1 (MUI 3.9+), Ticklish 1.1.1 (made with
+Hollywood), the TabGroup.mcc 19.2 demo and LumiZip 1.0 (both 2026). LayGroup and GIFAnim
+come with MUI 5; Zune and MUI 3.8 get the classic Aminet classes. What each asks for
+(snooped): the MUI 5 demos and PassPocket version 20 (so Automatic gives them MUI 4),
+TabGroup 19, Ticklish 0, LumiZip 11 (MUI 3.8).
+
+**What they missed, and where it went** (black-box against MUI 5 and its public autodocs,
+SDK headers and ChangeLog; never MUI's code):
+
+| commit | what | where (MUI 3 programs) |
+|---|---|---|
+| 29b037f1, b3e001f4 | Hyperlink.mcc (MUI 5 brings it; MUI 3.8 has none): a Text that follows its URI when clicked, link look (underlined, the fill pen: blue on a 4-colour Workbench, as MUI 5) or a button when made with a frame; about:, amigados:, workbench: in the class, the rest through openurl.library; HoverTip, Copy, Encode, Decode. MUI 5's Hyperlink demo ended at once on Zune | class file `LIBS:MUI/Hyperlink.mcc` (10.6 KB), opened only by name |
+| d766f14a | MUI 5's "Z" compressed images (zlib streams) in Pixmap.mui and Rawimage.mcc, by a small inflate written from RFC 1950/1951 (checked on the PC against zlib: stored, fixed and dynamic blocks, levels 1/6/9). MUI 5's EmbeddedImages demo ended ("Is z.library missing?") | Pixmap class file +1.8 KB (Pixmap is a MUI 4/5 class) |
+| e6f5c774 | MUI 5's answer to a window larger than the screen (its ChangeLog, 5.0-2018R1; its Pointers demo opens 640x256 with scrollers): the root goes into a Scrollgroup with a Virtgroup for that window only, MUI 3.8's smaller stages stay the fallback; a new root object disposes the added Scrollgroup; MUIA_Window_RootObject still gives the program's root. Only for programs that get MUI 5 | the groups are made and taken apart in the title gadget module (Zwintitle.mui +408 bytes); the library keeps the decision in the fitting loop |
+| 592f40ce | an elided text (MUIA_Text_Shorten) has no minimum width but the whole text by default (MUI 5's ElidedText demo opens with every line whole; Zune gave three W's) | Text, a path only MUIA_Text_Shorten takes (+4 bytes) |
+| d71e900a | Textdata to Latin-1: U+2018/U+2019 as \` and ', U+2013/2014 as -, U+201C/201D as " (MUI 5's Textdata demo; Zune showed ?) | Textdata class file |
+| fe4c589d | **a MUI 3.8 fix** found by TabGroup.mcc (MUI 3.8+): Group's OM_NEW added its Child objects by sending OM_ADDMEMBER through the object's own class; TabGroup forwards that to a page group it has not made yet, so every child was lost (an empty line under each title). MUI 3.8 and MUI 5 show the tabs: Group now adds them itself (CoerceMethod). The demo is now 166x143 as on MUI 3.8 | library, same size |
+| 0f2df272 | suite: Aminet LayGroup and GIFAnim for Zune and MUI 3.8, TabGroup.mcc for all | - |
+| c61d64ba, 39335297 | to keep the library from growing: the Settings and Settingsgroup classes (made only by settings programs) became class files. Mccprefs was tried too and kept in the library: the LoadSeg trace showed AmIRC, a MUI 3 program, loading Textinput.mcp and NListviews.mcp, whose classes are Mccprefs subclasses | `LIBS:Zune/Settings.mui`, `Settingsgroup.mui` |
+
+**Proof that MUI 3 programs pay nothing** (FS-UAE A1200 OS 3.1, 68000 build, GCC 16.2;
+`lean` at 6de7fb8f against this branch's last library, the same session):
+
+- **Library file** 271,804 -> 271,132 bytes (-672): the MUI 5 additions cost +200 bytes in the
+  library (the scrollable-window decision, the Text path, the glue to the title gadget module),
+  the two settings classes moved out -872. Library alone in memory (`libonly.sh`, 4 MB fast):
+  285,136 -> 284,536 bytes.
+- **No MUI 4/5 file loaded by a MUI 3 program**: a LoadSeg trace (`snooplog.sh`) of the whole
+  MUI 3 group (36 entries) and of fullcheck: no Hyperlink.mcc, Zwintitle.mui, Pixmap.mui,
+  Rawimage.mcc, Textdata.mui, Zlist.mui, Settings.mui or Settingsgroup.mui. The trace is how
+  Mccprefs was caught: with it as a file, AmIRC and AmTelnet loaded it (through Textinput.mcp
+  and NListviews.mcp); with it back in the library AmIRC's trace is `lean`'s set.
+- **Memory**: MUI-Demo (`measure.sh` twice each, 4 MB fast): first program 478,616 -> 478,016
+  bytes, each further 204,520-204,584 on both. Real programs without a trace running (a `wasabi
+  snoop` attached during a run adds tens of KB to the in-use figures: measured, AmigaGPT +110 KB,
+  NewsCoaster +2.9 KB): AmigaGPT, NewsCoaster, ViewCSV, YAM 2.5 second-run in use the same to
+  48 bytes, first runs 600 bytes less (the library).
+- **Speed**: MUI-Demo's first window 1.60-1.62 s (`lean`) and 1.44-1.50 s (this branch), within
+  the emulator's spread; no MUI 3 path got code except Group's OM_NEW, which calls Group's own
+  dispatcher instead of the object's (one call less).
+- **Stack** (`stackrun.sh`, twice each): MUI-Demo 5,388, Layout 2,268, Pages 2,240, Slidorama
+  2,304 bytes on both; Virtual varies from run to run on both libraries (lean 2,408-2,672, this
+  branch 2,672-2,736).
+- `make check` passes. fullcheck: MUI-Demo's 8 sub-windows and the 18 other demos open and
+  close, no alert, lost bytes identical to `lean`'s (608, 200, AppWindow 264), the whole output
+  identical. demopix: 18 of 27 pixel-identical with MUI 3.8, every window's figure as
+  `prefs38`'s (Layout, not comparable, varies). MUI 3 group: 35 of 36 as `lean`'s run (windows,
+  status), SimpleMail windowless in FS-UAE as always (reset or frozen at its quit).
+
+**Results, the MUI 4/5 group** (Zune before = `lean`'s library, after = this branch; "Auto":
+each program gets the MUI it asks for; MUI 5 = FS-UAE a1200-32-mui5, MUI 5.0-20210831):
+
+| ID | MUI 5 | Zune before, Auto | Zune after, Auto | Zune before, MUI 5 forced | after, MUI 5 forced |
+|---|---|---|---|---|---|
+| yam210 | ok, reset at quit 376x201 | ok 400x98 | ok 400x98 | - | - |
+| ibrowse30 | ok 480x192 | ok 480x192 | ok 480x192 | - | - |
+| dizzytorrent | ok 372x256 | ok 378x256 | ok 378x256 | - | ok 378x256 |
+| amigagpt | ok 576x230 | ok 590x253 | ok 590x253 | - | ok 590x255 |
+| mqttexplorer | exited | exited | exited | - | - |
+| mui5-aboutbox | ok 208x53 | ok 200x39 | ok 200x39 | ok 200x39 | - |
+| mui5-animals | ok 328x61 | ok 320x47 | ok 320x47 | ok 320x47 | - |
+| mui5-calltips | ok 304x65 | ok 296x52 | ok 296x52 | ok 296x52 | - |
+| mui5-class4 | ok 296x85 | ok 288x65 | ok 288x65 | ok 288x65 | - |
+| mui5-clock | nowindow,busy 224x249 | ok 184x77 | ok 184x77 | ok 184x77 | - |
+| mui5-elidedtext | ok 599x189 | ok 154x141 | ok 590x141 | ok 154x141 | ok 590x141 |
+| mui5-embeddedimages | exited | exited | exited | exited | window 640x256 (after 150 s) |
+| mui5-gifanim | ok 388x98 | exited | ok 394x53 | exited | ok 394x53 |
+| mui5-hyperlink | ok 436x125 | exited | ok 438x105 | exited | ok 438x105 |
+| mui5-laygroup | ok 294x207 | exited | ok 300x102 | exited | ok 300x102 |
+| mui5-list1 | ok 344x181 | ok 327x132 | ok 327x132 | ok 327x132 | - |
+| mui5-menuimages | ok 408x93 | ok 400x83 | ok 400x83 | ok 400x83 | - |
+| mui5-pointers | ok 640x256 | ok 364x248 | ok 364x248 | ok 364x248 | ok 640x246 |
+| mui5-textdata | ok 180x81 | ok 174x68 | ok 174x68 | ok 174x68 | ok 174x68 |
+| mui5-title | ok 358x177 | ok 490x117 | ok 490x117 | ok 490x117 | ok 490x117 |
+| passpocket | ok 254x101 | ok 313x87 | ok 313x87 | ok 313x87 | ok 313x87 |
+| ticklish | ok 253x81 | ok 258x56 | ok 258x56 | ok 258x56 | - |
+| tabgroup-demo | ok 172x165 | ok 166x81 | ok 166x143 | ok 166x81 | ok 166x143 |
+| lumizip | ok 505x256 | ok, reset at 2nd quit 611x256 | ok, reset at quit 611x256 | ok 627x256 | ok 627x256 |
+
+"after" in the Automatic column is this branch's library from before the last two
+commits (the settings classes; they touch no program here), the MUI 5 forced column the final
+one. Sizes are the first window's, screen pixels. MUI 5 uses its own settings (helvetica,
+other spacing), so most windows differ by a few pixels on every line; that is the look, not a
+fault. What the lines say:
+
+- **Fixed**: Hyperlink (Zune's new class), GIFAnim and LayGroup (the Aminet classes in the
+  suite; LayGroup 19.2 shows the demo's window but none of its 30 objects: the demo needs MUI
+  5's newer LayGroup), ElidedText (whole lines), the TabGroup demo (its tabs and pages),
+  Pointers with MUI 5 forced (640x256 with scrollers, as MUI 5), EmbeddedImages with MUI 5
+  forced (its window opens, 640x256 with scrollers; it unpacks and dithers its pictures for over
+  two minutes in FS-UAE, so the suite still counts it "exited"; by hand it opens; before, it
+  ended with "Is z.library missing?"). Textdata's quotes (not visible in the table).
+- **Automatic gives the MUI 5 demos MUI 4** (they ask for version 20), so Pointers and
+  EmbeddedImages get MUI 3.8's smaller stages, not MUI 5's scrollers; with "Behave as MUI 5"
+  (or a per-program MUI5 line) they get MUI 5's behaviour.
+- **Same on both**: Ticklish stops at Hollywood's "Error allocating bitmap!" on the AGA
+  machines (MUI 5 too); MQTTExplorer ends at once; PassPocket opens its password window.
+- **On MUI 5, not on Zune**: the Clock demo never opened its window on MUI 5 (busy), EmbeddedImages
+  ended at once there; YAM 2.10dev reset MUI 5's machine at quit (known).
+- **Open**: LumiZip 1.0 resets the OS 3.1 machine when it quits on Zune with the MUI 3.8 identity
+  (4 of 4 suite runs, `lean`'s library too), never with MUI 5 forced, never on MUI 3.8 or MUI 5;
+  three quits by hand with `trapcap` running were clean and the suite run with trapcap recorded no
+  exception and no alert. Cause not found.
+- **Seen, not done** (MUI 4/5 look and features left for later, with what uses them):
+  Title's tabs are flat boxes where MUI 5 draws register tabs, and the demo's animated
+  "throbber" Pixmap does not show on the 4-colour screen; List's sort mark on a SORTABLE
+  column's title (MUI 5 List1); MUIM_FindObject (IBrowse 3.0a uses it), MUIA_FrameDynamic and
+  MUIA_FrameVisible (YAM 2.10dev), MUIM_Mccprefs_RegisterGadget (the popup menu on mcp
+  gadgets: YAM's and IBrowse's mcps; harmless without it), MUIA_Application_UseScreenNotify
+  (LumiZip), MUIM_Application_BuildSettingsPanel (Animals' settings). Found by scanning the
+  programs' executables for the SDK's ids that Zune's sources lack (a hint, not a trace).
+
+Tools on the way (not committed; in this session's /tmp/mui45/scripts): a side-by-side crop of a
+program's windows from two suite runs, the id scan, a LoadSeg logger that survives reboots.
 
 ## Left open
 

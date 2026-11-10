@@ -113,8 +113,12 @@ never redistributed, never committed). `ID` is the name in `programs.sh`.
 ### Programs that need or want MUI 4/5 (group mui5)
 
 Programs that run *only* on MUI 4/5 on a 68k Amiga are rare: of the candidates read, only
-DizzyTorrent asks for MUI 3.9+; the others need 3.8 and use MUI 4/5 features where present. They
-are run on MUI 5 (and on Zune) for the MUI 4/5 phase.
+DizzyTorrent and PassPocket ask for MUI 3.9+; the others need 3.8 and use MUI 4/5 features where
+present. MUI 5's own demos (15 of them, the ones MUI 3.8 does not have) cover MUI 5's classes and
+features directly. All are run on MUI 5 (and on Zune) for the MUI 4/5 phase. Which version each
+asks for (snooped, 2026-11-10): the MUI 5 demos and PassPocket 20 (Zune's Automatic: MUI 4),
+DizzyTorrent 20, YAM 2.10dev, IBrowse 3.0a, AmigaGPT, MQTTExplorer and TabGroup-Demo 19, LumiZip
+11, Ticklish 0 (all MUI 3.8 under Automatic).
 
 | ID | program | version | where from | licence | needs |
 |---|---|---|---|---|---|
@@ -123,6 +127,21 @@ are run on MUI 5 (and on Zune) for the MUI 4/5 phase.
 | dizzytorrent | DizzyTorrent (BitTorrent) | 2.22 | Aminet comm/tcp/dizzytorrent2.lha | BSD-style | MUI 3.9+, 68020, 8 MB fast |
 | amigagpt | AmigaGPT (AI chat) | 3.4.0 | Aminet util/misc/AmigaGPT.lha | MIT | MUI 3, "MUI 5 recommended for all features"; Aboutbox, Guigfx, ActionTextEditor, AudioPlayer |
 | mqttexplorer | MQTTExplorer | 0.3 | Aminet comm/net/MQTTExplorer.lha | freeware | MUI 3.8+/4.x, Listtree |
+| mui5-aboutbox ... mui5-title (15) | MUI 5's own demos that MUI 3.8 does not have: Aboutbox, Animals, Calltips, Class4, Clock, ElidedText, EmbeddedImages, GIFAnim, Hyperlink, LayGroup, List1, MenuImages, Pointers, Textdata, Title | MUI 5.0-20210831 | github.com/amiga-mui/muidev releases, MUI-5.0-20210831-os3.lha (`MUI/Demos`; `SDK/MUI` has their sources and the autodocs) | MUI 5's (free download) | MUI 5 classes and features: Aboutbox, Calltips, Clock, Hyperlink, LayGroup, GIFAnim, Process, Pixmap/Rawimage (bzip2, Z), elided text, editable and sortable lists, menu images, pointer types, Textdata, Title (draggable tabs) |
+| passpocket | PassPocket (passwords) | 1.1 | Aminet util/misc/PassPocket.lha | freeware, source included | MUI 3.9+ (resets MUI 3.8 at quit), 68020, TextEditor |
+| ticklish | Ticklish (to-do list, made with Hollywood) | 1.1.1 | Aminet util/misc/Ticklish_m68k.lha | freeware | MUI 3.8, MUI 5 for button icons; on the AGA test machines it stops at "Error allocating bitmap!" on every target |
+| tabgroup-demo | TabGroup demo | MCC_TabGroup 19.2 (2026) | Aminet dev/mui/MCC_TabGroup.lha | open source (in the archive) | TabGroup.mcc: a Register subclass with draggable tabs; MUI 3.8+ |
+| lumizip | LumiZip (7-Zip archiver) | 1.0 (2026) | Aminet util/arc/LumiZip.lha | freeware | MUI 3.8+, NList, TheBar, codesets; asks for muimaster v11 |
+
+Added 2026-11-10 (branch `mui45`): found with Aminet's readme search
+(`aminet.net/search?readme=MUI+5&arch[]=m68k-amigaos`, also "MUI 4", "MUI 3.9") and MUI 5's
+own demos. Looked at and left out then: SonosController, LumiGram, ZodiTV, AmiAuthenticator
+(AmiSSL 5 needed, none on the test machines), OWB-m68k 2.1 (68020+FPU, RTG, 256 MB+),
+EmojiGear 6.1 (13 MB, OS 3.2 first), AmiNetRadio 4 (skinned player), EvenMore (MUI 3.8 only),
+Lupe (not MUI). MUI 5's LayGroup and GIFAnim classes: MUI 5 brings its own (kept on the mui5
+target); Zune and MUI 3.8 get the classic Aminet ones (dev/mui/MCC_LayGroup-19.2.lha,
+dev/mui/MCC_GIFAnim.lha), as a user of those would install them. TabGroup.mcc goes to every
+target.
 
 Looked at and left out: Executive 2.10 (its program is packed inside its installer), Daywatch 1.2
 (the archive unpacks with broken names), MysticView (not a MUI program), AmigaAMP (skinned,
@@ -146,6 +165,8 @@ not MUI; its MUI preferences are in), Voyager (no longer downloadable), AnArchiv
 | Newstring, StringHistory, TextHistory, IBCacheBrowser | IBrowse 2.5.9's archive | IBrowse's |
 | Guigfx, guigfx.library, render.library | MCC_Guigfx (Aminet) | freeware |
 | ActionTextEditor, AudioPlayer | AmigaGPT's archive | MIT |
+| TabGroup (+ mcp) 19.2 | MCC_TabGroup (Aminet) | open source |
+| LayGroup (+ mcp) 19.2, GIFAnim 19.5 | Aminet dev/mui/MCC_LayGroup-19.2.lha, MCC_GIFAnim.lha (Zune and MUI 3.8; MUI 5 keeps its own) | freeware |
 | codesets.library 6.22 | Aminet util/libs/codesets-6.22.lha | LGPL |
 | expat.library | SimpleMail's archive | MIT |
 
@@ -356,6 +377,21 @@ were run again alone. MUI 4/5 group: 5 of 5 the same as `diffs`' (`s5`). Memory:
 160-224 bytes more per program (the ARexx port; MUI 3.8 makes it too), second runs within 112 bytes.
 Seen, not changed: AmTelnet's empty Server string shows its cursor on Zune, not on MUI 3.8. Results:
 `/tmp/leftovers/zwork/suite-real/fm3` (MUI 3 group) and `fm5` (MUI 4/5).
+
+**Update, branch `mui45` (2026-11-10, phase 6, MUI 4/5 side):** the MUI 4/5 group widened to 24
+entries (above) and baselined on MUI 5 and on Zune with Automatic and with MUI 5 forced; the
+whole table, what was fixed and what is left in docs/lean/README.md ("MUI 4/5 programs: a wider
+test set"). In short: on Zune before, MUI 5's Hyperlink, GIFAnim and LayGroup demos ended at once
+and EmbeddedImages could not unpack its "Z" pictures, ElidedText opened cut, the TabGroup demo
+showed empty tab groups (a MUI 3.8 bug in Group: fixed), Pointers fitted MUI 3.8's way where MUI 5
+scrolls; now all open, and with MUI 5 forced Pointers and EmbeddedImages get MUI 5's scrollable
+window. LumiZip resets the machine at quit on Zune with the MUI 3.8 identity only (open). The MUI 3
+group with the branch's library: 35 of 36 as `lean`'s run (SimpleMail windowless as always), no
+MUI 4/5 file loaded (LoadSeg trace), memory the same (runs without a trace attached: `wasabi
+snoop` running during a run adds to the in-use figures, AmigaGPT +110 KB). The suite now waits 150 s
+for EmbeddedImages and finds its window by title (its task name is longer than `wasabi` shows).
+Results: `/tmp/mui45/zwork/suite-real/` m5a/m5b (MUI 5), za/zb and z5a/z5b (Zune before, Automatic
+and MUI 5), fa/fb and z5f (after), n3a/n3b and f3a/f3b (MUI 3 group, with `.loadseg` traces).
 
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second
