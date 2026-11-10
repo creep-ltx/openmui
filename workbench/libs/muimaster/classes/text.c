@@ -820,9 +820,13 @@ IPTR Text__MUIM_AskMinMax(struct IClass *cl, Object *obj,
      * SimpleButton "Button" in topaz 8 is 56 = 48 + 2+2 thick frame +
      * 2+2 spacing). Without a minimum, the default content width is
      * three 'W' glyphs. */
-    if ((data->mtd_Flags & MTDF_SETMIN) && !data->shorten)
+    /* MUI 5's elided text (MUIA_Text_Shorten, which MUI 3 programs never
+     * set) has no minimum but the whole text as its default (measured with
+     * MUI 5's ElidedText demo: the window opens with every line whole). */
+    if ((data->mtd_Flags & MTDF_SETMIN) || data->shorten)
     {
-        msg->MinMaxInfo->MinWidth += data->ztext->width;
+        if (!data->shorten)
+            msg->MinMaxInfo->MinWidth += data->ztext->width;
         msg->MinMaxInfo->DefWidth += data->ztext->width;
     }
     else
