@@ -33,7 +33,7 @@ all: $(BUILD)/Libs/MUI/Rawimage.mcc $(BUILD)/Libs/MUI/Pixmap.mui \
 $(OBJ)/rawimage.o: library.c $(RAW)/Rawimage.c $(RAW)/Rawimage_private.h
 	@mkdir -p $(@D)
 	$(CC) $(FLAGS) -DBUILD_RAWIMAGE -MMD -MP -c $< -o $@
-$(OBJ)/pixmap.o: library.c $(MASTER)/classes/pixmap.c $(MASTER)/classes/pixmap_private.h
+$(OBJ)/pixmap.o: library.c $(MASTER)/classes/pixmap.c $(MASTER)/classes/pixmap_private.h $(MASTER)/classes/zinflate.c
 	@mkdir -p $(@D)
 	$(CC) $(FLAGS) -MMD -MP -c $< -o $@
 $(OBJ)/listtree.o: listtree_library.c $(wildcard $(LISTTREE)/*.[ch])
@@ -83,7 +83,7 @@ $(BUILD)/Libs/MUI/Listtree.mcc: $(OBJ)/listtree.o $(OBJ)/format.o
 	$(CC) $(CPUFLAGS) -noixemul -nostdlib -o $@ $^ -Wl,--start-group -lmui -lgcc -lnix20 -lnix -lamiga -ldebug -Wl,--end-group
 # AROS classes whose library envelope is generated from their .conf file.
 ZUNE := $(ROOT)/workbench/classes/zune
-CLASS_NAMES := Aboutbox AboutWindow Calendar Clock Flexgroup Graph IconImage \
+CLASS_NAMES := Aboutbox AboutWindow Calendar Clock Flexgroup Graph Hyperlink IconImage \
  Lamp LoginWindow PrefsEditor PrefsWindow QRCode SystemPrefsWindow
 CLASS_BINS := $(CLASS_NAMES:%=$(BUILD)/Libs/MUI/%.mcc)
 CLASS_HEADERS := iconimage prefseditor prefswindow qrcode
@@ -137,6 +137,7 @@ $(eval $(call CLASS_RULE,Calendar,calendar))
 $(eval $(call CLASS_RULE,Clock,clock))
 $(eval $(call CLASS_RULE,Flexgroup,flexgroup))
 $(eval $(call CLASS_RULE,Graph,graph))
+$(eval $(call CLASS_RULE,Hyperlink,hyperlink))
 $(eval $(call CLASS_RULE,IconImage,iconimage))
 $(eval $(call CLASS_RULE,Lamp,lamp))
 $(eval $(call CLASS_RULE,LoginWindow,loginwindow,,-Wno-int-conversion))

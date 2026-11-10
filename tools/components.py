@@ -30,7 +30,7 @@ PLUGINS = {
 }
 IMAGE_CLASSES = ('Rawimage.mcc', 'Pixmap.mui', 'Listtree.mcc', 'Busy.mcc',
                  'Calltips.mcc', 'Textinput.mcc', 'Textinputscroll.mcc', 'Aboutbox.mcc', 'AboutWindow.mcc', 'Calendar.mcc',
-                 'Clock.mcc', 'Flexgroup.mcc', 'Graph.mcc', 'IconImage.mcc',
+                 'Clock.mcc', 'Flexgroup.mcc', 'Graph.mcc', 'Hyperlink.mcc', 'IconImage.mcc',
                  'Lamp.mcc', 'LoginWindow.mcc', 'PrefsEditor.mcc', 'PrefsWindow.mcc',
                  'QRCode.mcc', 'SystemPrefsWindow.mcc')
 CLASS_FILES = (*PLUGINS.values(), *IMAGE_CLASSES)
@@ -127,7 +127,8 @@ def sdk(build):
     copy(CLASSES / 'rawimage/Rawimage_mcc.h', build / 'SDK/include/mui/Rawimage_mcc.h')
     copy(CLASSES / 'listtree/Listtree_mcc.h', build / 'SDK/include/mui/Listtree_mcc.h')
     copy(CLASSES / 'busy/Busy_mcc.h', build / 'SDK/include/mui/Busy_mcc.h')
-    for path in ('calltips/Calltips_mcc.h', 'aboutbox/Aboutbox_mcc.h', 'lamp/Lamp_mcc.h'):
+    for path in ('calltips/Calltips_mcc.h', 'aboutbox/Aboutbox_mcc.h', 'lamp/Lamp_mcc.h',
+                 'hyperlink/Hyperlink_mcc.h'):
         copy(CLASSES / path, build / 'SDK/include/mui' / Path(path).name)
     for name in ('aboutwindow', 'calendar', 'clock', 'flexgroup', 'graph', 'iconimage',
                  'loginwindow', 'prefseditor', 'prefswindow', 'qrcode',
