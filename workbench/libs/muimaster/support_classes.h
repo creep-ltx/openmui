@@ -156,6 +156,12 @@ IPTR builtinDispatcher(Class *cl __asm("a0"),
 #   define ZUNE_MCCPREFS_DESC
 #endif
 
+#if ZUNE_BUILTIN_SETTINGS
+#   define ZUNE_SETTINGS_DESC (&_MUI_Settings_desc),
+#else
+#   define ZUNE_SETTINGS_DESC
+#endif
+
 #if ZUNE_BUILTIN_SETTINGSGROUP
 #   define ZUNE_SETTINGSGROUP_DESC (&_MUI_Settingsgroup_desc),
 #else
