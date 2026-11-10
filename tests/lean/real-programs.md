@@ -344,6 +344,19 @@ the same day (windows and memory). Note: the `zune5` reference in `~/.cache/zune
 `lean`. Results: `/tmp/diffs/zwork/suite-real/fin` (MUI 3 group), `s5` and `l5` (MUI 4/5, this branch
 and `lean`).
 
+**Update, branch `leftovers` (2026-11-10):** AmIRC's and AmTelnet's logos (Bitmap objects of the
+programs' own 5-plane bitmaps) are drawn now (Bitmap's remap used a one-plane temporary row for
+ReadPixelLine8); the ARexx port is made with the application (AMTELNET.1 and the others answer
+`wasabi arexx PORT QUIT` as on MUI 3.8; before, a host's own message was replied unread). MUI 3 group
+on the final library: **35 of 36 behave as on MUI 3.8** (the comparison script counts 32: SimpleMail had
+no window, run twice, as before; IBrowse 2.5.9 frozen and AmTelnet reset at the second quit, FS-UAE's,
+see below; MultiRen's MUI 3.8 run "still running after quit"); against `diffs`' run 34 the same, YAM 2.5
+without its date-driven "Update notification" now. AmTelnet ("exited" once in the full run) and SimpleMail
+were run again alone. MUI 4/5 group: 5 of 5 the same as `diffs`' (`s5`). Memory: first runs from boot
+160-224 bytes more per program (the ARexx port; MUI 3.8 makes it too), second runs within 112 bytes.
+Seen, not changed: AmTelnet's empty Server string shows its cursor on Zune, not on MUI 3.8. Results:
+`/tmp/leftovers/zwork/suite-real/fm3` (MUI 3 group) and `fm5` (MUI 4/5).
+
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second
 run minus in-use after it: a *negative* figure is memory the second run left in use, a positive one

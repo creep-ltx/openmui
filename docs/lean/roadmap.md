@@ -173,3 +173,12 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   Listviews window (2 px), the group spare-pixel distribution, the ARexx port made at once, AmIRC's and
   AmTelnet's logos. Details in
   [README.md](README.md#the-suites-last-differences-against-mui-38-2026-11-07).
+- *2026-11-10 (branch `leftovers`)*: three of the four done, measured black-box: the ARexx port made in
+  OM_NEW as MUI 3.8 (and commands from any host, not only from ARexx, with MUI 3.8's -3/-4 answers), AmIRC's
+  and AmTelnet's logos drawn (Bitmap's and Bodychunk's temporary row had one plane), MUI-Demo's Listviews
+  window 292 wide (a List's inner spacing inside its frame, Volumelist's 4 on the left). The group
+  spare-pixel rule: a model that fits 1,308 of 1,312 measured rows (`tools/lean/groupfit.py`) was built
+  and taken out again, because MUI-Demo's Groups window and the Pages demo then differed; the
+  counter-example is measured. Left: that, the Listviews window's column widths and assign image.
+  Details in
+  [README.md](README.md#the-leftovers-arexx-port-logos-listviews-group-spare-pixels-2026-11-10).

@@ -1260,6 +1260,93 @@ FS-UAE as before), MUI 4/5 group 5 of 5 as `lean`'s. Details in
 [tests/lean/real-programs.md](../../tests/lean/real-programs.md),
 "Update, branch `diffs`".
 
+## The leftovers: ARexx port, logos, Listviews, group spare pixels (2026-11-10)
+
+Branch `leftovers`, the four items left open by `diffs`, measured
+black-box on FS-UAE `a1200-31-mui38` (and `a1200-32-mui5` where Zune
+follows the program's MUI) with probes in `tests/lean/probe/`:
+
+| item | MUI 3.8 (measured) | cause in Zune | fix |
+|---|---|---|---|
+| ARexx port | made by OM_NEW, named as MUIA_Application_Base reads back (LOWBASE.1, LOWBASE.2; SINGLE for a single-task one), also without Commands or a RexxHook; none with MUIA_Application_UseRexx FALSE; gone after dispose; the name is not checked against other programs' ports (a foreign PREBASE.1 gives a second PREBASE.1) (`rexxport.c`) | the port was made only with Commands or a RexxHook | made unless UseRexx FALSE |
+| ARexx commands | a host's own CreateRexxMsg (`wasabi arexx PORT QUIT`) runs; a command it does not know answers -3, a bad INFO item or missing argument -4 | `IsRexxMsg()` is TRUE only for messages ARexx itself sent: every other host's command was replied unread (QUIT did nothing); unknown commands answered 10 | any RXCOMM message runs; -3 and -4 as MUI 3.8 |
+| AmIRC's and AmTelnet's logos | drawn | Bitmap's remap read the source with ReadPixelLine8 through a one-plane temporary rastport; the graphics autodoc wants "a copy of rp", a plane for each: on OS 3.1 a 5-plane logo came out in pens 0 and 1 (grey with a few white dots) | the temporary row gets the source's depth (Bodychunk had the same one-plane row for WritePixelLine8) |
+| MUI-Demo's Listviews window | 292 wide | a List's MUIA_InnerLeft replaces its frame's inner spacing on MUI 3.8, and a Volumelist has InnerLeft 4 unless given, with or without a frame (`vlinner.c`: add 6/4/2/4 for InputListFrame, + InnerLeft 2, + InnerLeft 0, no frame); MUI 5 has neither | for MUI 3 programs a List's inner spacing goes to its entry area (where Zune's frame is) and Volumelist asks for 4 on the left |
+
+AmTelnet's logo tags were logged with `tagspy` (now `tagspy TAG...`):
+a Bitmap of its own 50x37 5-plane chip BitMap, 32 SourceColors,
+Precision 0; `bmlogo.c` makes the same and is pixel-identical with MUI
+3.8 now. The Listviews window is 292x199 as on MUI 3.8 (6,227 differing
+pixels -> 1,136): what is left is the lists' column widths (MUI 3.8 shows
+the start of the Dirlist's date column and three letters of each volume,
+Zune none and two) and the assign image.
+
+Not matched (seen): with four applications in one task MUI 3.8 refuses a
+fifth, single-task one, and Zune gives a sixth no port (both look like
+running out of signal bits: *proposed*); MUI 3.8's INFO TITLE and VERSION
+of an application without them give "Unnamed" and "$VER: Unnamed 0.0",
+Zune "?".
+
+**Group spare pixels: a rule for the test groups, not yet for every
+group.** Fitted against `hdist-mui38.txt` and `vdist-mui38.txt` with a
+script trying variants of MUI 3.9's way (which Zune has: 95 of the 644
+rows off), then checked on two more MUI 3.8 runs of `tests/native/hdist.c`
+made for it (`hdist s`/`vs`: the children 4 apart, `hdist d`/`vd`: the
+window at its default size; `*-s4-mui38.txt`, `*-def-mui38.txt`). The
+model, `tools/lean/groupfit.py`, gets 1,308 of the 1,312 rows:
+
+1. First split: every child gets its weight's share of the whole,
+   truncated (Zune: of what the children before it left), of the group's
+   space less **twice** the minimum of each child of weight 0.
+2. MUI 3.9's passes: clamp every child, give each child that can move its
+   weight's share of the remainder over all children's weight, truncated;
+   eight times.
+3. Up to eight more passes that give **each** child that can move one
+   pixel towards the remainder (so with equal weights the free children
+   come out equal and a clamped child takes the odd pixel: `maxed` 345 is
+   39 153 153, its max-40 child one below its maximum; `mins` 207 is
+   54 53 100).
+4. The rest a pixel at a time from the last child back.
+
+Built into Zune (commit 0d821437) it gave the same 642 of 644 rows on
+FS-UAE, Balancing came closer (1,085 differing pixels -> 204), but
+MUI-Demo's Groups window (0 -> 2,113) and the Pages demo (0 -> 952) then
+differed, Subtask more (450 -> 1,031): demopix 16 of 27 instead of 18, so
+it was taken out again (3946c1cb). The counter-example, measured
+(`groups-objdump-mui38.txt`): Groups' root VGroup, 186 pixels for four
+children of weight 100 (Listview min 34 def 76; "Group Types" min = def
+52; two rows fixed at 29): MUI 3.8 gives 46 82 29 29, the model 61 67 29
+29, Zune's MUI 3.9 way the same as MUI 3.8. 46 is the Listview's first
+share (186 / 4) and the "Group Types" child takes all the rest, so here
+the remainder is not shared by weight at all. Next: test groups with two
+fixed children and one clamped at its minimum, and nested frames.
+Things tried that fit fewer rows: plain proportional with the rest to the
+last or first child, sequential shares from the first or the last child,
+floor instead of truncation for negative remainders (fits `mins`, breaks
+`fix0`), the remainder over the movable children's weight only, one
+extra pixel pass that stops at zero.
+
+Stack (`-fstack-usage` against `lean`, the changed files): no function
+grew. Bitmap's setup 320 -> 316; List_InnerToArea 16 is new, not inlined,
+called from List's OM_NEW, whose frame is unchanged. (The group rule,
+taken out again, had cost Layout1D_mui_redistrib 48 -> 52.)
+
+Checks (FS-UAE, the final library of the branch): `make check` passes
+(the ARexx harness now sends RXCOMM messages and expects -3 for a command
+nobody knows); fullcheck: MUI-Demo's 8 sub-windows and the 18 other demos
+open and close, no alert, lost bytes as before (608, 200, AppWindow 264);
+demopix: 18 of 27 windows pixel-identical with MUI 3.8 (Listviews now the
+same size, 6,227 -> 1,136 differing pixels; Layout 3,321 -> 3,154); suite
+MUI 3 group: 35 of 36 as on MUI 3.8 (SimpleMail windowless in FS-UAE as
+before; IBrowse 2.5.9's frozen and AmTelnet's reset second quit and
+MultiRen's "still running" are the known FS-UAE and quit differences),
+AmIRC's and AmTelnet's logos drawn; MUI 4/5 group: 5 of 5 as `diffs`'
+run. Memory: each program's first run from boot 160-224 bytes more (its
+ARexx port, which MUI 3.8 has too), second runs within 112 bytes. Library
+file (stripped): 271,256 bytes. Details in
+[tests/lean/real-programs.md](../../tests/lean/real-programs.md),
+"Update, branch `leftovers`".
+
 ## Left open
 
 - **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
