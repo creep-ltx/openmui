@@ -1333,6 +1333,16 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 MADF2_KNOWSDISABLED);
             break;
 
+        case MUIA_FrameVisible:
+            _handle_bool_tag(data->mad_Flags2, !tag->ti_Data,
+                MADF2_FRAMEHIDDEN);
+            break;
+
+        case MUIA_FrameDynamic:
+            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
+                MADF2_FRAMEDYNAMIC);
+            break;
+
         case MUIA_Draggable:
             _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_DRAGGABLE);
             break;
@@ -1649,6 +1659,18 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_KnowsDisabled:
             _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
                 MADF2_KNOWSDISABLED);
+            break;
+
+        case MUIA_FrameVisible:
+            _handle_bool_tag(data->mad_Flags2, !tag->ti_Data,
+                MADF2_FRAMEHIDDEN);
+            if (_flags(obj) & MADF_CANDRAW)
+                MUI_Redraw(obj, MADF_DRAWOBJECT | MADF_DRAWFRAME);
+            break;
+
+        case MUIA_FrameDynamic:
+            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
+                MADF2_FRAMEDYNAMIC);
             break;
 
         case MUIA_Frame:
@@ -2038,6 +2060,14 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 
     case MUIA_KnowsDisabled:
         STORE = !!(data->mad_Flags2 & MADF2_KNOWSDISABLED);
+        return TRUE;
+
+    case MUIA_FrameVisible:
+        STORE = !(data->mad_Flags2 & MADF2_FRAMEHIDDEN);
+        return TRUE;
+
+    case MUIA_FrameDynamic:
+        STORE = !!(data->mad_Flags2 & MADF2_FRAMEDYNAMIC);
         return TRUE;
 
     case MUIA_Draggable:
@@ -2714,6 +2744,7 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
     struct TextFont *obj_font = NULL;
     ULONG flags = data->mad_Flags & MADF_DRAWFLAGS;
     BOOL drawframe, frameonly = FALSE;
+    ULONG hidden;
 
     // APTR areaclip;
 
@@ -2768,6 +2799,9 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
     drawframe = (flags & (MADF_DRAWFRAME | MADF_DRAWALL)) ||
         zframe->customframe || zframe->border_radius > 0 ||
         (data->mad_Flags & MADF_FRAMEPHANTOM) || data->mad_FrameTitle;
+    /* MUIA_FrameVisible FALSE (MUI 4/5): drawn as a phantom frame, which
+     * keeps its room and paints its background where the frame would be */
+    hidden = data->mad_Flags2 & MADF2_FRAMEHIDDEN;
 
     /* Background drawing */
     if (frameonly)
@@ -2777,7 +2811,7 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
             drawframe);
 
     /* Frame and frametitle drawing; only a title needs the title font */
-    if (drawframe && !(data->mad_Flags & MADF_FRAMEPHANTOM)) {
+    if (drawframe && !(data->mad_Flags & MADF_FRAMEPHANTOM) && !hidden) {
         if (data->mad_FrameTitle) {
             obj_font = _font(obj);
             _font(obj) = zune_font_get(obj, MUIV_Font_Title);

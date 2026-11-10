@@ -472,6 +472,10 @@ struct MUIP_CreateFrameClippingRegion
     (MUIB_MUI | 0x004294a3)   /* MUI: V4  is. BOOL              */
 /* The object draws its own disabled look; MUI must not ghost it (TheBar's
  * buttons set it) */
+#define MUIA_FrameDynamic \
+    (MUIB_MUI | 0x004223c9)     /* MUI: V20 isg BOOL */
+#define MUIA_FrameVisible \
+    (MUIB_MUI | 0x00426498)     /* MUI: V20 isg BOOL */
 #define MUIA_KnowsDisabled \
     (MUIB_MUI | 0x0042deef)   /* MUI: V20 isg BOOL              */
 #define MUIA_FixHeight \
@@ -678,6 +682,8 @@ struct MUI_AreaData
 #define MADF2_BGCHECKED        (1UL << 4) /* PRIV: MADF2_BUILTINBG is valid */
 #define MADF2_BUILTINBG        (1UL << 5) /* PRIV: all classes down to Area built-in */
 #define MADF2_KNOWSDISABLED    (1UL << 6) /* MUIA_KnowsDisabled: do not ghost */
+#define MADF2_FRAMEHIDDEN      (1UL << 7) /* MUIA_FrameVisible FALSE (MUI 4/5) */
+#define MADF2_FRAMEDYNAMIC     (1UL << 8) /* MUIA_FrameDynamic (MUI 4/5): kept only */
 /* mad_DisableCount's MUIA_Disabled bit (the field is a UWORD: (1 << 31)
  * fell off it, so no object was ever disabled by MUIA_Disabled) */
 #define AREA_DISABLED_SELF     0x8000
