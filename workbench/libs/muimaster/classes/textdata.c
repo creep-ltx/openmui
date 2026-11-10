@@ -105,7 +105,17 @@ static APTR basic_convert(struct TextdataData *d, ULONG from, ULONG to)
     while (s < end)
     {
         if (!decode(&s, end, from, &c)) { FreeVec(result); return NULL; }
-        if (to == 4) *out++ = c <= 255 ? c : '?';
+        if (to == 4)
+        {
+            /* MUI 5 shows typographic quotes and dashes as their ASCII
+             * look-alikes in Latin-1 (its Textdata demo: U+2018 U+2019 as
+             * ` and '), everything else outside Latin-1 as '?' */
+            /* U+2013 ... U+201D */
+            static const UBYTE punct[] = "--\0\0\0`'\0\0\"\"";
+            if (c >= 0x2013 && c <= 0x201d && punct[c - 0x2013])
+                c = punct[c - 0x2013];
+            *out++ = c <= 255 ? c : '?';
+        }
         else if (to == 106)
         {
             if (c < 128) *out++ = c;
