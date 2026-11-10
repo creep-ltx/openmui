@@ -147,11 +147,24 @@ struct ZuneWintitleModule
     void (*create)(struct Window *, ULONG, LONG, struct Gadget **,
         Class **);
     int (*menu)(struct Window *, struct DrawInfo *, struct Gadget *, BOOL);
+    Object *(*scrollwrap)(Object *, ULONG);
 };
 void zune_wintitle_create(struct Window *win, ULONG buttons, LONG right,
     struct Gadget **gadgets, Class **clp);
 int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
     struct Gadget *popup, BOOL has_id);
+/* MUI 5's scrollable window contents (MUI 5 ChangeLog, 2018-04-03): a
+ * window larger than the screen gets its root object inside a Scrollgroup
+ * with a Virtgroup. ZUNE_SW_WRAP: for the given window (its root not set
+ * up), the new root (the Scrollgroup, connected to the window), or NULL
+ * (the root is then untouched); ZUNE_SW_UNWRAP: take
+ * the original root out of the given Scrollgroup, dispose the Scrollgroup,
+ * return the root; ZUNE_SW_PEEK: the original root. In the title gadget
+ * module (loaded only for a MUI 5 program's too large window). */
+#define ZUNE_SW_WRAP 0
+#define ZUNE_SW_UNWRAP 1
+#define ZUNE_SW_PEEK 2
+Object *zune_window_scrollwrap(Object *obj, ULONG op);
 /* in classes/window.c: is the window object asleep (MUIA_Window_Sleep) */
 BOOL zune_window_sleeping(Object *win);
 

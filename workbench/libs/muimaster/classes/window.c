@@ -1239,6 +1239,8 @@ struct MUI_WindowData
 #define MUIWF_ACTIVEEVENT       (1<<18) /* Reporting IDCMP_ACTIVEWINDOW */
 #define MUIWF_REFITPENDING      (1<<19) /* MUIM_Window_Refit pushed: the
                                          * contents outgrew the screen */
+#define MUIWF_SCROLLWRAP        (1<<20) /* the root is MUI 5's Scrollgroup
+                                         * around the program's root */
 
 /* Bubble help delays in IntuiTicks (1/10 s), from the settings as on
  * MUI 3.8 (2.0 s and 0.3 s by default); Zune used fixed 1.0 and 0.3 s */
@@ -4083,6 +4085,12 @@ static __attribute__((noinline)) void ChangeRootObject(struct MUI_WindowData *da
                 set(obj, MUIA_Window_ActiveObject,
                     MUIV_Window_ActiveObject_None);
             DoMethod(oldRoot, MUIM_DisconnectParent);
+            /* MUI 5 disposes the Scrollgroup it added (its ChangeLog) */
+            if (data->wd_Flags & MUIWF_SCROLLWRAP)
+            {
+                zune_window_scrollwrap(oldRoot, ZUNE_SW_UNWRAP);
+                data->wd_Flags &= ~MUIWF_SCROLLWRAP;
+            }
         }
 
         data->wd_RootObject = newRoot;
@@ -5123,6 +5131,9 @@ IPTR Window__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 
     case MUIA_Window_RootObject:
         STORE = (IPTR) data->wd_RootObject;
+        if (data->wd_Flags & MUIWF_SCROLLWRAP)
+            STORE = (IPTR) zune_window_scrollwrap(data->wd_RootObject,
+                ZUNE_SW_PEEK);
         return TRUE;
 
     case MUIA_Window_ScreenTitle:
@@ -5636,12 +5647,24 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
     while (!WindowFits(data))
     {
         struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
+        Object *sg = NULL;
 
         DoMethod(data->wd_RootObject, MUIM_Cleanup);
         CloseRenderInfoFonts(mri);
-        if (mri->mri_Fallback >= FALLBACK_TOPAZ
-            || (++mri->mri_Fallback,
-                !DoSetupMethod(data->wd_RootObject, mri)))
+        /* MUI 5 (its ChangeLog, 5.0-2018R1) first puts the contents into a
+         * scrollable virtual group, for this window only, the stages being
+         * the fallback; only for a program that gets MUI 5, the code in the
+         * title gadget module */
+        if (MGI_IDENTITY(muiGlobalInfo(obj)) == ZUNE_ID_MUI5
+            && !(data->wd_Flags & MUIWF_SCROLLWRAP)
+            && (sg = zune_window_scrollwrap(obj, ZUNE_SW_WRAP)))
+        {
+            data->wd_RootObject = sg;
+            data->wd_Flags |= MUIWF_SCROLLWRAP;
+        }
+        if ((!sg && (mri->mri_Fallback >= FALLBACK_TOPAZ
+                || (++mri->mri_Fallback, FALSE)))
+            || !DoSetupMethod(data->wd_RootObject, mri))
         {
             DoMethod(obj, MUIM_Window_Cleanup);
             CleanupWindowSetup(data);

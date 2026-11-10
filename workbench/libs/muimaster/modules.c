@@ -468,6 +468,15 @@ void zune_wintitle_create(struct Window *win, ULONG buttons, LONG right,
     zune_module_put(cl);
 }
 
+Object *zune_window_scrollwrap(Object *obj, ULONG op)
+{
+    MODULE(ZuneWintitleModule, ZMOD_WINTITLE);
+    Object *result = m ? m->scrollwrap(obj, op) : NULL;
+
+    zune_module_put(cl);
+    return result;
+}
+
 int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
     struct Gadget *popup, BOOL has_id)
 {
