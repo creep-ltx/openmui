@@ -181,6 +181,9 @@ typedef void (*VOID_FUNC)(void);
 #ifndef ZUNE_BUILTIN_POPPEN
 #define ZUNE_BUILTIN_POPPEN 1
 #endif
+#ifndef ZUNE_BUILTIN_MCCPREFS
+#define ZUNE_BUILTIN_MCCPREFS 1
+#endif
 #ifndef ZUNE_BUILTIN_PROCESS
 #define ZUNE_BUILTIN_PROCESS 1
 #endif
