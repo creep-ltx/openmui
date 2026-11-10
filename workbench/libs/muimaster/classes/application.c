@@ -1722,8 +1722,10 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         }
     }
 
-    /* rexxsyslib.library is opened when the first message arrives. */
-    if (data->app_UseRexx)
+    /* rexxsyslib.library is opened when the first message arrives. No
+     * port when the settings switch ARexx off (System page). */
+    if (data->app_UseRexx
+        && data->app_GlobalInfo.mgi_Prefs->interfaces_enable_arexx)
     {
         data->app_RexxPort = CreateMsgPort();
         if (data->app_RexxPort)

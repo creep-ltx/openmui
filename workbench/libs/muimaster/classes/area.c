@@ -3975,6 +3975,49 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
  * change handler/timer registration and notify synchronously. Always return
  * Eat, including no-action paths. Do not reply or retain imsg.
  */
+#define DRAG_QUALIFIERS (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | \
+    IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL | IEQUALIFIER_LALT | \
+    IEQUALIFIER_RALT | IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND)
+
+/* The settings' drag qualifier (Navigation page, "Left Button") held, as
+ * commodities' MatchIX compares qualifiers, mouse buttons left aside */
+static BOOL drag_qualifier_held(const ZuneKeySpec *k, UWORD qual)
+{
+    UWORD want;
+
+    if (!k->ix_well)
+        return FALSE;
+    want = k->ix.ix_Qualifier & DRAG_QUALIFIERS;
+    qual &= DRAG_QUALIFIERS;
+    if (k->ix.ix_QualSame & IXSYM_SHIFT)
+    {
+        if (qual & IXSYM_SHIFTMASK) qual |= IXSYM_SHIFTMASK;
+        if (want & IXSYM_SHIFTMASK) want |= IXSYM_SHIFTMASK;
+    }
+    if (k->ix.ix_QualSame & IXSYM_ALT)
+    {
+        if (qual & IXSYM_ALTMASK) qual |= IXSYM_ALTMASK;
+        if (want & IXSYM_ALTMASK) want |= IXSYM_ALTMASK;
+    }
+    return want && (qual & want) == want;
+}
+
+/* How far the pointer must move with the left button held before a
+ * draggable object starts a drag, from the settings (Navigation page):
+ * the autostart distance, or one pixel with the drag qualifier held; 0:
+ * no drag. MUI 3.8's defaults: autostart on, 3 pixels, qualifier control. */
+static LONG drag_distance(Object *obj, UWORD qual)
+{
+    struct ZunePrefsNew *prefs = muiGlobalInfo(obj)->mgi_Prefs;
+
+    if (prefs->drag_left_button
+        && drag_qualifier_held(&prefs->drag_left_modifier, qual))
+        return 1;
+    if (prefs->drag_autostart)
+        return MAX(prefs->drag_autostart_length, 1);
+    return 0;
+}
+
 static IPTR event_motion(Class *cl, Object *obj, struct IntuiMessage *imsg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
@@ -3988,11 +4031,12 @@ static IPTR event_motion(Class *cl, Object *obj, struct IntuiMessage *imsg)
         BOOL in = _between(_left(obj), imsg->MouseX, _right(obj)) &&
                   _between(_top(obj), imsg->MouseY, _bottom(obj));
 
-        if (in) {
-            if ((data->mad_Flags & MADF_DRAGGABLE) &&
-                    ((abs(data->mad_Live->ClickX - imsg->MouseX) >= 3) ||
-                     (abs(data->mad_Live->ClickY - imsg->MouseY) >= 3)))
-                /* should be user configurable */
+        LONG dist;
+
+        if (in && (data->mad_Flags & MADF_DRAGGABLE)
+            && (dist = drag_distance(obj, imsg->Qualifier))) {
+            if ((abs(data->mad_Live->ClickX - imsg->MouseX) >= dist) ||
+                (abs(data->mad_Live->ClickY - imsg->MouseY) >= dist))
             {
                 if (data->mad_InputMode == MUIV_InputMode_RelVerify)
                     set(obj, MUIA_Selected, FALSE);
