@@ -14,6 +14,7 @@ from check_class_lifetime import low_memory, check_low_memory
 CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71100
 UTILITY, TAGS, MESSAGE, STORE = 0x72000, 0x73000, 0x73400, 0x73500
 MRI, WINDOW, INPUT = 0x74000, 0x75000, 0xd0000
+MODTABLE = 0x73800
 CONTENTS, MAXLEN, CURSOR = 0x80428ffd, 0x80424984, 0x80428b6c
 SELECT, UP, DOWN, LIST = 0xad001001, 0xad001008, 0xad001009, 0x80420fd2
 
@@ -37,6 +38,12 @@ class StringHarness(Harness):
         self.trap(INTUITION - 648, self.set_attrs)
         self.trap(EXEC - 624, self.copy)
         self.trap(EXEC - 630, self.copy)
+        # String's MUI 4/5 attributes are in the module Zmui45 (modules.h),
+        # built in here: the module lookup hands out its table
+        if '_zmod_string_mui45' in self.symbols:
+            self.mem.w32(MODTABLE, self.symbols['_zmod_area_mui45'])
+            self.mem.w32(MODTABLE + 4, self.symbols['_zmod_string_mui45'])
+            self.trap(self.symbols['_zune_module_get'], self.module_get)
         tags = [(MAXLEN, maxlen)]
         tags += [(UP, focus['up'])] if 'up' in focus else []
         tags += [(DOWN, focus['down'])] if 'down' in focus else []
@@ -100,6 +107,11 @@ class StringHarness(Harness):
         obj, tags = self.cpu.r_reg(8), self.cpu.r_reg(9)
         self.focus_events.append((obj, self.mem.r32(tags), self.mem.r32(tags + 4)))
         self.cpu.w_reg(0, 1)
+
+    def module_get(self):
+        clp = self.mem.r32(self.cpu.r_reg(15) + 8)
+        self.mem.w32(clp, 0)
+        self.cpu.w_reg(0, MODTABLE)
 
     def message(self, tags, method=0x103):
         flat = [word & 0xffffffff for pair in tags for word in pair] + [0, 0]

@@ -209,11 +209,19 @@ struct ZuneListModule
 /* MUI 4/5 attributes of the core classes that MUI 3 programs never use
  * (mui45.c). area: Area's MUIA_FrameVisible and MUIA_FrameDynamic; with
  * store set, OM_GET (TRUE when answered), else OM_NEW/OM_SET of value. */
+struct MUI_StringData;
+struct TagItem;
 struct ZuneMui45Module
 {
     IPTR (*area)(Object *, ULONG, IPTR, IPTR *);
+    IPTR (*string)(Object *, struct MUI_StringData *, ULONG,
+        struct TagItem *, IPTR *);
 };
 IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
+/* string: String's kept Textinput attributes and MUIA_String_Integer64
+ * (mui45.c says how) */
+IPTR zune_string_mui45(Object *obj, struct MUI_StringData *data, ULONG attr,
+    struct TagItem *tag, IPTR *store);
 
 /* Configdata's setters (configset.c): MUIM_Configdata_SetULong ...
  * SetString, with the defaults to compare with */

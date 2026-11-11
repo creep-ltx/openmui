@@ -3,10 +3,11 @@
  * modules.c under the names modules.h gives them. */
 
 #define zune_area_mui45 zmod_area_mui45
+#define zune_string_mui45 zmod_string_mui45
 #include "../mui45.c"
 
 static const struct ZuneMui45Module mui45_module = {
-    zmod_area_mui45
+    zmod_area_mui45, zmod_string_mui45
 };
 
 BOOPSI_DISPATCHER(IPTR, Zmui45_Dispatcher, cl, obj, msg)

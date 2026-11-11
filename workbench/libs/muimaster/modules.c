@@ -254,7 +254,9 @@ ZMC_CHECK(ZuneListModule, create_drag_image, 20);
 ZMC_CHECK(ZuneListModule, draw_sort_mark, 24);
 
 #define ZMC_OFS_ZuneMui45Module_area 0
+#define ZMC_OFS_ZuneMui45Module_string 4
 ZMC_CHECK(ZuneMui45Module, area, 0);
+ZMC_CHECK(ZuneMui45Module, string, 4);
 
 #define ZMC_OFS_ZunePrefsModule_configdata_set 0
 ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
@@ -470,6 +472,7 @@ ZMC(zune_list_draw_sort_mark, ZMOD_LIST, ZuneListModule, draw_sort_mark, 5,
 /* MUI 4/5 attributes of the core classes (mui45.c): only programs that
  * use them call these */
 ZMC(zune_area_mui45, ZMOD_MUI45, ZuneMui45Module, area, 4, 0);
+ZMC(zune_string_mui45, ZMOD_MUI45, ZuneMui45Module, string, 5, 0);
 
 /* Configdata's setters (configset.c): the prefs program's; without the
  * module a setting is not changed */

@@ -45,86 +45,8 @@
 
 extern struct Library *MUIMasterBase;
 
-struct MUI_StringData
-{
-    ULONG msd_Flags;
-    CONST_STRPTR msd_Accept;    /* MUIA_String_Accept */
-    CONST_STRPTR msd_Reject;    /* MUIA_String_Reject */
-    LONG msd_Align;
-    struct Hook *msd_EditHook;
-    Object *msd_AttachedList;
-    LONG msd_RedrawReason;
-
-    ULONG msd_useSecret;
-    /* Fields mostly ripped from rom/intuition/strgadgets.c */
-    STRPTR Buffer;              /* char container                   */
-    STRPTR SecBuffer;           /* Buffer for secret string         */
-    STRPTR VisualBuffer;        /* Pointer to either Buffer or SecBuffer */
-    ULONG BufferSize;           /* memory allocated                 */
-    ULONG NumChars;             /* string length                    */
-    ULONG BufferPos;            /* cursor (insert/delete) position  */
-    ULONG MarkPos;              /* cursor text marking start pos    */
-    LONG DispPos;               /* leftmost visible char            */
-    ULONG DispCount;            /* number of visible chars          */
-
-    ULONG OldClick_Sec;
-    ULONG OldClick_Micro;
-    ULONG NewClick_Sec;
-    ULONG NewClick_Micro;
-    WORD MultiClick;
-
-    WORD Columns;
-
-    struct MUI_EventHandlerNode ehn;
-    struct MUI_PenSpec_intern inactive_text;
-    struct MUI_PenSpec_intern active_text;
-    struct MUI_PenSpec_intern marked_text;
-    struct MUI_PenSpec_intern marked_bg;
-    struct MUI_PenSpec_intern cursor;
-
-    BOOL is_active;
-    STRPTR AckBuffer;           /* pointer to buffer of MUIA_String_Acknowledge */
-    Object *KeyUpFocus;
-    Object *KeyDownFocus;
-    CONST_STRPTR placeholder;
-    long long integer64;
-    Object *edit_menu;
-    /* Textinput marks are inclusive and independent of the cursor */
-    LONG TiMarkStart;
-    LONG TiMarkEnd;
-    ULONG TiPending;            /* TIP_* collected during input events */
-    LONG TiMinVal;
-    LONG TiMaxVal;
-    UWORD TiWordWrap;
-    UBYTE TiStyles;
-    UBYTE TiFont;
-    LONG MlTopLine;             /* Multiline: first visible line */
-    LONG MlLeftCol;             /* Multiline: first visible column */
-};
-
-#define MSDF_ADVANCEONCR    (1<<0)
-#define MSDF_LONELYEDITHOOK (1<<1)
-#define MSDF_MARKING            (1<<2)
-#define MSDF_KEYMARKING            (1<<3)
-#define MSDF_NOINPUT            (1<<4)
-#define MSDF_STAYACTIVE     (1<<5)
-#define MSDF_TIMARK         (1<<6)  /* with MSDF_MARKING: Textinput mark */
-#define MSDF_CHANGED        (1<<7)
-#define MSDF_TINOINPUT      (1<<8)
-#define MSDF_MULTILINE      (1<<9)
-#define MSDF_RESETMARK      (1<<10)
-#define MSDF_ISNUMERIC      (1<<11)
-#define MSDF_INEVENT        (1<<12) /* key input is calling methods */
-#define MSDF_SETMIN         (1<<13)
-#define MSDF_SETMAX         (1<<14)
-#define MSDF_SETVMIN        (1<<15)
-#define MSDF_SETVMAX        (1<<16)
-
-#define TIP_UPDATE 1
-#define TIP_EDITED 2
-
-#define TI_MARKED(data) (((data)->msd_Flags & (MSDF_MARKING | MSDF_TIMARK)) \
-    == (MSDF_MARKING | MSDF_TIMARK))
+#include "classes/string_private.h"
+#include "modules.h"
 
 enum
 {
@@ -714,99 +636,6 @@ static BOOL Buffer_Delete(struct MUI_StringData *data, ULONG start,
     return TRUE;
 }
 
-/* Keep conversion independent of the startup-free printf implementation. */
-static void StringFormat64(char *buffer, long long value)
-{
-    char digits[20];
-    unsigned long long magnitude = value;
-    unsigned int count = 0;
-    if (value < 0)
-    {
-        *buffer++ = '-';
-        magnitude = 0ULL - magnitude;
-    }
-    do
-    {
-        ULONG digit;
-
-        magnitude = ZuneDiv64(magnitude, 10, &digit);
-        digits[count++] = '0' + digit;
-    } while (magnitude);
-    while (count) *buffer++ = digits[--count];
-    *buffer = 0;
-}
-
-static long long StringParse64(CONST_STRPTR text)
-{
-    unsigned long long value = 0;
-    BOOL negative = FALSE;
-    while (*text == ' ' || *text == '\t') text++;
-    if (*text == '-' || *text == '+') negative = *text++ == '-';
-    while (*text >= '0' && *text <= '9')
-    {
-        unsigned digit = *text++ - '0';
-        unsigned long long limit = negative ? 0x8000000000000000ULL :
-            0x7fffffffffffffffULL;
-        if (value > 922337203685477580ULL ||
-            (value == 922337203685477580ULL && digit > (negative ? 8 : 7)))
-        {
-            value = limit;
-            break;
-        }
-        value = value * 10 + digit;
-    }
-    return negative ? 0ULL - value : value;
-}
-
-/* Textinput attributes that are stored the same way for OM_NEW and
- * OM_SET. Returns TRUE if the display changes. */
-static BOOL String_SetTextinput(struct MUI_StringData *data,
-    struct TagItem *tag)
-{
-    switch (tag->ti_Tag)
-    {
-    case MUIA_Textinput_MarkStart:
-    case MUIA_Textinput_MarkEnd:
-        Ti_SetMark(data, tag->ti_Tag == MUIA_Textinput_MarkEnd,
-            (LONG)tag->ti_Data);
-        return TRUE;
-    case MUIA_Textinput_Changed:
-        _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_CHANGED);
-        break;
-    case MUIA_Textinput_ResetMarkOnCursor:
-        _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_RESETMARK);
-        break;
-    case MUIA_Textinput_IsNumeric:
-        _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_ISNUMERIC);
-        break;
-    case MUIA_Textinput_MinVal:
-        data->TiMinVal = (LONG)tag->ti_Data;
-        break;
-    case MUIA_Textinput_MaxVal:
-        data->TiMaxVal = (LONG)tag->ti_Data;
-        break;
-    case MUIA_Textinput_WordWrap:
-        data->TiWordWrap = (UWORD)tag->ti_Data;
-        break;
-    case MUIA_Textinput_Styles:
-        data->TiStyles = (UBYTE)tag->ti_Data;
-        break;
-    case MUIA_Textinput_SetMin:
-        _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_SETMIN);
-        break;
-    case MUIA_Textinput_SetMax:
-        _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_SETMAX);
-        break;
-    case MUIA_Textinput_SetVMin:
-        _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_SETVMIN);
-        break;
-    case MUIA_Textinput_SetVMax:
-        _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_SETVMAX);
-        break;
-    }
-    return FALSE;
-}
-
 /**************************************************************************
  OM_NEW
 **************************************************************************/
@@ -908,6 +737,11 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_Textinput_MarkStart:
         case MUIA_Textinput_MarkEnd:
+            Ti_SetMark(data, tag->ti_Tag == MUIA_Textinput_MarkEnd,
+                (LONG)tag->ti_Data);
+            break;
+
+        /* MUI 4/5 Textinput attributes that are only kept: in the module */
         case MUIA_Textinput_Changed:
         case MUIA_Textinput_ResetMarkOnCursor:
         case MUIA_Textinput_IsNumeric:
@@ -919,7 +753,7 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_Textinput_SetMax:
         case MUIA_Textinput_SetVMin:
         case MUIA_Textinput_SetVMax:
-            String_SetTextinput(data, tag);
+            zune_string_mui45(obj, data, tag->ti_Tag, tag, NULL);
             break;
 
         case MUIA_String_EditHook:
@@ -930,12 +764,10 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->msd_Align = (LONG) tag->ti_Data;
             break;
 
-        case MUIA_String_Integer64:
-            if (tag->ti_Data)
-            {
-                StringFormat64(integerbuf, *(const long long *)tag->ti_Data);
+        case MUIA_String_Integer64:    /* MUI 4/5: in the module */
+            if (tag->ti_Data && zune_string_mui45(obj, data, tag->ti_Tag,
+                tag, (IPTR *)integerbuf))
                 str = integerbuf;
-            }
             break;
 
         case MUIA_Textinput_Integer:
@@ -1123,12 +955,29 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 MSDF_STAYACTIVE);
             break;
 
-        default:
-            if (String_SetTextinput(data, tag))
-            {
-                data->msd_RedrawReason = MOVE_CURSOR;
-                update = TRUE;
-            }
+        case MUIA_Textinput_MarkStart:
+        case MUIA_Textinput_MarkEnd:
+            Ti_SetMark(data, tag->ti_Tag == MUIA_Textinput_MarkEnd,
+                (LONG)tag->ti_Data);
+            data->msd_RedrawReason = MOVE_CURSOR;
+            update = TRUE;
+            break;
+
+        /* MUI 4/5 attributes that are only kept, and the 64-bit integer:
+         * in the module */
+        case MUIA_Textinput_Changed:
+        case MUIA_Textinput_ResetMarkOnCursor:
+        case MUIA_Textinput_IsNumeric:
+        case MUIA_Textinput_MinVal:
+        case MUIA_Textinput_MaxVal:
+        case MUIA_Textinput_WordWrap:
+        case MUIA_Textinput_Styles:
+        case MUIA_Textinput_SetMin:
+        case MUIA_Textinput_SetMax:
+        case MUIA_Textinput_SetVMin:
+        case MUIA_Textinput_SetVMax:
+        case MUIA_String_Integer64:
+            zune_string_mui45(obj, data, tag->ti_Tag, tag, NULL);
             break;
 
         case MUIA_String_EditHook:
@@ -1146,18 +995,6 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             {
                 data->placeholder = (CONST_STRPTR)tag->ti_Data;
                 MUI_Redraw(obj, MADF_DRAWOBJECT);
-            }
-            break;
-
-        case MUIA_String_Integer64:
-            if (tag->ti_Data)
-            {
-                char buffer[22];
-                long long old = StringParse64(data->Buffer);
-                StringFormat64(buffer, *(const long long *)tag->ti_Data);
-                set(obj, MUIA_String_Contents, buffer);
-                if (old == StringParse64(data->Buffer))
-                    tag->ti_Tag = TAG_IGNORE;
             }
             break;
 
@@ -1272,9 +1109,23 @@ IPTR String__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
             return TRUE;
         }
 
+    /* MUI 4/5 attributes that are only kept, and the 64-bit integer: in
+     * the module */
     case MUIA_Textinput_Changed:
-        STORE = !!(data->msd_Flags & MSDF_CHANGED);
-        return TRUE;
+    case MUIA_Textinput_ResetMarkOnCursor:
+    case MUIA_Textinput_IsNumeric:
+    case MUIA_Textinput_SetMin:
+    case MUIA_Textinput_SetMax:
+    case MUIA_Textinput_SetVMin:
+    case MUIA_Textinput_SetVMax:
+    case MUIA_Textinput_MinVal:
+    case MUIA_Textinput_MaxVal:
+    case MUIA_Textinput_WordWrap:
+    case MUIA_Textinput_Styles:
+    case MUIA_Textinput_Font:
+    case MUIA_String_Integer64:
+        return zune_string_mui45(obj, data, msg->opg_AttrID, NULL,
+            msg->opg_Storage);
     case MUIA_Textinput_Editable:
         STORE = !(data->msd_Flags & MSDF_NOINPUT);
         return TRUE;
@@ -1286,39 +1137,6 @@ IPTR String__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
     case MUIA_Textinput_RemainActive:
         STORE = !!(data->msd_Flags & MSDF_STAYACTIVE);
-        return TRUE;
-    case MUIA_Textinput_ResetMarkOnCursor:
-        STORE = !!(data->msd_Flags & MSDF_RESETMARK);
-        return TRUE;
-    case MUIA_Textinput_IsNumeric:
-        STORE = !!(data->msd_Flags & MSDF_ISNUMERIC);
-        return TRUE;
-    case MUIA_Textinput_SetMin:
-        STORE = !!(data->msd_Flags & MSDF_SETMIN);
-        return TRUE;
-    case MUIA_Textinput_SetMax:
-        STORE = !!(data->msd_Flags & MSDF_SETMAX);
-        return TRUE;
-    case MUIA_Textinput_SetVMin:
-        STORE = !!(data->msd_Flags & MSDF_SETVMIN);
-        return TRUE;
-    case MUIA_Textinput_SetVMax:
-        STORE = !!(data->msd_Flags & MSDF_SETVMAX);
-        return TRUE;
-    case MUIA_Textinput_MinVal:
-        STORE = data->TiMinVal;
-        return TRUE;
-    case MUIA_Textinput_MaxVal:
-        STORE = data->TiMaxVal;
-        return TRUE;
-    case MUIA_Textinput_WordWrap:
-        STORE = data->TiWordWrap;
-        return TRUE;
-    case MUIA_Textinput_Styles:
-        STORE = data->TiStyles;
-        return TRUE;
-    case MUIA_Textinput_Font:
-        STORE = data->TiFont;
         return TRUE;
 
     case MUIA_String_EditHook:
@@ -1360,11 +1178,6 @@ IPTR String__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
     case MUIA_String_Placeholder:
     case MUIA_String_InactiveContents:
         STORE = (IPTR)data->placeholder;
-        return TRUE;
-
-    case MUIA_String_Integer64:
-        data->integer64 = StringParse64(data->Buffer);
-        STORE = (IPTR)&data->integer64;
         return TRUE;
 
     case MUIA_String_Integer:
