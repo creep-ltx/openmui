@@ -3414,6 +3414,82 @@ static ULONG InvokeEventHandler(struct MUI_EventHandlerNode *ehn,
  * starts with the active object again; callbacks must not retain stack
  * event pointers or alter traversed lists.
  */
+/* A case-sensitive menu's shortcut (the displayed command string, the
+ * raw key and its qualifiers matched exactly): trigger the item as a menu
+ * pick does. TRUE when one was found. Not inlined: its copy of the item
+ * and the guard stay off HandleRawkey's frame, which every key passes. */
+static __attribute__((noinline)) BOOL CaseShortcut(Object *win,
+    struct MUI_WindowData *data, struct IntuiMessage *event, ULONG key)
+{
+    IPTR sensitive = FALSE;
+    if (!(event->Code & IECODE_UP_PREFIX) &&
+        (event->Qualifier & IEQUALIFIER_RCOMMAND) && data->wd_Menustrip &&
+        get(data->wd_Menustrip, MUIA_Menustrip_CaseSensitive, &sensitive) && sensitive)
+    {
+        struct Menu *menu;
+        for (menu = data->wd_Menu; menu; menu = menu->NextMenu)
+        {
+            struct MenuItem *item;
+            if (!(menu->Flags & MENUENABLED) ||
+                !(item = FindCaseShortcut(menu->FirstItem, key))) continue;
+            Object *object = (Object *)GTMENUITEM_USERDATA(item);
+            Object *app = _app(win);
+            struct MenuItem selected = *item;
+            struct ZuneWindowGuard guard = {0};
+            IPTR id = 0;
+            get(object, MUIA_UserData, &id);
+            ZuneWatchWindow(win, &guard);
+            if (selected.Flags & CHECKIT)
+            {
+                if (selected.Flags & MENUTOGGLE) selected.Flags ^= CHECKED;
+                else selected.Flags |= CHECKED;
+                set(object, MUIA_Menuitem_Checked, !!(selected.Flags & CHECKED));
+                if (guard.closed) return TRUE;
+            }
+            set(object, MUIA_Menuitem_Trigger, &selected);
+            if (guard.closed) return TRUE;
+            set(app, MUIA_Application_MenuAction, id);
+            if (guard.closed) return TRUE;
+            set(win, MUIA_Window_MenuAction, id);
+            if (guard.closed) return TRUE;
+            DoMethod(app, MUIM_Application_ReturnID, id);
+            if (!guard.closed) ZuneUnwatchWindow(win, &guard);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/* The key handlers of one object (IDCMP_RAWKEY or MUI_EHF_ALWAYSKEYS) in
+ * the list's order; TRUE when the key was eaten or the dispatch must end.
+ * With watch, stop at the first handler after which another object is
+ * active. */
+static __attribute__((noinline)) BOOL KeyToObject(struct MUI_WindowData *data,
+    Object *target, struct IntuiMessage *event, LONG muikey,
+    struct WindowEventCursor *cursor, Object *active, BOOL watch)
+{
+    struct MinNode *mn;
+
+    for (cursor->next = data->wd_EHList.mlh_Head;
+        (mn = NextEventHandler(cursor)); )
+    {
+        struct MUI_EventHandlerNode *ehn = (struct MUI_EventHandlerNode *)mn;
+
+        if ((ehn->ehn_Object == target)
+            && ((ehn->ehn_Events & IDCMP_RAWKEY)
+                || (ehn->ehn_Flags & MUI_EHF_ALWAYSKEYS)))
+        {
+            ULONG res = InvokeEventHandler(ehn, event, muikey, cursor);
+            if (!cursor->next || (res & MUI_EventHandlerRC_Eat))
+                return TRUE;
+            /* Leave the loop if a different object has been activated */
+            if (watch && active != data->wd_ActiveObject)
+                break;
+        }
+    }
+    return FALSE;
+}
+
 static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_WindowData *data,
     struct IntuiMessage *event)
 {
@@ -3466,66 +3542,23 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
 
     /* Case-sensitive menus use displayed command strings, leaving the
      * raw key and its qualifiers available for exact keymap matching. */
-    IPTR sensitive = FALSE;
-    if (!(event->Code & IECODE_UP_PREFIX) &&
-        (event->Qualifier & IEQUALIFIER_RCOMMAND) && data->wd_Menustrip &&
-        get(data->wd_Menustrip, MUIA_Menustrip_CaseSensitive, &sensitive) && sensitive)
-    {
-        struct Menu *menu;
-        for (menu = data->wd_Menu; menu; menu = menu->NextMenu)
-        {
-            struct MenuItem *item;
-            if (!(menu->Flags & MENUENABLED) ||
-                !(item = FindCaseShortcut(menu->FirstItem, key))) continue;
-            Object *object = (Object *)GTMENUITEM_USERDATA(item);
-            Object *app = _app(win);
-            struct MenuItem selected = *item;
-            struct ZuneWindowGuard guard = {0};
-            IPTR id = 0;
-            get(object, MUIA_UserData, &id);
-            ZuneWatchWindow(win, &guard);
-            if (selected.Flags & CHECKIT)
-            {
-                if (selected.Flags & MENUTOGGLE) selected.Flags ^= CHECKED;
-                else selected.Flags |= CHECKED;
-                set(object, MUIA_Menuitem_Checked, !!(selected.Flags & CHECKED));
-                if (guard.closed) return;
-            }
-            set(object, MUIA_Menuitem_Trigger, &selected);
-            if (guard.closed) return;
-            set(app, MUIA_Application_MenuAction, id);
-            if (guard.closed) return;
-            set(win, MUIA_Window_MenuAction, id);
-            if (guard.closed) return;
-            DoMethod(app, MUIM_Application_ReturnID, id);
-            if (!guard.closed) ZuneUnwatchWindow(win, &guard);
-            return;
-        }
-    }
+    if (CaseShortcut(win, data, event, key))
+        return;
     //bug("rawkey: code=%lx, qual=%lx\n", event->Code, event->Qualifier);
 
     /* check if imsg translates to predefined keystroke */
     {
-        struct InputEvent ievent;
         BOOL matched = FALSE;
 
-        ievent.ie_NextEvent = NULL;
-        ievent.ie_Class = IECLASS_RAWKEY;
-        ievent.ie_SubClass = 0;
-        ievent.ie_Code = event->Code;
-        ievent.ie_Qualifier = event->Qualifier;
-        /* ie_EventAddress is not used by MatchIX. If needed, it should be
-         * ensured that it is still a valid address because of the shallow
-         * IntuiMessage copy currently done in _zune_window_message before
-         * message is replied.
-         */
-        ievent.ie_EventAddress = NULL;
-        //ievent.ie_EventAddress = (APTR *) *((ULONG *)(event->IAddress));
+        /* MatchIX compares class, code and qualifier only: the event made
+         * for MUIA_Window_InputEvent above serves (it has this message's
+         * code and qualifier); no second one on HandleRawkey's frame */
+        ie.ie_EventAddress = NULL;
 
         for (muikey = MUIKEY_COUNT - 1; muikey >= MUIKEY_PRESS; muikey--)
         {
             if (muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix_well != 0
-                && MatchIX(&ievent,
+                && MatchIX(&ie,
                     &muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix))
             {
                 matched = TRUE;
@@ -3641,31 +3674,9 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
                 goto finished;
         }
 #endif
-        D(bug("HandleRawkey: try active object (%08lx) handlers\n",
-                active_object));
-
-        for (cursor.next = data->wd_EHList.mlh_Head;
-            (mn = NextEventHandler(&cursor)); )
-        {
-            ehn = (struct MUI_EventHandlerNode *)mn;
-
-            if ((ehn->ehn_Object == active_object)
-                && ((ehn->ehn_Events & IDCMP_RAWKEY)
-                    || (ehn->ehn_Flags & MUI_EHF_ALWAYSKEYS)))
-            {
-                D(bug("HandleRawkey: (active) invoking on %p (ehn=%p) "
-                    "event=%p muikey=%p\n",
-                    ehn->ehn_Object, ehn, event, muikey));
-                res = InvokeEventHandler(ehn, event, muikey, &cursor);
-                D(bug("HandleRawkey: (active) got res=%d\n", res));
-                if (!cursor.next || (res & MUI_EventHandlerRC_Eat))
-                    goto finished;
-
-                /* Leave the loop if a different object has been activated */
-                if (active_object != data->wd_ActiveObject)
-                    break;
-            }
-        }
+        if (KeyToObject(data, active_object, event, muikey, &cursor,
+                active_object, TRUE))
+            goto finished;
 
         // event not eaten by active object, try its parents
         // this is to implement popup key in Popstring
@@ -3676,30 +3687,9 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
             D(bug("HandleRawkey: try active object parents handlers\n"));
             while (current_obj != NULL)
             {
-                for (cursor.next = data->wd_EHList.mlh_Head;
-                    (mn = NextEventHandler(&cursor)); )
-                {
-                    ehn = (struct MUI_EventHandlerNode *)mn;
-
-                    if ((ehn->ehn_Object == current_obj)
-                        && ((ehn->ehn_Events & IDCMP_RAWKEY)
-                            || (ehn->ehn_Flags & MUI_EHF_ALWAYSKEYS)))
-                    {
-                        //D(bug("HandleRawkey: (active parents) invoking on "
-                        //    "%p (ehn=%p) event=%p muikey=%p\n",
-                        //    ehn->ehn_Object, ehn, event, muikey));
-                        res = InvokeEventHandler(ehn, event, muikey, &cursor);
-                        //D(bug("HandleRawkey: (active parents) got res=%d\n",
-                        //    res));
-                        if (!cursor.next || (res & MUI_EventHandlerRC_Eat))
-                            goto finished;
-
-                        /* Leave the loop if a different object has been
-                         * activated */
-                        if (active_object != data->wd_ActiveObject)
-                            break;
-                    }
-                }
+                if (KeyToObject(data, current_obj, event, muikey, &cursor,
+                        active_object, TRUE))
+                    goto finished;
                 /* A focus-changing callback may also remove its object. */
                 if (active_object != data->wd_ActiveObject)
                     break;
@@ -3731,25 +3721,9 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
 //         goto finished;
 //     }
 
-        for (cursor.next = data->wd_EHList.mlh_Head;
-            (mn = NextEventHandler(&cursor)); )
-        {
-            ehn = (struct MUI_EventHandlerNode *)mn;
-
-            if ((ehn->ehn_Object == data->wd_DefaultObject)
-                && ((ehn->ehn_Events & IDCMP_RAWKEY)
-                    || (ehn->ehn_Flags & MUI_EHF_ALWAYSKEYS)))
-            {
-                //D(bug("HandleRawkey: (default) invoking on %p (ehn=%p) "
-                //"event=%p muikey=%p\n",
-                //ehn->ehn_Object, ehn, event, muikey));
-                res = InvokeEventHandler(ehn, event, muikey, &cursor);
-                //D(bug("HandleRawkey: (default) got res=%d\n", res));
-                if (!cursor.next || (res & MUI_EventHandlerRC_Eat))
-                    goto finished;
-            }
-        }
-
+        if (KeyToObject(data, data->wd_DefaultObject, event, muikey,
+                &cursor, NULL, FALSE))
+            goto finished;
     }
 
     D(bug("HandleRawkey: try other handlers\n"));
