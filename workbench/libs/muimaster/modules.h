@@ -203,6 +203,8 @@ struct MUIP_DragReport;
 struct MUIP_DragDrop;
 struct MUIP_CreateDragImage;
 struct ListEntry;
+struct ColumnInfo;
+struct TagItem;
 struct ZuneListModule
 {
     IPTR (*edit)(struct IClass *, Object *, LONG, LONG);
@@ -222,6 +224,9 @@ struct ZuneListModule
     void (*check_horiz)(Object *, struct MUI_ListData *);
     APTR (*draw_title_strip)(Object *, struct MUI_ListData *);
     IPTR (*sort_entries)(struct IClass *, Object *, APTR *);
+    void (*set_columns)(Object *, struct MUI_ListData *, struct TagItem *,
+        BOOL);
+    void (*format_mui45)(struct ColumnInfo *, IPTR *);
 };
 
 /* MUI 4/5 attributes of the core classes that MUI 3 programs never use

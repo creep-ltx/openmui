@@ -255,6 +255,10 @@ ZMC_CHECK(ZuneWintitleModule, scrollwrap, 8);
 #define ZMC_OFS_ZuneListModule_draw_title_strip 48
 #define ZMC_OFS_ZuneListModule_sort_entries 52
 ZMC_CHECK(ZuneListModule, sort_entries, 52);
+#define ZMC_OFS_ZuneListModule_set_columns 56
+#define ZMC_OFS_ZuneListModule_format_mui45 60
+ZMC_CHECK(ZuneListModule, set_columns, 56);
+ZMC_CHECK(ZuneListModule, format_mui45, 60);
 ZMC_CHECK(ZuneListModule, column_order, 28);
 ZMC_CHECK(ZuneListModule, cell_dims, 32);
 ZMC_CHECK(ZuneListModule, draw_cell, 36);
@@ -498,6 +502,8 @@ ZMC(zune_list_check_horiz, ZMOD_LIST, ZuneListModule, check_horiz, 2, 0);
 ZMC(zune_list_draw_title_strip, ZMOD_LIST, ZuneListModule,
     draw_title_strip, 2, -1);
 ZMC(zune_list_sort_entries, ZMOD_LIST, ZuneListModule, sort_entries, 3, 0);
+ZMC(zune_list_set_columns, ZMOD_LIST, ZuneListModule, set_columns, 4, 0);
+ZMC(zune_list_format_mui45, ZMOD_LIST, ZuneListModule, format_mui45, 2, 0);
 
 /* MUI 4/5 attributes of the core classes (mui45.c): only programs that
  * use them call these */

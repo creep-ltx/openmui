@@ -279,5 +279,8 @@ APTR zune_list_draw_title_strip(Object *obj, struct MUI_ListData *data);
 void zune_list_layout_columns(struct MUI_ListData *data);
 LONG zune_list_compare(Object *obj, struct MUI_ListData *data, APTR a, APTR b);
 IPTR zune_list_sort_entries(struct IClass *cl, Object *obj, APTR *entries);
+void zune_list_set_columns(Object *obj, struct MUI_ListData *data,
+    struct TagItem *tag, BOOL init);
+void zune_list_format_mui45(struct ColumnInfo *ci, IPTR *args);
 
 #endif

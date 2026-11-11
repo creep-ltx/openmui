@@ -16,6 +16,8 @@
 #define zune_list_check_horiz zmod_list_check_horiz
 #define zune_list_draw_title_strip zmod_list_draw_title_strip
 #define zune_list_sort_entries zmod_list_sort_entries
+#define zune_list_set_columns zmod_list_set_columns
+#define zune_list_format_mui45 zmod_list_format_mui45
 #include "../listx.c"
 #include "modules.h"
 
@@ -24,7 +26,8 @@ static const struct ZuneListModule list_module = {
     zmod_list_drag_report, zmod_list_drag_drop, zmod_list_create_drag_image,
     zmod_list_draw_sort_mark, zmod_list_column_order, zmod_list_cell_dims,
     zmod_list_draw_cell, zmod_list_layout_horiz, zmod_list_check_horiz,
-    zmod_list_draw_title_strip, zmod_list_sort_entries
+    zmod_list_draw_title_strip, zmod_list_sort_entries, zmod_list_set_columns,
+    zmod_list_format_mui45
 };
 
 BOOPSI_DISPATCHER(IPTR, Zlist_Dispatcher, cl, obj, msg)

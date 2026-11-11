@@ -671,3 +671,62 @@ IPTR zune_list_sort_entries(struct IClass *cl, Object *obj, APTR *entries)
     return TRUE;
 }
 
+
+/* MUIA_List_HideColumn / ShowColumn / TitleArray (MUI 5); init: from
+ * OM_NEW (the format is parsed, nothing is drawn yet; a TitleArray of
+ * NULL is not passed) */
+void zune_list_set_columns(Object *obj, struct MUI_ListData *data,
+    struct TagItem *tag, BOOL init)
+{
+    if (tag->ti_Tag == MUIA_List_TitleArray)
+    {
+        data->title_array = (APTR)tag->ti_Data;
+        data->title_columns = data->max_columns_explicit ? data->max_columns : data->columns;
+        data->title = data->title_array ? (STRPTR)1 : NULL;
+        if (!init)
+            DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
+        return;
+    }
+    if (tag->ti_Data < data->columns)
+    {
+        for (LONG i = 0; i < data->columns; i++)
+            if (data->ci[i].order_id == tag->ti_Data)
+                data->ci[i].hidden = tag->ti_Tag == MUIA_List_HideColumn;
+        if (init)
+            return;
+        if (_flags(obj) & MADF_CANDRAW)
+        {
+            DoMethod(obj, MUIM_Group_InitChange);
+            DoMethod(obj, MUIM_Group_ExitChange);
+        }
+        data->update = UPDATEMODE_ALL;
+        MUI_Redraw(obj, MADF_DRAWUPDATE);
+    }
+}
+
+/* A format column's MUI 4/5 options (ParseListFormat, args as ReadArgs
+ * filled them from FORMAT_TEMPLATE); after MINWIDTH and MAXWIDTH */
+void zune_list_format_mui45(struct ColumnInfo *ci, IPTR *args)
+{
+    if (args[ARG_FIXWIDTH])
+    {
+        ci->min_width = ci->max_width =
+            MAX(0, MIN(32767, *(LONG *)args[ARG_FIXWIDTH]));
+        ci->min_pixels = ci->max_pixels = TRUE;
+        ci->user_width = ci->min_width;
+        ci->delta = 0;
+    }
+    ci->is_object = !!args[ARG_ISOBJECT];
+    if (args[ARG_ELIDE])
+    {
+        STRPTR elide = (STRPTR)args[ARG_ELIDE];
+        ci->elide = !Stricmp(elide, "left") ? MUIV_Text_Shorten_ElideLeft :
+            !Stricmp(elide, "center") ? MUIV_Text_Shorten_ElideCenter :
+            !Stricmp(elide, "right") ? MUIV_Text_Shorten_ElideRight : MUIV_Text_Shorten_Cutoff;
+    }
+    ci->hidden = !!args[ARG_HIDDEN];
+    ci->sortable = !!args[ARG_SORTABLE];
+    ci->descending = args[ARG_ORDER] &&
+        (!Stricmp((STRPTR)args[ARG_ORDER], "DESC") ||
+         !Stricmp((STRPTR)args[ARG_ORDER], "DESCENDING"));
+}

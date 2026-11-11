@@ -708,29 +708,14 @@ static BOOL ParseListFormatNew(struct MUI_ListData *data, STRPTR format,
                     if (args[ARG_MAXWIDTH])
                         data->ci[i].max_width =
                             ParseColumnWidth((STRPTR)args[ARG_MAXWIDTH], &data->ci[i].max_pixels);
-                    if (args[ARG_FIXWIDTH])
-                    {
-                        data->ci[i].min_width = data->ci[i].max_width =
-                            MAX(0, MIN(32767, *(LONG *)args[ARG_FIXWIDTH]));
-                        data->ci[i].min_pixels = data->ci[i].max_pixels = TRUE;
-                        data->ci[i].user_width = data->ci[i].min_width;
-                        data->ci[i].delta = 0;
-                    }
+                    /* FIXWIDTH, ISOBJECT, ELIDE, HIDDEN, SORTABLE, ORDER
+                     * (MUI 4/5; MUI 3.8's format has none of them) */
+                    if (args[ARG_FIXWIDTH] || args[ARG_ISOBJECT]
+                        || args[ARG_ELIDE] || args[ARG_HIDDEN]
+                        || args[ARG_SORTABLE] || args[ARG_ORDER])
+                        zune_list_format_mui45(&data->ci[i], args);
                     data->format_layout |= args[ARG_MINWIDTH] || args[ARG_MAXWIDTH] || args[ARG_FIXWIDTH];
-                    data->ci[i].is_object = !!args[ARG_ISOBJECT];
-                    if (args[ARG_ELIDE])
-                    {
-                        STRPTR elide = (STRPTR)args[ARG_ELIDE];
-                        data->ci[i].elide = !Stricmp(elide, "left") ? MUIV_Text_Shorten_ElideLeft :
-                            !Stricmp(elide, "center") ? MUIV_Text_Shorten_ElideCenter :
-                            !Stricmp(elide, "right") ? MUIV_Text_Shorten_ElideRight : MUIV_Text_Shorten_Cutoff;
-                    }
                     data->ci[i].bar = args[ARG_BAR];
-                    data->ci[i].hidden = !!args[ARG_HIDDEN];
-                    data->ci[i].sortable = !!args[ARG_SORTABLE];
-                    data->ci[i].descending = args[ARG_ORDER] &&
-                        (!Stricmp((STRPTR)args[ARG_ORDER], "DESC") ||
-                         !Stricmp((STRPTR)args[ARG_ORDER], "DESCENDING"));
                     if (args[ARG_PREPARSE])
                         data->ci[i].preparse =
                             StrDup((STRPTR) args[ARG_PREPARSE]);
@@ -1291,6 +1276,43 @@ static __attribute__((noinline)) void List_InnerToArea(Object *obj,
         g->mad_InnerBottom = 0;
 }
 
+/* MUIA_List_Active's value as an entry index: the special values
+ * resolved against the active entry, kept within the list; -1 for
+ * MUIV_List_Active_Off or an empty list */
+static LONG List_ActiveIndex(struct MUI_ListData *data, LONG active)
+{
+    if (!data->entries_num || active == MUIV_List_Active_Off)
+        return -1;
+    switch (active)
+    {
+    case MUIV_List_Active_Top:
+        active = 0;
+        break;
+    case MUIV_List_Active_Bottom:
+        active = data->entries_num - 1;
+        break;
+    case MUIV_List_Active_Up:
+        active = data->entries_active - 1;
+        break;
+    case MUIV_List_Active_Down:
+        active = data->entries_active + 1;
+        break;
+    /* MUI 3.9 pages by one row less than visible
+     * (tests/native/listprop.c) */
+    case MUIV_List_Active_PageUp:
+        active = data->entries_active - MAX(data->entries_visible - 1, 1);
+        break;
+    case MUIV_List_Active_PageDown:
+        active = data->entries_active + MAX(data->entries_visible - 1, 1);
+        break;
+    }
+    if (active < 0)
+        active = 0;
+    else if (active >= data->entries_num)
+        active = data->entries_num - 1;
+    return active;
+}
+
 /**************************************************************************
  OM_NEW
 **************************************************************************/
@@ -1544,11 +1566,8 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     }
 
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
-        if ((tag->ti_Tag == MUIA_List_HideColumn || tag->ti_Tag == MUIA_List_ShowColumn)
-            && tag->ti_Data < data->columns)
-            for (LONG i = 0; i < data->columns; i++)
-                    if (data->ci[i].order_id == tag->ti_Data)
-                        data->ci[i].hidden = tag->ti_Tag == MUIA_List_HideColumn;
+        if (tag->ti_Tag == MUIA_List_HideColumn || tag->ti_Tag == MUIA_List_ShowColumn)
+            zune_list_set_columns(obj, data, tag, TRUE);
 
     /* This is necessary for at least the title */
     if (!SetListSize(data, 0))
@@ -1563,14 +1582,9 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         return 0;
     }
 
-    CONST_STRPTR *titles = (APTR)GetTagData(MUIA_List_TitleArray, 0, msg->ops_AttrList);
-    if (titles)
-    {
-        ULONG count = data->max_columns_explicit ? data->max_columns : data->columns;
-        data->title_array = titles;
-        data->title_columns = count;
-        data->title = (STRPTR)1;
-    }
+    if ((tag = FindTagItem(MUIA_List_TitleArray, msg->ops_AttrList))
+        && tag->ti_Data)
+        zune_list_set_columns(obj, data, tag, TRUE);
 
     if (array)
     {
@@ -1583,27 +1597,10 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             MUIV_List_Insert_Top);
     }
 
+    /* Up, Down, PageUp and PageDown from no active entry give 0, as
+     * any other value below 0 did here */
     if ((data->entries_num) && (new_entries_active != MUIV_List_Active_Off))
-    {
-        switch (new_entries_active)
-        {
-        case MUIV_List_Active_Top:
-            new_entries_active = 0;
-            break;
-
-        case MUIV_List_Active_Bottom:
-            new_entries_active = data->entries_num - 1;
-            break;
-        }
-
-        if (new_entries_active < 0)
-            new_entries_active = 0;
-        else if (new_entries_active >= data->entries_num)
-            new_entries_active = data->entries_num - 1;
-
-        data->entries_active = new_entries_active;
-        /* Selected entry will be moved into visible area */
-    }
+        data->entries_active = List_ActiveIndex(data, new_entries_active);
 
     NewList((struct List *)&data->images);
 
@@ -1750,19 +1747,8 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
         case MUIA_List_HideColumn:
         case MUIA_List_ShowColumn:
-            if (tag->ti_Data < data->columns)
-            {
-                for (LONG i = 0; i < data->columns; i++)
-                    if (data->ci[i].order_id == tag->ti_Data)
-                        data->ci[i].hidden = tag->ti_Tag == MUIA_List_HideColumn;
-                if (_flags(obj) & MADF_CANDRAW)
-                {
-                    DoMethod(obj, MUIM_Group_InitChange);
-                    DoMethod(obj, MUIM_Group_ExitChange);
-                }
-                data->update = UPDATEMODE_ALL;
-                MUI_Redraw(obj, MADF_DRAWUPDATE);
-            }
+        case MUIA_List_TitleArray:
+            zune_list_set_columns(obj, data, tag, FALSE);
             break;
         case MUIA_List_CompareHook:
             data->compare_hook = (struct Hook *)tag->ti_Data;
@@ -1798,12 +1784,6 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             if (zune_list_column_order(data, (APTR)tag->ti_Data))
                 DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
             break;
-        case MUIA_List_TitleArray:
-            data->title_array = (APTR)tag->ti_Data;
-            data->title_columns = data->max_columns_explicit ? data->max_columns : data->columns;
-            data->title = data->title_array ? (STRPTR)1 : NULL;
-            DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
-            break;
         case MUIA_List_Title:
             data->title = (STRPTR) tag->ti_Data;
             DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
@@ -1837,49 +1817,7 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_List_Active:
             {
-                LONG new_entries_active = tag->ti_Data;
-
-                if ((data->entries_num)
-                    && (new_entries_active != MUIV_List_Active_Off))
-                {
-                    switch (new_entries_active)
-                    {
-                    case MUIV_List_Active_Top:
-                        new_entries_active = 0;
-                        break;
-
-                    case MUIV_List_Active_Bottom:
-                        new_entries_active = data->entries_num - 1;
-                        break;
-
-                    case MUIV_List_Active_Up:
-                        new_entries_active = data->entries_active - 1;
-                        break;
-
-                    case MUIV_List_Active_Down:
-                        new_entries_active = data->entries_active + 1;
-                        break;
-
-                    /* MUI 3.9 pages by one row less than visible
-                     * (tests/native/listprop.c) */
-                    case MUIV_List_Active_PageUp:
-                        new_entries_active = data->entries_active
-                            - MAX(data->entries_visible - 1, 1);
-                        break;
-
-                    case MUIV_List_Active_PageDown:
-                        new_entries_active = data->entries_active
-                            + MAX(data->entries_visible - 1, 1);
-                        break;
-                    }
-
-                    if (new_entries_active < 0)
-                        new_entries_active = 0;
-                    else if (new_entries_active >= data->entries_num)
-                        new_entries_active = data->entries_num - 1;
-                }
-                else
-                    new_entries_active = -1;
+                LONG new_entries_active = List_ActiveIndex(data, tag->ti_Data);
 
                 if (data->entries_active != new_entries_active)
                 {
