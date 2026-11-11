@@ -2506,6 +2506,7 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
     int y, struct ListClip *lc)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
+    Object *area = data->area;
     struct ListEntry *entry = data->entries[entry_pos];
     int row_height = data->entry_maxheight;
     int y_offset = y;
@@ -2519,7 +2520,7 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
     }
 
     DisplayEntry(cl, obj, entry_pos);
-    x1 = _mleft(data->area) - data->horiz_first;
+    x1 = _mleft(area) - data->horiz_first;
 
     for (col = 0; col < data->columns; col++) {
         ZText *text, local_text;
@@ -2558,10 +2559,10 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
              * TextLength's, as everywhere else in Zune; an italic font
              * may paint past it. */
             if (lc && !lc->done && !(borrowed
-                && x1 >= _mleft(data->area)
-                && x1 + text->width - 1 <= _mright(data->area)
-                && y_offset >= _mtop(data->area)
-                && y_offset + text->height - 1 <= _mbottom(data->area)
+                && x1 >= _mleft(area)
+                && x1 + text->width - 1 <= _mright(area)
+                && y_offset >= _mtop(area)
+                && y_offset + text->height - 1 <= _mbottom(area)
                 && !(_font(obj)->tf_Style & FSF_ITALIC)))
                 List_NeedClip(obj, data, lc);
             /* Note, this was MPEN_SHADOW before */
@@ -2570,7 +2571,7 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
             if (data->ci[col].elide)
             {
                 text->truncate = TRUE;
-                LONG right = MIN(x2 - 1, _mright(data->area));
+                LONG right = MIN(x2 - 1, _mright(area));
                 if (data->ci[col].elide >= MUIV_Text_Shorten_Hide)
                     zune_text_draw_shortened(text, obj, x1, right, y_offset, data->ci[col].elide);
                 else zune_text_draw(text, obj, x1, right, y_offset);
@@ -2578,9 +2579,9 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
             else if (data->format_layout)
             {
                 text->truncate = TRUE;
-                zune_text_draw(text, obj, x1, MIN(x2 - 1, _mright(data->area)), y_offset);
+                zune_text_draw(text, obj, x1, MIN(x2 - 1, _mright(area)), y_offset);
             }
-            else if (x1 + text->width - 1 > _mright(data->area)
+            else if (x1 + text->width - 1 > _mright(area)
                 && ZUNE_APP_MUI38(obj))
             {
                 /* MUI 3.8 draws only the whole characters of a too long
@@ -2588,7 +2589,7 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
                  * the long lines of MUI-Demo's String window); text that
                  * fits goes up to the edge (its Floattexts) */
                 text->truncate = TRUE;
-                zune_text_draw(text, obj, x1, _mright(data->area) - 1,
+                zune_text_draw(text, obj, x1, _mright(area) - 1,
                     y_offset);
             }
             else zune_text_draw(text, obj, x1, x2, y_offset);
@@ -2607,8 +2608,9 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
 static void List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
     LONG bottom, struct ListClip *clip, BOOL title)
 {
+    Object *area = data->area;
     struct RastPort *rp = _rp(obj);
-    LONG x1 = _mleft(data->area) - data->horiz_first;
+    LONG x1 = _mleft(area) - data->horiz_first;
 
     for (ULONG col = 0; col < data->columns; col++)
     {
@@ -2616,12 +2618,12 @@ static void List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
         if (ColumnHidden(data, col)) continue;
         x1 += ColumnWidth(data, col) + halfdelta;
 
-        if (x1 + (data->ci[col].bar ? BAR_WIDTH : 0) > _mright(data->area))
+        if (x1 + (data->ci[col].bar ? BAR_WIDTH : 0) > _mright(area))
             break;
 
         if (data->ci[col].bar)
         {
-            if (x1 < _mleft(data->area) || (!title && y > bottom))
+            if (x1 < _mleft(area) || (!title && y > bottom))
                 List_NeedClip(obj, data, clip);
             SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
             Move(rp, x1, y);
@@ -2642,6 +2644,7 @@ static void List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
 IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
+    Object *area = data->area;  /* made at OM_NEW, never changes */
     int entry_pos, y;
     struct ListClip clip = { (APTR)-1, FALSE };
     int start, end, exposed_start = 0, exposed_end = 0;
@@ -2678,7 +2681,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             /* the module draws the buttons and leaves its clip for the
              * title row */
             APTR clip = zune_list_draw_title_strip(obj, data);
-            List_DrawEntry(cl, obj, ENTRY_TITLE, _top(data->area)
+            List_DrawEntry(cl, obj, ENTRY_TITLE, _top(area)
                 - List_TitleStrip(obj, data) + 2, NULL);
             MUI_RemoveClipping(muiRenderInfo(obj), clip);
         }
@@ -2699,13 +2702,13 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     /* Calc the numbers of entries visible */
     CalcVertVisible(cl, obj);
 
-    entries_height = _mheight(data->area);
-    entries_bottom = _mbottom(data->area);
+    entries_height = _mheight(area);
+    entries_bottom = _mbottom(area);
 
     if ((msg->flags & MADF_DRAWUPDATE) == 0 || data->update == UPDATEMODE_ALL)
     {
-        DoMethod(obj, MUIM_DrawBackground, _mleft(data->area),
-            _mtop(data->area), _mwidth(data->area), entries_height,
+        DoMethod(obj, MUIM_DrawBackground, _mleft(area),
+            _mtop(area), _mwidth(area), entries_height,
             0, data->entries_first * data->entry_maxheight, 0);
     }
 
@@ -2721,7 +2724,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 
     if ((msg->flags & MADF_DRAWUPDATE) == 0 || data->update == UPDATEMODE_ALL)
     {
-        y = _mtop(data->area);
+        y = _mtop(area);
         /* Draw Title
          */
         if (data->title_height && data->title)
@@ -2733,12 +2736,12 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             if (ZUNE_APP_MUI38(obj))
                 goto title_done;
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-            Move(_rp(obj), _mleft(data->area), y);
-            Draw(_rp(obj), _mright(data->area), y);
+            Move(_rp(obj), _mleft(area), y);
+            Draw(_rp(obj), _mright(area), y);
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
             y++;
-            Move(_rp(obj), _mleft(data->area), y);
-            Draw(_rp(obj), _mright(data->area), y);
+            Move(_rp(obj), _mleft(area), y);
+            Draw(_rp(obj), _mright(area), y);
           title_done:;
         }
     }
@@ -2759,8 +2762,8 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 
             /* the last row may be cut off by the area */
             ScrollRaster(_rp(obj), 0, diffy * data->entry_maxheight,
-                _mleft(data->area), y,
-                _mright(data->area),
+                _mleft(area), y,
+                _mright(area),
                 MIN(y + data->entry_maxheight * data->entries_visible,
                     entries_bottom));
 
@@ -2787,9 +2790,9 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         if (bottom > entries_bottom)
             List_NeedClip(obj, data, &clip);
 
-        DoMethod(obj, MUIM_DrawBackground, _mleft(data->area), top,
-            _mwidth(data->area), bottom - top + 1, 0,
-            top - _mtop(data->area) + data->entries_first
+        DoMethod(obj, MUIM_DrawBackground, _mleft(area), top,
+            _mwidth(area), bottom - top + 1, 0,
+            top - _mtop(area) + data->entries_first
             * data->entry_maxheight, 0);
         exposed_start = start;
         exposed_end = end;
@@ -2815,7 +2818,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
                 && (entry->flags & ENTRY_RENDER)))
         {
             /* a cut-off row: its highlight and background too */
-            if (y < _mtop(data->area)
+            if (y < _mtop(area)
                 || y + data->entry_maxheight - 1 > entries_bottom)
                 List_NeedClip(obj, data, &clip);
 
@@ -2838,12 +2841,12 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
                 /* A masked highlight must not blend with pixels copied
                  * from a different phase of the previous highlight. */
                 if (scrolling && !zune_imspec_is_solid(highlight))
-                    DoMethod(obj, MUIM_DrawBackground, _mleft(data->area), y,
-                        _mwidth(data->area), data->entry_maxheight, 0,
-                        y - _mtop(data->area) +
+                    DoMethod(obj, MUIM_DrawBackground, _mleft(area), y,
+                        _mwidth(area), data->entry_maxheight, 0,
+                        y - _mtop(area) +
                         data->entries_first * data->entry_maxheight, 0);
                 zune_imspec_draw(highlight, muiRenderInfo(obj),
-                    _mleft(data->area), y, _mwidth(data->area),
+                    _mleft(area), y, _mwidth(area),
                     data->entry_maxheight,
                     0, y - data->entries_top_pixel, 0);
             }
@@ -2853,17 +2856,17 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_NEEDED
                 && (entry->flags & ENTRY_RENDER)))
             {
-                DoMethod(obj, MUIM_DrawBackground, _mleft(data->area), y,
-                    _mwidth(data->area), data->entry_maxheight, 0,
-                    y - _mtop(data->area) +
+                DoMethod(obj, MUIM_DrawBackground, _mleft(area), y,
+                    _mwidth(area), data->entry_maxheight, 0,
+                    y - _mtop(area) +
                     data->entries_first * data->entry_maxheight, 0);
             }
 
             if (!highlight && data->stripes && (entry_pos & 1))
             {
                 SetAPen(_rp(obj), _pens(obj)[MPEN_HALFSHINE]);
-                RectFill(_rp(obj), _mleft(data->area), y,
-                    _mright(data->area), y + data->entry_maxheight - 1);
+                RectFill(_rp(obj), _mleft(area), y,
+                    _mright(area), y + data->entry_maxheight - 1);
             }
             List_DrawEntry(cl, obj, entry_pos, y, &clip);
             entry->flags &= ~ENTRY_RENDER;
@@ -2891,7 +2894,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         }
     }
 
-    y = _mtop(data->area);
+    y = _mtop(area);
 
     if (data->title_height && data->title)
     {
@@ -4483,6 +4486,7 @@ IPTR List__MUIM_TestPos(struct IClass *cl, Object *obj,
     struct MUIP_List_TestPos *msg)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
+    Object *area = data->area;
     struct MUI_List_TestPos_Result *result = msg->res;
     LONG col = -1, row = -1;
     UWORD flags = 0, i;
@@ -4508,7 +4512,7 @@ IPTR List__MUIM_TestPos(struct IClass *cl, Object *obj,
 
     if ((mx != MUI_MAXMAX) && (ey != MUI_MAXMAX))
     {
-        mx -= _left(data->area);
+        mx -= _left(area);
         /* y coordinates transformed to the entries */
         ey -= data->entries_top_pixel;
 
@@ -4527,7 +4531,7 @@ IPTR List__MUIM_TestPos(struct IClass *cl, Object *obj,
 
         if (mx < 0)
             flags |= MUI_LPR_LEFT;
-        else if (mx >= _width(data->area))
+        else if (mx >= _width(area))
             flags |= MUI_LPR_RIGHT;
         else
         {
@@ -4652,6 +4656,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
     struct MUIP_HandleEvent *msg)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
+    Object *area = data->area;
     struct IntuiMessage *imsg = msg->imsg;
     if (data->edit_object && imsg && imsg->Class == IDCMP_RAWKEY &&
         imsg->Code == 0x45)
@@ -4788,8 +4793,8 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             {
                 if (data->title && imsg->MouseY >= _mtop(obj) &&
                     imsg->MouseY < data->entries_top_pixel &&
-                    imsg->MouseX >= _mleft(data->area) &&
-                    imsg->MouseX <= _mright(data->area))
+                    imsg->MouseX >= _mleft(area) &&
+                    imsg->MouseX <= _mright(area))
                 {
                     if (pos.column >= 0 && data->ci[pos.column].sortable)
                     {
@@ -4803,7 +4808,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                     superset(cl, obj, MUIA_List_TitleClick, data->title_click);
                     return MUI_EventHandlerRC_Eat;
                 }
-                if (_isinobject(data->area, imsg->MouseX,
+                if (_isinobject(area, imsg->MouseX,
                     imsg->MouseY)
                     && !(data->horiz_shown && _isinobject(data->horiz,
                         imsg->MouseX, imsg->MouseY)))
@@ -4900,7 +4905,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             if (data->vert && _isinobject(data->vert, imsg->MouseX,
                 imsg->MouseY))
                 delta = 1;
-            else if (_isinobject(data->area, imsg->MouseX,
+            else if (_isinobject(area, imsg->MouseX,
                 imsg->MouseY))
                 delta = 4;
             else
