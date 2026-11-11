@@ -118,6 +118,26 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    KB and 28 frames larger (Group's Layout +8). Not taken: LTO stays off,
    the shipped library is byte for byte lean's. Details in
    [README.md](README.md#lto-done-right-and-why-it-stays-off-2026-11-11-phase-3).
+   *String's keys 2026-11-11* (branch `strkey`): the first of the next wins.
+   Every key went through MUI 5's Textinput methods (a method dispatch
+   per key) for every program; now the editing is one function,
+   String_Edit, which a program that gets MUI 3.8 calls straight from
+   HandleEvent (Return acknowledges directly too), while a program that
+   gets MUI 4/5 still has its keys sent as the methods and the methods
+   themselves live in Zmui45.mui, calling the library's editing back
+   through a table. String 17,580 -> 15,772 bytes (-10.3%), library file
+   258,268 -> 256,424; no frame larger, a MUI 3.8 key three frames deep
+   instead of six; tests/lean/strkeys.c types the same 45 steps into
+   nine Strings on `lean`, the branch and MUI 3.8: `lean` and the branch
+   identical, MUI 3.8 the same but for Zune's additions (word moves,
+   clipboard keys, Alt marking); perfbench's new "string keys" batch
+   -5.9% / -5.8% side by side and swapped, the
+   other batches as `lean`; stackrun, fullcheck, demopix (18 of 27, every
+   Zune window as before), the MUI 3 group (36, no module loaded) and the
+   MUI 4/5 group (24) as `lean`. Found: a locale use count leaked per typed character.
+   [README.md](README.md#strings-keys-edit-directly-for-mui-38-the-textinput-methods-in-zmui45mui-2026-11-11-phase-3).
+   Next: Area and Application the same way (their dispatchers 9,648 and
+   5,050 bytes with the methods inlined, measured).
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.

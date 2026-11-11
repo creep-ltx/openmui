@@ -7,8 +7,15 @@
  * pointer events. Only MUI 3.8 attributes are used. Built by hand:
  *   m68k-amigaos-gcc -m68000 -noixemul -Os -s -o strkeys tests/lean/strkeys.c
  * Run from a Shell on the test machine with its window open; the output
- * is the Shell's. "strkeys mouse" adds the pointer tests (the screen must
- * be the Workbench, unobscured).
+ * is the Shell's. "strkeys mouse" adds the pointer tests; as written they
+ * do not reach the gadget on either library (input.device takes the
+ * pointer events differently: 2026-11-11, both print the unchanged
+ * contents), so the mouse marking is covered by tests/native/
+ * mui5_marking_probe.c, which sends the events to the object itself.
+ * 2026-11-11: 45 steps identical on lean (the Textinput-method path) and
+ * strkey (the direct path); against MUI 3.8 the same except what Zune
+ * adds (Ctrl-cursor word moves, Amiga-C/X/V with the clipboard, Alt
+ * marking: MUI 3.8 types the letter, clears on Amiga-X, has no marks).
  */
 #define NO_INLINE_STDARG
 #include <stdio.h>

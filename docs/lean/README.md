@@ -2131,22 +2131,137 @@ take. The LTO=1 path is kept, documented in the makefile with its knobs (`LTO_ON
   2,164 (2,240), Slidorama 2,228 (2,304); fullcheck: MUI-Demo with its eight sub-windows opens
   and closes, the 18 other demos too, lost 608 / 200 / AppWindow 264 as `lean`, no alert: the LTO path works, it just does not pay.
 
+## String's keys edit directly for MUI 3.8; the Textinput methods in Zmui45.mui (2026-11-11, phase 3)
+
+Branch `strkey` (from `lean` at f4534771). The first item "Left open" named after the
+compiler and link rounds: String's key input went through MUI 5's Textinput methods for every
+program. Each key: HandleEvent -> String_KeyToTextinput -> Ti_Call -> DoMethod -> the dispatcher
+-> String_Textinput (2,254 bytes) -> String_HandleVanillakey (1,042) or String_CursorKey (414),
+with Ti_Done collecting what to redraw. A MUI 3 program has nothing to catch there (the
+MUIM_Textinput_* IDs are MUI 4's), so it paid a method dispatch per key, and the library carried
+the MUI 5-only operations (word and line deletes, mark all, toggle case, increment, insert and
+append, files, next gadget) for it.
+
+Now (commit 2980f001):
+
+- **One editing function, `String_Edit(cl, obj, data, op, arg)`**: an `SE_*` operation
+  (string_private.h: the cursor movements are the MUIKEY values 2-13, then the character,
+  Backspace and Shift-Backspace, Del and Shift-Del, copy, cut, paste, and "eaten, nothing")
+  on the buffer, the cursor and the mark, answering TIP_EDITED (the contents changed,
+  MSDF_CHANGED set) and TIP_UPDATE (a redraw is due). It is HandleVanillakey, CursorKey and the
+  tail of String_Textinput folded into one switch with the same results; the caller notifies
+  and redraws as before.
+- **A program that gets MUI 3.8 calls it straight from HandleEvent** (`String_Key`: the flag
+  MSDF_DIRECTKEYS, set at MUIM_Setup from the application's identity, "Each program gets the
+  MUI it asked for" above), and Return acknowledges directly (`String_Acknowledge`) instead of
+  through MUIM_Textinput_Acknowledge. The key-to-operation mapping (`String_KeyOp`) is what
+  MUI 5's was: Amiga-C/X/V/Z, Ctrl-U/K/X/A/Z, Shift with Backspace and Del, Return as a newline
+  in a Multiline String.
+- **A program that gets MUI 4/5 has its keys sent as the Textinput methods as before** (`String_Key`
+  -> `ti_methods[op]` -> DoMethod with MSDF_INEVENT, so a subclass sees them: the textinput
+  probe logs them), and **the methods themselves are in Zmui45.mui** (`zune_string_textinput`,
+  mui45.c): what they share with the keys goes back into the library's `String_Edit` through a
+  table of the library's editing functions the dispatcher hands over (`struct ZuneStringOps`:
+  edit, kill the mark, delete, insert, word bounds, freeze the mark, clipboard write,
+  acknowledge); the MUI 5-only ones edit through the same table. The dispatcher reaches the
+  module through a three-argument stub (`String_Textinput45`) so its frame stays 20 bytes (the
+  fourth argument made it 24). Without the module (not installed, no memory) a Textinput method
+  does nothing and answers 0; keys still edit for MUI 3.8 programs, and for MUI 4/5 programs
+  the Ti_Call path then edits nothing (the module is loaded with the first key or method).
+- The context menu's Cut, Copy and Paste go through `String_Edit` too (Copy leaves the cursor
+  where it is now, as Amiga-C does; it jumped to the mark's end).
+
+Found on the way: HandleVanillakey opened the locale for every character typed
+(`OpenLocale(NULL)` for `IsPrint`) and closed it only when nothing was added, so each typed
+character left the default locale's use count one higher; now ASCII (32-126) needs no locale
+and the rest closes it on every path. Amiga-V reported an edit (a notification) even with an
+empty clipboard; it reports one when something was pasted or a mark removed (the context
+menu's Paste always did).
+
+**String's code 17,580 -> 15,772 bytes (-1,808, -10.3%)**, Zmui45.mui 4,568 -> 6,552 bytes
+(stripped). Library file (stripped) 258,268 -> 256,424 bytes (-1,844). Per function (bytes):
+HandleEvent 2,920 -> 2,834, String_Edit 1,634 against String_Textinput + HandleVanillakey +
+CursorKey + Ti_* 3,970; the module's method 1,282 with its table of 21 methods (126).
+
+Stack: `-fstack-usage` of every library function against `lean`: none larger (ContextChoice 48
+-> 44); String_Edit's frame 52, String_Key 24, String_Acknowledge 64; the module's method 72
+(its number helper and file reader out of line, 100 and 36). A key in a MUI 3.8 program is now
+HandleEvent 144 -> String_Key 24 -> String_Edit 52 against HandleEvent 144 -> Ti_Call 20 ->
+DoMethod -> dispatcher 20 -> String_Textinput 104 -> HandleVanillakey 60 before; in a MUI 4/5
+program dispatcher 20 -> stub -> modcall 28 -> module 72 -> String_Edit 52 against dispatcher
+20 -> String_Textinput 104 -> HandleVanillakey 60: about the same.
+
+**tests/lean/strkeys.c**: the same 45 keystroke steps into nine Strings (plain, Accept, Reject,
+Integer, Secret, MaxLen 6, AdvanceOnCR, an edit hook) through input.device on any
+muimaster.library, each step's contents, cursor and notification counts printed. Run on `lean`
+(the Textinput-method path), this branch and MUI 3.8 at once (a1200-31 twice, a1200-31-mui38):
+**`lean` and `strkey` identical in every step**; MUI 3.8 the same except what Zune adds
+(Ctrl-cursor moves a word, MUI 3.8 one character; Amiga-C/X/V use the clipboard, MUI 3.8 types
+the letter and Amiga-X clears; Alt marks, MUI 3.8 has no marks) -- Accept, Reject, the integer
+(742 after Backspace and 7), the secret, MaxLen, AdvanceOnCR (the next String becomes active)
+and the edit hook (called 5 times for ab, Backspace, Left, Return) are the same on all three.
+Its pointer part does not reach the gadget on either library (input.device takes the events
+differently); the mouse marking is tested by the marking probe (below) instead. perfbench has a
+"string keys x100" batch now (60 characters and 40 Backspaces as the window hands them to the
+active String, each redrawn).
+
+Checked on the final build (2980f001 + docs; FS-UAE, emulator figures, `lean` = the branch
+point f4534771 measured in the same session):
+
+- `make check` after the commit (b1 and b2 builds).
+- `-fstack-usage` of every library function against `lean`: none larger (above).
+- **tests/lean/strkeys.c**: 45 steps (keys; the pointer steps print the unchanged contents on
+  every library) identical on `lean` and the branch; MUI 3.8 as described above.
+- perfbench (68EC020, 15 repetitions, `lean` and the branch side by side, then swapped):
+  **string keys x100 -5.9% / -5.8%** (the direct path); create+dispose -2.3 / +0.5%, open+close
+  -0.2 / -1.0%, redraw +0.0 / +0.0%, relayout -0.1 / -0.0%, list insert -1.8 / -0.1%, list
+  active -3.2 / -0.4%, notify +0.1 / +0.0%, text set +0.0 / -0.4%: nothing slower beyond the
+  spread of two instances (eight instances were running).
+- MUI 3 group (36, in two halves with the LoadSeg trace): **36 behave as in the reference run**
+  (`slim2`'s final, whose String is `lean`'s; suite-compare: "18 behave the same, 0 differ" for
+  each half), windows and sizes identical, SimpleMail windowless as always; memory in use on the
+  second run identical except InstallerNG (713,104 against 729,504, its own variation) and
+  ViewCSV (+480), on the first run from boot 2.5 KB less everywhere (the smaller library). The
+  trace shows **no Zmui45.mui in any MUI 3 program**: only Zpicture.mui (2) and Zrequest.mui (4)
+  where `lean` loads them. (The first run of the first half fell over at NList-Demo's menu step
+  under the load of twelve instances, a script variable; rerun alone: all 18.)
+- MUI 4/5 group (24): **all 24 behave as in the reference run** (suite-compare: "24 behave the same, 0
+  differ"; mqttexplorer and mui5-embeddedimages exit as always), memory in use on the second run
+  identical to within 24 bytes (AmigaGPT, the gifanim demo).
+- fullcheck (with the trace): MUI-Demo with its eight sub-windows and the 18 other demos open
+  and close, lost 608 / 200 as `lean`, no alert, the same windows at the same places; modules:
+  15 class files (Gauge, Scale, Floattext, Dirlist, Volumelist, Scrollgroup, Register, Poppen,
+  Popasl, Pendisplay, Numericbutton, Levelmeter, Knob, Boopsi, Balance), no module (Z*.mui), as
+  `lean`.
+- demopix: **18 of 27 pixel-identical with MUI 3.8** as before (the same 18); every Zune window
+  pixel-identical to `slim2`'s final run except Layout (random button placement): 26 of 27
+  screens, MUIDemo-Strings among them.
+- The MUI 5 probes on the emulator (a1200-31): string, string_input (13 hook calls), marking,
+  selection, data, menu, pointer, text, title PASS; their output identical to `lean`'s run (string and data differ by object addresses only;
+  classes and textinput fail the same way on both: Calendar.mcc etc. and Textinput.mcc are not
+  installed; menu_input rc=20 on both; panel failed on the branch under the load of twelve
+  instances and passed on `lean` alone, as the README notes it depends on the load).
+- tests/lean/stringml.c (three Multiline Strings and a placeholder, version 19 = MUI 3.8
+  identity, so its multiline keys take the direct path): the window pixel-identical to `lean`'s (on the same session's base build), before
+  and after the click into the first one, and the same printed cursor position.
+- stackrun (twice each, side by side, then swapped): MUI-Demo with its eight sub-windows 5,248 on both and both times,
+  Layout 2,268, Virtual 2,388 (`lean` 2,384 once, as its own variation before), Pages 2,240,
+  Slidorama 2,304: as `lean`.
+
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
   measurements of what the compiler and the link can still give, "Toward the core" above;
   LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined
   into their dispatchers, which the stack rule forbids, so it stays off and `make check` runs
-  on it now. Next in order: (1) String's direct key path for MUI 3 programs: every key goes
-  HandleEvent -> String_KeyToTextinput -> Ti_Call -> DoMethod(MUIM_Textinput_*) -> the
-  dispatcher -> String_Textinput (2,254 bytes; HandleEvent 2,920, HandleVanillakey 1,042,
-  CursorKey 414, the Ti_* helpers ~600); for a program that gets MUI 3.8 the editing can be
-  called directly (no dispatch per key) and the MUI 5-only operations (files, toggle case,
-  increment/decrement, Undo, mark all, cut line) go into Zmui45.mui, with the Textinput methods
-  themselves (a MUI 5 program's subclass may send or catch them) staying for the MUI 4/5
-  identity: all String checks, tests/lean/stringml.c, demopix's Strings window pixel-identical,
-  and the LoadSeg trace of the MUI 3 group for the proof; (2) Area (16.6 KB) and Application
-  (16.0 KB) with the List round's method;
+  on it now; String's direct key path done 2026-11-11, `strkey`: file 256,424, "String's keys
+  edit directly" above). Next in order: Area (16.6 KB) and Application (16.0 KB) with the
+  List round's method: measured on `strkey`, their dispatchers are 9,648 and 5,050 bytes with
+  the methods inlined into them (frames 132 and up to 336; Application's Load and Save frames
+  1,080 and 1,088), the pattern the List, Window, Group and String rounds replaced with a
+  dispatcher that picks the method and makes one call; then their MUI 4/5-only paths into
+  Zmui45.mui and the rare blocks off the hot frames;
   259,096 after `slim2`, 263,208 after List, 267,400 after `smaller2`) against MUI 3.8's 166 KB;
   what is left and the next wins in order: "Toward the core" above.
   Before: 246 KB (file 262 KB, `smaller`), 261 KB (file 279 KB).
