@@ -639,3 +639,35 @@ APTR zune_list_draw_title_strip(Object *obj, struct MUI_ListData *data)
     }
     return clip;
 }
+
+/* MUIM_List_SortEntries (MUI 5): sorts a program's own NULL-terminated
+ * array of entries by the list's compare hook */
+static void ListSiftRaw(Object *obj, struct MUI_ListData *data, APTR *entries,
+    LONG root, LONG count)
+{
+    APTR entry = entries[root];
+    while (root < count / 2)
+    {
+        LONG child = root * 2 + 1;
+        if (child + 1 < count && zune_list_compare(obj, data, entries[child], entries[child + 1]) < 0) child++;
+        if (zune_list_compare(obj, data, entry, entries[child]) >= 0) break;
+        entries[root] = entries[child]; root = child;
+    }
+    entries[root] = entry;
+}
+
+IPTR zune_list_sort_entries(struct IClass *cl, Object *obj, APTR *entries)
+{
+    struct MUI_ListData *data = INST_DATA(cl, obj);
+    LONG count = 0, i;
+    if (!entries) return FALSE;
+    while (entries[count]) count++;
+    for (i = count / 2; i > 0; i--) ListSiftRaw(obj, data, entries, i - 1, count);
+    for (i = count - 1; i > 0; i--)
+    {
+        APTR entry = entries[0]; entries[0] = entries[i]; entries[i] = entry;
+        ListSiftRaw(obj, data, entries, 0, i);
+    }
+    return TRUE;
+}
+

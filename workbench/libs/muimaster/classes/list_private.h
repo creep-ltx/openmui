@@ -277,5 +277,7 @@ void zune_list_check_horiz(Object *obj, struct MUI_ListData *data);
 APTR zune_list_draw_title_strip(Object *obj, struct MUI_ListData *data);
 /* list.c, for the module: the columns' widths for the area's width */
 void zune_list_layout_columns(struct MUI_ListData *data);
+LONG zune_list_compare(Object *obj, struct MUI_ListData *data, APTR a, APTR b);
+IPTR zune_list_sort_entries(struct IClass *cl, Object *obj, APTR *entries);
 
 #endif

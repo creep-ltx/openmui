@@ -3560,8 +3560,19 @@ IPTR List__MUIM_Select(struct IClass *cl, Object *obj,
 *
 */
 
-static LONG CompareEntries(Object *obj, struct MUI_ListData *data, struct ListEntry *a,
-    struct ListEntry *b);
+/* MUIM_List_Compare of two entries' data, turned round for a DESCENDING
+ * sort column; MUIM_List_SortEntries (listx.c) compares through it too */
+LONG zune_list_compare(Object *obj, struct MUI_ListData *data, APTR a, APTR b)
+{
+    struct MUIP_List_Compare msg = {MUIM_List_Compare, a, b, {data->sort_column}, 0};
+    LONG result = (LONG)DoMethodA(obj, (Msg)&msg);
+    if (data->sort_column >= 0 && data->sort_column < data->columns &&
+        data->ci[data->sort_column].descending)
+        result = result < 0 ? 1 : result > 0 ? -1 : 0;
+    return result;
+}
+#define CompareEntries(obj, data, a, b) \
+    zune_list_compare((obj), (data), (a)->data, (b)->data)
 
 /* Insert one appended entry into the sorted prefix, after equal keys. */
 static LONG InsertSortedEntry(Object *obj, struct MUI_ListData *data, struct ListEntry **entries, LONG at)
@@ -4227,19 +4238,6 @@ IPTR List__MUIM_Jump(struct IClass *cl, Object *obj,
 */
 
 /* A fixed-stack heap handles arbitrary input without a scratch array. */
-static LONG CompareEntries(Object *obj, struct MUI_ListData *data, struct ListEntry *a,
-    struct ListEntry *b)
-{
-    struct MUIP_List_Compare msg = { MUIM_List_Compare, NULL, NULL, {0}, 0 };
-    msg.column = data->sort_column;
-    msg.entry1 = a->data;
-    msg.entry2 = b->data;
-    LONG result = (LONG)DoMethodA(obj, (Msg)&msg);
-    if (data->sort_column >= 0 && data->sort_column < data->columns &&
-        data->ci[data->sort_column].descending)
-        result = result < 0 ? 1 : result > 0 ? -1 : 0;
-    return result;
-}
 
 static void SiftEntries(Object *obj, struct MUI_ListData *data, struct ListEntry **entries,
     LONG root, LONG count)
@@ -5007,45 +5005,6 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 /**************************************************************************
  Dispatcher
 **************************************************************************/
-static LONG ListCompareRaw(Object *obj, struct MUI_ListData *data, APTR a, APTR b)
-{
-    struct MUIP_List_Compare msg = {MUIM_List_Compare, a, b, {data->sort_column}, 0};
-    LONG result = (LONG)DoMethodA(obj, (Msg)&msg);
-    if (data->sort_column >= 0 && data->sort_column < data->columns &&
-        data->ci[data->sort_column].descending)
-        result = result < 0 ? 1 : result > 0 ? -1 : 0;
-    return result;
-}
-
-static void ListSiftRaw(Object *obj, struct MUI_ListData *data, APTR *entries,
-    LONG root, LONG count)
-{
-    APTR entry = entries[root];
-    while (root < count / 2)
-    {
-        LONG child = root * 2 + 1;
-        if (child + 1 < count && ListCompareRaw(obj, data, entries[child], entries[child + 1]) < 0) child++;
-        if (ListCompareRaw(obj, data, entry, entries[child]) >= 0) break;
-        entries[root] = entries[child]; root = child;
-    }
-    entries[root] = entry;
-}
-
-static IPTR ListSortEntries(struct IClass *cl, Object *obj, APTR *entries)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-    LONG count = 0, i;
-    if (!entries) return FALSE;
-    while (entries[count]) count++;
-    for (i = count / 2; i > 0; i--) ListSiftRaw(obj, data, entries, i - 1, count);
-    for (i = count - 1; i > 0; i--)
-    {
-        APTR entry = entries[0]; entries[0] = entries[i]; entries[i] = entry;
-        ListSiftRaw(obj, data, entries, 0, i);
-    }
-    return TRUE;
-}
-
 #if !defined(ZUNE68_GCC_NATIVE)
 #include "../listx.c"
 #endif
@@ -5063,7 +5022,7 @@ BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
         return found ? found : DoSuperMethodA(cl, obj, msg);
     }
     case MUIM_List_SortEntries:
-        return ListSortEntries(cl, obj, ((struct MUIP_List_SortEntries *)msg)->entries);
+        return zune_list_sort_entries(cl, obj, ((struct MUIP_List_SortEntries *)msg)->entries);
     case MUIM_List_Edit:
         return ListEdit(cl, obj, ((struct MUIP_List_Edit *)msg)->row,
             ((struct MUIP_List_Edit *)msg)->column);

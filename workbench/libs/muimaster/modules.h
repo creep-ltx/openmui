@@ -221,6 +221,7 @@ struct ZuneListModule
         LONG);
     void (*check_horiz)(Object *, struct MUI_ListData *);
     APTR (*draw_title_strip)(Object *, struct MUI_ListData *);
+    IPTR (*sort_entries)(struct IClass *, Object *, APTR *);
 };
 
 /* MUI 4/5 attributes of the core classes that MUI 3 programs never use
