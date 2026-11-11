@@ -1279,6 +1279,29 @@ static Object *find_application_by_base(struct IClass *cl, Object *obj,
  * Return no status. A queue failure is not checked and can leave the new
  * configuration unowned.
  */
+/* The application's windows (the Family's list); NULL without memory */
+static struct MinList *app_windows(struct MUI_ApplicationData *data)
+{
+    struct MinList *children = NULL;
+
+    get(data->app_WindowFamily, MUIA_Family_List, &children);
+    return children;
+}
+
+/* One method with one argument on every window */
+static void app_each_window(struct MUI_ApplicationData *data, ULONG method,
+    IPTR arg)
+{
+    struct MinList *children = app_windows(data);
+    Object *cstate, *child;
+
+    if (!children)
+        return;
+    cstate = (Object *)children->mlh_Head;
+    while ((child = NextObject(&cstate)))
+        DoMethod(child, method, arg);
+}
+
 static void Application_ReloadConfigdata(struct IClass *cl, Object *obj)
 {
     Object *cfg;
@@ -1296,7 +1319,8 @@ static void Application_ReloadConfigdata(struct IClass *cl, Object *obj)
  * StartNotify failure, release those resources and leave notification
  * disabled. There is no return status.
  */
-static void Application_SetupConfigNotify(struct IClass *cl, Object *obj)
+static __attribute__((noinline)) void Application_SetupConfigNotify(
+    struct IClass *cl, Object *obj)
 {
     struct MUI_ApplicationData *data = INST_DATA(cl, obj);
     char name[255];
@@ -1355,6 +1379,116 @@ static void Application_StartNotifications(struct IClass *cl, Object *obj)
     if (data->app_CfgNotifyName
         && zune_file_written_since(data->app_CfgNotifyName, &data->app_Created))
         Application_ReloadConfigdata(cl, obj);
+}
+
+/* The application's base name (AppBaseName: the given one, or a unique
+ * one for a program that may run more than once) and, for a single-task
+ * program, the other running one told of the double start. Leaves
+ * app_Base NULL when the application must not be made. Out of line for
+ * its port name buffer: OM_NEW's frame. */
+static __attribute__((noinline)) void app_make_base(struct IClass *cl,
+    Object *obj, struct MUI_ApplicationData *data)
+{
+    char portname[255];
+
+    data->app_Base = AppBaseName(cl, obj, portname, data->app_Base,
+        data->app_SingleTask);
+    if (data->app_Base && data->app_SingleTask)
+    {
+        Object *other_app;
+
+        ObtainSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
+        if ((other_app = find_application_by_base(cl, obj, data->app_Base)))
+        {
+            // FIXME: Lifetime of other_app until the queued PushMethod
+            // executes is not established here.
+            DoMethod(other_app, MUIM_Application_PushMethod,
+                (IPTR) other_app, 3, MUIM_Set, MUIA_Application_DoubleStart,
+                TRUE);
+            FreeVec(data->app_Base);
+            data->app_Base = NULL;
+        }
+        ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
+    }
+}
+
+/* The commodities broker (MUIA_Application_UseCommodities) with the
+ * settings' iconification hotkey (System page), which iconifies and shows
+ * the program again, as on MUI 3.8. Out of line for the NewBroker. */
+static __attribute__((noinline)) void app_make_broker(
+    struct MUI_ApplicationData *data)
+{
+    struct NewBroker nb;
+
+    data->app_BrokerPort = CreateMsgPort();
+    if (!data->app_BrokerPort)
+        return;
+
+    nb.nb_Version = NB_VERSION;
+    nb.nb_Name = data->app_Title ? data->app_Title : (STRPTR) "Unnamed";
+    nb.nb_Title = data->app_Version ? data->app_Version : (STRPTR) "Unnamed";
+    nb.nb_Descr = data->app_Description ? data->app_Description : (STRPTR) "?";
+    nb.nb_Unique = 0;
+    nb.nb_Flags = COF_SHOW_HIDE;
+    nb.nb_Pri = data->app_BrokerPri;
+    nb.nb_Port = data->app_BrokerPort;
+    nb.nb_ReservedChannel = 0;
+
+    if (strncmp(nb.nb_Title, "$VER: ", 6) == 0)
+        nb.nb_Title += 6;
+
+    data->app_Broker = CxBroker(&nb, 0);
+
+    if (data->app_Broker)
+    {
+        CONST_STRPTR hk = data->app_GlobalInfo.mgi_Prefs->iconification_hotkey;
+        CxObj *filter;
+
+        if (hk && hk[0] && (filter = CxFilter(hk)))
+        {
+            AttachCxObj(filter,
+                CxSender(data->app_BrokerPort, ICONIFY_HOTKEY_ID));
+            AttachCxObj(filter, CxTranslate(NULL));
+            AttachCxObj(data->app_Broker, filter);
+        }
+        if (data->app_Active)
+            ActivateCxObj(data->app_Broker, 1);
+    }
+}
+
+/* At OM_DISPOSE: the final window positions into the application's own
+ * file, ENV:zune/<base>.prefs (the settings' window position mode 1), and
+ * ENVARC: too so they survive a reboot (mode 2). Only the positions go
+ * there, as with MUI: writing the settings in use there made the
+ * application ignore every later change of the global settings. Windows
+ * closed by the application before disposing it are already snapshotted
+ * in UndisplayWindow; apps that dispose the application with its windows
+ * still open (iGame) would otherwise lose their position. */
+static __attribute__((noinline)) void app_save_positions(
+    struct MUI_ApplicationData *data)
+{
+    LONG positionmode = data->app_GlobalInfo.mgi_Prefs->window_position;
+    char filename[255];
+    struct MinList *children;
+    Object *cstate, *child;
+
+    if (positionmode < 1)
+        return;
+    if ((children = app_windows(data)))
+    {
+        cstate = (Object *) children->mlh_Head;
+        while ((child = NextObject(&cstate)))
+            ZuneRememberWindowPosition(child);
+    }
+    snprintf(filename, 255, "ENV:zune/%s.prefs", data->app_Base);
+    DoMethod(data->app_GlobalInfo.mgi_Configdata,
+        MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
+    if (positionmode == 2)
+    {
+        snprintf(filename, 255, "ENVARC:zune/%s.prefs", data->app_Base);
+        DoMethod(data->app_GlobalInfo.mgi_Configdata,
+            MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
+    }
 }
 
 /**************************************************************************
@@ -1425,30 +1559,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         return 0;
     }
 
-    {
-        char portname[255];
-
-        data->app_Base = AppBaseName(cl, obj, portname, data->app_Base,
-            data->app_SingleTask);
-    }
-    if (data->app_Base && data->app_SingleTask)
-    {
-        Object *other_app;
-
-        ObtainSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
-        if ((other_app = find_application_by_base(cl, obj, data->app_Base)))
-        {
-            // FIXME: Lifetime of other_app until the queued PushMethod
-            // executes is not established here.
-            DoMethod(other_app, MUIM_Application_PushMethod,
-                (IPTR) other_app, 3, MUIM_Set, MUIA_Application_DoubleStart,
-                TRUE);
-            FreeVec(data->app_Base);
-            data->app_Base = NULL;
-        }
-        ReleaseSemaphore(&MUIMB(MUIMasterBase)->ZuneSemaphore);
-    }
-
+    app_make_base(cl, obj, data);
     if (!data->app_Base)
     {
         CoerceMethod(cl, obj, OM_DISPOSE);
@@ -1692,52 +1803,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
 
     if (GetTagData(MUIA_Application_UseCommodities, TRUE,
             msg->ops_AttrList) && ZUNE_CX())
-    {
-        data->app_BrokerPort = CreateMsgPort();
-
-        if (data->app_BrokerPort)
-        {
-            struct NewBroker nb;
-
-            nb.nb_Version = NB_VERSION;
-            nb.nb_Name =
-                data->app_Title ? data->app_Title : (STRPTR) "Unnamed";
-            nb.nb_Title =
-                data->app_Version ? data->app_Version : (STRPTR) "Unnamed";
-            nb.nb_Descr =
-                data->app_Description ? data->
-                app_Description : (STRPTR) "?";
-            nb.nb_Unique = 0;
-            nb.nb_Flags = COF_SHOW_HIDE;
-            nb.nb_Pri = data->app_BrokerPri;
-            nb.nb_Port = data->app_BrokerPort;
-            nb.nb_ReservedChannel = 0;
-
-            if (strncmp(nb.nb_Title, "$VER: ", 6) == 0)
-                nb.nb_Title += 6;
-
-            data->app_Broker = CxBroker(&nb, 0);
-
-            if (data->app_Broker)
-            {
-                /* The settings' iconification hotkey (System page)
-                 * iconifies and shows the program again, as on MUI 3.8 */
-                CONST_STRPTR hk =
-                    data->app_GlobalInfo.mgi_Prefs->iconification_hotkey;
-                CxObj *filter;
-
-                if (hk && hk[0] && (filter = CxFilter(hk)))
-                {
-                    AttachCxObj(filter,
-                        CxSender(data->app_BrokerPort, ICONIFY_HOTKEY_ID));
-                    AttachCxObj(filter, CxTranslate(NULL));
-                    AttachCxObj(data->app_Broker, filter);
-                }
-                if (data->app_Active)
-                    ActivateCxObj(data->app_Broker, 1);
-            }
-        }
-    }
+        app_make_broker(data);
 
     /* rexxsyslib.library is opened when the first message arrives. No
      * port when the settings switch ARexx off (System page). */
@@ -1823,53 +1889,8 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
     struct RIDNode *rid;
     struct MQNode *mq;
 
-    long positionmode;
     if (data->app_Base)
-    {
-        char filename[255];
-        positionmode = data->app_GlobalInfo.mgi_Prefs->window_position;
-        if (positionmode >= 1)
-        {
-            /*
-             * Capture the final window positions. Windows that are closed
-             * by the application before disposing it (e.g. FryingPan) are
-             * already snapshotted in UndisplayWindow, but apps that just
-             * dispose the application with its windows still open (e.g.
-             * iGame) would otherwise lose their position. The internal
-             * remember helper stores the position in the app's winpos array,
-             * which Configdata_SetWindowPos re-adds during Save.
-             */
-            {
-                struct MinList *children = NULL;
-                Object *cstate;
-                Object *child;
-
-                get(data->app_WindowFamily, MUIA_Family_List, &children);
-                if (children)
-                {
-                    cstate = (Object *) children->mlh_Head;
-                    while ((child = NextObject(&cstate)))
-                        ZuneRememberWindowPosition(child);
-                }
-            }
-
-            /* Only the window positions go into the application's own
-             * file, as with MUI: writing the settings in use there made
-             * the application ignore every later change of the global
-             * settings. */
-            snprintf(filename, 255, "ENV:zune/%s.prefs", data->app_Base);
-            DoMethod(data->app_GlobalInfo.mgi_Configdata,
-                MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
-        }
-        if (positionmode == 2)
-        {
-            /* ENVARC: the same, so the positions survive a reboot; the
-             * settings saved there are left as they are. */
-            snprintf(filename, 255, "ENVARC:zune/%s.prefs", data->app_Base);
-            DoMethod(data->app_GlobalInfo.mgi_Configdata,
-                MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
-        }
-    }
+        app_save_positions(data);
 
     if (data->app_is_TNode_in_list)
     {
@@ -1889,7 +1910,7 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
          */
         while (1)
         {
-            get(data->app_WindowFamily, MUIA_Family_List, &children);
+            children = app_windows(data);
             if (children == NULL)
                 break;
 
@@ -2260,7 +2281,7 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
 
                 while (1)
                 {
-                    get(data->app_WindowFamily, MUIA_Family_List, &wlist);
+                    wlist = (struct List *)app_windows(data);
                     wstate = (Object *) wlist->lh_Head;
                     while ((curwin = NextObject(&wstate)))
                     {
@@ -3674,7 +3695,7 @@ static struct List *Application__CloseWindows(struct IClass *cl, Object *obj)
     Object *cstate;
     Object *child;
 
-    get(data->app_WindowFamily, MUIA_Family_List, &children);
+    children = app_windows(data);
     if (!children)
         return NULL;
 
@@ -3986,7 +4007,7 @@ static IPTR Application__MUIM_OpenWindows(struct IClass *cl, Object *obj,
              * Compare pointers in the live family before using the target.
              * Re-read after each open, which can itself change membership.
              */
-            get(data->app_WindowFamily, MUIA_Family_List, &children);
+            children = app_windows(data);
             if (children)
             {
                 cstate = (Object *)children->mlh_Head;
@@ -4009,7 +4030,7 @@ static IPTR Application__MUIM_OpenWindows(struct IClass *cl, Object *obj,
         Object *cstate;
         Object *child;
 
-        get(data->app_WindowFamily, MUIA_Family_List, &children);
+        children = app_windows(data);
         if (!children)
             return 0;
 
@@ -4216,19 +4237,24 @@ static IPTR Application__MUIM_UpdateMenus(struct IClass *cl, Object *obj,
 *       establish successful loading.
 *
 */
-static IPTR Application__MUIM_Load(struct IClass *cl, Object *obj,
+/* MUIM_Application_Load and MUIM_Application_Save are one function: the
+ * windows' state through a Dataspace (MUIM_Export before writing,
+ * MUIM_Import after reading), the file msg->name, or ENV(ARC):MUI/<base>.cfg
+ * for the MUIV_ values (both messages are {MethodID, name}). MUI keeps the
+ * objects' state in ENV(ARC):MUI/<base>.cfg; earlier Zune68 versions used
+ * ENV(ARC):Zune, which is still read. Like MUI, Save creates the MUI drawer
+ * when it is missing. */
+static IPTR Application__MUIM_LoadSave(struct IClass *cl, Object *obj,
     struct MUIP_Application_Load *message)
 {
     struct MUI_ApplicationData *data = INST_DATA(cl, obj);
+    BOOL save = message->MethodID == MUIM_Application_Save;
     struct IFFHandle *iff;
-    char name[1024];
+    char buf[280];
+    CONST_STRPTR name = message->name;
+    CONST_STRPTR env = NULL;
     BPTR fh;
     Object *dataspace;
-    struct MinList *children = NULL;
-    Object *cstate;
-    Object *child;
-
-    bug("[MUI:App] %s(0x%p)\n", __func__, obj);
 
     if (!data->app_Base)
         return 0;
@@ -4237,25 +4263,41 @@ static IPTR Application__MUIM_Load(struct IClass *cl, Object *obj,
     if (!dataspace)
         return 0;
 
-    /* MUI keeps the objects' state in ENV(ARC):MUI/<base>.cfg; earlier
-     * Zune68 versions used ENV(ARC):Zune, which is still read */
+    if (save)
+        app_each_window(data, MUIM_Export, (IPTR)dataspace);
+
     if (message->name == MUIV_Application_Load_ENV)
-        snprintf(name, sizeof(name), "ENV:MUI/%s.cfg", data->app_Base);
+        env = "ENV";
     else if (message->name == MUIV_Application_Load_ENVARC)
-        snprintf(name, sizeof(name), "ENVARC:MUI/%s.cfg", data->app_Base);
-    else
-        strncpy(name, message->name, sizeof(name) - 1);
-
-    bug("[MUI:App] %s: opening '%s'\n", __func__, name);
-
-    fh = Open(name, MODE_OLDFILE);
-    if (!fh && (message->name == MUIV_Application_Load_ENV
-        || message->name == MUIV_Application_Load_ENVARC))
+        env = "ENVARC";
+    if (env)
     {
-        snprintf(name, sizeof(name), "%s:Zune/%s.cfg",
-            message->name == MUIV_Application_Load_ENV ? "ENV" : "ENVARC",
-            data->app_Base);
-        fh = Open(name, MODE_OLDFILE);
+        snprintf(buf, sizeof(buf), "%s:MUI/%s.cfg", env, data->app_Base);
+        name = buf;
+    }
+
+    fh = Open(name, save ? MODE_NEWFILE : MODE_OLDFILE);
+    if (!fh && env)
+    {
+        if (save)
+        {
+            BPTR dir;
+
+            snprintf(buf, sizeof(buf), "%s:MUI", env);
+            if ((dir = CreateDir(buf)))
+            {
+                UnLock(dir);
+                snprintf(buf, sizeof(buf), "%s:MUI/%s.cfg", env,
+                    data->app_Base);
+                fh = Open(buf, MODE_NEWFILE);
+            }
+        }
+        else
+        {
+            snprintf(buf, sizeof(buf), "%s:Zune/%s.cfg", env,
+                data->app_Base);
+            fh = Open(buf, MODE_OLDFILE);
+        }
     }
     if (fh)
     {
@@ -4265,17 +4307,33 @@ static IPTR Application__MUIM_Load(struct IClass *cl, Object *obj,
 
             InitIFFasDOS(iff);
 
-            if (!OpenIFF(iff, IFFF_READ))
+            if (!OpenIFF(iff, save ? IFFF_WRITE : IFFF_READ))
             {
-                if (!StopChunk(iff, ID_PREF, ID_MUIO))
+                if (!save)
                 {
-                    if (!ParseIFF(iff, IFFPARSE_SCAN))
-                    {
+                    if (!StopChunk(iff, ID_PREF, ID_MUIO)
+                        && !ParseIFF(iff, IFFPARSE_SCAN))
                         DoMethod(dataspace, MUIM_Dataspace_ReadIFF, iff,
                             ID_PREF, ID_MUIO);
-                    }
                 }
+                else if (!PushChunk(iff, ID_PREF, ID_FORM, IFFSIZE_UNKNOWN))
+                {
+                    if (!PushChunk(iff, ID_PREF, ID_PRHD,
+                            sizeof(struct FilePrefHeader)))
+                    {
+                        struct FilePrefHeader head;
+                        BOOL written;
 
+                        memset(&head, 0, sizeof(head));
+                        written = WriteChunkBytes(iff, &head,
+                            sizeof(head)) == sizeof(head);
+                        PopChunk(iff);
+                        if (written)
+                            DoMethod(dataspace, MUIM_Dataspace_WriteIFF,
+                                iff, ID_PREF, ID_MUIO);
+                    }
+                    PopChunk(iff);
+                }
                 CloseIFF(iff);
             }
             FreeIFF(iff);
@@ -4283,12 +4341,8 @@ static IPTR Application__MUIM_Load(struct IClass *cl, Object *obj,
         Close(fh);
     }
 
-    get(data->app_WindowFamily, MUIA_Family_List, &children);
-    cstate = (Object *) children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        DoMethod(child, MUIM_Import, dataspace);
-    }
+    if (!save)
+        app_each_window(data, MUIM_Import, (IPTR)dataspace);
 
     MUI_DisposeObject(dataspace);
 
@@ -4331,103 +4385,6 @@ static IPTR Application__MUIM_Load(struct IClass *cl, Object *obj,
 *       establish successful saving.
 *
 */
-static IPTR Application__MUIM_Save(struct IClass *cl, Object *obj,
-    struct MUIP_Application_Save *message)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct IFFHandle *iff;
-    char name[1024];
-    BPTR fh;
-    Object *dataspace;
-    struct MinList *children = NULL;
-    Object *cstate;
-    Object *child;
-
-    if (!data->app_Base)
-        return 0;
-
-    dataspace = MUI_NewObject(MUIC_Dataspace, TAG_DONE);
-    if (!dataspace)
-        return 0;
-
-    get(data->app_WindowFamily, MUIA_Family_List, &children);
-    cstate = (Object *) children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        DoMethod(child, MUIM_Export, dataspace);
-    }
-
-    if (message->name == MUIV_Application_Save_ENV)
-        snprintf(name, sizeof(name), "ENV:MUI/%s.cfg", data->app_Base);
-    else if (message->name == MUIV_Application_Save_ENVARC)
-        snprintf(name, sizeof(name), "ENVARC:MUI/%s.cfg", data->app_Base);
-    else
-        strncpy(name, message->name, sizeof(name) - 1);
-
-    fh = Open(name, MODE_NEWFILE);
-    if (!fh && (message->name == MUIV_Application_Save_ENV
-        || message->name == MUIV_Application_Save_ENVARC))
-    {
-        /* like MUI, create the MUI drawer when it is missing */
-        BPTR dir = CreateDir(message->name == MUIV_Application_Save_ENV
-            ? "ENV:MUI" : "ENVARC:MUI");
-
-        if (dir)
-        {
-            UnLock(dir);
-            fh = Open(name, MODE_NEWFILE);
-        }
-    }
-    if (fh)
-    {
-        if (ZUNE_IFFPARSE() && (iff = AllocIFF()))
-        {
-            iff->iff_Stream = (IPTR) fh;
-
-            InitIFFasDOS(iff);
-
-            if (!OpenIFF(iff, IFFF_WRITE))
-            {
-                if (!PushChunk(iff, ID_PREF, ID_FORM, IFFSIZE_UNKNOWN))
-                {
-                    if (!PushChunk(iff, ID_PREF, ID_PRHD,
-                            sizeof(struct FilePrefHeader)))
-                    {
-                        struct FilePrefHeader head;
-
-                        head.ph_Version = 0;
-                        head.ph_Type = 0;
-                        head.ph_Flags[0] =
-                            head.ph_Flags[1] =
-                            head.ph_Flags[2] = head.ph_Flags[3] = 0;
-
-                        if (WriteChunkBytes(iff, &head,
-                                sizeof(head)) == sizeof(head))
-                        {
-                            PopChunk(iff);
-                            DoMethod(dataspace, MUIM_Dataspace_WriteIFF,
-                                iff, ID_PREF, ID_MUIO);
-                        }
-                        else
-                        {
-                            PopChunk(iff);
-                        }
-                    }
-                    PopChunk(iff);
-                }
-                CloseIFF(iff);
-            }
-            FreeIFF(iff);
-        }
-        Close(fh);
-    }
-
-    MUI_DisposeObject(dataspace);
-
-    return 0;
-}
-
-
 /****** Application.mui/MUIM_Application_CheckRefresh ************
 *
 *   NAME
@@ -4456,16 +4413,7 @@ static IPTR Application__MUIM_Save(struct IClass *cl, Object *obj,
 static IPTR Application__MUIM_CheckRefresh(struct IClass *cl, Object *obj,
     struct MUIP_Application_CheckRefresh *message)
 {
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct MinList *children = NULL;
-    Object *cstate;
-    Object *child;
-
-    get(data->app_WindowFamily, MUIA_Family_List, &children);
-    cstate = (Object *) children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-        DoMethod(child, MUIM_Window_Refresh);
-
+    app_each_window(INST_DATA(cl, obj), MUIM_Window_Refresh, 0);
     return 0;
 }
 
@@ -4478,7 +4426,7 @@ static IPTR Application__Menu(struct IClass *cl, Object *obj, ULONG *msg,
     Object *state, *child, *strip, *item;
     IPTR value = 0;
 
-    get(data->app_WindowFamily, MUIA_Family_List, &children);
+    children = app_windows(data);
     if (!children) return 0;
     state = (Object *)children->mlh_Head;
     while ((child = NextObject(&state)))
@@ -4517,7 +4465,7 @@ static IPTR Application__MUIM_ShowHelp(struct IClass *cl, Object *obj,
     {
         struct MinList *children = NULL;
         Object *state;
-        get(data->app_WindowFamily, MUIA_Family_List, &children);
+        children = app_windows(data);
         window = NULL;
         if (children)
         {
@@ -4876,24 +4824,18 @@ void zune_applist_free(void)
  */
 BOOPSI_DISPATCHER(IPTR, Application_Dispatcher, cl, obj, msg)
 {
+    IPTR (*method)(struct IClass *, Object *, APTR);
+
     switch (msg->MethodID)
     {
-    case OM_NEW:
-        return Application__OM_NEW(cl, obj, (struct opSet *)msg);
-    case OM_DISPOSE:
-        return Application__OM_DISPOSE(cl, obj, msg);
-    case OM_SET:
-        return Application__OM_SET(cl, obj, (struct opSet *)msg);
-    case OM_GET:
-        return Application__OM_GET(cl, obj, (struct opGet *)msg);
-    case OM_ADDMEMBER:
-        return Application__OM_ADDMEMBER(cl, obj, (APTR) msg);
-    case OM_REMMEMBER:
-        return Application__OM_REMMEMBER(cl, obj, (APTR) msg);
-    case MUIM_Application_AddInputHandler:
-        return Application__MUIM_AddInputHandler(cl, obj, (APTR) msg);
-    case MUIM_Application_RemInputHandler:
-        return Application__MUIM_RemInputHandler(cl, obj, (APTR) msg);
+    case OM_NEW: method = (APTR)Application__OM_NEW; break;
+    case OM_DISPOSE: method = (APTR)Application__OM_DISPOSE; break;
+    case OM_SET: method = (APTR)Application__OM_SET; break;
+    case OM_GET: method = (APTR)Application__OM_GET; break;
+    case OM_ADDMEMBER: method = (APTR)Application__OM_ADDMEMBER; break;
+    case OM_REMMEMBER: method = (APTR)Application__OM_REMMEMBER; break;
+    case MUIM_Application_AddInputHandler: method = (APTR)Application__MUIM_AddInputHandler; break;
+    case MUIM_Application_RemInputHandler: method = (APTR)Application__MUIM_RemInputHandler; break;
     case MUIM_Application_GetMenuCheck:
         return Application__Menu(cl, obj, (ULONG *)msg, FALSE, MUIA_Menuitem_Checked);
     case MUIM_Application_GetMenuState:
@@ -4902,53 +4844,37 @@ BOOPSI_DISPATCHER(IPTR, Application_Dispatcher, cl, obj, msg)
         return Application__Menu(cl, obj, (ULONG *)msg, TRUE, MUIA_Menuitem_Checked);
     case MUIM_Application_SetMenuState:
         return Application__Menu(cl, obj, (ULONG *)msg, TRUE, MUIA_Menuitem_Enabled);
-    case MUIM_Application_ShowHelp:
-        return Application__MUIM_ShowHelp(cl, obj, (APTR)msg);
+    case MUIM_Application_ShowHelp: method = (APTR)Application__MUIM_ShowHelp; break;
     case MUIM_Application_Input:
         return DEEP(Application__MUIM_Input, cl, obj, msg);
     case MUIM_Application_InputBuffered:
         return DEEP(Application__MUIM_InputBuffered, cl, obj, msg);
     case MUIM_Application_NewInput:
         return DEEP(Application__MUIM_NewInput, cl, obj, msg);
-    case MUIM_Application_PushMethod:
-        return Application__MUIM_PushMethod(cl, obj, (APTR) msg);
-    case MUIM_Application_UnpushMethod:
-        return Application__MUIM_UnpushMethod(cl, obj, (APTR) msg);
-    case MUIM_Application_ReturnID:
-        return Application__MUIM_ReturnID(cl, obj, (APTR) msg);
+    case MUIM_Application_PushMethod: method = (APTR)Application__MUIM_PushMethod; break;
+    case MUIM_Application_UnpushMethod: method = (APTR)Application__MUIM_UnpushMethod; break;
+    case MUIM_Application_ReturnID: method = (APTR)Application__MUIM_ReturnID; break;
     case MUIM_FindUData:
-    case MUIM_FindObject:
-        return Application__MUIM_FindUData(cl, obj, (APTR) msg);
-    case MUIM_GetUData:
-        return Application__MUIM_GetUData(cl, obj, (APTR) msg);
-    case MUIM_SetUData:
-        return Application__MUIM_SetUData(cl, obj, (APTR) msg);
-    case MUIM_SetUDataOnce:
-        return Application__MUIM_SetUDataOnce(cl, obj, (APTR) msg);
-    case MUIM_Application_AboutMUI:
-        return Application__MUIM_AboutMUI(cl, obj, (APTR) msg);
-    case MUIM_Application_SetConfigdata:
-        return Application__MUIM_SetConfigdata(cl, obj, (APTR) msg);
-    case MUIM_Application_SetConfigItem:
-        return Application__MUIM_SetConfigItem(cl, obj, (APTR) msg);
-    case MUIM_Application_OpenWindows:
-        return Application__MUIM_OpenWindows(cl, obj, (APTR) msg);
-    case MUIM_Application_OpenConfigWindow:
-        return Application__MUIM_OpenConfigWindow(cl, obj, (APTR) msg);
+    case MUIM_FindObject: method = (APTR)Application__MUIM_FindUData; break;
+    case MUIM_GetUData: method = (APTR)Application__MUIM_GetUData; break;
+    case MUIM_SetUData: method = (APTR)Application__MUIM_SetUData; break;
+    case MUIM_SetUDataOnce: method = (APTR)Application__MUIM_SetUDataOnce; break;
+    case MUIM_Application_AboutMUI: method = (APTR)Application__MUIM_AboutMUI; break;
+    case MUIM_Application_SetConfigdata: method = (APTR)Application__MUIM_SetConfigdata; break;
+    case MUIM_Application_SetConfigItem: method = (APTR)Application__MUIM_SetConfigItem; break;
+    case MUIM_Application_OpenWindows: method = (APTR)Application__MUIM_OpenWindows; break;
+    case MUIM_Application_OpenConfigWindow: method = (APTR)Application__MUIM_OpenConfigWindow; break;
     case MUIM_Application_Execute:
-    case MUIM_Application_Run:
-        return Application__MUIM_Execute(cl, obj, msg);
-    case MUIM_Application_UpdateMenus:
-        return Application__MUIM_UpdateMenus(cl, obj, msg);
+    case MUIM_Application_Run: method = (APTR)Application__MUIM_Execute; break;
+    case MUIM_Application_UpdateMenus: method = (APTR)Application__MUIM_UpdateMenus; break;
     case MUIM_Application_Load:
-        return Application__MUIM_Load(cl, obj, (APTR) msg);
-    case MUIM_Application_Save:
-        return Application__MUIM_Save(cl, obj, (APTR) msg);
-    case MUIM_Application_CheckRefresh:
-        return Application__MUIM_CheckRefresh(cl, obj, (APTR) msg);
+    case MUIM_Application_Save: method = (APTR)Application__MUIM_LoadSave; break;
+    case MUIM_Application_CheckRefresh: method = (APTR)Application__MUIM_CheckRefresh; break;
+    default:
+        return DoSuperMethodA(cl, obj, msg);
     }
 
-    return (DoSuperMethodA(cl, obj, msg));
+    return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 /*
