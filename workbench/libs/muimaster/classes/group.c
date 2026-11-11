@@ -2790,122 +2790,200 @@ finish:
  * no allocation or status. Zero weights constrain maxima to minima;
  * arithmetic is not overflow-checked.
  */
-static __attribute__((noinline)) void group_minmax_1d(struct IClass *cl, Object *obj,
+static void group_minmax_horiz(struct IClass *cl, Object *obj,
     struct MinList *children, struct MUIP_AskMinMax *msg)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
     APTR cstate;
     Object *child;
     struct MUI_MinMax tmp;
-    /* The axis the children are placed along: a = 0 for a horizontal
-     * group (widths), 1 for a vertical one. MUI_MinMax is
-     * MinWidth, MinHeight, MaxWidth, MaxHeight, DefWidth, DefHeight, so
-     * min is [0], max [2], def [4] from the axis' first field; the group's and
-     * Area's horizontal fields are followed by the vertical ones. */
-    int a = (data->flags & GROUP_HORIZ) ? 0 : 1;
-    /* ta: the axis along, tb: the other; [0] min, [2] max, [4] def (with a
-     * constant offset each: no index arithmetic per child) */
-    WORD *ta = &tmp.MinWidth + a, *tb = &tmp.MinWidth + (1 - a);
-    WORD spacing = (&data->horiz_spacing)[a];
-    BOOL same = (data->flags & (a ? GROUP_SAME_HEIGHT : GROUP_SAME_WIDTH)) != 0;
-    WORD maxmin = 0;
-    ULONG weight_sum = 0;
-    BOOL found_nonzero_weight = FALSE, counted = FALSE;
+    WORD maxminwidth = 0;
+    BOOL found_nonzero_vweight = FALSE, counted = FALSE;
 
-    tb[0] = 0;
-    tb[4] = 0;
-    tb[2] = MUI_MAXMAX;
+    tmp.MinHeight = 0;
+    tmp.DefHeight = 0;
+    tmp.MaxHeight = MUI_MAXMAX;
     if (data->num_visible_children > 0)
     {
-        ta[0] = ta[4] = (data->num_visible_children - 1) * spacing;
+        tmp.MinWidth = tmp.DefWidth =
+            (data->num_visible_children - 1) * data->horiz_spacing;
         /* MUI 3.9 adds spacing and each child's maximum, itself at most
          * MUI_MAXMAX, until the sum reaches MUI_MAXMAX, without clamping
          * the sum (tests/native/demolayout.c, widgetsizes.c) */
-        ta[2] = -spacing;
+        tmp.MaxWidth = -data->horiz_spacing;
     }
     else
     {
-        ta[0] = ta[4] = 0;
-        ta[2] = MUI_MAXMAX;
+        tmp.MinWidth = tmp.DefWidth = 0;
+        tmp.MaxWidth = MUI_MAXMAX;
     }
 
-    if (same)
+    if (data->flags & GROUP_SAME_WIDTH)
     {
         cstate = children->mlh_Head;
         while ((child = NextObject(&cstate)))
         {
             if (IS_HIDDEN(child))
                 continue;
-            maxmin = MAX(maxmin, (&_minwidth(child))[a]);
+            maxminwidth = MAX(maxminwidth, _minwidth(child));
         }
     }
 
-    (&data->samesize_maxmin_horiz)[a] = maxmin;
+    data->samesize_maxmin_horiz = maxminwidth;
+/*    D(bug("group_minmax_horiz(%p) : maxminwidth=%d\n", obj, maxminwidth)); */
 
+    data->horiz_weight_sum = 0;
     cstate = children->mlh_Head;
     while ((child = NextObject(&cstate)))
     {
-        /* the child's fields along (cm) and across (cx) */
-        WORD *cm = &_minwidth(child) + a, *cx = &_minwidth(child) + (1 - a);
-        UWORD wa = (&_hweight(child))[a], wb = (&_hweight(child))[1 - a];
-        WORD min, def;
+        WORD minwidth;
 
         if (IS_HIDDEN(child))
             continue;
-        if (a == 0)
+        if (data->flags & GROUP_SAME_WIDTH)
         {
-            /* the same width: counted here, the child's minimum left */
-            min = same ? MIN(MAX(maxmin, cm[0]), cm[2]) : cm[0];
-            /* MUI 3.8 counts the default width of a child of horizontal
-             * weight 0 too (measured: a string of weight 0 beside a
-             * button, 112 + 6 + 32), although the child stays at its
-             * minimum in the layout */
-            def = cm[4];
+            minwidth = MAX(maxminwidth, _minwidth(child));
+            minwidth = MIN(minwidth, _maxwidth(child));
         }
         else
-        {
-            /* the same height: the child's minimum raised, at most to
-             * its weight-0 maximum; a vertical group counts the minimum
-             * height of a child of vertical weight 0 */
-            if (same)
-                cm[0] = MIN(maxmin, wa ? cm[2] : cm[0]);
-            min = cm[0];
-            def = wa ? cm[4] : cm[0];
-        }
+            minwidth = _minwidth(child);
         /* MUI 3.9 leaves children that may disappear, and their spacing,
          * out of the minimum and default (tests/native/disappear.c) */
-        if ((&muiAreaData(child)->mad_HorizDisappear)[a] > 0)
+        if (muiAreaData(child)->mad_HorizDisappear > 0)
         {
-            ta[0] -= spacing;
-            ta[4] -= spacing;
+            tmp.MinWidth -= data->horiz_spacing;
+            tmp.DefWidth -= data->horiz_spacing;
         }
         else
         {
             /* a child whose own children may all disappear has a
              * negative minimum; MUI 3.9 counts it as 0 here */
-            ta[0] += MAX(min, 0);
-            ta[4] += MAX(def, 0);
+            tmp.MinWidth += MAX(minwidth, 0);
+            /* MUI 3.8 counts the default width of a child of horizontal
+             * weight 0 too (measured: a string of weight 0 beside a
+             * button, 112 + 6 + 32), although the child stays at its
+             * minimum in the layout; a vertical group counts the
+             * minimum height of a child of vertical weight 0 */
+            tmp.DefWidth += MAX(_defwidth(child), 0);
         }
-        if (ta[2] < MUI_MAXMAX)
-            ta[2] += spacing + MIN(wa ? cm[2] : cm[0], MUI_MAXMAX);
-        tb[0] = MAX(tb[0], cx[0]);
-        tb[4] = MAX(tb[4], cx[4]);
+        if (tmp.MaxWidth < MUI_MAXMAX)
+            tmp.MaxWidth += data->horiz_spacing
+                + MIN(w0_maxwidth(child), MUI_MAXMAX);
+        tmp.MinHeight = MAX(tmp.MinHeight, _minheight(child));
+        tmp.DefHeight = MAX(tmp.DefHeight, _defheight(child));
         /*
-           if all children have null weight then the other axis' max is its
-           min; if all but some children have null weights, it is the min
-           of all maxima
+           if all children have null weight then maxheight=minheight
+           if all but some children have null weights, the maxheight
+           is the min of all maxheights
          */
-        tb[2] = MIN(tb[2], cx[2]);
-        weight_sum += wa;
+        tmp.MaxHeight = MIN(tmp.MaxHeight, _maxheight(child));
+        data->horiz_weight_sum += _hweight(child);
         counted = TRUE;
-        if (wb > 0)
-            found_nonzero_weight = TRUE;
+        if (_vweight(child) > 0)
+        {
+            found_nonzero_vweight = TRUE;
+        }
     }
-    (&data->horiz_weight_sum)[a] = weight_sum;
     /* an empty group keeps its full maximum, so MUIA_FixWidth and
      * MUIA_FixHeight size it, as in MUI 3.9 (tests/native/emptyfixprobe.c) */
-    if (counted && !found_nonzero_weight)
-        tb[2] = tb[0];
+    if (counted && !found_nonzero_vweight)
+    {
+        tmp.MaxHeight = tmp.MinHeight;
+    }
+
+    //if (data->flags & GROUP_VIRTUAL)
+    //{
+    //kprintf("# min %d x %d  def %d x %d  max %d x %d\n",
+    //                tmp.MinWidth, tmp.MinHeight,
+    //                tmp.DefWidth, tmp.DefHeight,
+    //                tmp.MaxWidth, tmp.MaxHeight);
+    //}
+
+    END_MINMAX();
+}
+
+/* minmax calculation for vertical groups (see group_minmax_horiz)
+*/
+/*
+ * Accumulate visible non-border children vertically and cache weights.
+ * SameHeight can mutate child minimum heights within their limits. Add
+ * normalized content limits to caller MinMaxInfo. Requires finalized child
+ * sizes and valid writable message; no status or overflow checking.
+ */
+static void group_minmax_vert(struct IClass *cl, Object *obj,
+    struct MinList *children, struct MUIP_AskMinMax *msg)
+{
+    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    APTR cstate;
+    Object *child;
+    struct MUI_MinMax tmp;
+    WORD maxminheight = 0;
+    BOOL found_nonzero_hweight = FALSE, counted = FALSE;
+
+    tmp.MinWidth = 0;
+    tmp.DefWidth = 0;
+    tmp.MaxWidth = MUI_MAXMAX;
+    if (data->num_visible_children > 0)
+    {
+        tmp.MinHeight = tmp.DefHeight =
+            (data->num_visible_children - 1) * data->vert_spacing;
+        tmp.MaxHeight = -data->vert_spacing;
+    }
+    else
+    {
+        tmp.MinHeight = tmp.DefHeight = 0;
+        tmp.MaxHeight = MUI_MAXMAX;
+    }
+
+    if (data->flags & GROUP_SAME_HEIGHT)
+    {
+        cstate = children->mlh_Head;
+        while ((child = NextObject(&cstate)))
+        {
+            if (IS_HIDDEN(child))
+                continue;
+            maxminheight = MAX(maxminheight, _minheight(child));
+        }
+    }
+
+    data->samesize_maxmin_vert = maxminheight;
+    data->vert_weight_sum = 0;
+    cstate = children->mlh_Head;
+    while ((child = NextObject(&cstate)))
+    {
+        if (IS_HIDDEN(child))
+            continue;
+
+        if (data->flags & GROUP_SAME_HEIGHT)
+            _minheight(child) = MIN(maxminheight, w0_maxheight(child));
+        if (muiAreaData(child)->mad_VertDisappear > 0)
+        {
+            tmp.MinHeight -= data->vert_spacing;
+            tmp.DefHeight -= data->vert_spacing;
+        }
+        else
+        {
+            tmp.MinHeight += MAX(_minheight(child), 0);
+            tmp.DefHeight += MAX(w0_defheight(child), 0);
+        }
+        if (tmp.MaxHeight < MUI_MAXMAX)
+            tmp.MaxHeight += data->vert_spacing
+                + MIN(w0_maxheight(child), MUI_MAXMAX);
+        tmp.MinWidth = MAX(tmp.MinWidth, _minwidth(child));
+        tmp.DefWidth = MAX(tmp.DefWidth, _defwidth(child));
+        tmp.MaxWidth = MIN(tmp.MaxWidth, _maxwidth(child));
+        data->vert_weight_sum += _vweight(child);
+        counted = TRUE;
+        if (_hweight(child) > 0)
+        {
+            found_nonzero_hweight = TRUE;
+        }
+    }
+    /* see group_minmax_horiz */
+    if (counted && !found_nonzero_hweight)
+    {
+        tmp.MaxWidth = tmp.MinWidth;
+    }
 
     END_MINMAX();
 }
@@ -3319,7 +3397,10 @@ IPTR Group__MUIM_AskMinMax(struct IClass *cl, Object *obj,
         {
             data->num_visible_children =
                 Group_GetNumVisibleChildren(data, lm.lm_Children);
-            group_minmax_1d(cl, obj, lm.lm_Children, msg);
+            if (data->flags & GROUP_HORIZ)
+                group_minmax_horiz(cl, obj, lm.lm_Children, msg);
+            else
+                group_minmax_vert(cl, obj, lm.lm_Children, msg);
         }
         else
         {
