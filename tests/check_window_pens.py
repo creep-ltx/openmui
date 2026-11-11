@@ -82,6 +82,11 @@ class PenHarness(Harness):
         assert self.mem.r32(sp + 4) == DATA
         assert self.mem.r32(sp + 12) == 0
         spec = self.mem.r_cstr(self.mem.r32(sp + 8))
+        if spec == '':
+            # the active object's colour (the harness's empty settings):
+            # no MUI pen, none to release
+            self.cpu.w_reg(0, 0xffffffff)
+            return
         if self.derived and spec == 'rc0c0c0c0,c0c0c0c0,c0c0c0c0':
             index = 1
         elif self.derived and spec == 'rd0d0d0d0,d0d0d0d0,d0d0d0d0':

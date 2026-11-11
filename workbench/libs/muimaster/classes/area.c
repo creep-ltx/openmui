@@ -1159,7 +1159,12 @@ static void _zune_focus_new(Object *obj, int type)
 
     if (type == ZUNE_FOCUS_TYPE_ACTIVE_OBJ) {
         /* MUI 3.9 frames the active object with a solid shine line one
-         * pixel outside its box (tests/native/activeframe.c) */
+         * pixel outside its box (tests/native/activeframe.c); MUI 3.8 the
+         * same, in the settings' "colour of active object" (shine by
+         * default; m5 drew it black, measured with tests/lean/setleft.c) */
+        LONG pen = muiRenderInfo(obj)->mri_Tail->ActivePen;
+        if (pen != -1)
+            SetAPen(rp, MUIPEN(pen));
         SetDrPt(rp, 0xFFFF);
         x1--;
         y1--;

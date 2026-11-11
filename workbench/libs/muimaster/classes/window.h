@@ -369,6 +369,8 @@ struct MUI_RenderInfoTail
     struct Region *rArray[MRI_RARRAY_SIZE]; /* AddClipping/AddClipRegion */
     struct RastPort BufferRP;               /* with mri_BufferBM */
     struct dt_frame_image *FrameImage[16];
+    LONG ActivePen;     /* the settings' colour of the active object
+                         * (Navigation page), a MUI_ObtainPen token or -1 */
 };
 
 struct MUI_RenderInfo

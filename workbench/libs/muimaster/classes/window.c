@@ -1425,7 +1425,7 @@ static void __attribute__((noinline)) DisposeCustomFrames(struct MUI_RenderInfo 
     }
 }
 
-static void InitRenderInfoPens(struct MUI_RenderInfo *mri,
+static void InitRenderInfoPens(Object *obj, struct MUI_RenderInfo *mri,
     struct MUI_WindowData *data)
 {
     static const UWORD fallback[MPEN_COUNT] = {
@@ -1481,6 +1481,10 @@ static void InitRenderInfoPens(struct MUI_RenderInfo *mri,
         if (pen != -1)
             mri->mri_PensStorage[i] = MUIPEN(pen);
     }
+    /* the active object's frame, after the MUI pens it may name ("m0",
+     * shine, by default: no pen of its own then) */
+    mri->mri_Tail->ActivePen = MUI_ObtainPen(mri, (struct MUI_PenSpec *)
+        muiGlobalInfo(obj)->mgi_Prefs->active_object_color, 0);
 }
 
 /* Select a supplied, application-custom, requested-public, preference-
@@ -1625,7 +1629,7 @@ static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
         mri->mri_Flags |= MUIMRI_TRUECOLOR;
     }
 
-    InitRenderInfoPens(mri, data);
+    InitRenderInfoPens(obj, mri, data);
 
     for (i = 0; i < -MUIV_Font_NegCount; i++)
     {
@@ -1702,6 +1706,9 @@ static void CleanupRenderInfoPens(struct MUI_RenderInfo *mri,
         if (pen != -1)
             MUI_ReleasePen(mri, pen);
     }
+    if (mri->mri_Tail->ActivePen != -1)
+        MUI_ReleasePen(mri, mri->mri_Tail->ActivePen);
+    mri->mri_Tail->ActivePen = -1;
 }
 
 static void CloseRenderInfoFonts(struct MUI_RenderInfo *mri)
