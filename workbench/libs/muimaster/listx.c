@@ -558,17 +558,10 @@ void zune_list_layout_horiz(Object *obj, struct MUI_ListData *data,
 }
 
 /* After the columns changed width: show or hide the scroller through a
- * relayout, or just update its range */
+ * relayout, or just update its range (list.c's List_CheckHoriz has
+ * checked that there is one, set up, and that the list is not quiet) */
 void zune_list_check_horiz(Object *obj, struct MUI_ListData *data)
 {
-    if (!data->horiz || !(_flags(obj) & MADF_SETUP))
-        return;
-    if (data->flags & LIST_QUIET)
-    {
-        data->flags |= LIST_HORIZCHECK;
-        return;
-    }
-    data->flags &= ~LIST_HORIZCHECK;
     if (List_NeedHoriz(data) != data->horiz_shown)
     {
         if (_flags(obj) & MADF_CANDRAW)

@@ -1153,13 +1153,23 @@ static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
 
 static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
     struct MUI_LayoutMsg *lm);
-/* The horizontal scroller is the module's: a list has one only in a
- * program that gets MUI 4/5 or asks for it (MUIM_Setup) */
-static inline void List_CheckHoriz(struct IClass *cl, Object *obj)
+/* After the columns changed width: the horizontal scroller (the
+ * module's; a list has one only in a program that gets MUI 4/5 or asks
+ * for it, MUIM_Setup) is checked when quiet ends; the module is called
+ * only for the check itself */
+static void List_CheckHoriz(struct IClass *cl, Object *obj)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
-    if (data->horiz)
-        zune_list_check_horiz(obj, data);
+
+    if (!data->horiz || !(_flags(obj) & MADF_SETUP))
+        return;
+    if (data->flags & LIST_QUIET)
+    {
+        data->flags |= LIST_HORIZCHECK;
+        return;
+    }
+    data->flags &= ~LIST_HORIZCHECK;
+    zune_list_check_horiz(obj, data);
 }
 
 /* At entry to this function, data->area is always set, but data->vert may
@@ -4642,8 +4652,9 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
     struct MUIP_HandleEvent *msg)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
-    if (data->edit_object && msg->imsg && msg->imsg->Class == IDCMP_RAWKEY &&
-        msg->imsg->Code == 0x45)
+    struct IntuiMessage *imsg = msg->imsg;
+    if (data->edit_object && imsg && imsg->Class == IDCMP_RAWKEY &&
+        imsg->Code == 0x45)
     {
         DoMethod(_app(obj), MUIM_Application_PushMethod, obj, 2,
             MUIM_List_EndEdit, MUIV_List_EndEdit_Abort);
@@ -4765,20 +4776,20 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             result = 0;
         }
     }
-    else if (msg->imsg)
+    else if (imsg)
     {
-        DoMethod(obj, MUIM_List_TestPos, msg->imsg->MouseX, msg->imsg->MouseY,
+        DoMethod(obj, MUIM_List_TestPos, imsg->MouseX, imsg->MouseY,
             (IPTR) &pos);
 
-        switch (msg->imsg->Class)
+        switch (imsg->Class)
         {
         case IDCMP_MOUSEBUTTONS:
-            if (msg->imsg->Code == SELECTDOWN)
+            if (imsg->Code == SELECTDOWN)
             {
-                if (data->title && msg->imsg->MouseY >= _mtop(obj) &&
-                    msg->imsg->MouseY < data->entries_top_pixel &&
-                    msg->imsg->MouseX >= _mleft(data->area) &&
-                    msg->imsg->MouseX <= _mright(data->area))
+                if (data->title && imsg->MouseY >= _mtop(obj) &&
+                    imsg->MouseY < data->entries_top_pixel &&
+                    imsg->MouseX >= _mleft(data->area) &&
+                    imsg->MouseX <= _mright(data->area))
                 {
                     if (pos.column >= 0 && data->ci[pos.column].sortable)
                     {
@@ -4792,10 +4803,10 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                     superset(cl, obj, MUIA_List_TitleClick, data->title_click);
                     return MUI_EventHandlerRC_Eat;
                 }
-                if (_isinobject(data->area, msg->imsg->MouseX,
-                    msg->imsg->MouseY)
+                if (_isinobject(data->area, imsg->MouseX,
+                    imsg->MouseY)
                     && !(data->horiz_shown && _isinobject(data->horiz,
-                        msg->imsg->MouseX, msg->imsg->MouseY)))
+                        imsg->MouseX, imsg->MouseY)))
                 {
                     data->mouse_click = MOUSE_CLICK_ENTRY;
 
@@ -4805,7 +4816,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
                         clear = (data->multiselect
                             == MUIV_Listview_MultiSelect_Shifted
-                            && (msg->imsg->Qualifier
+                            && (imsg->Qualifier
                             & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) == 0);
                         seltype = clear ? MUIV_List_Select_On
                             : MUIV_List_Select_Toggle;
@@ -4820,7 +4831,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                         /* Handle double clicking */
                         if (data->last_active == pos.entry
                             && DoubleClick(data->last_secs, data->last_mics,
-                            msg->imsg->Seconds, msg->imsg->Micros))
+                            imsg->Seconds, imsg->Micros))
                         {
                             set(obj, MUIA_Listview_DoubleClick, TRUE);
                             data->last_active = -1;
@@ -4829,8 +4840,8 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                         else
                         {
                             data->last_active = pos.entry;
-                            data->last_secs = msg->imsg->Seconds;
-                            data->last_mics = msg->imsg->Micros;
+                            data->last_secs = imsg->Seconds;
+                            data->last_mics = imsg->Micros;
 
                             /* Look out for mouse movement, timer and inactive-window events while mouse button is down */
                             List_DragEvents(obj, data, TRUE);
@@ -4843,11 +4854,11 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             {
                 /* Do not check for _isinobject, so that button releases once mouse leaves the object are still
                    registered and the drag-selection is turned off */
-                if (msg->imsg->Code == SELECTUP && data->mouse_click)
+                if (imsg->Code == SELECTUP && data->mouse_click)
                 {
                     /* cache click position ... */
-                    data->mouse_x = msg->imsg->MouseX;
-                    data->mouse_y = msg->imsg->MouseY;
+                    data->mouse_x = imsg->MouseX;
+                    data->mouse_y = imsg->MouseY;
 
                     /* ... and activate the object */
                     set(_win(obj), MUIA_Window_ActiveObject, (IPTR)obj);
@@ -4886,18 +4897,18 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
         case IDCMP_RAWKEY:
             /* Scroll wheel */
-            if (data->vert && _isinobject(data->vert, msg->imsg->MouseX,
-                msg->imsg->MouseY))
+            if (data->vert && _isinobject(data->vert, imsg->MouseX,
+                imsg->MouseY))
                 delta = 1;
-            else if (_isinobject(data->area, msg->imsg->MouseX,
-                msg->imsg->MouseY))
+            else if (_isinobject(data->area, imsg->MouseX,
+                imsg->MouseY))
                 delta = 4;
             else
                 delta = 0;
 
             if (delta != 0)
             {
-                switch (msg->imsg->Code)
+                switch (imsg->Code)
                 {
                 case RAWKEY_NM_WHEEL_UP:
                     DoWheelMove(cl, obj, -delta);
