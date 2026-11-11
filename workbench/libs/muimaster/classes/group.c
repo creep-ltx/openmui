@@ -3619,36 +3619,13 @@ static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(
             if (IS_HIDDEN(child))
                 continue;
 
-            if (group_horiz)
-            {
-                /* old_size = _width(child); */
-
-                Layout1D_minmax_constraint(&_width(child), _minwidth(child),
-                    _maxwidth(child), &remainder, &size_growables,
-                    &size_shrinkables, &weight_growables,
-                    &weight_shrinkables, _hweight(child), samesize);
-
-/*                D(bug("loop1 on %p : width=%d was %d, rem=%d, A=%d, " */
-/*                    "sizegrow=%d, sizeshrink=%d w=%d min=%d max=%d\n", */
-/*                    child, _width(child), old_size, remainder, total_size, */
-/*                        size_growables, size_shrinkables, _hweight(child), */
-/*                        _minwidth(child), _maxwidth(child))); */
-            }
-            else                // ! group_horiz
-            {
-/*                old_size = _height(child); */
-
-                Layout1D_minmax_constraint(&_height(child),
-                    _minheight(child), _maxheight(child), &remainder,
-                    &size_growables, &size_shrinkables, &weight_growables,
-                    &weight_shrinkables, _vweight(child), samesize);
-
-/*                D(bug("loop1 on %p : h=%ld was %d, rem=%d, A=%d, " */
-/*                    "sizegrow=%d, sizeshrink=%d w=%d min=%d max=%d\n", */
-/*                    child, _height(child), old_size, remainder, total_size,*/
-/*                    size_growables, size_shrinkables, _vweight(child), */
-/*                    _minheight(child), _maxheight(child))); */
-            }                   // if (group_horiz)
+            Layout1D_minmax_constraint(
+                group_horiz ? &_width(child) : &_height(child),
+                group_horiz ? _minwidth(child) : _minheight(child),
+                group_horiz ? _maxwidth(child) : _maxheight(child),
+                &remainder, &size_growables, &size_shrinkables,
+                &weight_growables, &weight_shrinkables,
+                group_horiz ? _hweight(child) : _vweight(child), samesize);
         }                       // while child, minmax constraints
 
         // mid-pass break
@@ -3668,34 +3645,13 @@ static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(
             if (IS_HIDDEN(child))
                 continue;
 
-            if (group_horiz)
-            {
-/*                old_size = _width(child); */
-
-                Layout1D_redistribution(&_width(child), _minwidth(child),
-                    _maxwidth(child), &remainder, &size_growables,
-                    &size_shrinkables, &weight_growables,
-                    &weight_shrinkables, _hweight(child));
-
-/*                  D(bug("loop2 on %p : h=%d was %d, rem=%d, A=%d, " */
-/*                        "size_grow=%d, size_shrink=%d\n", child, */
-/*                        _width(child), old_size, remainder, total_size, */
-/*                        size_growables, size_shrinkables)); */
-            }
-            else                // ! group_horiz
-            {
-/*                old_size = _height(child); */
-
-                Layout1D_redistribution(&_height(child), _minheight(child),
-                    _maxheight(child), &remainder, &size_growables,
-                    &size_shrinkables, &weight_growables,
-                    &weight_shrinkables, _vweight(child));
-
-/*                  D(bug("loop2 on %p : h=%d was %d, rem=%d, A=%d, " */
-/*                        "size_grow=%d, size_shrink=%d\n", child, */
-/*                        _height(child), old_size, remainder, total_size, */
-/*                        size_growables, size_shrinkables)); */
-            }                   // if (group_horiz)
+            Layout1D_redistribution(
+                group_horiz ? &_width(child) : &_height(child),
+                group_horiz ? _minwidth(child) : _minheight(child),
+                group_horiz ? _maxwidth(child) : _maxheight(child),
+                &remainder, &size_growables, &size_shrinkables,
+                &weight_growables, &weight_shrinkables,
+                group_horiz ? _hweight(child) : _vweight(child));
 
         }                       // while child, redistribution
 
