@@ -1593,6 +1593,23 @@ static IPTR Area__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
  * caller must preserve object/application lifetime through nested
  * notifications.
  */
+/* Around a change of the control character or the cycle chain of a set-up
+ * object: its key registration taken down before (out = TRUE) and made
+ * again after, with the live block it then needs */
+static void area_rechar(struct IClass *cl, Object *obj,
+    struct MUI_AreaData *data, BOOL out)
+{
+    if (!(_flags(obj) & MADF_SETUP))
+        return;
+    if (out)
+        cleanup_control_char(data, obj);
+    else {
+        if (data->mad_ControlChar || (_flags(obj) & MADF_CYCLECHAIN))
+            zune_area_live(obj, cl);
+        setup_control_char(data, obj, cl);
+    }
+}
+
 static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
@@ -1676,31 +1693,19 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_ControlChar:
-            if (_flags(obj) & MADF_SETUP)
-                cleanup_control_char(data, obj);
+            area_rechar(cl, obj, data, TRUE);
             data->mad_ControlChar = tag->ti_Data;
-            if (_flags(obj) & MADF_SETUP)
-            {
-                if (tag->ti_Data)
-                    zune_area_live(obj, cl);
-                setup_control_char(data, obj, cl);
-            }
+            area_rechar(cl, obj, data, FALSE);
             break;
 
         case MUIA_CycleChain:
             //          if (data->mad_InputMode == MUIV_InputMode_None)
             //              break;
 
-            if ((!(_flags(obj) & MADF_CYCLECHAIN) && tag->ti_Data) ||
-                    ((_flags(obj) & MADF_CYCLECHAIN) && !tag->ti_Data)) {
-                if (_flags(obj) & MADF_SETUP) {
-                    cleanup_control_char(data, obj);
-                    _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_CYCLECHAIN);
-                    if (tag->ti_Data)
-                        zune_area_live(obj, cl);
-                    setup_control_char(data, obj, cl);
-                } else
-                    _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_CYCLECHAIN);
+            if (!(_flags(obj) & MADF_CYCLECHAIN) != !tag->ti_Data) {
+                area_rechar(cl, obj, data, TRUE);
+                _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_CYCLECHAIN);
+                area_rechar(cl, obj, data, FALSE);
             }
             break;
 
@@ -2537,6 +2542,46 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
  * clipping can leave the frame behind the title. AddClipRegion consumes the
  * region even on failure. This helper changes RastPort state.
  */
+/* The title's text: in 3D a shadow copy one pixel right and below first,
+ * then the text in shine; outlined, shine copies on the four sides first,
+ * then the text in shadow; plain in shadow, Hilite in shine. The copies'
+ * offsets from a table. A function of its own: its table walk is not on
+ * Area_Draw_handle_frame's frame. */
+static __attribute__((noinline)) void area_draw_title(Object *obj,
+    struct MUI_AreaData *data, int tx, int nchars)
+{
+    {
+        static const BYTE off3d[] = {1, 1};
+        static const BYTE offoutline[] = {1, 0, -1, 0, 0, 1, 0, -1};
+        const BYTE *off = NULL;
+        int n = 0, i, ty = _top(obj) + _font(obj)->tf_Baseline;
+        UWORD pen = MPEN_SHADOW;
+
+        switch (muiGlobalInfo(obj)->mgi_Prefs->group_title_color) {
+        case GROUP_TITLE_COLOR_3D:
+            off = off3d; n = 1; pen = MPEN_SHINE;
+            break;
+        case GROUP_TITLE_COLOR_OUTLINE:
+            off = offoutline; n = 4; tx += 1;   /* addtw / 2 */
+            break;
+        case GROUP_TITLE_COLOR_HILITE:
+            pen = MPEN_SHINE;
+            break;
+        }
+        SetDrMd(_rp(obj), JAM1);
+        if (n) {
+            SetAPen(_rp(obj), _pens(obj)[n == 1 ? MPEN_SHADOW : MPEN_SHINE]);
+            for (i = 0; i < n; i++) {
+                Move(_rp(obj), tx + off[2 * i], ty + off[2 * i + 1]);
+                Text(_rp(obj), data->mad_FrameTitle, nchars);
+            }
+        }
+        SetAPen(_rp(obj), _pens(obj)[pen]);
+        Move(_rp(obj), tx, ty);
+        Text(_rp(obj), data->mad_FrameTitle, nchars);
+    }
+}
+
 static __attribute__((noinline)) void Area_Draw_handle_frame(Object *obj, struct MUI_AreaData *data,
                                    const struct ZuneFrameGfx *zframe,
                                    UBYTE corners)
@@ -2650,41 +2695,7 @@ static __attribute__((noinline)) void Area_Draw_handle_frame(Object *obj, struct
                 data->mad_Flags);
     }
 
-    /* Title text drawing */
-    SetDrMd(_rp(obj), JAM1);
-    SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-    if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
-            GROUP_TITLE_COLOR_3D) {
-        Move(_rp(obj), tx + 1, _top(obj) + _font(obj)->tf_Baseline + 1);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-        SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-        Move(_rp(obj), tx, _top(obj) + _font(obj)->tf_Baseline);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-    } else if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
-               GROUP_TITLE_COLOR_OUTLINE) {
-        SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-
-        tx += addtw / 2;
-        Move(_rp(obj), tx + 1, _top(obj) + _font(obj)->tf_Baseline);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-        Move(_rp(obj), tx - 1, _top(obj) + _font(obj)->tf_Baseline);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-        Move(_rp(obj), tx, _top(obj) + _font(obj)->tf_Baseline + 1);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-        Move(_rp(obj), tx, _top(obj) + _font(obj)->tf_Baseline - 1);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-
-        SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-        Move(_rp(obj), tx, _top(obj) + _font(obj)->tf_Baseline);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-    } else {
-        if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
-                GROUP_TITLE_COLOR_HILITE) {
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-        }
-        Move(_rp(obj), tx, _top(obj) + _font(obj)->tf_Baseline);
-        Text(_rp(obj), data->mad_FrameTitle, nchars);
-    }
+    area_draw_title(obj, data, tx, nchars);
 }
 
 /****** Area.mui/MUIM_Draw ************
