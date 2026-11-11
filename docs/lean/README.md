@@ -5,13 +5,18 @@
 > is not affiliated with MUI's authors; MUI is the product of Stefan
 > Stuntz. The notes below keep the names of their time ("Zune", "Zune68k",
 > "lean") where they describe what was done then. The rename changed
-> texts only: the library files `muimaster.library` and
-> `zunemaster.library`, the version numbers, `LIBS:Zune`, `ENV:Zune` and
-> `ENVARC:Zune` are as they were; the prefs program is `SYS:Prefs/OpenMUI`,
+> texts only: the library file `muimaster.library`, the version numbers,
+> `LIBS:Zune`, `ENV:Zune` and `ENVARC:Zune` are as they were; the prefs program is `SYS:Prefs/OpenMUI`,
 > the installer drawer `SYS:OpenMUI` (was `SYS:Zune68k`), the switch tool
 > `OpenMUISwitch` (was `ZuneSwitch`, source `workbench/tools/openmuiswitch`).
 > The archive is `OpenMUI-0.1b1-DATE-amigaos3-m68k.lha`. See the
 > [root README](../../README.md).
+>
+> **One library since 2026-11-11:** OpenMUI is `muimaster.library` only.
+> `zunemaster.library` (the same library under a second name, which the
+> prefs program opened first) is no longer built or installed; the
+> installer takes an old one away ([below](#one-library-zunemasterlibrary-gone-2026-11-11)).
+> Notes before that date that name both libraries describe their time.
 
 Branch `lean`: Zune68 with the memory diet of Zune68k ported, so that it
 reports MUI 5 (21.227) and stays close to MUI 3.8 in memory. The goal:
@@ -2408,6 +2413,72 @@ Workbench stays FS-UAE's (rtgfix) until a round with a display.
 
 Knowledge: ~/Projects/Knowledge/amiga/amiberry-headless.md (updated from
 /tmp/amiberry/knowledge-amiberry-headless.md).
+
+## One library: zunemaster.library gone (2026-11-11)
+
+Branch `onelib`. Our partner's decision: OpenMUI ships one library,
+`muimaster.library`. `zunemaster.library` was the same library built and
+installed under a second name, from Zune's OS4 days, so that Zune's prefs
+could run beside a real MUI. OpenMUI prefs opened it first, so prefs
+beside a running program loaded a second copy of the whole library; the
+installer has its own switch between OpenMUI and a real MUI
+(OpenMUISwitch), so nothing needs the second name.
+
+- **The library:** `zunemaster_lib.c` (LibInit, Open/Close/Expunge, the
+  reserved vector prefs calls, MUI 3.8's private slots) is the library's
+  own init, now `muimaster_lib.c` with the name fixed; the SFD is
+  `muimaster_lib.sfd`. The OS4 and SAS/C files for zunemaster (smakefile,
+  makefile.aos4, zunemaster_68k.c, the idltool files) built nothing here
+  and are gone. `MUIMASTER_NAME` in the SDK header was
+  "zunemaster.library": the SDK examples and opentest opened that name;
+  it is "muimaster.library". `muimaster.library` itself is byte for byte
+  the same as before (stack unchanged).
+- **Class files** stay private `LoadSeg` copies (3170592b), though two
+  libraries no longer meet: the copy has no library base of its own, and
+  nothing is shared by name with a real MUI's .mui. Going back to
+  `OpenLibrary` would save its ~0.5 KB of code and cost a library base per
+  loaded file; kept.
+- **Prefs** opens `muimaster.library` only, and after Save/Use calls the
+  reserved vector through the base it already has when its id string says
+  OpenMUI (an identity base is a copy of the jump table; the call reaches
+  the one library). Checked: "Behave as" MUI 3.8 saved, a program asking
+  for 21 got 19.35; Automatic saved, without a reboot the next got 21.227.
+- **Installer** (Install 2.2): installs no zunemaster.library. An update
+  removes the earlier installation first (as before), so a
+  zunemaster.library it put there goes with its record. One still there
+  after that (the user's own from before OpenMUI, put back by the earlier
+  record, or a hand-installed Zune) is moved to Data/Backup and written
+  down as `REPLACED` with no file in its place, when `OpenMUISwitch
+  ISZUNE` says it is a Zune's: Uninstall and Use real MUI put it back,
+  Use OpenMUI takes it away again. **OpenMUISwitch 1.1** handles it only
+  as a record says; STATUS names one left in a LIBS: directory.
+- **Release:** the archive has one library (about 150 KB smaller, 256 KB
+  less on disk); `tools/release.py` names the release from
+  muimaster.library alone.
+
+Tested on a copy of a1200-31-mui38 (FS-UAE, OS 3.1 + MUI 3.8, Installer
+43.3, 4 MB fast):
+
+| step | result |
+|---|---|
+| install the previous package (two libraries) | `NEW SYS:Libs/zunemaster.library` in the record |
+| install this one over it | no zunemaster.library left, none in the record or the backup |
+| Uninstall (Shell, SETTINGS) | the drive as the clean machine (only wasabid's port line differs) |
+| again, with a user's zunemaster.library in SYS:Libs before the first install | first install: REPLACED + backup; update: the user's file in the backup, written down; Use real MUI: it is back, real MUI 19.35 served; Use OpenMUI: away again; Uninstall: back, byte-identical, the drive otherwise as the clean machine |
+| prefs | opens (window after 3 s), saves, "Behave as" reloaded without a reboot |
+
+Memory, cold boot, MUI-Demo started, then OpenMUI prefs beside it (Avail
+after "avail flush", twice each, the same to 64 bytes):
+
+| | MUI-Demo | prefs beside it | in use with both | libraries in memory |
+|---|---:|---:|---:|---|
+| before (two libraries) | 463,688 | 885,632 | 2,192,520 | muimaster, zunemaster |
+| after (one library) | 463,688 | 635,736-635,800 | 1,942,624-1,942,688 | muimaster |
+
+Prefs beside a program costs **244 KB less** (249,896 bytes): the second
+copy of the library is gone. `make check` and the release build pass;
+fullcheck (Amiberry, a1200-31): MUI-Demo with its eight sub-windows and the
+18 demos open and close, lost 608 / 200 / AppWindow 264, as before.
 
 ## Left open
 

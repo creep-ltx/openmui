@@ -32,7 +32,9 @@ is changed. OpenMUI goes into the first LIBS: drawer (normally SYS:Libs),
 which programs search before MUI's MUI:Libs, so they get OpenMUI; nothing is
 added to S:Startup-Sequence or S:User-Startup.
 
-  Libs/muimaster.library, zunemaster.library -> first LIBS: drawer
+  Libs/muimaster.library -> first LIBS: drawer (an earlier test build's
+                        zunemaster.library there is taken away: OpenMUI
+                        is one library now)
   Libs/Zune/*        -> LIBS:Zune/ (OpenMUI's own class files and modules,
                         loaded when a program first needs them)
   Libs/MUI/*         -> LIBS:MUI/ of the first LIBS: drawer, never into

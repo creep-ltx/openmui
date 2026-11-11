@@ -75,15 +75,14 @@ The list is `CLASSFILES` in `workbench/libs/muimaster/GNUmakefile`;
 - **Search:** `LIBS:Zune/<Name>.mui`, a drawer MUI 3.8 does not use. A
   file without a Zune68 class Resident tag of this version is unloaded
   again.
-- **Two libraries at once** (`muimaster.library` and `zunemaster.library`
-  both in memory, as soon as a program on zunemaster uses a custom class:
-  the class opens muimaster.library): each has its own copy of the files it
-  uses, because the class code keeps the bases and the jump table of its
-  library in its own globals. Until 2026-11-04 one shared copy served the
-  first library only; the second fell back to `LIBS:MUI/<Name>.mui`, real
-  MUI's own file on a MUI 4/5 system (Zune prefs opened no window). With
-  one library in memory the cost is the same single copy as before, less
-  the library base.
+- **One copy per library:** the class code keeps the bases and the jump
+  table of its library in its own globals, so each library (a test build
+  beside the installed one) loads its own copy. This was made for
+  `muimaster.library` and `zunemaster.library` in memory at once (until
+  2026-11-04 one shared copy served the first only, and Zune prefs, on
+  zunemaster, opened no window); since 2026-11-11 OpenMUI is one library,
+  and the private copy stays because it needs no library base and is
+  never shared by name with a real MUI's file.
 - **Not real MUI's:** `MUI_GetClass` of a `.mui` name Zune has not built in
   (Pixmap.mui) opens only a file whose id string says Zune68, checked from
   its Resident tag before any of its code runs.

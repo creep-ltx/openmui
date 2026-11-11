@@ -25,8 +25,9 @@ measured in an emulator (FS-UAE, A1200 with OS 3.1), not on a real Amiga.
 
 What is in it
 -------------
-- muimaster.library [VERSION] and zunemaster.library (the same library
-  under a second name, which the preferences program uses).
+- muimaster.library [VERSION], the one library (earlier test builds also
+  installed it as zunemaster.library for the preferences program; the
+  installer takes that copy away, into its backup if it was not its own).
 - About 45 rarely used classes and parts of the library as files of their
   own in LIBS:Zune, loaded the first time a program needs one.
 - The OpenMUI preferences program (SYS:Prefs/OpenMUI).
@@ -34,8 +35,8 @@ What is in it
   TheBar, Busy, Listtree and others, with their preference pages.
 - Translations, an SDK with examples, and the full source.
 
-The library files keep the names muimaster.library and zunemaster.library,
-the library version stays [VERSION], and the settings stay in ENV:Zune and
+The library file keeps the name muimaster.library, the library version
+stays [VERSION], and the settings stay in ENV:Zune and
 ENVARC:Zune, the classes in LIBS:Zune: programs and earlier installations
 depend on them. They may be renamed in a later release.
 

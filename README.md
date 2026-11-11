@@ -26,9 +26,10 @@ classes keep their own licences and notices (`LEGAL`, `ACKNOWLEDGEMENTS`).
 
 ## What is in it
 
-- **muimaster.library** (and `zunemaster.library`, the same library under a
-  second name, which the preferences program uses), built with GCC for
-  68000 or better, no FPU.
+- **One library, muimaster.library**, built with GCC for 68000 or better, no
+  FPU. (Earlier test builds also installed it a second time as
+  `zunemaster.library` for the preferences program; the installer now takes
+  that copy away.)
 - **Each program gets the MUI it asks for.** A MUI 3 program sees MUI 3.8
   (19.35), a MUI 4 program MUI 4, a MUI 5 program MUI 5 (21.227). OpenMUI prefs
   has "Behave as" (Automatic, MUI 3.8, MUI 4, MUI 5) and a list of programs
@@ -51,8 +52,8 @@ and double-click *Install* (Installer 43 or newer; on OS 3.1 use Installer
 test build is removed first and your own files put back.
 
 Paths that keep their old names for now, because programs and earlier
-installations depend on them: the library files `muimaster.library` and
-`zunemaster.library`, the library version numbers, `LIBS:Zune`, `ENV:Zune`
+installations depend on them: the library file `muimaster.library`, the
+library version numbers, `LIBS:Zune`, `ENV:Zune`
 and `ENVARC:Zune`. They may change in a later release.
 
 ## Build
