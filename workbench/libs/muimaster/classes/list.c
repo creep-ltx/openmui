@@ -2626,7 +2626,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
              * title row */
             APTR clip = zune_list_draw_title_strip(obj, data);
             List_DrawEntry(cl, obj, ENTRY_TITLE, _top(area)
-                - List_TitleStrip(obj, data) + 2, NULL);
+                - (_font(obj)->tf_YSize + 6) + 2, NULL);  /* the strip */
             MUI_RemoveClipping(muiRenderInfo(obj), clip);
         }
     }
@@ -2675,18 +2675,11 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         {
             if (y + data->entries[ENTRY_TITLE]->height + 1 > entries_bottom)
                 List_NeedClip(obj, data, &clip);
+            /* MUI 3.8: no separator lines below it. A list that does
+             * not behave as MUI 3.8 has its title in the strip of
+             * buttons above the area (List_TitleStrip()), never here, so
+             * Zune's old separator (shadow and shine lines) is gone. */
             List_DrawEntry(cl, obj, ENTRY_TITLE, y, &clip);
-            y += data->entries[ENTRY_TITLE]->height;
-            if (ZUNE_APP_MUI38(obj))
-                goto title_done;
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-            Move(_rp(obj), _mleft(area), y);
-            Draw(_rp(obj), _mright(area), y);
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-            y++;
-            Move(_rp(obj), _mleft(area), y);
-            Draw(_rp(obj), _mright(area), y);
-          title_done:;
         }
     }
 
