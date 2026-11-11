@@ -10,7 +10,7 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
 
 | | lean | MUI 3.8 |
 |---|---|---|
-| library code loaded at start | 261 KB (2026-11-06, `smaller`: 246 KB, file 262 KB) | 166 KB |
+| library code loaded at start | 261 KB (2026-11-06, `smaller`: 246 KB, file 262 KB; 2026-11-11, `core`: 241 KB, file 257,660 bytes) | 166 KB |
 | first program | ~497 KB (2026-11-06, `memory`: 479,064 bytes) | 449-460 KB (460,296 bytes) |
 | each further program | ~222 KB (2026-11-06, `memory`: 207,704-207,768 bytes) | 206-219 KB (210,696-218,824 bytes) |
 | first window | 1.5 s | 1.46-1.62 s |
@@ -91,6 +91,20 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    [README.md](README.md#window-group-and-string-made-smaller-2026-11-11-phase-3).
    Left: the rest of these classes is code every program runs; Area
    (16.5 KB) and Application (16 KB) not yet looked at this way.
+   *Toward the core 2026-11-11* (branch `core`): before more C, every
+   compiler- and link-level lever measured on the whole library: where
+   the file's bytes are (16 KB of relocations, 1,562 library-base loads),
+   `-fbaserel` (file -5.5 KB but code +1.8 KB and `__saveds` on every
+   entry: not taken), LTO rebuilt as a relocatable link so the hunk
+   symbols stay right (-6.8 KB, but the dispatchers' frames grow and the
+   vamos checks, which trap functions by name, cannot run on it: off),
+   48 switches (none beyond 0.4 KB without a speed cost), dead code by
+   `--gc-sections`. Taken: 1,060 bytes nothing calls, `-fipa-pta` (not
+   for Group: its Layout frame). File 259,096 -> 257,660 bytes; no frame
+   larger (`-fstack-usage` of all 934 functions), stack, speed and the
+   tests as `lean`'s. The remaining 91 KB is the core classes' C; the
+   next wins in order in
+   [README.md](README.md#toward-the-core-what-the-compiler-and-the-link-can-still-give-2026-11-11-phase-3).
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.

@@ -1909,11 +1909,141 @@ Checked on the final build (fe7ed791; FS-UAE, emulator figures, `lean` measured 
   first window 1.46-1.61 s against 1.54-1.60 s (eight instances running: within the noise).
 
 
+## Toward the core: what the compiler and the link can still give (2026-11-11, phase 3)
+
+Branch `core` (from `lean`). The three rounds before took the rarely used code out and rewrote the
+four largest classes smaller; the file was 259,096 bytes against MUI 3.8's 166,412. This round
+looked at the gap structurally before touching code: where the bytes of the stripped library are,
+and what every compiler- and link-level lever gives, measured, not assumed. The result is small
+(file 259,096 -> 257,712 bytes, -1,384) and the measurements say why the gap will not close that
+way: it is the C code of the core classes.
+
+**Where the file's bytes are** (68000 build, GCC 16.2, `hunktool info`, `objdump -r`): code hunk
+242,428 bytes (of which ~9.2 KB are strings and ~2.1 KB pointer tables inside `.text`; this target
+has no separate rodata), data 364, BSS 3,040, and 4,030 relocations at 4 bytes each = 16.1 KB:
+2,272 into the code (1,178 `jsr` to functions in other files, 203 `lea` of functions, 101 `jmp`,
+~700 addresses in tables and strings), 1,736 into BSS and 22 into data (1,562 of them `movea.l
+_SysBase/_GfxBase/_IntuitionBase/...,a6`: 460 SysBase, 450 GfxBase, 288 IntuitionBase, 121
+UtilityBase, 78 DOSBase). The AROS compatibility layer costs nothing: `AROS_LH*`, `AROS_UFH*` and
+`BOOPSI_DISPATCHER` are plain function declarations with register arguments (`support_amigaos.h`),
+`DoMethod`/`DoSuperMethodA` are libamiga's, `D()` is compiled out, lazylib is one compare per call.
+
+**Measured and not taken:**
+
+- **`-fbaserel`** (data through a4, as MUI 3.8's SAS/C build does). The 1,736 base and global
+  loads lose their relocation and 2 bytes each: file 259,096 -> 253,588 (-5.5 KB, measured through a
+  wrapper that turns the `lea _f,a0 / jsr (a0)` call sequence `-fbaserel` implies back into
+  `jsr _f`, since `-fbaserel` sets PIC and `-fno-pic` cancels it). But the code hunk grows 242,428 ->
+  244,204 (+1.8 KB): a4 is no longer a register, so functions under register pressure reload from
+  the stack (Area's `Draw_handle_frame` 1,384 -> 1,604 bytes). On top of that every entry from
+  outside (45 dispatchers, the hooks, the gates, the process entry) would need `__saveds`
+  (`move.l a4,-(sp); jsr ___restore_a4; ...; move.l (sp)+,a4`: 14 bytes and ~60 cycles each, on
+  every method of every dispatch chain). More memory, slower dispatch, less file: not taken.
+- **`--relax`** (jsr to bsr by the linker): the m68k-amigaos linker changes nothing (byte-identical).
+  `-mpcrel` needs 68020 for 32-bit displacements; on a 68000 pc-relative reaches 32 KB, the library
+  is 242.
+- **LTO.** Rebuilt properly: the library's objects are compiled with `-flto` and linked once with
+  `-r -flinker-output=rel` into `core-lto.o`; the final link is an ordinary one, so the hunk
+  symbols stay right (the earlier LTO=1 did the LTO at the final link, which the linker writes wrong
+  symbols for, and it did not link at all once the module stubs were assembly: LTO made
+  `zune_module_get/put` local; they are `externally_visible` now, as `builtinDraw` was). With
+  `-fno-inline-functions-called-once` (the stack rule): **252,288 bytes (-6,808)**; with that
+  inlining allowed 250,904 (and whole helpers inside the dispatchers); an LTO final link
+  (localizing every function nothing outside references) only 536 bytes less than the relocatable
+  one, so the -14 KB measured in the first round was the called-once inlining. Partitions make no
+  difference (`-flto-partition=one`/`none`/balanced byte-identical). Two things stop it:
+  the dispatchers' frames grow even so (estimated from the prologues of the symbol builds,
+  `tools`: Notify's dispatcher 4 -> 36 bytes, Poplist 16 -> 68, Window 8 -> 24, Prop/Popobject
+  4 -> 32; with `--param inline-unit-growth=0 --param max-inline-insns-auto=0` only Cycle +12,
+  Scrollbar/Semaphore +8 and `builtinDraw` +12 remain, for 253,244 bytes), and **`make check`
+  cannot run on an LTO build**: the vamos checks (`tests/check_*.py`) trap library functions by
+  name (`_zune_window_message`, `zune_imspec_setup`, `zune_font_get`, `Group__MUIM_Layout`,
+  `String__MUIM_ClearSelected`, ~60 of them) and LTO inlines some of them into their callers, so
+  `check_native_init.py`'s `L_InitLib` runs past its traps into the fake bases (PC in unmapped
+  memory after 200,000 cycles). It stays `LTO=1` off by default; the makefile keeps the working
+  relocatable-link path and says why.
+- **Compiler switches** (48 tried on the whole library, `/tmp/core/s/flagsweep.sh`, stripped file):
+  none beyond 0.4 KB without a speed cost. Smaller: `-fipa-pta` -380 (taken, below),
+  `-fno-tree-sra` -224, `-fno-ipa-cp-clone -fno-ipa-sra` -224, `-fno-if-conversion` -292,
+  `-fno-optimize-sibling-calls` -292, `-fno-tree-loop-im` -216, `-fno-caller-saves` -92 (all
+  of these take away an optimization that is also speed: not taken); larger: `-fno-inline` +5.0
+  KB, `-fno-guess-branch-probability` +2.3 KB, `-fno-gcse` +1.7 KB, `-fno-ivopts` +1.6 KB,
+  `-fno-jump-tables` +1.3 KB, `-fno-inline-functions-called-once` +1.4 KB, `-fno-ipa-icf` +540.
+  Nothing: `-fomit-frame-pointer`, `-fno-align-*`, `-fno-tree-loop-distribute-patterns`,
+  `-fmerge-all-constants`, `-fno-shrink-wrap`, `-freorder-blocks-algorithm=simple`,
+  `-fno-inline-small-functions` (-28). Not in this GCC: `-mregparm`, `-mfastcall`,
+  `-mshort-branch`; `-mrtd` is an internal compiler error. `-fconserve-stack` +92.
+- **Dead code**: `-ffunction-sections` + `--gc-sections --print-gc-sections` on the library link
+  (class table and gates linked, so what the class files and the LVOs reach stays) names 1,644
+  bytes nothing calls; 1,060 of them removed (below), the rest are empty gate stubs and
+  4-24-byte method stubs the dispatchers reach through tables.
+- **Virtgroup as a file** (MUI 3.8 ships Virtgroup.mui): 492 bytes of code against a file's
+  ~1.4 KB overhead, and every Scrollgroup loads it. Left in, as decided in class-split.md.
+
+**Taken** (two commits, each building and passing `make check`):
+
+| commit | what | library file |
+|---|---|---|
+| 097ef113 | Prop's three tiled-image helpers (called only from its AROS-only display hook, `#ifdef __AROS__` now covers them too), the two gradient `to_string` functions (only the debug `zune_imspec_to_string` under MYDEBUG used them), `ZuneLayoutObject`, `ZuneRedraw`, `zune_penspec_draw` (no caller anywhere: library, class files, modules, prefs, tools, checks) | 259,096 -> 258,036 |
+| 6a8504fa | `-fipa-pta` in LIB_CFLAGS (whole-unit points-to analysis: fewer reloads, no code shape change; textengine -240, List -196); LTO=1 as the relocatable link above, off | -> 257,712 |
+
+Per object (code bytes, `lean` -> `core`): prop 4,648 -> 3,924, textengine 10,544 -> 10,304, List
+24,388 -> 24,192, mui_layoutobj 656 -> 448, penspec 1,248 -> 1,208, mui_redraw 1,404 -> 1,392,
+Group 21,000 -> 21,052 (+52, ipa-pta's choice), String +4; Window, Area, Application and the rest
+unchanged. Code hunk 242,428 -> 241,064 (-1,364). Class files: unchanged within 50 bytes.
+
+**What this says about the 91 KB left.** Compiler and link together have at most ~8 KB
+(LTO 6.8 + ipa-pta + dead code) and the LTO part fights the stack rule and the check harness.
+Everything else is the C of the eleven core classes and the engines, all of it on MUI 3
+programs' normal paths (List 24.2 KB, Window 24.4, Group 21.1, String 17.6, Area 16.6,
+Application 16.0, text engine 10.3, vector images 8.2, frames 6.8, Configdata 6.6, Menuitem 5.0,
+Cycle 4.8, Prop 3.9, Text 4.3). Toward 166 KB that is a 35% cut across them: the List round
+reached 15%, Window/Group/String 3-9% with the same method. The next wins, in order of size and
+certainty: (1) LTO with the check harness taught to run on it (mark the ~60 trapped functions
+`noinline, noclone, used, externally_visible` through one header list generated from the checks,
+and take the inline-growth params so the dispatchers' frames stay; -5.5 to -6.8 KB); (2) the
+string gadget's direct key path for MUI 3 programs (every key goes through MUI 5's Textinput
+methods, 2.3 KB; a rewrite of the editing); (3) Area (16.6 KB) and Application (16.0 KB) with the
+List round's method (per-function sizes, duplicated paths, MUI 4/5-only parts into Zmui45.mui);
+(4) the 16 KB of relocations only go with `-fbaserel`, which costs memory and dispatch time here;
+(5) the ARexx command table and help text (~1 KB of strings, Application) into a module if the
+trace allows (AmIRC and IBrowse use ARexx at start).
+
+Checked on the final build (4ff62a77; FS-UAE, emulator figures, `lean` built in the same session
+from ac762c55 as /tmp/core/base):
+
+- `make check` after every commit (the dead code, the build change, the per-file flag).
+- `-fstack-usage` of all 934 library functions, `lean`'s flags against `core`'s
+  (`/tmp/core/s/sucmp.sh`): none larger; List's Draw 132 -> 124, zune_text_new 288 -> 272. (The
+  first build had `-fipa-pta` everywhere: Group's Layout 128 -> 136; that is the per-file
+  exception.)
+- stackrun, side by side: MUI-Demo with its eight sub-windows 5,248 bytes, Layout 2,268, Virtual
+  2,388, Pages 2,240, Slidorama 2,304 on both.
+- perfbench (68EC020, 15 repetitions, side by side, then swapped; this perfbench has no "list
+  active" batch): create+dispose +0.8 / -0.7%, open+close -0.2 / +0.2%, redraw +0.1 / -0.2%,
+  relayout +0.0 / -0.2%, list insert -0.6 / +0.2%, notify -0.2 / +0.2%, text set +0.1 / -0.1%;
+  `lean` against itself on the two instances differed by up to 0.7%: nothing slower beyond that.
+- fullcheck: MUI-Demo with eight sub-windows and the 18 other demos open and close, lost 608 /
+  200 / AppWindow 264, no alert, as `lean`'s documented figures (the `lean` instance started
+  beside it froze in FS-UAE after MUI-Demo with ten instances running and was not rerun).
+- demopix: 18 of 27 pixel-identical with MUI 3.8 (the same 18); the 27 Zune windows against
+  `lean`'s shots from the same session: 26 identical, Layout differs (its buttons are random).
+- MUI 3 group (36, two halves): half 1: 17 of 18 ok, SimpleMail windowless and reset at quit as always in FS-UAE (35 of 36 as every round); half 2: all 18 ok, windows identical to the run
+  before the per-file flag.
+- MUI 4/5 group (24): 22 of 24 ok, mqttexplorer and mui5-embeddedimages exit as they do every run. (A first run without the plugins built next to the library
+  had the MUI 5 demos that need them exit: the suite takes `Libs/MUI` from the build; build
+  `core prefs plugins` before `suite.sh`.)
+- No module or class file changed hands: nothing moved into or out of `LIBS:Zune/`, so which
+  files a MUI 3 program loads is as on `lean` (its LoadSeg trace, the two rounds above); the
+  class files are within 50 bytes of `lean`'s.
+
+
 ## Left open
 
-- **Library code**: file 259,096 bytes (2026-11-11, `slim2`: Window, Group and String made
-  smaller, above; 263,208 after List, 267,400 after `smaller2`) against MUI 3.8's 166 KB; what
-  is left: "Window, Group and String made smaller" and "A smaller library, second round" above.
+- **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
+  measurements of what the compiler and the link can still give, "Toward the core" above;
+  259,096 after `slim2`, 263,208 after List, 267,400 after `smaller2`) against MUI 3.8's 166 KB;
+  what is left and the next wins in order: "Toward the core" above.
   Before: 246 KB (file 262 KB, `smaller`), 261 KB (file 279 KB).
   Compiler options do not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
   switches within 0.3 KB, alignment none, `LTO=1` with bebbo's GCC 6.5
