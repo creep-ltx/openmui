@@ -64,10 +64,13 @@ endif
 # changes no instruction in this library (docs/lean/compiler.md).
 BBB_CFLAGS := $(shell $(CC) -fbbb=abcefhlmnprsz0 -S -o /dev/null -x c /dev/null \
   2>/dev/null && echo -fbbb=abcefhlmnprsz0)
-# -fipa-pta: whole-unit points-to analysis; -324 bytes of library code, no
-# code shape changes (docs/lean/README.md, "Toward the core")
+# -fipa-pta: whole-unit points-to analysis, fewer reloads (-376 bytes of
+# library code). Not for Group (its Layout frame grew 128 -> 136 bytes with
+# it, on every nesting level) nor pointer.c (a line() clone 24 -> 28):
+# docs/lean/README.md, "Toward the core".
+$(BUILD)/classes/group.o $(BUILD)/pointer.o: PTA_CFLAGS = -fno-ipa-pta
 LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(BBB_CFLAGS) $(LTO_CFLAGS) \
-  -fno-common -fno-builtin -fno-strict-aliasing -fipa-pta
+  -fno-common -fno-builtin -fno-strict-aliasing -fipa-pta $(PTA_CFLAGS)
 # Class files and modules are compiled without LTO (small links of their own)
 CF_CFLAGS = $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS))
 # LTO objects only show their symbols to the nm with the LTO plugin
