@@ -5008,17 +5008,17 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case OM_DISPOSE: method = (APTR)Area__OM_DISPOSE; break;
     case OM_SET: method = (APTR)Area__OM_SET; break;
     case OM_GET: method = (APTR)Area__OM_GET; break;
-    case MUIM_AskMinMax: method = (APTR)Area__MUIM_AskMinMax; break;
-    case MUIM_Draw: method = (APTR)Area__MUIM_Draw; break;
+    case MUIM_AskMinMax: return Area__MUIM_AskMinMax(cl, obj, (APTR)msg);
+    case MUIM_Draw: return Area__MUIM_Draw(cl, obj, (APTR)msg);
     case MUIM_DrawBackground: return Area__MUIM_DrawBackground(cl, obj, (APTR)msg);
     case MUIM_CustomBackfill: method = (APTR)Area__MUIM_CustomBackfill; break;
     case MUIM_DrawBackgroundBuffered:
         method = (APTR)Area__MUIM_DrawBackgroundBuffered; break;
     case MUIM_DrawParentBackground: return Area__MUIM_DrawParentBackground(cl, obj, (APTR)msg);
-    case MUIM_Setup: method = (APTR)Area__MUIM_Setup; break;
-    case MUIM_Cleanup: method = (APTR)Area__MUIM_Cleanup; break;
-    case MUIM_Show: method = (APTR)Area__MUIM_Show; break;
-    case MUIM_Hide: method = (APTR)Area__MUIM_Hide; break;
+    case MUIM_Setup: return Area__MUIM_Setup(cl, obj, (APTR)msg);
+    case MUIM_Cleanup: return Area__MUIM_Cleanup(cl, obj, (APTR)msg);
+    case MUIM_Show: return Area__MUIM_Show(cl, obj, (APTR)msg);
+    case MUIM_Hide: return Area__MUIM_Hide(cl, obj, (APTR)msg);
     case MUIM_GoActive: return Area__MUIM_GoActive(cl, obj, (APTR)msg);
     case MUIM_GoInactive: method = (APTR)Area__MUIM_GoInactive; break;
     case MUIM_WhichPointerType:
@@ -5030,7 +5030,7 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case MUIM_DeleteShortHelp: method = (APTR)Area__MUIM_DeleteShortHelp; break;
     case MUIM_CreateBubble: return Area__MUIM_CreateBubble(cl, obj, (APTR)msg);
     case MUIM_DeleteBubble: return Area__MUIM_DeleteBubble(cl, obj, (APTR)msg);
-    case MUIM_HandleEvent: method = (APTR)Area__MUIM_HandleEvent; break;
+    case MUIM_HandleEvent: return Area__MUIM_HandleEvent(cl, obj, (APTR)msg);
     case MUIM_ContextMenuBuild: return Area__MUIM_ContextMenuBuild(cl, obj, (APTR)msg);
     case MUIM_ContextMenuChoice: return Area__MUIM_ContextMenuChoice(cl, obj, (APTR)msg);
     case MUIM_Timer: method = (APTR)Area__MUIM_Timer; break;
