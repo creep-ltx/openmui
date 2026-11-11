@@ -531,7 +531,16 @@ static void SetHardCoord(Object *obj, struct Register_DATA *data)
     //    * (data->rows - 1 - data->active/data->columns)
     //    +  REGISTER_FRAMEBOTTOM;
 
+    struct MUI_FrameSpec_intern noinner = {0};
+
     frame = &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Group];
+    /* MUI 3.8 drops the frame's inner spacing in the later stages of
+     * fitting a window into the screen (as Area does for other frames):
+     * measured with NFS-GUI 1.1 on a 640x256 screen, its Register
+     * 354x179 around a 350x163 page there (Zune: 362x187, and the window
+     * 3 pixels too tall for the screen) */
+    if (muiRenderInfo(obj)->mri_Fallback >= FALLBACK_NOINNER)
+        frame = &noinner;
 
     /* MUI 3.8 (measured): one pixel more beside the pages with thick
      * frames (6 against 5 with the default 4 pixel group spacing) */

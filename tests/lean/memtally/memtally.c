@@ -409,6 +409,19 @@ int main(int argc, char **argv)
         else if (mb && (strstr((char *)mb->lib_IdString, "OpenMUI") || strstr((char *)mb->lib_IdString, "Zune68"))) ranges(*(BPTR *)((UBYTE *)mb + 38), m->mlo, m->mhi, &m->nm);
         if (!(seg = LoadSeg(argv[2]))) return 20;
         ranges(seg, m->plo, m->phi, &m->np);
+        /* the program's PROGDIR: and name are its own, not memtally's
+           (Voyager looks for MIMEPrefs through them) */
+        {
+            struct Process *pr = (struct Process *)FindTask(NULL);
+            char dir[256]; BPTR l;
+            strncpy(dir, argv[2], 255); dir[255] = 0;
+            *(PathPart(dir)) = 0;
+            if (dir[0] && (l = Lock(dir, SHARED_LOCK))) {
+                if (pr->pr_HomeDir) UnLock(pr->pr_HomeDir);
+                pr->pr_HomeDir = l;
+            }
+            SetProgramName(argv[2]);
+        }
         m->task = FindTask(NULL);
         m->all = !strcmp(argv[1], "runall");
         guard = !strcmp(argv[1], "guard");
