@@ -210,16 +210,17 @@ wait_window() { # SECONDS: 0 when a window of the program is open
 gone() { local end=$((SECONDS + ${1:-15})); while [ $SECONDS -lt $end ]; do running || return 0; sleep 1; done; return 1; }
 # a "really quit?" requester that the last action opened: system requesters (EasyRequest) by
 # their button label, MUI ones by the underlined letter of the usual yes-button (o for Okay/Ok,
-# y for Yes, q for Quit), each key only while that window is still open. MUI 3.8's buttons could
-# be clicked by label too, Zune's cannot ("wasabi ui list" sees no objects in Zune's windows), so
-# both are answered by keys alone.
+# y for Yes, q for Quit), then Return for a requester whose buttons have no letters (Abacus's
+# "*  Ok  |Cancel": the default button), each key only while that window is still open. MUI
+# 3.8's buttons could be clicked by label too, Zune's cannot ("wasabi ui list" sees no objects
+# in Zune's windows), so both are answered by keys alone.
 confirm() { # ADDRESSES-BEFORE
   local w t k
   answer Quit Yes Ok OK
   while IFS=$'\t' read -r t _ w; do
     [ -n "$w" ] || continue
     printf '%s\n' "$1" | grep -qx "$w" && continue
-    for k in o y q; do
+    for k in o y q return; do
       wins | cut -f3 | grep -qx "$w" || break
       activate "$t" && key press "$k"; sleep 2
     done
