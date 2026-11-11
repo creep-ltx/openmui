@@ -55,9 +55,6 @@ BOOL zune_penspec_setup(struct MUI_PenSpec_intern *pen,
     struct MUI_RenderInfo *mri);
 BOOL zune_penspec_cleanup(struct MUI_PenSpec_intern *pen);
 
-void zune_penspec_draw(struct MUI_PenSpec_intern *psi,
-    struct MUI_RenderInfo *mri, LONG left, LONG top, LONG right,
-    LONG bottom);
 void zune_penspec_drawdirect(struct MUI_PenSpec_intern *psi,
     struct RastPort *rp, struct MUI_RenderInfo *mri, LONG left, LONG top,
     LONG right, LONG bottom);

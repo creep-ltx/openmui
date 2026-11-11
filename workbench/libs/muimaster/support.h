@@ -83,8 +83,6 @@ IPTR DoLayoutMethod(Object *obj);
 unsigned long long ZuneDiv64(unsigned long long n, ULONG d, ULONG *rem);
 IPTR ZuneLayout(Object *obj, LONG left, LONG top, LONG width, LONG height,
     ULONG flags);
-IPTR ZuneLayoutObject(Object *obj, LONG left, LONG top, LONG width,
-    LONG height, ULONG flags);
 
 /* returns next node of this node */
 void *Node_Next(APTR node);

@@ -797,6 +797,7 @@ IPTR Prop__MUIM_Cleanup(struct IClass *cl, Object *obj,
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
+#ifdef __AROS__
 /*
  * Blend a source ARGB rectangle into destination pixels, forcing alpha 255.
  * Components use separate right shifts by eight, so this is the implemented
@@ -921,6 +922,8 @@ int WriteTiledImageVertical(struct NewImage *dst, struct RastPort *maprp,
     }
     return y;
 }
+
+#endif
 
 #ifdef __AROS__
 /*

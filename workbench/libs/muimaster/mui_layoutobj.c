@@ -13,11 +13,6 @@ IPTR ZuneLayout(Object *obj, LONG left, LONG top, LONG width, LONG height,
     return LayoutBuiltin(obj, left, top, width, height, flags);
 }
 
-IPTR ZuneLayoutObject(Object *obj, LONG left, LONG top, LONG width,
-    LONG height, ULONG flags)
-{
-    return ZuneLayoutInline(obj, left, top, width, height, flags);
-}
 
 AROS_LH6(BOOL, MUI_LayoutObj,
     AROS_LHA(Object *, obj, A0),

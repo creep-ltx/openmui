@@ -376,13 +376,3 @@ void ZuneDrawDisabled(Object *obj)
     }
 
 } /* MUI_Redraw */
-
-void ZuneRedraw(ULONG obju, ULONG flags)
-{
-    Object *obj;
-
-    obj = (Object *) obju;
-    if (obj == NULL)
-        return;
-    MUI_Redraw(obj, flags);
-}

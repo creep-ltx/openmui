@@ -101,10 +101,12 @@ struct MUI_ImageSpec_intern /* _intern */
 struct MUI_ImageSpec_intern *zune_imspec_create_vector(LONG vect);
 BOOL zune_imspec_vector_get_minmax(struct MUI_ImageSpec_intern *spec, struct MUI_MinMax *minmax);
 
+#ifdef MYDEBUG
 VOID zune_scaled_gradient_intern_to_string(struct MUI_ImageSpec_intern *spec,
                                     STRPTR buf);
 VOID zune_tiled_gradient_intern_to_string(struct MUI_ImageSpec_intern *spec,
                                     STRPTR buf);
+#endif
 BOOL zune_gradient_string_to_intern(CONST_STRPTR str,
                                      struct MUI_ImageSpec_intern *spec);
 VOID zune_gradient_draw

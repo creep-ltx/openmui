@@ -311,10 +311,3 @@ void zune_penspec_drawdirect(struct MUI_PenSpec_intern *psi,
     RectFill(rp, left, top, right, bottom);
 }
 
-void zune_penspec_draw(struct MUI_PenSpec_intern *psi,
-    struct MUI_RenderInfo *mri, LONG left, LONG top, LONG right,
-    LONG bottom)
-{
-    zune_penspec_drawdirect(psi, mri->mri_RastPort, mri, left, top, right,
-        bottom);
-}

@@ -128,6 +128,7 @@ BOOL zune_gradient_string_to_intern(CONST_STRPTR str,
     return TRUE;
 }
 
+#ifdef MYDEBUG
 VOID zune_scaled_gradient_intern_to_string(struct MUI_ImageSpec_intern *
     spec, STRPTR buf)
 {
@@ -153,6 +154,7 @@ VOID zune_tiled_gradient_intern_to_string(struct MUI_ImageSpec_intern *spec,
         (unsigned int)spec->u.gradient.end_rgb[1] * 0x01010101,
         (unsigned int)spec->u.gradient.end_rgb[2] * 0x01010101);
 }
+#endif
 
 BOOL zune_gradientspec_setup(struct MUI_ImageSpec_intern *spec,
     struct MUI_RenderInfo *mri)
