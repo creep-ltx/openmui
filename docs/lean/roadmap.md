@@ -51,6 +51,17 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    and taken back). 166 KB is not reached: the rest is the core classes'
    own code; what is still movable and what LTO would give in
    [README.md](README.md#a-smaller-library-2026-11-06-phase-3).
+   *Second round 2026-11-11* (branch `smaller2`): the module glue as
+   10-byte stubs with one routine, the MUI 4/5 attributes of Area and
+   String in a module (Zmui45.mui; Area's only for programs that get
+   MUI 4/5, as MUI 3.8 ignores them), Configdata's prefs-only setters in
+   Zprefs.mui, Crawling a class file: library file 271,676 -> 267,400
+   bytes (below the 271,132 before `mui45b`), library alone and first
+   program 4.3 KB less, speed and stack as before. The LoadSeg trace
+   took three moves back or narrowed them (TheBar, AmTelnet, ViewCSV
+   are MUI 3 programs that hit them at start). 166 KB is still not
+   reached: the rest is the big classes' own code;
+   [README.md](README.md#a-smaller-library-second-round-2026-11-11-phase-3).
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.

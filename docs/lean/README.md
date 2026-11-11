@@ -20,6 +20,7 @@ MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build):
 | memory | 263 KB (+236 KB in 47 class and module files) | 276 KB | 468 KB | 203 KB | 1.4 s |
 | realmem | 263 KB (+236 KB in 47 class and module files) | 276 KB | 465 KB | 200 KB | 1.4 s |
 | mui45 | 265 KB (+ class and module files; Hyperlink.mcc, Settings.mui, Settingsgroup.mui new) | 278 KB | 467 KB | 200 KB | 1.4-1.5 s |
+| smaller2 | 261 KB (+ Zmui45, Zprefs, Crawling as files) | 274 KB | 463 KB | 200 KB | 1.4 s |
 
 (lean measured 2026-11-05 with GCC 16.2, after the modules below; smaller
 2026-11-06 (branch `smaller`, [below](#a-smaller-library-2026-11-06-phase-3));
@@ -32,7 +33,10 @@ where lean measured the same session gave 289 / 490 / 212 KB; the other
 rows 2026-11-04; mui45 2026-11-10, branch `mui45`,
 [below](#mui-45-programs-a-wider-test-set-and-what-they-missed-2026-11-10-phase-6):
 271,132-byte file, 284,536 / 478,016 / 204,520-204,584 bytes; `lean` the same session 285,136 /
-478,616 / 204,520-204,584.)
+478,616 / 204,520-204,584; smaller2 2026-11-11,
+[below](#a-smaller-library-second-round-2026-11-11-phase-3): 267,400-byte file, 280,808 /
+474,312 / 204,520-204,584 bytes, `lean` the same session 271,676 / 285,128 / 478,560 /
+204,520-204,584.)
 
 perfbench (68EC020, same session): lean is faster than MUI 3.8 in seven of
 eight batches; "list active" is 4% slower (Zune68 main 7%).
@@ -1604,11 +1608,109 @@ on one boot with trapcap, saving the trap record and the FS-UAE log at a reset),
 suite runs line by line), `findbytes.py` (a trap record's code bytes in the files on the host).
 
 
+## A smaller library, second round (2026-11-11, phase 3)
+
+Branch `smaller2` (from `lean`). First the ~420 bytes of MUI 4/5 code that `mui45b` put in the
+library came back out ("this bends the rule", above), then more rarely used code left it. Same
+rule as the first round: the library keeps what layout and the common path need and the decision
+whether a feature is used at all; a program that does not use it never loads the file. Two moves
+were taken back when the suite's LoadSeg trace showed a MUI 3 program loading the new file.
+
+| commit | what | library file | file |
+|---|---|---|---|
+| 4e11580a Modules | the library's names for the modules' functions (`modules.c`) were 45 C functions of ~80 bytes each (look the module up, call it, give the class back). Now each is a 10-byte stub, `move.l #code,d0` / `bra.w zune_modcall`, and one routine in assembly does the rest with the caller's own arguments. The code holds the number of arguments, "fail when the first argument is NULL", the function's offset in the module's table (checked against the module structures at compile time), the module, and the value returned when it cannot be loaded. `modules.o` 3,732 -> 1,560 bytes; seven functions with logic of their own stay C | -2,200 with the next line | |
+| 4e11580a Area | MUIA_FrameVisible / MUIA_FrameDynamic (`mui45b`, YAM 2.10) into a new module, Zmui45.mui (`mui45.c`); Area keeps two case labels per method and one call | (above) | Zmui45 1,404 |
+| 11445ec2 Configdata | its setters MUIM_Configdata_SetULong ... SetString (`configset.c`) into a new module, Zprefs.mui; the default tables stay (`classes/configdata_private.h` describes them for both) | -920 | Zprefs 1,756 |
+| 13d90c8b Classes | Aboutmui and Crawling as class files, as MUI 3.8 ships them (MUI:Libs/mui/Aboutmui.mui, Crawling.mcc) | -1,184 | Aboutmui 1,848, Crawling 1,900 |
+| d3e745c7 String | the Textinput values String only keeps and answers (Changed, ResetMarkOnCursor, IsNumeric, SetMin/Max/VMin/VMax, MinVal, MaxVal, WordWrap, Styles, Font) and MUIA_String_Integer64 with its 64-bit decimal conversion into Zmui45.mui (String's instance data in `classes/string_private.h`); the marks and everything the editing uses stay. String's OM_SET also no longer calls a function for every tag it does not know (a `default:` did) | -728 | Zmui45 2,376 |
+| 96ae4baf Area | **found by the trace**: TheBar demo10, a MUI 3 program, loaded Zmui45.mui. TheBar's TheButton.mcc sets MUIA_FrameVisible FALSE whatever MUI it runs on (`mcc/button/class.c`, "NtRaiseActive"). MUI 3.8 does not know the two attributes (GetAttr 0, the set ignored), so a program that gets MUI 3.8 now gets exactly that and no module (demo10's screenshot is pixel-identical either way); a program that gets MUI 4 or 5 gets them from the module (`m45probe 21`: the same lines as before; `m45probe` alone now prints MUI 3.8's "get 0") | +56 | |
+| a541f90c String, Configdata | `-fstack-usage` against `lean`: String's OM_GET frame had grown by 8 bytes and Configdata's dispatcher by 4 (the module calls' arguments); each call now sits in a small function of its own | +68 | |
+| 9665ed4f Configdata | **found by the trace**: AmTelnet (MUI 3) loaded Zprefs.mui at start: MUIM_Application_SetConfigItem, which MUI 3.8 has, calls MUIM_Configdata_SetString. SetString is back in the library; the module keeps the five setters only the prefs program uses | +132 | |
+| 6528c28e Classes | **found by the trace**: ViewCSV (MUI 3) loaded Aboutmui.mui at start (it makes its About MUI object then; MUI 3.8 would load its own file there too). Aboutmui is built in again; Crawling stays a file (no program of the suite or the demos makes one) | +500 | Crawling 1,900 |
+
+List's sort mark (`mui45b`) keeps its test, its room and its call in the library: it is called
+only for a SORTABLE column, which MUI 3.8's format does not have; its glue is now a 10-byte stub.
+
+**Library file 271,676 -> 267,400 bytes** (-4,276; before `mui45b` it was 271,132, so the MUI 4/5
+code of that round is paid back and 3,732 bytes more). Code and data in the link 254,984 ->
+250,728 bytes. New files: Zmui45.mui 2,376, Zprefs.mui 1,756, Crawling.mui 1,900.
+
+MUI-Demo, cold, OS 3.1 + 4 MB fast (FS-UAE, 68000 build, GCC 16.2; `m.sh`, two `measure.sh`
+runs and `libonly.sh` each, `lean` and `smaller2` in the same session; emulator figures, bytes):
+
+| | library file | library alone | first program | each further | first window |
+|---|---|---|---|---|---|
+| lean | 271,676 | 285,128 | 478,560 | 204,520-204,584 | 1.42-1.44 s |
+| smaller2 | 267,400 | 280,808 | 474,312 | 204,520-204,584 | 1.42-1.44 s |
+
+The library is in memory once: the 4.3 KB come off the library alone and the first program;
+each further program and the first window are as before.
+
+Stack (`stackrun.sh`, twice each, side by side): MUI-Demo with its eight sub-windows 5,420 ->
+5,404 bytes, Layout 2,268, Pages 2,240 (`lean` once 2,268), Slidorama 2,304 as before, Virtual 2,680
+-> 2,676. `-fstack-usage` of every library function against `lean`: none larger; String's OM_SET
+120 -> 104, OM_NEW 112 -> 108, Area's dispatcher 136 -> 132; the assembly stub routine holds 20
+bytes plus the arguments it copies, less than the C functions it replaced (16-92 bytes each).
+
+perfbench (68EC020, `bench.sh`, 15 repetitions, `lean` and `smaller2` on two instances, then
+swapped): create+dispose -2.0 / +0.9%, open+close -3.3 / +0.4%, redraw -0.1 / -0.0%, relayout
+-0.8 / -0.5%, list insert -0.6 / -0.1%, list active -1.1 / -0.3%, notify -0.5 / -0.4%, text set
+-0.1 / -0.1%: no batch slower beyond the spread of two instances.
+
+**Which files a MUI 3 program loads** (`wasabi snoop` through every run, `snooplog.sh`; the
+final build): fullcheck (MUI-Demo with its eight sub-windows and the 18 other demos) loads the
+class files `lean` loads and no module. The MUI 3 group (36 programs) loads only
+`lean`'s modules where `lean` loads them (Zrequest.mui in MUIMine, Archiver, NewsCoaster, RO;
+Zpicture.mui in the NList and TextEditor demos): no Zmui45, Zprefs or Crawling. It was the trace
+that found TheBar demo10, AmTelnet and ViewCSV above. The MUI 4/5 group loads the same files as on
+`lean` too (Zlist.mui only in MUI 5's List1, for its sort mark).
+
+Checked (final build unless said):
+
+- `make check` after every commit (`check_string_selection.py` now hands out the MUI 4/5 module's
+  table in its harness: String's Integer64 goes through the module).
+- fullcheck: MUI-Demo with eight sub-windows and the 18 other demos open and close, the whole
+  output identical to `lean`'s (lost 608 / 200 / AppWindow 264, no alert), on four builds of the
+  branch.
+- demopix: 18 of 27 pixel-identical with MUI 3.8, every window's size and count as `mui45b`'s
+  (Layout places its buttons at random).
+- MUI 3 group: 35 of 36 as `mui45b`'s run, windows and sizes identical, the second run's memory in
+  use identical (to 48 bytes), SimpleMail windowless and reset at quit as always in FS-UAE.
+- MUI 4/5 group (24): all as `mui45b`'s, windows identical, except YAM 2.10, which showed an extra
+  "Error messages" window (YAM's own: a theme picture it could not load through datatypes) in all
+  three group runs of this branch. Run alone, it is exactly `lean`'s (no error window, the same
+  windows, the same memory lost, -392 bytes), and `lean` alone the same: not traced further; it
+  came in the group runs with five instances busy.
+- `tests/lean/string45.c` (String's Integer64 init/set/get with the 64-bit extremes and the twelve
+  Textinput values), `tests/lean/cfgset.c` (every Configdata setter, set and back to its default),
+  `m45probe` (MUI 3.8 identity and `m45probe 21`): the same output as before the moves (MUI 3.8
+  identity: FrameVisible/FrameDynamic now "get 0", as MUI 3.8).
+- `tests/lean/smaller.c`'s pop-up menu strip (Zmenu through the new stubs) pixel-identical to
+  `lean`; `tests/lean/aboutcrawl.c` (a Crawling object and the About MUI window) pixel-identical
+  to `lean`.
+
+Not done or not taken: `-fomit-frame-pointer` changes nothing with GCC 16.2 at `-Os` (the -2.7 KB
+measured before was GCC 6.5). A drag in the DragnDrop demo with `tests/lean/mdrag.c` did not start
+on `lean` either in this session (the press selected an entry, no drag image), so the drag module
+was not driven by hand; its stubs share the one routine that the menu, requester, picture, list
+and MUI 4/5 calls exercise.
+
+**What is left toward 166 KB** (per object file, code and data): List 28.9 KB, Window 25.9, Group
+21.6, String 19.5, Area 16.5, Application 16.0, text engine 10.5, vector images 8.2, frames 6.8,
+Configdata 6.6. What could still leave without a MUI 3 program loading it on its normal path is
+small: the trace showed that even "rare" things (About MUI, SetConfigItem, a MUI 4 frame
+attribute) are on some MUI 3 program's start-up path; Window's snapshot runs at every quit,
+Virtgroup is used by every Scrollgroup, the pointer code by every string gadget. About 16.5 KB of
+the file are relocations (4,140 absolute references: ~2,300 into the code, ~1,800 to the library
+bases and other globals): they cost disk, not memory. The rest means rewriting the big classes
+smaller (roadmap "Later").
+
+
 ## Left open
 
-- **Library code**: 246 KB (file 262 KB, 2026-11-06, `smaller`) against
-  MUI 3.8's 166 KB; what is left: "A smaller library" above. Before:
-  261 KB (file 279 KB).
+- **Library code**: 245 KB (file 261 KB = 267,400 bytes, 2026-11-11, `smaller2`) against
+  MUI 3.8's 166 KB; what is left: "A smaller library, second round" above. Before:
+  246 KB (file 262 KB, `smaller`), 261 KB (file 279 KB).
   Compiler options do not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
   switches within 0.3 KB, alignment none, `LTO=1` with bebbo's GCC 6.5
   -3.6 KB and it cannot link the class files: no `nm` plugin, fat LTO
