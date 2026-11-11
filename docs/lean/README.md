@@ -2737,7 +2737,30 @@ OpenMUI's Coloradjust lacks; the window is 640x256 there (default larger than th
 - Library file: see the commit sizes (278,236 before the round).
 - `make check` passes.
 
-**Results, the final library** (filled in from the final run, below).
+**Results, the final library** (Amiberry, 2026-11-12 00:26-01:10, nine instances side by side under
+a PC load of about 19 from other sessions; `/tmp/compat2/zwork/suite-real/fin` merged from
+`fin1`..`fin6`, `res/full-fin.txt`, `demopix/report.html`; the baselines are round 1's `r1-*` and
+the `ab-*` runs):
+
+- fullcheck: MUI-Demo with its eight sub-windows and the 18 demos open and close, lost 608 / 200 /
+  AppWindow 264, as every round before.
+- demopix: 17 of 27 windows pixel-identical with MUI 3.8 (19 in round 1): InputHandler (a timer
+  demo, listed as not comparable) and ShowHide (its checkmarks toggle; the grab caught another
+  state, 20 pixels) left the identical set; the eight others as before.
+- MUI 3 group of 36: 35 as the previous OpenMUI run (AmiTradeCenter: the Server Manager, reqtools),
+  33 as on MUI 3.8 (AmiTradeCenter, MultiRen's quit, SimpleMail's reset as always).
+- MUI 4/5 group: 23 of 24 as the previous run; DizzyTorrent 386 wide against 378 (its root group
+  has a frame now, as on MUI 3.8; 372 on MUI 5 with its other fonts).
+- New programs: **39 of 48 as on MUI 3.8** (36 in round 1): NFS-GUI opens, u64mui 500x218 and
+  NewsRog's first window 280x170 are MUI 3.8's sizes now (the root frame). Still differing:
+  Voyager (the reset), TinyMeterPrefs 553x239 against 553x250 (its default height), the three Lumi
+  programs 556 against 552 wide, and iGame, MicroDot-II, AHI's preferences and AmiDrop where MUI
+  3.8's run froze, reset or was left running once (the baseline's).
+- Class demos: **39 of 49 as on MUI 3.8** (39): the TipOfDay demo and TableGroup's (286x151) are
+  MUI 3.8's now; Calendar's demo2 differs only by the date's weekday ("Thursday" is a character
+  shorter), Wheel's by the MUI 3.8 baseline's frozen quit; left: HTMLview (still running after
+  quit), Lamp (Coloradjust), SpeedBar demo6, Busy, HexEdit, TearOff, HTMLtext, GIFAnim within pixels.
+- `make check` passes; stack as in THE RULES above.
 
 ## Left open
 

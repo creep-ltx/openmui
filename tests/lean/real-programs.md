@@ -601,7 +601,11 @@ stored 0 for a subclass's attribute), a root object keeps its frame (TinyMeterPr
 List/Scale/Popobject/Popasl set their OM_NEW attributes through the superclass as MUI 3.8 does
 (measured with `probe/newset.c`); AmiTradeCenter's Server Manager is the program's own with
 reqtools.library present (MUI 3.8 too); Voyager's reset is a clear into a bitmap its own quit
-routine freed (open; docs/lean/README.md, "Compatibility round 2"). RESULTS_COMPAT2
+routine freed (open; docs/lean/README.md, "Compatibility round 2"). The whole suite on the final library (`/tmp/compat2/zwork/suite-real/fin`): new programs **39 of
+48 as on MUI 3.8** (36 before: NFS-GUI, u64mui, NewsRog joined), class demos 39 of 49 (TipOfDay and
+TableGroup joined, Calendar demo2 differs by the weekday's length, Wheel by the baseline's frozen
+quit), the MUI 3 group 35 of 36 as before, the MUI 4/5 group 23 of 24 (DizzyTorrent 8 pixels wider:
+its root frame), demopix 17 of 27 (InputHandler's timer and ShowHide's checkmark state).
 
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second
