@@ -1219,10 +1219,17 @@ static void _zune_focus_destroy(Object *obj, int type)
         width = x2 - x1 + 1;
         height = y2 - y1 + 1;
 
-        zune_draw_background(parent, x1, y1, width, 1, x1, y1, 0);
-        zune_draw_background(parent, x2, y1, 1, height, x2, y1, 0);
-        zune_draw_background(parent, x1, y2, width, 1, x1, y2, 0);
-        zune_draw_background(parent, x1, y1, 1, height, x1, y1, 0);
+        /* the four strips: top, right, bottom, left */
+        {
+            int i;
+
+            for (i = 0; i < 4; i++) {
+                int x = i == 1 ? x2 : x1, y = i == 2 ? y2 : y1;
+
+                zune_draw_background(parent, x, y, i & 1 ? 1 : width,
+                    i & 1 ? height : 1, x, y, 0);
+            }
+        }
     } else {
         struct Region *region;
         struct Rectangle rect;
@@ -1230,34 +1237,23 @@ static void _zune_focus_destroy(Object *obj, int type)
 
         region = NewRegion();
         if (region) {
-            rect.MinX = _left(obj);
-            rect.MinY = _top(obj);
-            rect.MaxX = _right(obj);
-            rect.MaxY = _top(obj);
+            /* the four edges, one pixel wide: top, right, bottom, left;
+             * a bit per corner: x1 (1), y1 (2), x2 (4), y2 (8) choose
+             * right or bottom instead of left or top */
+            static const UBYTE edge[4] = {4, 1 | 4 | 8, 2 | 4 | 8, 8};
+            WORD xs[2] = {_left(obj), _right(obj)};
+            WORD ys[2] = {_top(obj), _bottom(obj)};
+            int i;
 
-            OrRectRegion(region, &rect);
+            for (i = 0; i < 4; i++) {
+                UBYTE e = edge[i];
 
-            rect.MinX = _right(obj);
-            rect.MinY = _top(obj);
-            rect.MaxX = _right(obj);
-            rect.MaxY = _bottom(obj);
-
-            OrRectRegion(region, &rect);
-
-            rect.MinX = _left(obj);
-            rect.MinY = _bottom(obj);
-            rect.MaxX = _right(obj);
-            rect.MaxY = _bottom(obj);
-
-            OrRectRegion(region, &rect);
-
-            rect.MinX = _left(obj);
-            rect.MinY = _top(obj);
-            rect.MaxX = _left(obj);
-            rect.MaxY = _bottom(obj);
-
-            OrRectRegion(region, &rect);
-
+                rect.MinX = xs[e & 1];
+                rect.MinY = ys[(e >> 1) & 1];
+                rect.MaxX = xs[(e >> 2) & 1];
+                rect.MaxY = ys[e >> 3];
+                OrRectRegion(region, &rect);
+            }
             clip = MUI_AddClipRegion(muiRenderInfo(obj), region);
         }
 
@@ -3801,6 +3797,26 @@ static IPTR Area__MUIM_DeleteBubble(struct IClass *cl, Object *obj,
     return TRUE;
 }
 
+/* The object's window events: its handler node taken out of the window
+ * (when it listens to anything), given the new events and put back */
+static void area_events(Object *obj, struct MUI_AreaLive *live, ULONG events)
+{
+    if (live->ehn.ehn_Events)
+        DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&live->ehn);
+    live->ehn.ehn_Events = events;
+    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&live->ehn);
+}
+
+/* The repeat timer (RelVerify's MUIA_Timer) stopped, if it runs */
+static void area_stop_timer(Object *obj, struct MUI_AreaLive *live)
+{
+    if (live->x && live->x->Timer.ihn_Millis) {
+        DoMethod(_app(obj), MUIM_Application_RemInputHandler,
+                 (IPTR)&live->x->Timer);
+        live->x->Timer.ihn_Millis = 0;
+    }
+}
+
 /* either lmb or press key */
 /* Apply the current InputMode synchronously: RelVerify sets
  * Selected/Pressed and Timer and registers a 300 ms repeat when enabled;
@@ -3862,10 +3878,7 @@ static void handle_release(struct IClass *cl, Object *obj, int cancel)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
 
-    if (data->mad_Live->ehn.ehn_Events)
-        DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->ehn);
-    data->mad_Live->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;
-    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
+    area_events(obj, data->mad_Live, IDCMP_MOUSEBUTTONS);
 
     if (data->mad_InputMode == MUIV_InputMode_RelVerify) {
         if (data->mad_Flags & MADF_SELECTED) {
@@ -3878,11 +3891,7 @@ static void handle_release(struct IClass *cl, Object *obj, int cancel)
         }
     }
 
-    if (data->mad_Live->x && data->mad_Live->x->Timer.ihn_Millis) {
-        DoMethod(_app(obj), MUIM_Application_RemInputHandler,
-                 (IPTR)&data->mad_Live->x->Timer);
-        data->mad_Live->x->Timer.ihn_Millis = 0;
-    }
+    area_stop_timer(obj, data->mad_Live);
 }
 
 /* Handle borrowed mouse-button events inside inclusive object bounds.
@@ -3911,13 +3920,9 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
                     (data->mad_Flags & MADF_SELECTED))
                 break;
             nnset(obj, MUIA_Timer, 0);
-            if (data->mad_InputMode == MUIV_InputMode_RelVerify) {
-                if (data->mad_Live->ehn.ehn_Events)
-                    DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                             (IPTR)&data->mad_Live->ehn);
-                data->mad_Live->ehn.ehn_Events |= IDCMP_MOUSEMOVE | IDCMP_RAWKEY;
-                DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
-            }
+            if (data->mad_InputMode == MUIV_InputMode_RelVerify)
+                area_events(obj, data->mad_Live, data->mad_Live->ehn.ehn_Events
+                    | IDCMP_MOUSEMOVE | IDCMP_RAWKEY);
             handle_press(cl, obj);
             return MUI_EventHandlerRC_Eat;
         }
@@ -3953,11 +3958,8 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
                     data->mad_Live->ContextZMenu = zune_open_menu(_window(obj), newmenu);
                 }
 
-                if (data->mad_Live->ehn.ehn_Events)
-                    DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                             (IPTR)&data->mad_Live->ehn);
-                data->mad_Live->ehn.ehn_Events |= IDCMP_MOUSEMOVE;
-                DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
+                area_events(obj, data->mad_Live,
+                    data->mad_Live->ehn.ehn_Events | IDCMP_MOUSEMOVE);
             }
             return MUI_EventHandlerRC_Eat;
         }
@@ -3967,9 +3969,7 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
         if (data->mad_Live->ContextZMenu) {
             struct MenuItem *item = zune_leave_menu(data->mad_Live->ContextZMenu);
 
-            DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->ehn);
-            data->mad_Live->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;
-            DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
+            area_events(obj, data->mad_Live, IDCMP_MOUSEBUTTONS);
 
             if (item) {
                 Object *itemobj = (Object *)GTMENUITEM_USERDATA(item);
@@ -4070,16 +4070,8 @@ static IPTR event_motion(Class *cl, Object *obj, struct IntuiMessage *imsg)
                     set(obj, MUIA_Selected, FALSE);
                 nnset(obj, MUIA_Pressed, FALSE);
 
-                if (data->mad_Live->ehn.ehn_Events)
-                    DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                             (IPTR)&data->mad_Live->ehn);
-                data->mad_Live->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;
-                DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
-                if (data->mad_Live->x && data->mad_Live->x->Timer.ihn_Millis) {
-                    DoMethod(_app(obj), MUIM_Application_RemInputHandler,
-                             (IPTR)&data->mad_Live->x->Timer);
-                    data->mad_Live->x->Timer.ihn_Millis = 0;
-                }
+                area_events(obj, data->mad_Live, IDCMP_MOUSEBUTTONS);
+                area_stop_timer(obj, data->mad_Live);
 
                 DoMethod(obj, MUIM_DoDrag, data->mad_Live->ClickX - _left(obj),
                          data->mad_Live->ClickY - _top(obj), 0);
@@ -4152,10 +4144,8 @@ static IPTR Area__MUIM_HandleEvent(struct IClass *cl, Object *obj,
         case MUIKEY_PRESS:
             if (data->mad_Flags & MADF_SELECTED)
                 break;
-            if (data->mad_Live->ehn.ehn_Events)
-                DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&data->mad_Live->ehn);
-            data->mad_Live->ehn.ehn_Events |= IDCMP_RAWKEY;
-            DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&data->mad_Live->ehn);
+            area_events(obj, data->mad_Live,
+                data->mad_Live->ehn.ehn_Events | IDCMP_RAWKEY);
             handle_press(cl, obj);
             return MUI_EventHandlerRC_Eat;
 
@@ -4991,105 +4981,78 @@ IPTR Area__MUIM_Layout(struct IClass *cl, Object *obj,
  * Notify. Require a live object and a message with the fields used by the
  * selected operation.
  */
+static IPTR Area__MUIM_Relayout(struct IClass *cl, Object *obj, Msg msg)
+{
+    if (!(_flags(obj) & MADF_CANDRAW) || !_win(obj)) return FALSE;
+    return DoMethod(_win(obj), MUIM_Window_RecalcDisplay, (IPTR)obj);
+}
+
 BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
 {
+    IPTR (*method)(struct IClass *, Object *, APTR);
+
     switch (msg->MethodID) {
-    case MUIM_Relayout:
-        if (!(_flags(obj) & MADF_CANDRAW) || !_win(obj)) return FALSE;
-        return DoMethod(_win(obj), MUIM_Window_RecalcDisplay, (IPTR)obj);
-    case OM_NEW:
-        return Area__OM_NEW(cl, obj, (struct opSet *)msg);
-    case OM_DISPOSE:
-        return Area__OM_DISPOSE(cl, obj, msg);
-    case OM_SET:
-        return Area__OM_SET(cl, obj, (struct opSet *)msg);
-    case OM_GET:
-        return Area__OM_GET(cl, obj, (struct opGet *)msg);
-    case MUIM_AskMinMax:
-        return Area__MUIM_AskMinMax(cl, obj, (APTR)msg);
-    case MUIM_Draw:
-        return Area__MUIM_Draw(cl, obj, (APTR)msg);
-    case MUIM_DrawBackground:
-        return Area__MUIM_DrawBackground(cl, obj, (APTR)msg);
-    case MUIM_CustomBackfill:
-        return Area__MUIM_CustomBackfill(cl, obj, (APTR)msg);
+    case MUIM_Relayout: return Area__MUIM_Relayout(cl, obj, (APTR)msg);
+    case OM_NEW: method = (APTR)Area__OM_NEW; break;
+    case OM_DISPOSE: method = (APTR)Area__OM_DISPOSE; break;
+    case OM_SET: method = (APTR)Area__OM_SET; break;
+    case OM_GET: method = (APTR)Area__OM_GET; break;
+    case MUIM_AskMinMax: method = (APTR)Area__MUIM_AskMinMax; break;
+    case MUIM_Draw: method = (APTR)Area__MUIM_Draw; break;
+    case MUIM_DrawBackground: return Area__MUIM_DrawBackground(cl, obj, (APTR)msg);
+    case MUIM_CustomBackfill: method = (APTR)Area__MUIM_CustomBackfill; break;
     case MUIM_DrawBackgroundBuffered:
-        return Area__MUIM_DrawBackgroundBuffered(cl, obj, (APTR)msg);
-    case MUIM_DrawParentBackground:
-        return Area__MUIM_DrawParentBackground(cl, obj, (APTR)msg);
-    case MUIM_Setup:
-        return Area__MUIM_Setup(cl, obj, (APTR)msg);
-    case MUIM_Cleanup:
-        return Area__MUIM_Cleanup(cl, obj, (APTR)msg);
-    case MUIM_Show:
-        return Area__MUIM_Show(cl, obj, (APTR)msg);
-    case MUIM_Hide:
-        return Area__MUIM_Hide(cl, obj, (APTR)msg);
-    case MUIM_GoActive:
-        return Area__MUIM_GoActive(cl, obj, (APTR)msg);
-    case MUIM_GoInactive:
-        return Area__MUIM_GoInactive(cl, obj, (APTR)msg);
+        method = (APTR)Area__MUIM_DrawBackgroundBuffered; break;
+    case MUIM_DrawParentBackground: return Area__MUIM_DrawParentBackground(cl, obj, (APTR)msg);
+    case MUIM_Setup: method = (APTR)Area__MUIM_Setup; break;
+    case MUIM_Cleanup: method = (APTR)Area__MUIM_Cleanup; break;
+    case MUIM_Show: method = (APTR)Area__MUIM_Show; break;
+    case MUIM_Hide: method = (APTR)Area__MUIM_Hide; break;
+    case MUIM_GoActive: return Area__MUIM_GoActive(cl, obj, (APTR)msg);
+    case MUIM_GoInactive: method = (APTR)Area__MUIM_GoInactive; break;
     case MUIM_WhichPointerType:
         return AREA_POINTERTYPE(muiAreaData(obj));
-    case MUIM_Layout:
-        return Area__MUIM_Layout(cl, obj, (APTR)msg);
+    case MUIM_Layout: method = (APTR)Area__MUIM_Layout; break;
     case MUIM_Zune_Layout:
         return 1;
-    case MUIM_CreateShortHelp:
-        return Area__MUIM_CreateShortHelp(cl, obj, (APTR)msg);
-    case MUIM_DeleteShortHelp:
-        return Area__MUIM_DeleteShortHelp(cl, obj, (APTR)msg);
-    case MUIM_CreateBubble:
-        return Area__MUIM_CreateBubble(cl, obj, (APTR)msg);
-    case MUIM_DeleteBubble:
-        return Area__MUIM_DeleteBubble(cl, obj, (APTR)msg);
-    case MUIM_HandleEvent:
-        return Area__MUIM_HandleEvent(cl, obj, (APTR)msg);
-    case MUIM_ContextMenuBuild:
-        return Area__MUIM_ContextMenuBuild(cl, obj, (APTR)msg);
-    case MUIM_ContextMenuChoice:
-        return Area__MUIM_ContextMenuChoice(cl, obj, (APTR)msg);
-    case MUIM_Timer:
-        return Area__MUIM_Timer(cl, obj, msg);
-    case MUIM_UpdateInnerSizes:
-        return Area__MUIM_UpdateInnerSizes(cl, obj, (APTR)msg);
+    case MUIM_CreateShortHelp: return Area__MUIM_CreateShortHelp(cl, obj, (APTR)msg);
+    case MUIM_DeleteShortHelp: method = (APTR)Area__MUIM_DeleteShortHelp; break;
+    case MUIM_CreateBubble: return Area__MUIM_CreateBubble(cl, obj, (APTR)msg);
+    case MUIM_DeleteBubble: return Area__MUIM_DeleteBubble(cl, obj, (APTR)msg);
+    case MUIM_HandleEvent: method = (APTR)Area__MUIM_HandleEvent; break;
+    case MUIM_ContextMenuBuild: return Area__MUIM_ContextMenuBuild(cl, obj, (APTR)msg);
+    case MUIM_ContextMenuChoice: return Area__MUIM_ContextMenuChoice(cl, obj, (APTR)msg);
+    case MUIM_Timer: method = (APTR)Area__MUIM_Timer; break;
+    case MUIM_UpdateInnerSizes: method = (APTR)Area__MUIM_UpdateInnerSizes; break;
     case MUIM_DragQuery:
         return MUIV_DragQuery_Refuse;
-    case MUIM_DragBegin:
-        return Area__MUIM_DragBegin(cl, obj, (APTR)msg);
+    case MUIM_DragBegin: return Area__MUIM_DragBegin(cl, obj, (APTR)msg);
     case MUIM_DragDrop:
         return FALSE;
     case MUIM_UnknownDropDestination:
-        return Area__MUIM_UnknownDropDestination(cl, obj, (APTR)msg);
-    case MUIM_DragFinish:
-        return Area__MUIM_DragFinish(cl, obj, (APTR)msg);
+        method = (APTR)Area__MUIM_UnknownDropDestination; break;
+    case MUIM_DragFinish: method = (APTR)Area__MUIM_DragFinish; break;
     case MUIM_DragReport:
         return MUIV_DragReport_Continue; /* or MUIV_DragReport_Abort? */
-    case MUIM_DoDrag:
-        return Area__MUIM_DoDrag(cl, obj, (APTR)msg);
-    case MUIM_CreateDragImage:
-        return Area__MUIM_CreateDragImage(cl, obj, (APTR)msg);
-    case MUIM_DeleteDragImage:
-        return Area__MUIM_DeleteDragImage(cl, obj, (APTR)msg);
-    case MUIM_DragQueryExtended:
-        return Area__MUIM_DragQueryExtended(cl, obj, (APTR)msg);
-    case MUIM_HandleInput:
-        return Area__MUIM_HandleInput(cl, obj, (APTR)msg);
-    case MUIM_FindAreaObject:
-        return Area__MUIM_FindAreaObject(cl, obj, (APTR)msg);
+    case MUIM_DoDrag: method = (APTR)Area__MUIM_DoDrag; break;
+    case MUIM_CreateDragImage: method = (APTR)Area__MUIM_CreateDragImage; break;
+    case MUIM_DeleteDragImage: method = (APTR)Area__MUIM_DeleteDragImage; break;
+    case MUIM_DragQueryExtended: method = (APTR)Area__MUIM_DragQueryExtended; break;
+    case MUIM_HandleInput: method = (APTR)Area__MUIM_HandleInput; break;
+    case MUIM_FindAreaObject: return Area__MUIM_FindAreaObject(cl, obj, (APTR)msg);
 
-    case MUIM_Export:
-        return Area__MUIM_Export(cl, obj, (APTR)msg);
-    case MUIM_Import:
-        return Area__MUIM_Import(cl, obj, (APTR)msg);
+    case MUIM_Export: method = (APTR)Area__MUIM_Export; break;
+    case MUIM_Import: method = (APTR)Area__MUIM_Import; break;
 
     case MUIM_QueryFrameCharacteristics:
-        return Area__MUIM_QueryFrameCharacteristics(cl, obj, (APTR)msg);
+        method = (APTR)Area__MUIM_QueryFrameCharacteristics; break;
     case MUIM_CreateFrameClippingRegion:
-        return Area__MUIM_CreateFrameClippingRegion(cl, obj, (APTR)msg);
+        method = (APTR)Area__MUIM_CreateFrameClippingRegion; break;
+    default:
+        return DoSuperMethodA(cl, obj, msg);
     }
 
-    return DoSuperMethodA(cl, obj, msg);
+    return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 
