@@ -126,7 +126,7 @@ IPTR Scale__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     /* MUI 3.9 labels a scale in the tiny font unless told otherwise */
     if (!FindTagItem(MUIA_Font, msg->ops_AttrList))
-        set(obj, MUIA_Font, MUIV_Font_Tiny);
+        superset(cl, obj, MUIA_Font, MUIV_Font_Tiny);   /* not through a subclass (newset.c) */
 
     D(bug("muimaster.library/scale.c: Scale Object created at 0x%p\n",
             obj));
