@@ -113,6 +113,11 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    settings and the iconification settings (hotkey, icon, Tools menu item,
    iconified at start). Left: cycle popup speed, middle-button drag, drag
    look, active object colour, the two third-party pages.
+   *2026-11-11* (branch `setleft`): the popup speed (MUI 3.8 rolls the
+   popup out from the top, measured; Zune through Zmenu.mui) and the active
+   object colour (pixel-identical) honoured, +294 bytes. Left: the
+   middle-button drag and drag look (not measurable from synthetic input
+   in FS-UAE), the Listtree and Busy pages.
 8. **Each program gets the MUI it was written for** (decided with our
    partner 2026-11-06, done right after the phase 1 fixes): a MUI 3
    program sees and behaves as MUI 3.8, a MUI 4 program as MUI 4, a MUI 5

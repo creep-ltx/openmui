@@ -39,7 +39,7 @@ whether the library honours it ("yes" = the library reads and uses it).
 | Buttons | Checkmark / radio look | 0x46 / 0x47 = | yes | yes |
 | Buttons | Radio spacing H / V | 0x05 / 0x06 = | yes | yes |
 | Cycles | Cycle image, popup position / level | 0x48 / 0x12 / 0x11 = | yes | yes |
-| Cycles | Popup speed | 0x1a = | yes | **no** |
+| Cycles | Popup speed | 0x1a = | yes | yes (since `setleft`: the popup rolled out from the top, below) |
 | Cycles | Popup frame / background, recessed entries | 0x34 / 0x3d / 0x19 = | yes | yes |
 | Sliders | Container / knob background and frame, knob font | 0x5b / 0x5c / 0x36 / 0x90 / 0x88 = | yes | yes |
 | Scrollbars | Arrows, type, knob / background, frame, arrangement | 0x42-0x45 / 0x83 / 0x4c / 0x3c / 0x31 / 0x09 = | yes | yes |
@@ -54,7 +54,7 @@ whether the library honours it ("yes" = the library reads and uses it).
 | Navigation | Drag: autostart + distance | 0x8d / 0x8e = | yes | yes (since `prefs38`; was a fixed 3) |
 | Navigation | Drag frame / look | 0x18 / 0x94 = | yes | frame yes, look **no** |
 | Navigation | Balancing groups look | 0x7b = | yes | yes |
-| Navigation | Colour of active object | 0x8f = | yes | **no** |
+| Navigation | Colour of active object | 0x8f = | yes | yes (since `setleft`, pixel-identical with MUI 3.8) |
 | Navigation | The 24 keys | 0x5f-0x74 = | yes | yes |
 | Special | Text field frame / background, gauge frame | 0x2d / 0x3b / 0x32 = | yes | yes |
 | Special | Device images, tape images | 0x4d-0x53, 0x55-0x59, 0x5d, 0x5e = | yes | yes |
@@ -152,10 +152,54 @@ file. The MUI files are only read.
   messages (Exchange's too) waited for other input: fixed.
 - Library cost of the import: none (it is in Zune prefs: 2.9 KB of code there). The settings the library honours now cost it 548 bytes (stripped file 271,256 -> 271,804 bytes).
 
+## Popup speed and active object colour (2026-11-11, branch `setleft`)
+
+Measured black-box on `a1200-31-mui38` with `tests/lean/setleft.c` (a cycle
+with six entries, a sortable list, buttons, a string) and
+`tests/lean/mpress.c` (mouse input through input.device; `mpress pop N DX
+DY` counts video frames from a press until the pixel DX,DY from the pointer
+changes).
+
+- **Unregistered MUI 3.8 ignores the Cycles page's "Popup Menu Control"
+  (position, level, speed) when it reads a settings file**: they are
+  design settings there (greyed; its settings program shows the defaults
+  even when the file has others; a file with level 10 still popped up six
+  entries). Its "Test mode" with the **Test** button applies them to running
+  programs, which is how they were measured.
+- **Popup speed is not a delay.** The popup opens on the press at every
+  speed (a quick press opens it, nothing cycles; a press on the cycle image
+  cycles one step, no popup, no repeat). The speed rolls the popup out from
+  the top: rows 14, 30 and 55 below the press (a 58-row popup) showed after
+  1, 3 and 7 frames at speed 50, all within 0-2 frames at 10; the whole
+  popup took 2, 2-3, 4-5, 5-6 and 7 frames at 10, 20, 30, 40 and 50: about
+  speed * height / 400 frames. MUI 3.8 draws its popup with no layer of its
+  own (no new window or layer appears).
+- Zune: the popup's drawing is a function of its own (`DrawPopup`); with a
+  speed above 0 that gives two frames or more, the menu module (Zmenu.mui,
+  `zune_popup_rollout`) draws it a band of rows per frame, each band once,
+  clipped to it. At 50: rows 14/30/55 after 0/2/6 frames (MUI 3.8 1/3/7);
+  at 0 drawn at once as before, and Zmenu.mui is not loaded.
+- **Colour of active object** (0x8f, a pen spec, default `m0`): MUI 3.8
+  draws the active object's solid frame one pixel outside its box in that
+  pen (white = shine by default; `m5` black). It is honoured from the file
+  even unregistered. Zune drew the same frame in shine always; now in the
+  setting's pen (obtained with the window's MUI pens). Pixel-identical with
+  MUI 3.8 at the default and at `m5` (setleft, Tab to the cycle).
+- Library cost: popup speed +162 bytes (Cycle +152, the stub 10), active
+  colour +132 bytes (Area +56, Window +76); stripped file 267,400 ->
+  267,716 bytes.
+
 ## Left
 
-- The library still ignores the cycle popup speed, the middle-button drag,
-  the drag look and the active object colour.
+- The library still ignores the middle-button drag and the drag look.
+  Neither could be measured on MUI 3.8 in FS-UAE: no drag started there
+  from synthetic input (`mpress drag`, wasabi's mouse; in setleft's
+  sortable list with `MUIA_Listview_DragType` Immediate and in the
+  DragnDrop demo, left button with and without the qualifier), as an
+  earlier session found on Zune too. MUI 3.8's look choices are Zune's four
+  (always solid, ghosted on box (default), ghosted outside box, always
+  ghosted). Next: a drag started by hand in `wasabi view`, or input
+  events with the real mouse's timing.
 - The drag settings' exact MUI 3.8 behaviour (does the qualifier start the
   drag at once?) is not measured; Zune starts it after one pixel with the
   qualifier held.

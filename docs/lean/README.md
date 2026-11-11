@@ -1706,6 +1706,26 @@ bases and other globals): they cost disk, not memory. The rest means rewriting t
 smaller (roadmap "Later").
 
 
+## Settings the library ignored: popup speed, active object colour (2026-11-11, phase 7)
+
+Branch `setleft`. Measured black-box on FS-UAE `a1200-31-mui38` first (details in
+[settings-mui38.md](settings-mui38.md#popup-speed-and-active-object-colour-2026-11-11-branch-setleft);
+new test tools `tests/lean/setleft.c` and `tests/lean/mpress.c`):
+
+| commit | what | library |
+|---|---|---|
+| 3fbcad3b Window, Area | the active object's frame in the settings' "colour of active object" (MUI 3.8: the same solid line one pixel outside, in that pen; shine by default). Pixel-identical with MUI 3.8 at the default and at `m5` | +132 bytes |
+| 94fa0bfb Cycle | the popup speed: MUI 3.8 opens the popup at once at every speed and rolls it out from the top in about speed * height / 400 frames (0: at once, the default). Zune draws it a band of rows a frame through the menu module (Zmenu.mui, loaded only when the speed is above 0); at 50 rows 14/30/55 after 0/2/6 frames against MUI 3.8's 1/3/7 | +162 bytes (Cycle 152, stub 10) |
+
+Library file (stripped) 267,400 -> 267,716 bytes. Unregistered MUI 3.8 ignores the Cycles page's
+popup control (position, level, speed) in its files; its settings program's test mode applies
+them to running programs. Not done: the middle-button drag and the drag look (no drag starts
+from synthetic input in FS-UAE on MUI 3.8, so nothing could be measured), the Listtree and Busy
+pages in Zune prefs, YAM 2.10's "Error messages" window in the MUI 4/5 group runs.
+
+Checked: `make check` (`check_window_pens.py` knows the extra pen request); fullcheck (below);
+the popup at speeds 0, 10, 30, 50 and the active frame on a1200-31 with the branch's library.
+
 ## Left open
 
 - **Library code**: 245 KB (file 261 KB = 267,400 bytes, 2026-11-11, `smaller2`) against
