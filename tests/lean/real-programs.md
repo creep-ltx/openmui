@@ -439,6 +439,14 @@ Clock demo opens on MUI 5 (FS-UAE: "nowindow,busy"). Found and fixed on the way:
   at all, the demo waiting for ever), Pointers 640x246 (was 364x248; MUI 5 640x256). MUI 3.8
   programs are not touched (the same branch of the fitting loop, their condition unchanged).
 
+**The final library of the branch, whole groups again** (Amiberry): MUI 3 group 34 of 36 as the
+first run (SimpleMail and AmTelnet now with their windows, the fixes above), against MUI 3.8
+(`ab-m38c`) 35 of 36 but for SimpleMail's MUI 3.8 record from before the record fix: only MultiRen
+differs, as always; TheBar demo3 was "frozen" once while 16 capacity instances loaded the PC and
+ok run again alone. MUI 4/5 group 21 of 24 as the first run, the three being the improvements
+(YAM 2.10 quits with its main window, EmbeddedImages opens, Pointers 640x246); against MUI 5 the
+window-size differences only. Results `ab-z3f`, `ab-z5f`.
+
 Results: `/tmp/amiberry/zwork/suite-real/ab-z3` (OpenMUI, MUI 3 group), `ab-m38` (MUI 3.8),
 `ab-z5` / `ab-z5b` (OpenMUI, MUI 4/5 group, before / after the Window change), `ab-m5` (MUI 5),
 `ab-z3c` / `ab-m38c` (SimpleMail and AmTelnet again with the fixes); contact sheets

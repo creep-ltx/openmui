@@ -2352,17 +2352,26 @@ default) or to FS-UAE's `amiga-test` (`EMU=fsuae`); `demopix.sh --names PREFIX` 
 instances. Verified: a stop and start is a fresh boot (a RAM: marker gone), 2 s from start to
 wasabid (FS-UAE: 15-20 s), nothing on the desktop.
 
-**Capacity** (16 cores, 30 GB): one instance is one core at 100% (`cpu_speed=max`) and about
-230 MB; 12 instances of the MUI 3.8 machine started at once all booted in 2.5 s and all opened
-MUI-Demo (figures below); seven suite and demopix runs side by side gave load 7. Twelve to
-fourteen at once is sane; memory is not the limit.
+**Capacity** (16 cores, 30 GB; `/tmp/amiberry/capacity.sh`): one instance is one core at 100%
+(`cpu_speed=max`) and about 220 MB. Twelve instances of the MUI 3.8 machine started at once all
+had wasabid in 2.5 s and all opened MUI-Demo within a second of a 3 s settle after the Workbench
+(load 15 with three suite runs beside them); sixteen at once the same (MUI-Demo within 1.3 s,
+3.5 GB in all, load 16). Seven suite and demopix runs side by side gave load 7. So the cores are
+the limit, not memory: up to about 12 at once with room for the rest of the PC. A `wasabi run`
+sent the moment the Workbench window appears was lost under that load: settle 2-3 s first (the
+suite's `boot()` does). One MUI 3 program of the final run (TheBar demo3) was "frozen" while
+16 capacity instances ran beside it and fine when run again alone: keep the load sane.
 
 **Baselines on Amiberry** (the final library of the branch; details and the result folders in
 tests/lean/real-programs.md): MUI 3 group **35 of 36 as on MUI 3.8** (MultiRen's quit as always);
 MUI 4/5 group against MUI 5 the known window-size differences, EmbeddedImages and Pointers now as
 MUI 5 (below); demopix **18 of 27 pixel-identical with MUI 3.8**, 25 comparable, as on FS-UAE, in
 2 minutes; fullcheck: MUI-Demo with its eight sub-windows and the 18 demos open and close, lost
-608 / 200 / AppWindow 264, as on FS-UAE; `make check` passes.
+608 / 200 / AppWindow 264, as on FS-UAE; `make check` passes. **stackrun on Amiberry is not a
+measurement**: MUI-Demo 5,196 and Virtual 2,212 both runs (as `areaapp`'s FS-UAE figures), but
+Layout 2,268 / 536, Pages 508 / 2,240 and Slidorama 2,304 / 1,320 from one run to the next: the
+probe reads the demo before it has drawn at this speed. Stack figures stay FS-UAE's
+(`EMU=fsuae stackrun.sh`).
 
 **FS-UAE's oddities, sorted** (OpenMUI, MUI 3.8 and MUI 5 each run on both emulators):
 
