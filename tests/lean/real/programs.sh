@@ -110,7 +110,7 @@ P dmodp        mui3 dmodp/x/DASModPlayer                   DASModPlayer         
 P amfinger     mui3 amfinger/x                             AmFinger             40 -
 P abacus       mui3 abacus/x/Abacus                        Abacus               40 -
 P address      mui3 address/x/Address                      Bin/Address          40 -
-P rqchoicemui  mui3 rqchoicemui/x/RequestChoiceMUI_1.1     "RequestChoiceMUI Suite \"A question for the suite?\" \"Yes|No\"" 30 -
+P rqchoicemui  mui3 rqchoicemui/x/RequestChoiceMUI_1.1     "RequestChoiceMUI Suite \"A question for the suite?\" Yes" 30 -
 P assampler    mui3 assampler/x/Assampler                  Assampler            60 -
 P cyclone      mui3 cyclone/x/Cyclone_125                  Bin020/Cyclone       60 -
 P amigamark    mui3 amigamark/x/AmigaMARK                  AmigaMARK            60 -
@@ -289,6 +289,14 @@ dismiss_cmanager() {
   answer OK; sleep 2
   [ -n "$(winline "Select the directory")" ] && clickrel "Select the directory" 82 -39
   waitwin "Contact Manager" 30
+}
+
+# HTMLview.mcc 13.4 is a beta with a time bomb: a system requester "This beta version is now
+# more than three months old" (window HTMLview.mcc, another task's) before the demo's window
+TITLE[htmlview-demo]='^HTMLview'
+dismiss_htmlview_demo() {
+  [ -n "$(winline "HTMLview.mcc")" ] && { wasabi ui click OK --window "HTMLview.mcc" >/dev/null 2>&1; sleep 2; }
+  waitwin "HTMLview-Demo" 20; settle 8
 }
 
 # ---- classes and libraries ----
