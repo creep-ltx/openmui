@@ -2259,7 +2259,9 @@ static BOOL Ti_AddToNumber(struct MUI_StringData *data, LONG delta)
     return TRUE;
 }
 
-static IPTR String_Textinput(struct IClass *cl, Object *obj, Msg msg)
+/* not inlined: its locals stay off the dispatcher's frame, which every
+ * String method passes */
+static __attribute__((noinline)) IPTR String_Textinput(struct IClass *cl, Object *obj, Msg msg)
 {
     struct MUI_StringData *data = INST_DATA(cl, obj);
     BOOL writable = !(data->msd_Flags & MSDF_NOINPUT);
@@ -3447,54 +3449,39 @@ static IPTR String_ContextChoice(struct IClass *cl, Object *obj,
 
 BOOPSI_DISPATCHER(IPTR, String_Dispatcher, cl, obj, msg)
 {
+    IPTR (*method)(struct IClass *, Object *, APTR);
+
     switch (msg->MethodID)
     {
-    case OM_NEW:
-        return String__OM_NEW(cl, obj, (struct opSet *)msg);
-    case OM_DISPOSE:
-        return String__OM_DISPOSE(cl, obj, msg);
-    case OM_SET:
-        return String__OM_SET(cl, obj, (struct opSet *)msg);
-    case OM_GET:
-        return String__OM_GET(cl, obj, (struct opGet *)msg);
+    case OM_NEW: method = (APTR)String__OM_NEW; break;
+    case OM_DISPOSE: method = (APTR)String__OM_DISPOSE; break;
+    case OM_SET: method = (APTR)String__OM_SET; break;
+    case OM_GET: method = (APTR)String__OM_GET; break;
 
-    case MUIM_Setup:
-        return String__MUIM_Setup(cl, obj, (APTR) msg);
-    case MUIM_Cleanup:
-        return String__MUIM_Cleanup(cl, obj, (APTR) msg);
-    case MUIM_AskMinMax:
-        return String__MUIM_AskMinMax(cl, obj, (APTR) msg);
-    case MUIM_Draw:
-        return String__MUIM_Draw(cl, obj, (APTR) msg);
-    case MUIM_Export:
-        return String__MUIM_Export(cl, obj, (APTR) msg);
-    case MUIM_Import:
-        return String__MUIM_Import(cl, obj, (APTR) msg);
-    case MUIM_GoActive:
-        return String__MUIM_GoActive(cl, obj, (APTR) msg);
-    case MUIM_GoInactive:
-        return String__MUIM_GoInactive(cl, obj, (APTR) msg);
-    case MUIM_HandleEvent:
-        return String__MUIM_HandleEvent(cl, obj, (APTR) msg);
+    case MUIM_Setup: method = (APTR)String__MUIM_Setup; break;
+    case MUIM_Cleanup: method = (APTR)String__MUIM_Cleanup; break;
+    case MUIM_AskMinMax: method = (APTR)String__MUIM_AskMinMax; break;
+    case MUIM_Draw: method = (APTR)String__MUIM_Draw; break;
+    case MUIM_Export: method = (APTR)String__MUIM_Export; break;
+    case MUIM_Import: method = (APTR)String__MUIM_Import; break;
+    case MUIM_GoActive: method = (APTR)String__MUIM_GoActive; break;
+    case MUIM_GoInactive: method = (APTR)String__MUIM_GoInactive; break;
+    case MUIM_HandleEvent: method = (APTR)String__MUIM_HandleEvent; break;
 
     /* BetterString */
-    case MUIM_ContextMenuBuild:
-        return String_ContextBuild(cl, obj, msg);
-    case MUIM_ContextMenuChoice:
-        return String_ContextChoice(cl, obj, (APTR)msg);
-    case MUIM_String_ClearSelected:
-        return String__MUIM_ClearSelected(cl, obj, (APTR) msg);
-    case MUIM_String_Insert:
-        return String__MUIM_Insert(cl, obj, (APTR) msg);
-    case MUIM_String_FileNameStart:
-        return String__MUIM_FileNameStart(cl, obj, (APTR) msg);
+    case MUIM_ContextMenuBuild: method = (APTR)String_ContextBuild; break;
+    case MUIM_ContextMenuChoice: method = (APTR)String_ContextChoice; break;
+    case MUIM_String_ClearSelected: method = (APTR)String__MUIM_ClearSelected; break;
+    case MUIM_String_Insert: method = (APTR)String__MUIM_Insert; break;
+    case MUIM_String_FileNameStart: method = (APTR)String__MUIM_FileNameStart; break;
+    default:
+        if (msg->MethodID >= MUIM_Textinput_ExternalEdit
+            && msg->MethodID <= MUIM_Textinput_DoCopyCut)
+            return String_Textinput(cl, obj, msg);
+        return DoSuperMethodA(cl, obj, msg);
     }
 
-    if (msg->MethodID >= MUIM_Textinput_ExternalEdit
-        && msg->MethodID <= MUIM_Textinput_DoCopyCut)
-        return String_Textinput(cl, obj, msg);
-
-    return DoSuperMethodA(cl, obj, msg);
+    return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 
