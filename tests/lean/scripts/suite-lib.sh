@@ -164,7 +164,9 @@ menu() { # PATH [WINDOWTITLE]
   while IFS= read -r line; do
     addr=$(echo "$line" | cut -f2)
     pos=$(wasabi run "C:menupos ${addr#0x} \"$m\" \"$i\" ${s:+\"$s\"}" 2>/dev/null | tail -1)
-    [ -n "$pos" ] && [ "$pos" != none ] && break
+    # menupos answers "none" (no such item) or "failed" (no menu strip read:
+    # under load the window may be gone); only numbers are a position
+    case $pos in [0-9]*) break ;; esac
     pos=
   done < <(wasabi windows --raw 2>/dev/null | awk -F'\t' -v t="$P_TASK" -v ti="$P_TITLE" -v p="${2:-}" '
     $1=="W" && ($(NF-1)==t || (ti!="" && $(NF-1)!="Workbench" && $NF ~ ti)) && (p=="" || index($NF,p))')
