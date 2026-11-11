@@ -2048,6 +2048,24 @@ static __attribute__((noinline)) void TitleGadgetUp(Object *win, struct MUI_Wind
 }
 #endif
 
+/* The native menus of a menu strip object, laid out (NULL without) */
+static __attribute__((noinline)) struct Menu *MakeMenus(APTR visinfo,
+    Object *strip)
+{
+    struct NewMenu *newmenu = NULL;
+    struct Menu *menu;
+    struct TagItem tags[] = {
+        {GTMN_NewLookMenus, TRUE},
+        {TAG_DONE, 0}
+    };
+
+    get(strip, MUIA_Menuitem_NewMenu, &newmenu);
+    if (!newmenu || !(menu = CreateMenusA(newmenu, NULL)))
+        return NULL;
+    LayoutMenusA(menu, visinfo, tags);
+    return menu;
+}
+
 /* For a connected, successfully set-up window with computed content limits,
  * build native menus and scrollbars, calculate normal/alternate geometry
  * and apply a saved application position record. Open Intuition, install
@@ -2067,7 +2085,6 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
 #endif
 
     struct Menu *menu = NULL;
-    struct NewMenu *newmenu = NULL;
     APTR visinfo = NULL;
 
     Object *gadgets;
@@ -2096,20 +2113,7 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
     if ((visinfo = GetVisualInfoA(scr, NULL)))
     {
         if (data->wd_Menustrip)
-        {
-            get(data->wd_Menustrip, MUIA_Menuitem_NewMenu, &newmenu);
-            if (newmenu)
-            {
-                if ((menu = CreateMenusA(newmenu, NULL)))
-                {
-                    struct TagItem tags[] = {
-                        {GTMN_NewLookMenus, TRUE},
-                        {TAG_DONE, (IPTR) NULL}
-                    };
-                    LayoutMenusA(menu, visinfo, tags);
-                }
-            }
-        }
+            menu = MakeMenus(visinfo, data->wd_Menustrip);
         FreeVisualInfo(visinfo);
     }
 
@@ -6575,13 +6579,24 @@ IPTR Window__MUIM_DrawBackground(struct IClass *cl, Object *obj,
 *       does not separately request keyboard activation.
 *
 */
-IPTR Window__MUIM_ToFront(struct IClass *cl, Object *obj, Msg msg)
+/* MUIM_Window_ToFront, ToBack, ScreenToFront and ScreenToBack: nothing
+ * (0) unless the window is open */
+static IPTR Window__MUIM_Arrange(struct IClass *cl, Object *obj, Msg msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    if (!(data->wd_RenderInfo.mri_Window))      /* not between show/hide */
+    struct Window *win = data->wd_RenderInfo.mri_Window;
+    struct Screen *scr = data->wd_RenderInfo.mri_Screen;
+
+    if (!win)      /* not between show/hide */
         return 0;
 
-    WindowToFront(data->wd_RenderInfo.mri_Window);
+    switch (msg->MethodID)
+    {
+    case MUIM_Window_ToFront: WindowToFront(win); break;
+    case MUIM_Window_ToBack: WindowToBack(win); break;
+    case MUIM_Window_ScreenToFront: ScreenToFront(scr); break;
+    default: ScreenToBack(scr); break;
+    }
     return 1;
 }
 
@@ -6607,15 +6622,6 @@ IPTR Window__MUIM_ToFront(struct IClass *cl, Object *obj, Msg msg)
 *       does not separately request keyboard activation.
 *
 */
-IPTR Window__MUIM_ToBack(struct IClass *cl, Object *obj, Msg msg)
-{
-    struct MUI_WindowData *data = INST_DATA(cl, obj);
-    if (!(data->wd_RenderInfo.mri_Window))      /* not between show/hide */
-        return 0;
-
-    WindowToBack(data->wd_RenderInfo.mri_Window);
-    return 1;
-}
 
 /****** Window.mui/MUIM_Window_ScreenToBack ************
 *
@@ -6639,15 +6645,6 @@ IPTR Window__MUIM_ToBack(struct IClass *cl, Object *obj, Msg msg)
 *       does not separately request keyboard activation.
 *
 */
-IPTR Window__MUIM_ScreenToBack(struct IClass *cl, Object *obj, Msg msg)
-{
-    struct MUI_WindowData *data = INST_DATA(cl, obj);
-    if (!(data->wd_RenderInfo.mri_Window))      /* not between show/hide */
-        return 0;
-
-    ScreenToBack(data->wd_RenderInfo.mri_Screen);
-    return 1;
-}
 
 /****** Window.mui/MUIM_Window_ScreenToFront ************
 *
@@ -6671,15 +6668,6 @@ IPTR Window__MUIM_ScreenToBack(struct IClass *cl, Object *obj, Msg msg)
 *       does not separately request keyboard activation.
 *
 */
-IPTR Window__MUIM_ScreenToFront(struct IClass *cl, Object *obj, Msg msg)
-{
-    struct MUI_WindowData *data = INST_DATA(cl, obj);
-    if (!(data->wd_RenderInfo.mri_Window))      /* not between show/hide */
-        return 0;
-
-    ScreenToFront(data->wd_RenderInfo.mri_Screen);
-    return 1;
-}
 
 /****** Window.mui/MUIM_Window_ActionIconify ************
 *
@@ -6848,7 +6836,6 @@ IPTR Window__MUIM_UpdateMenu(struct IClass *cl, Object *obj, Msg msg)
     struct MUI_WindowData *data = INST_DATA(cl, obj);
 
     struct Menu *menu = NULL;
-    struct NewMenu *newmenu = NULL;
     APTR visinfo = NULL;
     struct Window *win = NULL;
 
@@ -6865,19 +6852,10 @@ IPTR Window__MUIM_UpdateMenu(struct IClass *cl, Object *obj, Msg msg)
                 data->wd_Menu = NULL;
             }
 
-            get(data->wd_Menustrip, MUIA_Menuitem_NewMenu, &newmenu);
-            if (newmenu)
+            if ((menu = MakeMenus(visinfo, data->wd_Menustrip)))
             {
-                if ((menu = CreateMenusA(newmenu, NULL)))
-                {
-                    struct TagItem tags[] = {
-                        {GTMN_NewLookMenus, TRUE},
-                        {TAG_DONE, 0}
-                    };
-                    LayoutMenusA(menu, visinfo, tags);
-                    data->wd_Menu = menu;
-                    SetMenuStrip(win, menu);
-                }
+                data->wd_Menu = menu;
+                SetMenuStrip(win, menu);
             }
             FreeVisualInfo(visinfo);
         }
@@ -7015,10 +6993,10 @@ BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
     case MUIM_Window_GetMenuState: method = (APTR)Window__MUIM_GetMenuState; break;
     case MUIM_Window_SetMenuState: method = (APTR)Window__MUIM_SetMenuState; break;
     case MUIM_Window_DrawBackground: method = (APTR)Window__MUIM_DrawBackground; break;
-    case MUIM_Window_ToFront: method = (APTR)Window__MUIM_ToFront; break;
-    case MUIM_Window_ToBack: method = (APTR)Window__MUIM_ToBack; break;
-    case MUIM_Window_ScreenToFront: method = (APTR)Window__MUIM_ScreenToFront; break;
-    case MUIM_Window_ScreenToBack: method = (APTR)Window__MUIM_ScreenToBack; break;
+    case MUIM_Window_ToFront:
+    case MUIM_Window_ToBack:
+    case MUIM_Window_ScreenToFront:
+    case MUIM_Window_ScreenToBack: method = (APTR)Window__MUIM_Arrange; break;
     case MUIM_Window_ActionIconify: method = (APTR)Window__MUIM_ActionIconify; break;
     case MUIM_Window_Snapshot: method = (APTR)Window__MUIM_Snapshot; break;
     case MUIM_Window_UpdateMenu: method = (APTR)Window__MUIM_UpdateMenu; break;
