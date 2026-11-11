@@ -1,13 +1,15 @@
 /* MUI 4/5 attributes of the core classes that MUI 3 programs never use
  * (Area's frame attributes, String's kept Textinput values and 64-bit
- * integer).
+ * integer, its multiline drawing and MUI 5's placeholder).
  * Built as the module Zmui45.mui (modules.h, classes/zmui45.c): a MUI 3
  * program never loads it, and the library keeps only the recognition of
  * the attributes and a call (modules.c). */
+#include <string.h>
 #include <exec/types.h>
 #include <intuition/classusr.h>
 #include <clib/alib_protos.h>
 #include <proto/intuition.h>
+#include <proto/graphics.h>
 #include <proto/muimaster.h>
 
 #include "mui.h"
@@ -205,4 +207,203 @@ IPTR zune_string_mui45(Object *obj, struct MUI_StringData *data, ULONG attr,
         return FALSE;
     }
     return TRUE;
+}
+
+/* String's multiline lines end at '\n'; columns are character counts.
+ * The library keeps its own Ml_LineStart/Ml_LineEnd/Ml_Rows for the keys;
+ * these copies serve the drawing and the pointer below. */
+static LONG Ml_LineStart(struct MUI_StringData *data, LONG pos)
+{
+    while (pos > 0 && data->Buffer[pos - 1] != '\n')
+        pos--;
+    return pos;
+}
+
+static LONG Ml_LineEnd(struct MUI_StringData *data, LONG pos)
+{
+    while (pos < (LONG)data->NumChars && data->Buffer[pos] != '\n')
+        pos++;
+    return pos;
+}
+
+static LONG Ml_LineOf(struct MUI_StringData *data, LONG pos)
+{
+    LONG line = 0, i;
+
+    for (i = 0; i < pos; i++)
+        if (data->Buffer[i] == '\n')
+            line++;
+    return line;
+}
+
+/* Start of a line; lines past the end give the last line */
+static LONG Ml_LinePos(struct MUI_StringData *data, LONG line)
+{
+    LONG pos = 0, end;
+
+    while (line-- > 0 && (end = Ml_LineEnd(data, pos)) < (LONG)data->NumChars)
+        pos = end + 1;
+    return pos;
+}
+
+static LONG Ml_Rows(Object *obj)
+{
+    return MAX(1, _mheight(obj) / _font(obj)->tf_YSize);
+}
+
+/* String's TextM (classes/string.c): <unmarked><marked><unmarked> */
+static void TextM(Object *obj, struct MUI_StringData *data,
+    STRPTR text, WORD textlen, LONG markstart, LONG markend)
+{
+    struct RastPort *rp = _rp(obj);
+    ULONG textpen = data->is_active ? data->active_text.p_pen
+        : data->inactive_text.p_pen;
+    LONG len;
+
+    len = MIN(markstart, textlen);
+    len = MAX(len, 0);
+    if (len)
+    {
+        SetABPenDrMd(rp, textpen, _pens(obj)[MPEN_BACKGROUND], JAM1);
+        Text(rp, text, len);
+        text += len;
+        textlen -= len;
+    }
+    len = MIN(markend - len, textlen);
+    len = MAX(len, 0);
+    if (len)
+    {
+        SetABPenDrMd(_rp(obj), data->marked_text.p_pen,
+            data->marked_bg.p_pen, JAM2);
+        Text(rp, text, len);
+        text += len;
+        textlen -= len;
+    }
+    if (textlen)
+    {
+        SetABPenDrMd(rp, textpen, _pens(obj)[MPEN_BACKGROUND], JAM1);
+        Text(rp, text, textlen);
+    }
+    SetDrMd(rp, JAM1);
+}
+
+/* Scroll so that the cursor is visible */
+static void Ml_Scroll(Object *obj, struct MUI_StringData *data)
+{
+    struct RastPort *rp = _rp(obj);
+    LONG rows = Ml_Rows(obj), line = Ml_LineOf(data, data->BufferPos);
+    LONG start = Ml_LineStart(data, data->BufferPos);
+    LONG column = data->BufferPos - start, cell;
+    STRPTR text = data->VisualBuffer + start;
+
+    if (line < data->MlTopLine)
+        data->MlTopLine = line;
+    else if (line >= data->MlTopLine + rows)
+        data->MlTopLine = line - rows + 1;
+
+    SetFont(rp, _font(obj));
+    cell = TextLength(rp, column < Ml_LineEnd(data, start) - start ?
+        text + column : (STRPTR)" ", 1);
+    if (column < data->MlLeftCol)
+        data->MlLeftCol = column;
+    while (data->MlLeftCol < column && TextLength(rp,
+            text + data->MlLeftCol, column - data->MlLeftCol) + cell
+        > _mwidth(obj))
+        data->MlLeftCol++;
+}
+
+/* String's MUIM_Draw for a placeholder (an empty inactive String with
+ * MUIA_String_Placeholder) or a Multiline String: what is ZUNE_SD_*;
+ * textpen and the marked range (ZUNE_SD_MARKED) for the multiline one. */
+void zune_string_draw45(Object *obj, struct MUI_StringData *data,
+    ULONG what, ULONG textpen, LONG markstart, LONG markstop)
+{
+    struct RastPort *rp = _rp(obj);
+    struct TextExtent te;
+    LONG ysize = _font(obj)->tf_YSize, rows, row, pos;
+    STRPTR text = data->VisualBuffer;
+
+    if (what == ZUNE_SD_PLACEHOLDER)
+    {
+        ULONG style = rp->AlgoStyle;
+        LONG count, x = _mleft(obj), width;
+
+        DoMethod(obj, MUIM_DrawBackground, _mleft(obj), _mtop(obj),
+            _mwidth(obj), _mheight(obj), _mleft(obj), _mtop(obj), 0);
+        SetFont(rp, _font(obj));
+        SetSoftStyle(rp, FSF_ITALIC, AskSoftStyle(rp));
+        count = TextFit(rp, data->placeholder, strlen(data->placeholder),
+            &te, NULL, 1, _mwidth(obj), _mheight(obj));
+        width = TextLength(rp, data->placeholder, count);
+        if (data->msd_Align == MUIV_String_Format_Center)
+            x += (_mwidth(obj) - width) / 2;
+        else if (data->msd_Align == MUIV_String_Format_Right)
+            x += _mwidth(obj) - width;
+        SetABPenDrMd(rp, _pens(obj)[MPEN_SHADOW],
+            _pens(obj)[MPEN_BACKGROUND], JAM1);
+        Move(rp, x, _mtop(obj) + ((_mheight(obj) - rp->Font->tf_YSize) / 2)
+            + rp->Font->tf_Baseline);
+        Text(rp, data->placeholder, count);
+        SetSoftStyle(rp, style, AskSoftStyle(rp));
+        return;
+    }
+
+    Ml_Scroll(obj, data);
+    if (what & ZUNE_SD_UPDATE)
+        DoMethod(obj, MUIM_DrawBackground, _mleft(obj), _mtop(obj),
+            _mwidth(obj), _mheight(obj), _mleft(obj), _mtop(obj), 0);
+    rows = Ml_Rows(obj);
+    pos = Ml_LinePos(data, data->MlTopLine);
+    for (row = 0; row < rows; row++)
+    {
+        LONG end = Ml_LineEnd(data, pos);
+        LONG from = MIN(pos + data->MlLeftCol, end), count;
+        WORD top = _mtop(obj) + row * ysize + rp->Font->tf_Baseline;
+
+        count = TextFit(rp, text + from, end - from, &te, NULL, 1,
+            _mwidth(obj), ysize);
+        Move(rp, _mleft(obj), top);
+        if (what & ZUNE_SD_MARKED)
+            TextM(obj, data, text + from, count, markstart - from,
+                markstop - from);
+        else
+        {
+            SetABPenDrMd(rp, textpen, _pens(obj)[MPEN_BACKGROUND], JAM1);
+            Text(rp, text + from, count);
+            if (data->is_active && (LONG)data->BufferPos >= from
+                && (LONG)data->BufferPos <= end)
+            {
+                SetABPenDrMd(rp, data->active_text.p_pen,
+                    data->cursor.p_pen, JAM2);
+                Move(rp, _mleft(obj) + TextLength(rp, text + from,
+                    data->BufferPos - from), top);
+                Text(rp, (LONG)data->BufferPos < end ?
+                    text + data->BufferPos : (STRPTR)" ", 1);
+                SetDrMd(rp, JAM1);
+            }
+        }
+        if (end >= (LONG)data->NumChars)
+            break;
+        pos = end + 1;
+    }
+}
+
+/* A Multiline String's buffer position at a point; outside the rows it is
+ * in the line beyond */
+LONG zune_string_pos_at(Object *obj, struct MUI_StringData *data, LONG x,
+    LONG y)
+{
+    struct RastPort *rp = _rp(obj);
+    struct TextExtent te;
+    LONG ysize = _font(obj)->tf_YSize, row, start, end, from;
+
+    row = y < _mtop(obj) ? -1 : (y - _mtop(obj)) / ysize;
+    start = Ml_LinePos(data, MAX(0, data->MlTopLine + row));
+    end = Ml_LineEnd(data, start);
+    from = MIN(start + data->MlLeftCol, end);
+    if (x <= _mleft(obj))
+        return from;
+    SetFont(rp, _font(obj));
+    return from + TextFit(rp, data->VisualBuffer + from, end - from, &te,
+        NULL, 1, x - _mleft(obj), ysize);
 }

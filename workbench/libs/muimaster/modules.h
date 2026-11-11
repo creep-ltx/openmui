@@ -239,12 +239,28 @@ struct ZuneMui45Module
     IPTR (*area)(Object *, ULONG, IPTR, IPTR *);
     IPTR (*string)(Object *, struct MUI_StringData *, ULONG,
         struct TagItem *, IPTR *);
+    void (*string_draw)(Object *, struct MUI_StringData *, ULONG, ULONG,
+        LONG, LONG);
+    LONG (*string_pos_at)(Object *, struct MUI_StringData *, LONG, LONG);
 };
 IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
 /* string: String's kept Textinput attributes and MUIA_String_Integer64
  * (mui45.c says how) */
 IPTR zune_string_mui45(Object *obj, struct MUI_StringData *data, ULONG attr,
     struct TagItem *tag, IPTR *store);
+/* string_draw: String's MUIM_Draw of MUI 5's placeholder (what
+ * ZUNE_SD_PLACEHOLDER) or of a Multiline String (ZUNE_SD_MULTILINE, with
+ * ZUNE_SD_UPDATE for MADF_DRAWUPDATE and ZUNE_SD_MARKED when the range is
+ * marked); string_pos_at: a Multiline String's buffer position at a point.
+ * Without the module nothing is drawn and the position is 0. */
+#define ZUNE_SD_PLACEHOLDER 0
+#define ZUNE_SD_MULTILINE   1
+#define ZUNE_SD_UPDATE      2
+#define ZUNE_SD_MARKED      4
+void zune_string_draw45(Object *obj, struct MUI_StringData *data,
+    ULONG what, ULONG textpen, LONG markstart, LONG markstop);
+LONG zune_string_pos_at(Object *obj, struct MUI_StringData *data, LONG x,
+    LONG y);
 
 /* Configdata's setters (configset.c): MUIM_Configdata_SetULong,
  * SetImspec, SetFramespec, SetPenspec, SetFont, with the defaults to

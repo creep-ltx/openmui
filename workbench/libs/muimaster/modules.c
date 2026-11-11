@@ -275,8 +275,12 @@ ZMC_CHECK(ZuneListModule, draw_sort_mark, 24);
 
 #define ZMC_OFS_ZuneMui45Module_area 0
 #define ZMC_OFS_ZuneMui45Module_string 4
+#define ZMC_OFS_ZuneMui45Module_string_draw 8
+#define ZMC_OFS_ZuneMui45Module_string_pos_at 12
 ZMC_CHECK(ZuneMui45Module, area, 0);
 ZMC_CHECK(ZuneMui45Module, string, 4);
+ZMC_CHECK(ZuneMui45Module, string_draw, 8);
+ZMC_CHECK(ZuneMui45Module, string_pos_at, 12);
 
 #define ZMC_OFS_ZunePrefsModule_configdata_set 0
 ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
@@ -509,6 +513,8 @@ ZMC(zune_list_format_mui45, ZMOD_LIST, ZuneListModule, format_mui45, 2, 0);
  * use them call these */
 ZMC(zune_area_mui45, ZMOD_MUI45, ZuneMui45Module, area, 4, 0);
 ZMC(zune_string_mui45, ZMOD_MUI45, ZuneMui45Module, string, 5, 0);
+ZMC(zune_string_draw45, ZMOD_MUI45, ZuneMui45Module, string_draw, 6, 0);
+ZMC(zune_string_pos_at, ZMOD_MUI45, ZuneMui45Module, string_pos_at, 4, 0);
 
 /* Configdata's setters (configset.c): the prefs program's; without the
  * module a setting is not changed */
