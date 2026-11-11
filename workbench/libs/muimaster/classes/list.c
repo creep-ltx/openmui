@@ -2516,31 +2516,22 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
             /* Note, this was MPEN_SHADOW before */
             SetAPen(_rp(obj), muiRenderInfo(obj)->mri_Pens[MPEN_TEXT]);
 
-            if (data->ci[col].elide)
-            {
-                text->truncate = TRUE;
-                LONG right = MIN(x2 - 1, _mright(area));
-                if (data->ci[col].elide >= MUIV_Text_Shorten_Hide)
-                    zune_text_draw_shortened(text, obj, x1, right, y_offset, data->ci[col].elide);
-                else zune_text_draw(text, obj, x1, right, y_offset);
-            }
-            else if (data->format_layout)
-            {
-                text->truncate = TRUE;
-                zune_text_draw(text, obj, x1, MIN(x2 - 1, _mright(area)), y_offset);
-            }
+            /* an ELIDE column or a laid out format: cut at the column's
+             * end; MUI 3.8 draws only the whole characters of a too long
+             * entry that end before the area's last column (demopix: the
+             * long lines of MUI-Demo's String window); text that fits goes
+             * up to the edge (its Floattexts) */
+            LONG right = x2;
+            if (data->ci[col].elide || data->format_layout)
+                text->truncate = TRUE, right = MIN(x2 - 1, _mright(area));
             else if (x1 + text->width - 1 > _mright(area)
                 && ZUNE_APP_MUI38(obj))
-            {
-                /* MUI 3.8 draws only the whole characters of a too long
-                 * entry that end before the area's last column (demopix:
-                 * the long lines of MUI-Demo's String window); text that
-                 * fits goes up to the edge (its Floattexts) */
-                text->truncate = TRUE;
-                zune_text_draw(text, obj, x1, _mright(area) - 1,
-                    y_offset);
-            }
-            else zune_text_draw(text, obj, x1, x2, y_offset);
+                text->truncate = TRUE, right = _mright(area) - 1;
+            if (data->ci[col].elide >= MUIV_Text_Shorten_Hide)
+                zune_text_draw_shortened(text, obj, x1, right, y_offset,
+                    data->ci[col].elide);
+            else
+                zune_text_draw(text, obj, x1, right, y_offset);
             if (!borrowed) zune_text_destroy(text);
         }
         if (entry_pos == ENTRY_TITLE && col == data->sort_column
