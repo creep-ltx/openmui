@@ -1,4 +1,4 @@
-; $VER: Install-OpenMUI 2.1 (11.11.2026) OpenMUI 0.1b1
+; $VER: Install-OpenMUI 2.2 (11.11.2026) OpenMUI 0.1b1
 ; Amiga Installer script, Installer 43 or newer (OS 3.1: Installer 43.3
 ; from Aminet; OS 3.2: SYS:System/Installer). tools/release.py fills in the
 ; lines marked COMPONENT_... when it builds the archive.
@@ -21,7 +21,12 @@
 ;   settings (ENVARC:Zune, ENV:Zune) are kept;
 ; - an installation of the same program under its earlier name, Zune68k
 ;   lean (SYS:Zune68k, SYS:Prefs/Zune), is removed the same way first:
-;   its record is in SYS:Zune68k/Data, and Tools/OpenMUISwitch reads it.
+;   its record is in SYS:Zune68k/Data, and Tools/OpenMUISwitch reads it;
+; - OpenMUI is one library, muimaster.library: a zunemaster.library (the
+;   second name earlier editions installed, the same library) is removed
+;   with the earlier installation's record, and one still there after that
+;   (a Zune of the user's own) is moved to the backup and written down, so
+;   that Uninstall and "Use real MUI" put it back.
 
 (set @app-name "OpenMUI")
 (set @default-dest "")
@@ -143,6 +148,24 @@
     (set #done (+ #done 1))
 )
 
+; A zunemaster.library in #dir (earlier editions' second library name,
+; no longer used): when it is a Zune's, kept in Data/Backup and written
+; down as replaced, with no file of OpenMUI's in its place.
+(procedure P_Retire #dir #name
+    (set #dst (tackon #dir #name))
+    (if (= (exists #dst (noreq)) 1)
+        (if (= 0 (run (cat (P_Quote #tool) " ISZUNE " (P_Quote #dst)) (safe)))
+            (
+                (set #nb (+ #nb 1))
+                (set #bname (cat "B" #nb "-" #name))
+                (copyfiles (source #dst) (dest #backup) (newname #bname) (nogauge))
+                (delete #dst (optional "force"))
+                (set #rec (cat #rec "REPLACED " (P_Rel #dst) "\nBACKUP " #bname "\n"))
+            )
+        )
+    )
+)
+
 ; A catalog (the language drawers are made by the generated lines)
 (procedure P_Catalog #relative #directory
     (P_Put (tackon #package #relative) #directory (fileonly #relative))
@@ -233,7 +256,6 @@
 
 ; ---- check the package ----
 (if (or
-        (<> (exists (tackon #package "Libs/zunemaster.library")) 1)
         (<> (exists (tackon #package "Libs/muimaster.library")) 1)
         (<> (exists #tool) 1)
     )
@@ -325,6 +347,10 @@
         (set #found (cat #found "That Zune is not from this installer: "
             "it is kept in the backup.\n"))
     )
+)
+(if (= (exists (tackon #libsdir "zunemaster.library") (noreq)) 1)
+    (set #found (cat #found (tackon #libsdir "zunemaster.library")
+        ": no longer used, taken away.\n"))
 )
 (if (= (exists "ENVARC:Zune" (noreq)) 2)
     (set #found (cat #found "Your settings (ENVARC:Zune) are kept.\n"))
@@ -438,10 +464,10 @@
 (P_SaveRecord)
 (complete 20)
 
-; ---- the libraries and their own class files ----
-(working "Installing the libraries...")
+; ---- the library and its own class files ----
+(working "Installing the library...")
 (P_Put (tackon #package "Libs/muimaster.library") #libsdir "muimaster.library")
-(P_Put (tackon #package "Libs/zunemaster.library") #libsdir "zunemaster.library")
+(P_Retire #libsdir "zunemaster.library")
 (P_MakeDir #zunedir)
 (foreach (tackon #package "Libs/Zune") "#?.mui"
     (P_Put (tackon (tackon #package "Libs/Zune") @each-name) #zunedir @each-name)

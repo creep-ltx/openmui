@@ -15,14 +15,19 @@
  *   DIR <path>          a drawer the installer made
  *
  * MUI:     every Zune file in the LIBS directory (muimaster.library,
- *          zunemaster.library, LIBS:Zune/..., the classes in LIBS:MUI) is
- *          moved to <home>/Data/Parked and the user's own files it had
+ *          LIBS:Zune/..., the classes in LIBS:MUI; zunemaster.library in
+ *          an earlier edition's record) is moved to <home>/Data/Parked and the user's own files it had
  *          replaced are put back: after a reboot programs get the real MUI.
  * ZUNE:    the other way round.
  * UNINSTALL: Zune's files are deleted, the user's own put back, the
  *          drawers the installer made removed when empty; with SETTINGS
  *          also ENV:Zune and ENVARC:Zune.
  * STATUS:  what is installed where (Shell).
+ *
+ * zunemaster.library, the second name earlier editions installed the
+ * library under, is not used any more: it is handled only as the record
+ * says (deleted, put back from the backup, parked), like any other file,
+ * and STATUS names one that is left in a LIBS: directory.
  * ISZUNE FILE: return code 0 when FILE is a Zune68 library, 5 when it is
  *          not, 10 when it cannot be read (for the installer).
  * LIBSDIR N: sets ENV:OpenMUI-LibsDir to the Nth directory of the LIBS:
@@ -70,7 +75,7 @@ static int Strnicmp(const char *a, const char *b, int n)
 
 #define Stricmp(a, b) Strnicmp((const char *)(a), (const char *)(b), 0x7fff)
 
-static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.0 (06.11.2026) OpenMUI 0.1b1";
+static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.1 (11.11.2026) OpenMUI 0.1b1";
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;
@@ -825,6 +830,13 @@ static void status(void)
             file_version(path, ver, sizeof(ver));
             Printf((STRPTR)"    muimaster.library: %s%s\n", (IPTR)ver,
                 (IPTR)(z ? " (OpenMUI)" : " (not OpenMUI)"));
+        }
+        join(path, dirs[i], "zunemaster.library");
+        if (exists(path, NULL))
+        {
+            file_version(path, ver, sizeof(ver));
+            Printf((STRPTR)"    zunemaster.library: %s (left from an earlier "
+                "Zune or OpenMUI, not used)\n", (IPTR)ver);
         }
     }
     if (exists("MUI:", &type))

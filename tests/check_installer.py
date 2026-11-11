@@ -120,7 +120,7 @@ def main():
     script = install_script(files, builtin_class_files(build))
     problems = check(script)
     # the files the script installs from the package by name
-    known = {package_path(n) for n in files} | {'Libs/zunemaster.library', 'Libs/muimaster.library',
+    known = {package_path(n) for n in files} | {'Libs/muimaster.library',
                           'Tools/OpenMUISwitch', 'ReadMe', 'ReadMe.info',
                           'Home/OpenMUI.info', 'Home/ReadMe.info'}
     known |= {'Home/' + n for n in HOME_PROJECTS} | {'Home/' + n + '.info' for n in HOME_PROJECTS}
@@ -128,6 +128,12 @@ def main():
     for name in set(re.findall(r'\(tackon #package "([^"]+)"\)', script)):
         if name not in known:
             problems.append(f'the script names {name}, which the package does not have')
+    # One library: an earlier edition's zunemaster.library is taken away
+    # (into the backup, written down), never installed
+    if '(P_Retire #libsdir "zunemaster.library")' not in script:
+        problems.append('the script does not take away an old LIBS:zunemaster.library')
+    if re.search(r'\(P_Put [^\n]*zunemaster', script):
+        problems.append('the script installs zunemaster.library')
     for problem in problems:
         print('check_installer:', problem)
     if problems:
