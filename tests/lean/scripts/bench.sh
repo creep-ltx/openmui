@@ -7,6 +7,7 @@
 #     -lmui -lamiga
 # (-DPERFBENCH_REPS=3 for a quick run: 15 repetitions take ~5 minutes on a 68EC020.)
 set -u
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 NAME=$1; MACH=$2; PORT=$3; PB=$4; OUT=$5; LIB=${6:-}
 export WASABI_HOST=127.0.0.1 WASABI_PORT=$PORT
 boot() { amiga-test $MACH stop --as $NAME >/dev/null 2>&1; ( amiga-test $MACH start --as $NAME --port $PORT ${EXTRA:-} >/dev/null 2>&1 < /dev/null & ); for i in $(seq 1 40); do sleep 1; wasabi ping >/dev/null 2>&1 && break; done; sleep 3; }

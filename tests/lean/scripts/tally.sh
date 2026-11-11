@@ -2,6 +2,7 @@
 # tally.sh NAME MACHINE PORT DEMO OUT [LIBFILE]: cold boot, (install LIBFILE), start DEMO
 # once normally, then a second copy under memtally; dump the second copy's live blocks to OUT.
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 set -u
 NAME=$1; MACH=$2; PORT=$3; DEMO=$4; OUT=$5; LIB=${6:-}; STK=${STK:-40000}; FIRST=${FIRST:-1}
 D=$(cd "$(dirname "$0")" && pwd)

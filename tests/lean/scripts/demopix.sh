@@ -8,6 +8,7 @@
 #   --only T       shoot only zune or mui38 (the other side's shots from an earlier run stay)
 #   --compare      shoot nothing, only compare what is there
 #   --out DIR      results (default $ZWORK/demopix)
+#   --names PREFIX instance names PREFIX-zune and PREFIX-mui38 (default demopix)
 #
 # SHOT: a demo name (Class1 ... BoopsiDoor, MUI-Demo) or MUIDemo-<button> (Groups Frames Backfill
 # Notify Listviews Cycle Images Strings); none = all 27. Each side runs on its own freshly booted
@@ -19,14 +20,15 @@
 # OUT/report.html with both windows side by side, a difference picture and the number of
 # differing pixels per window.
 set -u
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
 S=$(cd "$(dirname "$0")" && pwd)
 DEMOS=${DEMOS:-$HOME/.cache/zune-eval/demos}
-LIB=/tmp/suite/build/muimaster.library; ZPORT=1442; MPORT=1443; ONLY=; CMPONLY=0; OUT=$ZWORK/demopix; SHOTS=()
+LIB=/tmp/suite/build/muimaster.library; ZPORT=1442; MPORT=1443; ONLY=; CMPONLY=0; OUT=$ZWORK/demopix; NB=demopix; SHOTS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib) LIB=$2; shift ;; --zport) ZPORT=$2; shift ;; --mport) MPORT=$2; shift ;;
-    --only) ONLY=$2; shift ;; --compare) CMPONLY=1 ;; --out) OUT=$2; shift ;;
+    --only) ONLY=$2; shift ;; --compare) CMPONLY=1 ;; --out) OUT=$2; shift ;; --names) NB=$2; shift ;;
     -*) echo "demopix.sh: unknown option $1" >&2; exit 2 ;;
     *) SHOTS+=("$1") ;;
   esac; shift
@@ -136,13 +138,13 @@ shoot() { # SIDE MACHINE NAME PORT
 if [ "$CMPONLY" = 0 ]; then
   [ -z "$ONLY" ] || [ "$ONLY" = zune ] && { [ -f "$LIB" ] || { echo "demopix.sh: no $LIB" >&2; exit 1; }; }
   if [ -z "$ONLY" ]; then
-    shoot zune a1200-31 demopix-zune "$ZPORT" &
-    shoot mui38 a1200-31-mui38 demopix-mui38 "$MPORT" &
+    shoot zune a1200-31 "$NB-zune" "$ZPORT" &
+    shoot mui38 a1200-31-mui38 "$NB-mui38" "$MPORT" &
     wait
   else
     case "$ONLY" in
-      zune) shoot zune a1200-31 demopix-zune "$ZPORT" ;;
-      mui38) shoot mui38 a1200-31-mui38 demopix-mui38 "$MPORT" ;;
+      zune) shoot zune a1200-31 "$NB-zune" "$ZPORT" ;;
+      mui38) shoot mui38 a1200-31-mui38 "$NB-mui38" "$MPORT" ;;
       *) echo "demopix.sh: --only zune|mui38" >&2; exit 2 ;;
     esac
   fi

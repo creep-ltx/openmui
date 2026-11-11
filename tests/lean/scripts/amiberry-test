@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# amiberry-test - the clean test Amigas (~/UAE/TestMachines) in Amiberry instead of FS-UAE,
+# with amiga-test's commands, so every lean script runs unchanged (EMU=amiberry, emu.sh).
+#
+#   amiberry-test list
+#   amiberry-test MACHINE start [OPTIONS] [--fresh] [--wasabid FILE] [--window]
+#                               [--cpu 030] [--rtg [MB]] [--config 'key = value']...
+#   amiberry-test MACHINE stop | reset | status | env | dir   [OPTIONS]
+#   OPTIONS: --as NAME  --port N  --label VOLUME
+#
+# A run works on a copy of the machine's drive in ~/.cache/amiga-test/NAME (the same copies
+# amiga-test makes: a copy made by one runner boots in the other). Every file without a
+# .uaem is given the Unix x bit before the boot: Amiberry maps it to the Amiga e bit, and a
+# program copied in from an archive would otherwise not start from the drive ("object is not
+# of required type"). The emulator runs with no window on any display (SDL offscreen, no
+# DISPLAY) in a systemd user scope amiberry-test-NAME, 2 GB at most, its own runtime folder
+# (so the IPC socket of one instance never clashes with another's), its log in
+# ~/.cache/amiga-test/NAME/amiberry.out. --window shows it (for a person at the PC).
+# Amiberry ignores SIGTERM: stop kills the scope and clears it, so start works again.
+# --config takes amiga-test's FS-UAE keys (fast_memory = KB, chip_memory = KB, fpu = 68882,
+# uae_cpu_model, uae_z3mem_size, graphics_card = uaegfx|uaegfx-z3, graphics_memory = KB, ...)
+# and translates them; any other key is written to the .uae file as it is. --cpu 030 is a
+# 68030 + 68882 with 32-bit addressing and 32 MB Zorro III RAM; --rtg [MB] a uaegfx Zorro III
+# board (default 16 MB; 32-bit addressing, so a 68020 becomes a full one) for a Picasso96
+# install on the drive (see ~/Projects/Knowledge/amiga/rtg-uaegfx-and-window-macros.md).
+set -u
+T="$HOME/UAE/TestMachines"
+R=$HOME/.cache/amiga-test
+BIN=${AMIBERRY:-amiberry}
+SDLV=${AMIBERRY_SDL_VIDEO:-offscreen}   # the SDL video driver with no display: offscreen, or dummy
+
+usage() { sed -n '4,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+
+if [ "${1:-}" = list ] || [ $# -eq 0 ]; then
+  for d in "$T"/*/; do
+    n=$(basename "$d"); [ -f "$d/port" ] || continue
+    printf '%-16s port %s  %s\n' "$n" "$(cat "$d/port")" \
+      "$(sed -n 's/^# *//p' "$d/README" 2>/dev/null | head -1)"
+  done
+  for c in "$R"/*/; do
+    [ -f "$c/machine" ] || continue
+    n=$(basename "$c")
+    systemctl --user is-active --quiet "amiberry-test-$n.scope" &&
+      printf '  running (amiberry): %-14s (%s) port %s\n' "$n" "$(cat "$c/machine")" "$(cat "$c/port")"
+  done
+  exit 0
+fi
+
+M=$1; CMD=${2:-}; shift 2 2>/dev/null || usage
+D="$T/$M"
+[ -f "$D/port" ] || { echo "amiberry-test: no machine '$M' (amiberry-test list)" >&2; exit 2; }
+MP=$(cat "$D/port")
+NAME=$M; P=; L=; fresh=0; bin=; win=0; extra=(); rtg=0; rtgmb=16
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --as) NAME=$2; shift ;;
+    --port) P=$2; shift ;;
+    --label) L=$2; shift ;;
+    --fresh) fresh=1 ;;
+    --wasabid) bin=$2; shift ;;
+    --window) win=1 ;;
+    --cpu) [ "$2" = 030 ] || usage
+           extra+=("cpu_model=68030" "fpu_model=68882" "cpu_24bit_addressing=false" "z3mem_size=32"); shift ;;
+    --rtg) rtg=1; case "${2:-}" in [0-9]*) rtgmb=$2; shift ;; esac ;;
+    --config) extra+=("$2"); shift ;;
+    *) usage ;;
+  esac; shift
+done
+C="$R/$NAME"; U="amiberry-test-$NAME"
+[ -z "$P" ] && { [ -f "$C/port" ] && P=$(cat "$C/port") || P=$MP; }
+[ -z "$L" ] && { [ -f "$C/label" ] && L=$(cat "$C/label") || L=$(cat "$D/label"); }
+export WASABI_HOST=127.0.0.1 WASABI_PORT=$P
+
+running() { systemctl --user is-active --quiet "$U.scope"; }
+copy() {
+  rm -rf "${C:?}"; mkdir -p "$C"; cp -a "$D/drive" "$C/drive"
+  echo "$M" > "$C/machine"
+}
+need_copy() { [ ! -d "$C/drive" ] || [ "$(cat "$C/machine" 2>/dev/null)" != "$M" ]; }
+remember() {
+  echo "$P" > "$C/port"; echo "$L" > "$C/label"
+  sed -i "s/C:wasabid [0-9]*\$/C:wasabid $P/" "$C/drive/S/User-Startup"
+}
+# the machine's FS-UAE file, read for the ROM, the memory and the model
+fsval() { sed -n "s/^$1 *= *//p" "$D/machine.fs-uae" | head -1; }
+kb_to_mb() { echo $(( ${1:-0} / 1024 )); }
+# one FS-UAE "key = value" (or "key=value") as .uae lines
+translate() {
+  local k v
+  k=$(echo "${1%%=*}" | sed 's/ *$//'); v=$(echo "${1#*=}" | sed 's/^ *//')
+  case "$k" in
+    fast_memory)      echo "fastmem_size=$(kb_to_mb "$v")" ;;
+    chip_memory)      echo "chipmem_size=$(( v / 512 ))" ;;
+    slow_memory)      echo "bogomem_size=$(( v / 256 ))" ;;
+    fpu|uae_fpu_model|fpu_model) echo "fpu_model=$v" ;;
+    cpu|uae_cpu_model|cpu_model) echo "cpu_model=$v"
+                      case "$v" in 68030|68040|68060) echo "cpu_24bit_addressing=false" ;; esac ;;
+    uae_cpu_frequency) : ;;              # cpu_speed=max already
+    uae_z3mem_size|z3mem_size) echo "z3mem_size=$v" ;;
+    graphics_card)    case "$v" in uaegfx-z3) echo "gfxcard_type=ZorroIII"; echo "cpu_24bit_addressing=false" ;;
+                                   uaegfx) echo "gfxcard_type=ZorroII" ;; none) echo "gfxcard_type=" ;;
+                                   *) echo "gfxcard_type=$v" ;; esac ;;
+    graphics_memory)  echo "gfxcard_size=$(kb_to_mb "$v")" ;;
+    logs_dir|window_width|window_height|keep_aspect|video_sync) : ;;
+    uae_*)            echo "${k#uae_}=$v" ;;
+    *)                echo "$k=$v" ;;
+  esac
+}
+write_config() {
+  local rom chip fast model
+  rom=$(fsval kickstart_file); rom=${rom//\$HOME/$HOME}
+  chip=$(fsval chip_memory); fast=$(fsval fast_memory); model=$(fsval amiga_model)
+  {
+    echo "config_description=amiberry-test $NAME ($M)"
+    echo "use_gui=no"
+    echo "kickstart_rom_file=$rom"
+    case "$model" in
+      A1200) echo "chipset=aga"; echo "chipset_compatible=A1200"; echo "cpu_model=68020" ;;
+      A600)  echo "chipset=ecs"; echo "chipset_compatible=A600"; echo "cpu_model=68000" ;;
+      *)     echo "chipset=aga"; echo "cpu_model=68020" ;;
+    esac
+    echo "cpu_24bit_addressing=true"
+    echo "cpu_speed=max"
+    echo "cpu_compatible=false"
+    echo "cpu_cycle_exact=false"
+    echo "chipmem_size=$(( ${chip:-2048} / 512 ))"
+    echo "fastmem_size=$(kb_to_mb "${fast:-0}")"
+    [ "$(fsval bsdsocket_library)" = 1 ] && echo "bsdsocket_emu=true"
+    echo "filesystem2=rw,DH0:$L:$C/drive,0"
+    echo "nr_floppies=1"
+    echo "floppy0type=0"
+    echo "sound_output=none"
+    echo "joyport0=mouse"
+    echo "joyport1=none"
+    echo "show_leds=false"
+    for x in "${extra[@]}"; do translate "$x"; done
+    [ "$rtg" = 1 ] && { echo "gfxcard_type=ZorroIII"; echo "gfxcard_size=$rtgmb"; echo "cpu_24bit_addressing=false"; }
+  } | awk -F= '{ seen[$1] = NR; line[NR] = $0 } END { for (i = 1; i <= NR; i++) { split(line[i], a, "="); if (seen[a[1]] == i) print line[i] } }' > "$C/run.uae"
+}
+kill_scope() {
+  systemctl --user kill -s KILL "$U.scope" 2>/dev/null
+  systemctl --user stop "$U.scope" 2>/dev/null
+  systemctl --user reset-failed "$U.scope" 2>/dev/null
+  local i; for i in $(seq 1 20); do running || break; sleep 0.5; done
+}
+
+case "$CMD" in
+env)
+  echo "export WASABI_HOST=127.0.0.1 WASABI_PORT=$P" ;;
+dir)
+  if need_copy; then
+    running && { echo "amiberry-test: $NAME runs another machine" >&2; exit 1; }
+    copy; remember
+  fi
+  echo "$C/drive" ;;
+status)
+  if running; then echo "$NAME ($M, amiberry): running, port $P"; wasabi ping 2>&1 | sed 's/^/  /'
+  else echo "$NAME ($M, amiberry): stopped"; fi ;;
+stop)
+  kill_scope ;;
+reset)
+  running && { echo "amiberry-test: $NAME is running - stop it first" >&2; exit 1; }
+  copy; remember; echo "$NAME: fresh copy of $M in $C" ;;
+start)
+  if running; then echo "amiberry-test: $NAME runs already (port $P)"; exit 0; fi
+  if ss -ltn 2>/dev/null | grep -q ":$P "; then
+    echo "amiberry-test: port $P is taken by something else" >&2; exit 1
+  fi
+  { [ "$fresh" = 1 ] || need_copy; } && copy
+  remember
+  [ -n "$bin" ] && cp "$bin" "$C/drive/C/wasabid"
+  # the Amiga e bit comes from the Unix x bit (files with a .uaem have theirs in it)
+  find "$C/drive" -type f ! -name '*.uaem' ! -perm -u+x -exec chmod u+x {} + 2>/dev/null
+  write_config
+  systemctl --user reset-failed "$U.scope" 2>/dev/null
+  mkdir -p "$C/run"
+  # The whole subshell is redirected: a background shell left holding our
+  # stdout would keep a pipe reading this script open for ever.
+  if [ "$win" = 1 ]; then
+    (cd "$C" && systemd-run --user --scope --unit="$U" -p MemoryMax=2G \
+       env XDG_RUNTIME_DIR=$C/run "$BIN" -f "$C/run.uae" -G &) >"$C/amiberry.out" 2>&1 </dev/null
+  else
+    (cd "$C" && systemd-run --user --scope --unit="$U" -p MemoryMax=2G \
+       env -u DISPLAY -u WAYLAND_DISPLAY SDL_VIDEO_DRIVER=$SDLV SDL_VIDEODRIVER=$SDLV \
+       SDL_AUDIO_DRIVER=dummy XDG_RUNTIME_DIR=$C/run "$BIN" -f "$C/run.uae" -G &) >"$C/amiberry.out" 2>&1 </dev/null
+  fi
+  for i in $(seq 1 120); do
+    wasabi ping >/dev/null 2>&1 && break
+    sleep 1
+    running || { echo "amiberry-test: the emulator stopped (see $C/amiberry.out)" >&2; exit 1; }
+    sleep 1
+  done
+  wasabi ping >/dev/null 2>&1 ||
+    { echo "amiberry-test: no wasabid on port $P after 4 minutes (see $C/amiberry.out)" >&2; exit 1; }
+  echo "$NAME: up on port $P (amiberry)" ;;
+*) usage ;;
+esac

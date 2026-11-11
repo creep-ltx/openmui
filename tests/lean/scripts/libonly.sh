@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ZWORK = scratch folder with demos/, logs/, suite/ (default ~/.cache/zune68-lean): the MUI 3.8 demo binaries go in demos/
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 # libonly.sh NAME MACHINE PORT [LIBFILE]: memory taken by just opening muimaster.library, cold
 set -u
 NAME=$1; MACH=$2; PORT=$3; LIB=${4:-}

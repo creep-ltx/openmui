@@ -31,6 +31,7 @@
 # TAG/<id>-extraN.png, TAG/log.txt. Compare two targets with suite-compare.py.
 # Downloads: $REAL (default ~/.cache/zune68k-real/<name>/x/, see tests/lean/real-programs.md).
 set -u
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
 REAL=${REAL:-$HOME/.cache/zune68k-real}
 S=$(cd "$(dirname "$0")" && pwd)

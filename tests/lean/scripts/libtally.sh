@@ -6,6 +6,7 @@
 # runall" instead (the library, its class files, fonts and the program, all tasks).
 # Read OUT with tools/lean/mtreport2.py OUT LIB tasks|cats|3. KEEP=1 leaves the instance running.
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 set -u
 NAME=$1; MACH=$2; PORT=$3; OUT=$4; LIB=${5:-}; STK=${STK:-40000}; PROG=${PROG:-}
 D=$(cd "$(dirname "$0")" && pwd)

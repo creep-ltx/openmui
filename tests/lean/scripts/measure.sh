@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ZWORK = scratch folder with demos/, logs/, suite/ (default ~/.cache/zune68-lean): the MUI 3.8 demo binaries go in demos/
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 # measure.sh NAME MACHINE PORT DEMOFILE [LIBFILE]: cold-boot an instance and measure
 # memory for the first MUI-Demo, then two more copies of it, and time to first window.
 set -u

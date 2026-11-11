@@ -5,6 +5,7 @@
 # ZWORK (default ~/.cache/zune68-lean) holds demos/ (MUI 3.8's demo binaries) and logs/.
 # The toolchain must be on PATH (stackmark is built into ZWORK). KEEP=1 leaves the instance running.
 set -u
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
 NAME=$1; PORT=$2; LIB=$3; OUT=$4; MACH=a1200-31
 export WASABI_HOST=127.0.0.1 WASABI_PORT=$PORT

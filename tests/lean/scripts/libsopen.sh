@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ZWORK = scratch folder with demos/, logs/, port/tests/ (default ~/.cache/zune68-lean): the MUI 3.8 demo binaries go in demos/
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 # libsopen.sh NAME MACHINE PORT DEMO [LIBFILE]: cold boot, start DEMO, list the libraries in memory
 set -u
 NAME=$1; MACH=$2; PORT=$3; DEMO=$4; LIB=${5:-}

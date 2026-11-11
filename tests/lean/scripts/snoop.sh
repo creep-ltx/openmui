@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # snoop.sh NAME MACH PORT LIB OUT EXTRA: cold boot, start MUI-Demo under wasabi debug --with-snoop
 export ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 S=$(cd "$(dirname "$0")" && pwd)
 NAME=$1; MACH=$2; PORT=$3; LIB=$4; OUT=$5; EXTRA=$6
 export WASABI_HOST=127.0.0.1 WASABI_PORT=$PORT

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # m.sh TAG NAME MACH PORT LIB EXTRA : measure + libonly + libsopen, results to res/TAG.txt
 export ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 S=$(cd "$(dirname "$0")" && pwd)
 TAG=$1; NAME=$2; MACH=$3; PORT=$4; LIB=$5; export EXTRA=$6
 R=$ZWORK/res/$TAG.txt

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ZWORK = scratch folder with demos/ (default ~/.cache/zune68-lean): the MUI 3.8 demo binaries
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
+. "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 # wintimes.sh NAME MACHINE PORT [LIBFILE]: cold boot (with LIBFILE and its class files), then
 # start MUI-Demo three times, each while the earlier ones run, and print the seconds from "run"
 # to its window. The second and third start with everything loaded: the difference to the first
