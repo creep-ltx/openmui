@@ -1114,15 +1114,26 @@ static IPTR Configdata_PubScreensChanged(struct IClass *cl, Object *obj,
 /*
  * The class dispatcher
  */
-/* MUIM_Configdata_SetString: the module stores the string, then the prefs
- * structure follows (a function of its own: the dispatcher's frame stays
- * as small as it was) */
+/**************************************************************************
+ MUIM_Configdata_SetString: stays in the library, unlike the other setters:
+ MUIM_Application_SetConfigItem (MUI 3.8 has it) calls it, and the suite's
+ LoadSeg trace showed AmTelnet, a MUI 3 program, doing that at start.
+ A value equal to its default is removed from the dataspace.
+**************************************************************************/
 static __attribute__((noinline)) IPTR Configdata_SetString(struct IClass *cl,
-    Object *obj, Msg msg)
+    Object *obj, struct MUIP_Configdata_SetString *msg)
 {
-    zune_configdata_set(obj, msg, &cfg_tables);
-    Configdata_SynchronizeString(cl, obj,
-        ((struct MUIP_Configdata_SetString *)msg)->id);
+    const struct def_strval *t;
+
+    for (t = DefStrValues; t->id; t++)
+        if (t->id == msg->id && !strcmp(t->val, msg->string))
+            break;
+    if (t->id)
+        DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
+    else
+        DoMethod(obj, MUIM_Dataspace_Add, (IPTR)msg->string,
+            strlen(msg->string) + 1, msg->id);
+    Configdata_SynchronizeString(cl, obj, msg->id);
     return 0;
 }
 
@@ -1142,8 +1153,8 @@ BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
         return Configdata__MUIM_GetString(cl, obj, (APTR) msg);
     case MUIM_Configdata_GetULong:
         return Configdata__MUIM_GetULong(cl, obj, (APTR) msg);
-    /* the setters: only the prefs program (and
-     * MUIM_Application_SetConfigItem) uses them, in the module */
+    /* the other setters: only the prefs program uses them, in the
+     * module */
     case MUIM_Configdata_SetULong:
     case MUIM_Configdata_SetImspec:
     case MUIM_Configdata_SetFramespec:
@@ -1151,7 +1162,7 @@ BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
     case MUIM_Configdata_SetFont:
         return zune_configdata_set(obj, msg, &cfg_tables);
     case MUIM_Configdata_SetString:
-        return Configdata_SetString(cl, obj, msg);
+        return Configdata_SetString(cl, obj, (APTR)msg);
     case MUIM_Configdata_SaveWindowPositions:
         return Configdata_SaveWindowPositions(cl, obj, (APTR) msg);
     case MUIM_Configdata_Save:

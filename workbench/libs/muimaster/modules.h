@@ -223,8 +223,9 @@ IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
 IPTR zune_string_mui45(Object *obj, struct MUI_StringData *data, ULONG attr,
     struct TagItem *tag, IPTR *store);
 
-/* Configdata's setters (configset.c): MUIM_Configdata_SetULong ...
- * SetString, with the defaults to compare with */
+/* Configdata's setters (configset.c): MUIM_Configdata_SetULong,
+ * SetImspec, SetFramespec, SetPenspec, SetFont, with the defaults to
+ * compare with */
 struct ZuneCfgTables;
 struct ZunePrefsModule
 {

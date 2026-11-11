@@ -1,10 +1,9 @@
-/* Configdata's setters (MUIM_Configdata_SetULong, SetImspec, SetFramespec,
- * SetPenspec, SetFont, SetString): only the prefs program and
- * MUIM_Application_SetConfigItem use them, so they are the module
- * Zprefs.mui (modules.h, classes/zprefs.c). A value equal to its default
- * is removed from the dataspace instead of stored (it would be redundant).
- * Configdata's dispatcher brings the prefs structure up to date after
- * SetString itself. */
+/* Configdata's setters MUIM_Configdata_SetULong, SetImspec, SetFramespec,
+ * SetPenspec and SetFont: only the prefs program uses them, so they are
+ * the module Zprefs.mui (modules.h, classes/zprefs.c). SetString stays in
+ * the library (MUIM_Application_SetConfigItem uses it). A value equal to
+ * its default is removed from the dataspace instead of stored (it would
+ * be redundant). */
 #include <string.h>
 #include <exec/types.h>
 #include <intuition/classusr.h>
@@ -76,8 +75,6 @@ IPTR zune_configdata_set(Object *obj, Msg msg, const struct ZuneCfgTables *t)
     case MUIM_Configdata_SetPenspec:
         if (!val || !*val)
             return 0;
-        /* fall through */
-    case MUIM_Configdata_SetString:
         def = is_default_str(t->strvals, m->id, val);
         break;
 

@@ -1,5 +1,5 @@
 /* The prefs module (modules.h): Configdata's setters (configset.c), used
- * only by the prefs program and MUIM_Application_SetConfigItem. The
+ * only by the prefs program (SetString stays in the library). The
  * library calls them through modules.c under the name modules.h gives. */
 
 #define zune_configdata_set zmod_configdata_set
