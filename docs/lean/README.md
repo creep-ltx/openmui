@@ -1796,11 +1796,112 @@ Checked (FS-UAE, emulator figures): `make check` after every commit; `-fstack-us
 **YAM 2.10's "Error messages" window** (smaller2's MUI 4/5 group runs): the LoadSeg trace attached to those runs, not Zune. OS 3.1 has no PNG datatype, YAM tries its 50 theme pictures through datatypes, `wasabi snoop --output full` traces every DOS call and YAM then answers nothing for minutes (its close gadget and Close button do nothing, it does not quit). yam210 alone with a snoop: the window three times of three; without: never. The suite's dismiss hook now ends after two quiet checks; snooplog.sh and real-programs.md say not to trace YAM 2.10.
 
 
+## Window, Group and String made smaller (2026-11-11, phase 3)
+
+Branch `slim2` (from `lean`). The List round's method on the next three classes: measured per
+function (`m68k-amigaos-nm --size-sort` on each object, `-fstack-usage` of every function against
+`lean` after every step), then code paths that were there twice became one, and what only programs
+that get MUI 4/5 use went into the MUI 4/5 module (`Zmui45.mui`, `mui45.c`). Same rules: the
+library keeps the decision whether a feature is used; a MUI 3 program never loads the module for it;
+no stack frame larger than `lean`'s. Six tries made a frame 4 bytes larger and were taken back or
+narrowed (below).
+
+| commit | what | code |
+|---|---|---|
+| 7ac59d21 | Window: the dispatcher's cases pick the method, one call for all | 25,972 -> 25,804 |
+| 59118ea1 | Window: the four border arrow buttons and the two border props made by one function each (gadget IDs in the same order); the zoomed size and position (width/height, left/top) one function each | -> 25,480 |
+| 19af14d4 | Window: the active object's, its parents' and the default object's key handler loops one function (`KeyToObject`); the case-sensitive menu shortcut a function of its own (its copy of the item and its guard left the frame every key passes); MatchIX gets the input event made for MUIA_Window_InputEvent. HandleRawkey's frame 200 -> 160 | -> 25,424 |
+| 629106fa | Window: OM_NEW's 13 flag attributes from a table, they and its plain stores one function from its default label (OM_SET keeps its cases: through the function its frame grew by 4) | -> 25,176 |
+| c8b7f15b | Window: the four border arrow buttons' clicks one path | -> 25,044 |
+| daa66774 | Window: the native menus made in one place (DisplayWindow, UpdateMenu); ToFront, ToBack, ScreenToFront, ScreenToBack one method | -> 24,880 |
+| 17d72d42, b125fb8f | Window: the six border gadgets and the five system images freed in loops; the screen released in one place | -> 24,532 |
+| a7260d90 | Window: Next and Prev active object one walk with a direction (two iterator functions through a pointer before) | -> 24,444 |
+| 5c966035, c8410078 | Window: the contents' limits through one function (WindowResize keeps its call: +4 frame through it); `DeinstallBackbuffer` gone: the buffer bitmap's allocation was never enabled (`#if 0`), so it never had anything to free | -> 24,368 |
+| fe34cce5 | Group: the dispatcher picks the method; its frame, on every nesting level's draw, layout and event path, 64 -> 40 | 21,552 -> 21,464 |
+| 16aa7319 | Group: `group_layout_horiz` and `group_layout_vert` were mirror copies: one function along either axis (a horizontal group without weights keeps its zero remainder). Its 1D helpers stay out of line and the direction is read from the flags where used, so Group__MUIM_Layout's frame stays 128 (the first build had +36, then +8) | -> 21,140 |
+| 9229e5a4, 4241f8a5 | Group: `group_minmax_horiz`/`_vert` as one function along either axis (keeping their three measured differences), -264 bytes. **Taken back (fe7ed791)**: perfbench's relayout was 0.7% slower with an index per child, 0.47% with pointers per axis (side by side with `lean`, whose own figure varied by 0.05%); builds of the branch's steps showed it was this merge (below) | (21,140 kept) |
+| c602438e | Group: one constraint and one redistribution call per child (each was there once per axis); the helpers' frames 108 -> 64 and 84 -> 60 | -> 21,000 |
+| b6fc0a0f | String: a Multiline String (MUIA_Textinput_Multiline, MUI 4/5's Textinput API) drawn, scrolled to its cursor and hit by the pointer in Zmui45.mui, and MUI 5's placeholder (MUIA_String_Placeholder, V21) drawn there; MUI 3.8 has neither. The library keeps the decision, the marked range and the multiline keys. Draw's frame 140 -> 104 | 19,340 -> 17,720 |
+| 28a6d74a | String: the dispatcher picks the method; `String_Textinput` (the Textinput methods every key passes through) out of line: the dispatcher's frame, on every String method, 104 -> 20 | -> 17,656 |
+| 32863c27 | String: the SGWork, StringInfo, Gadget and GadgetInfo an edit hook gets are made in a function of their own: HandleEvent's frame, which every key and click passes, 344 -> 144; the list keys from a table | -> 17,644 |
+| b6dc0b4f | String: its event handler's events changed through one function (GoActive, GoInactive, MOUSEMOVE on/off); their frames 60 -> 40 | -> 17,580 |
+
+**Window 25,972 -> 24,368 bytes of code (-1,604, -6.2%), Group 21,552 -> 21,000 (-552, -2.6%),
+String 19,340 -> 17,580 (-1,760, -9.1%)**; Zmui45.mui 2,376 -> 4,568 bytes. Library file (stripped)
+263,208 -> 259,096 bytes (-4,112).
+
+Tried and taken back (each made a frame 4 bytes larger or the code larger): Group's and String's
+OM_NEW/OM_SET plain attributes as one function (as List's; +4 on both frames, and String's without
+OM_SET was 4 bytes larger, not smaller); Window's MUIA_Window_Width/Height requests as one function
+(+4 on WindowSelectDimensions); WindowResize's limits through the shared function (+4); leaving the
+never-allocated buffer bitmap out of the opening too (+4 on OM_SET); String's eight cursor methods
+from a table (+44: GCC's jump table was smaller). Moving a call that goes deep into a helper puts
+the helper's frame on the deepest path: Group's merged layout was checked for that (`-fstack-usage`
+of Layout, which nests with the groups). And Group's merged MinMax, smaller and with no frame larger,
+cost relayout time (above): an axis picked per child costs more than two copies of the loop.
+
+Not reached: what is left is code every program runs (Window: OM_SET 4.2 KB with the opening
+inlined, DisplayWindow 2.5 KB, HandleWindowEvent 1.4 KB, HandleRawkey 1.1 KB, the dispatcher's
+compare tree 0.7 KB; Group: AskMinMax 3.3 KB and Layout 2.9 KB with the 2D and page layouts,
+group_draw_frame_and_gaps 1.4 KB, Draw 1.3 KB; String: HandleEvent 3.0 KB, Textinput 2.3 KB, Draw
+1.6 KB, OM_SET/OM_NEW/OM_GET 1.1-1.4 KB each). A dispatcher table with a binary search would save
+~300 bytes per class (estimated) but is slower than GCC's compare tree on every method (not done). String's key
+input goes through MUI 5's Textinput methods for every program (`Ti_Call`); a direct path for MUI 3
+programs would be faster and smaller but is a rewrite of the editing (not tried).
+
+**Programs that get MUI 4/5 load Zmui45.mui** when they draw a Multiline String or a String with a
+placeholder (or set the module's attributes, as before). MUI 3 programs never: LoadSeg trace below.
+
+Checked on the final build (fe7ed791; FS-UAE, emulator figures, `lean` measured in the same session):
+
+- `make check` after every commit.
+- `-fstack-usage` of every library function against `lean`: none larger; smaller: String's
+  HandleEvent 344 -> 144, its dispatcher 104 -> 20, Draw 140 -> 104, GoActive/GoInactive 60 -> 40,
+  Window's HandleRawkey 200 -> 160, DisplayWindow 196 -> 184, UpdateMenu 40 -> 28, WindowClose 52 ->
+  48, Group's dispatcher 64 -> 40, its 1D/2D constraint helpers 108 -> 64 and 84 -> 60.
+- stackrun (twice each, side by side, then swapped): MUI-Demo with its eight sub-windows 5,368 ->
+  5,248, Virtual 2,676/2,400 -> 2,388/2,388 (`lean`'s varies between the two), Layout 2,268, Pages
+  2,240, Slidorama 2,304 as `lean`. (On the build with the merged MinMax Layout once showed 2,312,
+  then 2,268 in four more runs.)
+- perfbench (68EC020, 15 repetitions, side by side, then swapped): create+dispose -3.9 / +0.2%,
+  open+close -2.6 / -0.6%, redraw -0.3 / -0.3%, relayout -0.1 / -0.0%, list insert -1.7 / -0.7%,
+  list active -3.6 / +0.2%, notify +0.1 / -0.2%, text set +0.2 / -0.1%: no batch slower beyond
+  0.2%. (With the merged MinMax relayout was +0.8 / +0.6%, then +0.47 / +0.48%: taken back, above.
+  Builds of the steps, five instances at once: Window's commits alone relayout as `lean`, the Group
+  commits made it slower, and reversing the dispatcher, the layout merge or the constraint merge
+  alone did not bring it back.)
+- demopix: 18 of 27 pixel-identical with MUI 3.8 as before; every Zune window pixel-identical to
+  `lean`'s, with the same sizes and positions, except Layout (it places its buttons at random).
+- fullcheck: MUI-Demo with eight sub-windows and the 18 other demos open and close, the same lost
+  figures as `lean` (608 / 200 / AppWindow 264), no alert; LoadSeg: 15 class files (Balance,
+  Gauge, Scale, Register, Scrollgroup ...), no module (Z*.mui).
+- MUI 3 group (36): all 36 behave as in the reference run (`listslim`'s last, whose Window, Group and
+  String are `lean`'s), windows and sizes identical, SimpleMail windowless as always; memory in use on the
+  second run identical (to 8 bytes), on the first run from boot 4.5 KB less (the smaller library).
+  LoadSeg trace through all 36: only `lean`'s modules where `lean` loads them (Zpicture.mui in the
+  NList and TextEditor demos, Zrequest.mui in MUIMine, NewsCoaster, RO, Archiver), no Zmui45.mui.
+- MUI 4/5 group (24): the 21 programs of the reference run behave as there (mqttexplorer and
+  mui5-embeddedimages exit as always), the three added since (Ticklish, the TabGroup demo, LumiZip)
+  run; memory in use on the second run identical (to 48 bytes). YAM 2.10 showed its "Error
+  messages" window (its theme PNGs through datatypes) in these runs without a LoadSeg trace too,
+  with seven or eight instances running: load, not only the trace, brings it.
+- The MUI 5 probes of `make check` run on the emulator (`mui5-*-probe`: string, string_input with
+  the edit hook, textinput, marking, selection, layout, pointer, title, text, classes, data, menu,
+  menu_input, panel): the same output as `lean` (data and string differ by object addresses only;
+  the panel probe fails or passes depending on the load, on both, and passed on both run alone).
+- `tests/lean/stringml.c` (three Multiline Strings, one marked, one active, and a placeholder):
+  the window pixel-identical to `lean`'s, before and after a click into it.
+- Memory, MUI-Demo cold, OS 3.1 + 4 MB fast (`m.sh`, two runs each, side by side): first program
+  470,264 -> 466,368 bytes (-3,896, the smaller library), each further 204,512-204,576 as `lean`,
+  first window 1.46-1.61 s against 1.54-1.60 s (eight instances running: within the noise).
+
+
 ## Left open
 
-- **Library code**: 245 KB (file 261 KB = 267,400 bytes, 2026-11-11, `smaller2`) against
-  MUI 3.8's 166 KB; what is left: "A smaller library, second round" above. Before:
-  246 KB (file 262 KB, `smaller`), 261 KB (file 279 KB).
+- **Library code**: file 259,096 bytes (2026-11-11, `slim2`: Window, Group and String made
+  smaller, above; 263,208 after List, 267,400 after `smaller2`) against MUI 3.8's 166 KB; what
+  is left: "Window, Group and String made smaller" and "A smaller library, second round" above.
+  Before: 246 KB (file 262 KB, `smaller`), 261 KB (file 279 KB).
   Compiler options do not close it (measured: `-fomit-frame-pointer` -2.7 KB, other `-f`
   switches within 0.3 KB, alignment none, `LTO=1` with bebbo's GCC 6.5
   -3.6 KB and it cannot link the class files: no `nm` plugin, fat LTO

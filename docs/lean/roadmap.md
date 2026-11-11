@@ -73,7 +73,24 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    `lean`'s; programs that get MUI 4/5 now load Zlist.mui with their
    first list, MUI 3 programs never;
    [README.md](README.md#list-made-smaller-2026-11-11-phase-3).
-   Next: Window (26 KB), Group (22 KB), String (20 KB) the same way.
+   *Window, Group, String 2026-11-11* (branch `slim2`): the same way on the
+   next three classes. Window 25,972 -> 24,368 bytes of code (-6.2%),
+   Group 21,552 -> 21,000 (-2.6%), String 19,340 -> 17,580 (-9.1%):
+   dispatchers that pick the method and make one call, mirror copies made
+   one (Group's horizontal/vertical layout by axis (its MinMax too, but
+   that cost 0.5% relayout time and was taken back),
+   Window's border gadgets, zoom sizes, key handler loops, menus, arrange
+   methods, freeing loops), Window's OM_NEW flags from a table, a dead
+   buffer path gone; a Multiline String's drawing and MUI 5's placeholder
+   into Zmui45.mui (MUI 3.8 has neither). Big rarely used blocks out of hot
+   frames: String's HandleEvent frame 344 -> 144, its dispatcher 104 -> 20,
+   Group's dispatcher 64 -> 40, Window's HandleRawkey 200 -> 160; no frame
+   larger (six tries that grew one by 4 bytes were taken back). Library
+   file 263,208 -> 259,096 bytes, first program 3.9 KB less; speed as
+   `lean`'s, deepest stack less; MUI 3 programs never load the module;
+   [README.md](README.md#window-group-and-string-made-smaller-2026-11-11-phase-3).
+   Left: the rest of these classes is code every program runs; Area
+   (16.5 KB) and Application (16 KB) not yet looked at this way.
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.
