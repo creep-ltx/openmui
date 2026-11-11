@@ -3375,15 +3375,10 @@ static IPTR Area__MUIM_Setup(struct IClass *cl, Object *obj,
     muiRenderInfo(obj) = msg->RenderInfo;
     data->mad_Flags2 &= ~(MADF2_BGCHECKED | MADF2_BUILTINBG);
 
-    if (data->mad_Frame) {
-        /* no frame allowed for root object (see Area.doc) */
-        Object *rootobj = NULL;
-        get(_win(obj), MUIA_Window_RootObject, &rootobj);
-        if (rootobj == obj) {
-            data->mad_Frame = MUIV_Frame_None;
-            data->mad_FrameTitle = NULL;
-        }
-    }
+    /* A root object keeps its frame: MUI 3.8 draws it, inside the
+     * window's inner spacing (tests/lean/probe/rootframe.c: a framed root
+     * group adds 8,5 against a plain one's 4,3; TinyMeterPrefs' window
+     * was 549x237 against 553x250 without it). Zune dropped it here. */
 
     set_inner_sizes(obj, data);
     set_title_sizes(obj, data);
