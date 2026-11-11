@@ -136,8 +136,27 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    Zune window as before), the MUI 3 group (36, no module loaded) and the
    MUI 4/5 group (24) as `lean`. Found: a locale use count leaked per typed character.
    [README.md](README.md#strings-keys-edit-directly-for-mui-38-the-textinput-methods-in-zmui45mui-2026-11-11-phase-3).
-   Next: Area and Application the same way (their dispatchers 9,648 and
-   5,050 bytes with the methods inlined, measured).
+   *Area and Application 2026-11-11* (branch `areaapp`): their
+   dispatchers pick the method and make one call (frames 140 -> 28 and
+   132 -> 84: Area's is paid on every method of every object and at every
+   nesting level of a window's Draw, Layout and Setup, and its hot
+   methods stay inlined so that they cost no extra call); Application's
+   Load and Save one function with a 280-byte name (frames 1,080 / 1,088
+   -> 344), its OM_NEW's port name and broker and its OM_DISPOSE's
+   position saving out of line (336 -> 88, 328 -> 56); Area's window
+   events, repeat timer, control-character registration, focus outlines
+   and frame-title copies through one function or loop each. Area
+   16,560 -> 16,600 bytes (its methods out of line cost their prologues,
+   +832 with all 36 of them for a frame of 20; the merges won most back,
+   and the hot and the tiny methods inlined the rest), Application
+   16,052 -> 16,044, file 256,424 -> 256,316. No MUI 4/5-only path was left to move (Area's
+   went in `slim2`; Application's are MUI 4's Execute/Run, 82 bytes). No
+   frame larger; stack, speed and the tests as `lean`. Details and what
+   was tried in
+   [README.md](README.md#area-and-application-the-dispatcher-picks-the-method-the-big-buffers-off-the-frames-2026-11-11-phase-3).
+   Next: Text and the text engine (9 KB), Notify, Family by the same
+   method, expecting frames rather than bytes where the methods are
+   many and small.
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.

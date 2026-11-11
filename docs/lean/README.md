@@ -2152,7 +2152,7 @@ Now (commit 2980f001):
   tail of String_Textinput folded into one switch with the same results; the caller notifies
   and redraws as before.
 - **A program that gets MUI 3.8 calls it straight from HandleEvent** (`String_Key`: the flag
-  MSDF_DIRECTKEYS, set at MUIM_Setup from the application's identity, "Each program gets the
+  MSDF_DIRECT59 lines identical on `lean` and the branch (the 45 steps' contents, cursors and notification counts)., set at MUIM_Setup from the application's identity, "Each program gets the
   MUI it asked for" above), and Return acknowledges directly (`String_Acknowledge`) instead of
   through MUIM_Textinput_Acknowledge. The key-to-operation mapping (`String_KeyOp`) is what
   MUI 5's was: Amiga-C/X/V/Z, Ctrl-U/K/X/A/Z, Shift with Backspace and Del, Return as a newline
@@ -2249,6 +2249,89 @@ point f4534771 measured in the same session):
   Slidorama 2,304: as `lean`.
 
 
+## Area and Application: the dispatcher picks the method, the big buffers off the frames (2026-11-11, phase 3)
+
+Branch `areaapp` (from `lean` at f41e5783). The "Left open" item after String's keys: Area
+(16,560 bytes of code, every object's base class) and Application (16,052) still had every
+method inlined into the dispatcher (Area's 9,648 bytes with a 132-byte frame, Application's
+5,050 with 140), the pattern the List, Window, Group and String rounds replaced with a dispatcher
+that picks the method and makes one call. Area's frame is paid on every method of every object,
+and at every nesting level of a window's Draw, Layout, AskMinMax, Setup and Show (Group's
+methods reach Area's through DoSuperMethod); Application's Load and Save carried a 1 KB file
+name each (frames 1,080 and 1,088), its OM_NEW a port name buffer and the commodities broker
+(336), its OM_DISPOSE a file name (328).
+
+| commit | what | code |
+|---|---|---|
+| 95caaab8 | Application: the dispatcher picks the method (frame 140 -> 28); `MUIM_Application_Load` and `Save`, mirror copies, one function with a 280-byte buffer (frames 1,080 / 1,088 -> 344; ENV(ARC):MUI/<base>.cfg, the old ENV(ARC):Zune name still read, the MUI drawer made for Save); the Dataspace's Import/Export on every window through one helper, which CheckRefresh uses too, and `app_windows()` for the eight loops over the windows; OM_NEW's port name and single-task check (`app_make_base`) and its broker (`app_make_broker`) out of line (frame 336 -> 88); OM_DISPOSE's position saving (`app_save_positions`) out of line (328 -> 56) | 16,052 -> 16,044 |
+| cf86c5a7 | Area: the dispatcher picks the method; eleven tiny methods (GoActive, DragBegin, CreateShortHelp, FindAreaObject, DeleteBubble, DrawBackground, ContextMenuBuild/Choice, CreateBubble, Relayout, DrawParentBackground) stay inlined, which costs no frame: 132 -> 28. The event handler's events changed through one function (`area_events`: remove, set, add; written out seven times), the repeat timer stopped through one (`area_stop_timer`, three times), the active-object outline's four strips and the drop outline's four edge rectangles in loops | 16,560 -> 17,392 -> 16,964 |
+| 556a0ada | Area: the frame title's 3D shadow copy and the outline's four shine copies (eight Move/Text pairs) one loop over a table of offsets, in a function of its own so that `Area_Draw_handle_frame`'s frame stays 176 (inline it was 180); OM_SET's MUIA_ControlChar and MUIA_CycleChain re-registered through one function (`area_rechar`) | -> 16,776 |
+
+| 74ed167d | Area: the hot methods (Draw, AskMinMax, Setup, Cleanup, Show, Hide, HandleEvent) stay inlined in the dispatcher: no extra call on the paths every object takes at every nesting level, and their prologues and INST_DATA loads gone again; the dispatcher's frame 28 -> 84 (what the biggest of them needs; lean's 132). Out of line stay the rare and big ones (OM_NEW/SET/GET, the drag methods, the background drawing, the bubbles, Timer, the frame queries) | -> 16,600 |
+
+**Area 16,560 -> 16,600 bytes of code (+40), Application 16,052 -> 16,044 (-8)**; library
+file (stripped) 256,424 -> 256,316 (-108). Zmui45.mui unchanged (6,552).
+
+**Not smaller, and why.** Out of line, Area's 36 methods cost their prologues, epilogues and
+their own `INST_DATA` loads: +832 bytes with everything out of line (dispatcher frame 20), won
+back in part by the merges above. The tiny methods inlined cost nothing on the frame (28 with
+eleven); each further one did: 32 with three frameless methods more, 40 with Import and Export,
+48 with OM_DISPOSE, 52 with Hide, Show and QueryFrameCharacteristics. The first full build (the
+eleven tiny ones inlined, Area 16,776) showed perfbench's redraw and relayout +0.2-0.4% in both
+directions under a load of 17-19, the extra call on every Draw, AskMinMax and Setup of every
+object; so the hot methods are inlined too (74ed167d): frame 84, no call, and the bytes back. Tried and taken back: the dispatcher as 16-bit switches on the ID's
+lower word after a switch on the upper one (every ID the class answers has 0x8042, 0x9042 or 0
+there): GCC's m68k backend widens a switch on a UWORD back to 32-bit compares (`andil #65535`
+then `cmpil`), 836 -> 972 bytes. What is left in Area is code every program runs (per function:
+OM_SET 1,566, HandleEvent 1,504, OM_NEW 1,350, the background and frame drawing 1,162 and
+778, OM_GET 1,108, the dispatcher's compare tree with its eleven inlined methods 1,012). An
+OM_GET table would be smaller but slower on every get (not done, as the List round said).
+
+**MUI 4/5-only paths.** Area has none left in the library: its MUI 4/5 attributes
+(MUIA_FrameVisible, MUIA_FrameDynamic) have been in Zmui45.mui since `slim2`, and a program that
+gets MUI 3.8 skips even the call. Application's non-3.8 parts are MUI 4's
+MUIM_Application_Execute/Run (an input loop, 82 bytes) and Zune's own window-position
+attributes (which Window and the Configdata use for every program): nothing worth a module
+load. So no new module path this round, and the LoadSeg trace below shows, as before, no
+Zmui45.mui in any MUI 3 program.
+
+Checked on the final build (74ed167d + the suite script fix 0003043d; FS-UAE, emulator figures, `lean` = the branch point
+f41e5783 built in the same session):
+
+- `make check` after every commit (the LTO check build too).
+- `-fstack-usage` of every library function against `lean`: none larger; smaller: Application's
+  dispatcher 140 -> 28, OM_NEW 336 -> 88, OM_DISPOSE 328 -> 56, Load/Save 1,080/1,088 -> 344
+  (one function); Area's dispatcher 132 -> 84 (with Draw, AskMinMax, Setup, Cleanup, Show, Hide,
+  HandleEvent and the eleven tiny methods inlined), the others as their own functions now
+  (OM_SET 72, OM_GET 44, OM_NEW 40, GoInactive 68, DrawBackgroundBuffered 88, CreateDragImage 184
+  as before), area_draw_title 44 under Area_Draw_handle_frame's unchanged 176.
+- perfbench (68EC020, 15 repetitions, `lean` and the branch side by side, then swapped, eight
+  instances running, load 14-19): **redraw +0.0 / +0.0%, relayout +0.0 / -0.0%**, notify +0.0 /
+  -0.0%, open+close -0.3 / -0.9%, create+dispose +1.7 / +0.2%, list insert +0.9 / -0.6%, list
+  active +1.6 / -0.1%, text set +0.5 / +0.4%, string keys +0.2 / +0.4%: the batches that move
+  move both ways but text set and string keys (+0.4-0.5%, 1,000 ticks of 260,000 over 100
+  sets; neither touches what changed: a Text's set redraws through Area's Draw, inlined as
+  before). The first full build, with the hot methods out of line, had redraw +0.2 / +0.4% and
+  relayout +0.4 / +0.3% in both directions: that was the extra call, and why 74ed167d exists.
+- fullcheck (with the LoadSeg trace): MUI-Demo with its eight sub-windows and the 18 other
+  demos open and close, the same windows at the same places and sizes, lost 200 / AppWindow 264
+  as `lean`, no alert; the result file identical to `strkey`'s final run but for the path of
+  the demos; modules: 15 class files (Gauge, Scale, Floattext, Dirlist, Volumelist,
+  Scrollgroup, Register, Poppen, Popasl, Pendisplay, Numericbutton, Levelmeter, Knob, Boopsi,
+  Balance), no module (Z*.mui), as `lean`.
+- demopix: **18 of 27 pixel-identical with MUI 3.8** as before (the same 18); every Zune window
+  pixel-identical to `strkey`'s final run except Layout (random button placement) and
+  InputHandler (its counter; the compare lists both as not comparable): 25 of 27.
+- MUI 3 group (36, in two halves with the LoadSeg trace): **36 behave as in the reference run** (`strkey`'s final, whose Area and Application are `lean`'s; suite-compare: "18 behave the same, 0 differ" for each half), windows and sizes identical, SimpleMail windowless as always; memory in use on the second run identical in every program, on the first run from boot +32 bytes everywhere (InstallerNG 752,912 -> 769,312, its own variation as always). The trace shows
+  **no Zmui45.mui in any MUI 3 program**: only Zpicture.mui (2, the NList and TextEditor
+  demos) and Zrequest.mui (3: MUIMine, NewsCoaster, RO/Archiver) where `lean` loads them.
+- MUI 4/5 group (24): **all 24 behave as in the reference run** (suite-compare: "24 behave the same, 0 differ"; mqttexplorer and mui5-embeddedimages exit as always), memory in use on the second run identical to within 24 bytes (the gifanim demo).
+- stackrun (twice each, side by side, then swapped): MUI-Demo with its eight sub-windows **5,248 -> 5,196** (both times), Virtual **2,452 / 2,388 -> 2,212** (`lean`'s own figure varies, 2,384-2,676 in the rounds before; the branch's the same both times), Layout 2,268, Pages 2,240, Slidorama 2,304 as `lean`: the smaller Area and Application frames on the nested paths.
+- tests/lean/strkeys.c (45 steps into nine Strings): 59 lines identical on `lean` and the branch (the 45 steps' contents, cursors and notification counts).
+- Found on the way: the suite's menu step died on an unbound variable when C:menupos answered
+  "failed" (the window gone under load); only numbers are a position now (0003043d).
+
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
@@ -2256,12 +2339,12 @@ point f4534771 measured in the same session):
   LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined
   into their dispatchers, which the stack rule forbids, so it stays off and `make check` runs
   on it now; String's direct key path done 2026-11-11, `strkey`: file 256,424, "String's keys
-  edit directly" above). Next in order: Area (16.6 KB) and Application (16.0 KB) with the
-  List round's method: measured on `strkey`, their dispatchers are 9,648 and 5,050 bytes with
-  the methods inlined into them (frames 132 and up to 336; Application's Load and Save frames
-  1,080 and 1,088), the pattern the List, Window, Group and String rounds replaced with a
-  dispatcher that picks the method and makes one call; then their MUI 4/5-only paths into
-  Zmui45.mui and the rare blocks off the hot frames;
+  edit directly" above; Area and Application done 2026-11-11, `areaapp`: file 256,316, "Area
+  and Application" above: their dispatchers pick the method, Application's Load/Save, OM_NEW
+  and OM_DISPOSE frames 1,080/336/328 -> 344/88/56, Area's 132 -> 84; bytes about even, since
+  Area's methods are many and small and the hot ones must stay inlined for speed). Next in
+  order: Text and the text engine (9 KB), Notify, Family by the same method, expecting frames
+  rather than bytes where the methods are many and small;
   259,096 after `slim2`, 263,208 after List, 267,400 after `smaller2`) against MUI 3.8's 166 KB;
   what is left and the next wins in order: "Toward the core" above.
   Before: 246 KB (file 262 KB, `smaller`), 261 KB (file 279 KB).
