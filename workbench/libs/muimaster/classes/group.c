@@ -5402,94 +5402,57 @@ STATIC IPTR __attribute__((noinline)) Group_Notify(struct IClass *cl, Object *ob
  */
 BOOPSI_DISPATCHER(IPTR, Group_Dispatcher, cl, obj, msg)
 {
+    IPTR (*method)(struct IClass *, Object *, APTR);
+
     switch (msg->MethodID)
     {
-    case OM_NEW:
-        return Group__OM_NEW(cl, obj, (struct opSet *)msg);
-    case OM_DISPOSE:
-        return Group__OM_DISPOSE(cl, obj, msg);
-    case OM_SET:
-        return Group__OM_SET(cl, obj, (struct opSet *)msg);
-    case OM_GET:
-        return Group__OM_GET(cl, obj, (struct opGet *)msg);
-    case OM_ADDMEMBER:         /* Fall through */
-    case MUIM_Group_AddTail:
-        return Group__MUIM_AddTail(cl, obj, (APTR) msg);
-    case MUIM_Group_AddHead:
-        return Group__MUIM_AddHead(cl, obj, (APTR) msg);
-    case MUIM_Group_Insert:
-        return Group__MUIM_Insert(cl, obj, (APTR) msg);
-    case OM_REMMEMBER:         /* Fall through */
-    case MUIM_Group_Remove:
-        return Group__MUIM_Remove(cl, obj, (APTR) msg);
-    case MUIM_Family_GetChild:
-        return Group__MUIM_Family_GetChild(cl, obj, (APTR) msg);
-    case MUIM_AskMinMax:
-        return Group__MUIM_AskMinMax(cl, obj, (APTR) msg);
-    case MUIM_Group_ExitChange:
-        return Group__MUIM_ExitChange(cl, obj, (APTR) msg);
-    case MUIM_Group_ExitChange2:
-        return Group__MUIM_ExitChange2(cl, obj, (APTR) msg);
-    case MUIM_Group_InitChange:
-        return Group__MUIM_InitChange(cl, obj, (APTR) msg);
-    case MUIM_Group_MoveMember:
-        return GroupMoveMember(cl, obj, (APTR)msg);
-    case MUIM_Group_Reorder:
-        return GroupReorder(cl, obj, (APTR)msg);
-    case MUIM_Group_Sort:
-        return Group__MUIM_Sort(cl, obj, (APTR) msg);
-    case MUIM_Group_DoMethodNoForward:
-        return Group__MUIM_DoMethodNoForward(cl, obj, (APTR) msg);
-    case MUIM_ConnectParent:
-        return Group__MUIM_ConnectParent(cl, obj, (APTR) msg);
-    case MUIM_GlobalSetup:
-        return Group__MUIM_GlobalSetup(cl, obj, (APTR) msg);
-    case MUIM_DisconnectParent:
-        return Group__MUIM_DisconnectParent(cl, obj, (APTR) msg);
-    case MUIM_Zune_Layout:
-        return Group__MUIM_Layout(cl, obj, (APTR) msg);
-    case MUIM_Setup:
-        return Group__MUIM_Setup(cl, obj, (APTR) msg);
-    case MUIM_Cleanup:
-        return Group__MUIM_Cleanup(cl, obj, (APTR) msg);
-    case MUIM_Virtgroup_BeginPaint:
-        return Group__MUIM_Virtgroup_BeginPaint(cl, obj);
-    case MUIM_Virtgroup_EndPaint:
-        return Group__MUIM_Virtgroup_EndPaint(cl, obj);
-    case MUIM_Draw:
-        return Group__MUIM_Draw(cl, obj, (APTR) msg);
+    case OM_NEW: method = (APTR)Group__OM_NEW; break;
+    case OM_DISPOSE: method = (APTR)Group__OM_DISPOSE; break;
+    case OM_SET: method = (APTR)Group__OM_SET; break;
+    case OM_GET: method = (APTR)Group__OM_GET; break;
+    case OM_ADDMEMBER:
+    case MUIM_Group_AddTail: method = (APTR)Group__MUIM_AddTail; break;
+    case MUIM_Group_AddHead: method = (APTR)Group__MUIM_AddHead; break;
+    case MUIM_Group_Insert: method = (APTR)Group__MUIM_Insert; break;
+    case OM_REMMEMBER:
+    case MUIM_Group_Remove: method = (APTR)Group__MUIM_Remove; break;
+    case MUIM_Family_GetChild: method = (APTR)Group__MUIM_Family_GetChild; break;
+    case MUIM_AskMinMax: method = (APTR)Group__MUIM_AskMinMax; break;
+    case MUIM_Group_ExitChange: method = (APTR)Group__MUIM_ExitChange; break;
+    case MUIM_Group_ExitChange2: method = (APTR)Group__MUIM_ExitChange2; break;
+    case MUIM_Group_InitChange: method = (APTR)Group__MUIM_InitChange; break;
+    case MUIM_Group_MoveMember: method = (APTR)GroupMoveMember; break;
+    case MUIM_Group_Reorder: method = (APTR)GroupReorder; break;
+    case MUIM_Group_Sort: method = (APTR)Group__MUIM_Sort; break;
+    case MUIM_Group_DoMethodNoForward: method = (APTR)Group__MUIM_DoMethodNoForward; break;
+    case MUIM_ConnectParent: method = (APTR)Group__MUIM_ConnectParent; break;
+    case MUIM_GlobalSetup: method = (APTR)Group__MUIM_GlobalSetup; break;
+    case MUIM_DisconnectParent: method = (APTR)Group__MUIM_DisconnectParent; break;
+    case MUIM_Zune_Layout: method = (APTR)Group__MUIM_Layout; break;
+    case MUIM_Setup: method = (APTR)Group__MUIM_Setup; break;
+    case MUIM_Cleanup: method = (APTR)Group__MUIM_Cleanup; break;
+    case MUIM_Virtgroup_BeginPaint: method = (APTR)Group__MUIM_Virtgroup_BeginPaint; break;
+    case MUIM_Virtgroup_EndPaint: method = (APTR)Group__MUIM_Virtgroup_EndPaint; break;
+    case MUIM_Draw: method = (APTR)Group__MUIM_Draw; break;
 
     case MUIM_FindUData:
-    case MUIM_FindObject:
-        return Group__MUIM_FindUData(cl, obj, (APTR) msg);
-    case MUIM_GetUData:
-        return Group__MUIM_GetUData(cl, obj, (APTR) msg);
-    case MUIM_SetUData:
-        return Group__MUIM_SetUData(cl, obj, (APTR) msg);
-    case MUIM_SetUDataOnce:
-        return Group__MUIM_SetUDataOnce(cl, obj, (APTR) msg);
-    case MUIM_Show:
-        return Group__MUIM_Show(cl, obj, (APTR) msg);
-    case MUIM_Hide:
-        return Group__MUIM_Hide(cl, obj, (APTR) msg);
-    case MUIM_HandleEvent:
-        return Group__MUIM_HandleEvent(cl, obj, (APTR) msg);
-    case MUIM_DrawBackground:
-        return Group__MUIM_DrawBackground(cl, obj, (APTR) msg);
-    case MUIM_DragQueryExtended:
-        return Group__MUIM_DragQueryExtended(cl, obj, (APTR) msg);
-    case MUIM_FindAreaObject:
-        return Group__MUIM_FindAreaObject(cl, obj, (APTR) msg);
-    case MUIM_Export:
-        return Group__MUIM_Export(cl, obj, (APTR) msg);
-    case MUIM_Import:
-        return Group__MUIM_Import(cl, obj, (APTR) msg);
+    case MUIM_FindObject: method = (APTR)Group__MUIM_FindUData; break;
+    case MUIM_GetUData: method = (APTR)Group__MUIM_GetUData; break;
+    case MUIM_SetUData: method = (APTR)Group__MUIM_SetUData; break;
+    case MUIM_SetUDataOnce: method = (APTR)Group__MUIM_SetUDataOnce; break;
+    case MUIM_Show: method = (APTR)Group__MUIM_Show; break;
+    case MUIM_Hide: method = (APTR)Group__MUIM_Hide; break;
+    case MUIM_HandleEvent: method = (APTR)Group__MUIM_HandleEvent; break;
+    case MUIM_DrawBackground: method = (APTR)Group__MUIM_DrawBackground; break;
+    case MUIM_DragQueryExtended: method = (APTR)Group__MUIM_DragQueryExtended; break;
+    case MUIM_FindAreaObject: method = (APTR)Group__MUIM_FindAreaObject; break;
+    case MUIM_Export: method = (APTR)Group__MUIM_Export; break;
+    case MUIM_Import: method = (APTR)Group__MUIM_Import; break;
 
 //#if 0
 #if 1
         /* Active getter-probing notification override. */
-    case MUIM_Notify:
-        return Group_Notify(cl, obj, (APTR) msg);
+    case MUIM_Notify: method = (APTR)Group_Notify; break;
 #endif
     /* Geometry belongs to this group, not to every child. */
     case MUIM_Layout:
@@ -5514,15 +5477,16 @@ BOOPSI_DISPATCHER(IPTR, Group_Dispatcher, cl, obj, msg)
     case OM_REMOVE:
         return DoSuperMethodA(cl, obj, (APTR) msg);
             /* Needs not to be forwarded? */
+    default:
+        /* sometimes you want to call a superclass method,
+         * but not dispatching to child.
+         * But what to do with list methods in a listview ?
+         */
+        Group_DispatchMsg(cl, obj, (APTR) msg);
+        return DoSuperMethodA(cl, obj, msg);
     }
 
-    /* sometimes you want to call a superclass method,
-     * but not dispatching to child.
-     * But what to do with list methods in a listview ?
-     */
-    Group_DispatchMsg(cl, obj, (APTR) msg);
-
-    return DoSuperMethodA(cl, obj, msg);
+    return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 
