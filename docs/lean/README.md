@@ -2332,6 +2332,74 @@ f41e5783 built in the same session):
   "failed" (the window gone under load); only numbers are a position now (0003043d).
 
 
+## Testing on Amiberry (2026-11-11)
+
+Branch `amiberry`. Our partner trusts Amiberry (8.5, `/usr/bin/amiberry`) more than FS-UAE, and
+FS-UAE had given the suite false alarms (IBrowse's frozen second quit, AmTelnet's and ViewCSV's
+resets, YAM 2.10 stalls, SimpleMail's missing window). The whole test bed now runs on Amiberry
+headless, FS-UAE stays selectable.
+
+**The runner**: `tests/lean/scripts/amiberry-test` takes `amiga-test`'s commands and options
+(`start | stop | status | dir | reset | env`, `--as --port --label --fresh --wasabid --window
+--cpu 030 --config 'key = value' --rtg [MB]`) and boots the same copies in `~/.cache/amiga-test/NAME`
+in Amiberry with no window on any display (SDL offscreen, no DISPLAY), one systemd user scope per
+instance (2 GB at most), its own runtime folder for Amiberry's IPC socket (one socket per
+`XDG_RUNTIME_DIR`, at most 11 instances otherwise), the Unix x bit given to every file without a
+`.uaem` (Amiberry maps it to the Amiga e bit, FS-UAE ignores it), a scope kill at `stop` (Amiberry
+ignores SIGTERM), the FS-UAE config keys of the scripts translated to `.uae` ones. `scripts/emu.sh`,
+sourced by every script that boots a machine, sends `amiga-test` to it (`EMU=amiberry`, the
+default) or to FS-UAE's `amiga-test` (`EMU=fsuae`); `demopix.sh --names PREFIX` names its
+instances. Verified: a stop and start is a fresh boot (a RAM: marker gone), 2 s from start to
+wasabid (FS-UAE: 15-20 s), nothing on the desktop.
+
+**Capacity** (16 cores, 30 GB): one instance is one core at 100% (`cpu_speed=max`) and about
+230 MB; 12 instances of the MUI 3.8 machine started at once all booted in 2.5 s and all opened
+MUI-Demo (figures below); seven suite and demopix runs side by side gave load 7. Twelve to
+fourteen at once is sane; memory is not the limit.
+
+**Baselines on Amiberry** (the final library of the branch; details and the result folders in
+tests/lean/real-programs.md): MUI 3 group **35 of 36 as on MUI 3.8** (MultiRen's quit as always);
+MUI 4/5 group against MUI 5 the known window-size differences, EmbeddedImages and Pointers now as
+MUI 5 (below); demopix **18 of 27 pixel-identical with MUI 3.8**, 25 comparable, as on FS-UAE, in
+2 minutes; fullcheck: MUI-Demo with its eight sub-windows and the 18 demos open and close, lost
+608 / 200 / AppWindow 264, as on FS-UAE; `make check` passes.
+
+**FS-UAE's oddities, sorted** (OpenMUI, MUI 3.8 and MUI 5 each run on both emulators):
+
+| seen on FS-UAE | on Amiberry | so |
+|---|---|---|
+| IBrowse 2.5.9 and 3.0a frozen at the second quit (OpenMUI) | clean, -64 bytes | FS-UAE's (its heap corruption, known) |
+| AmTelnet's resets at the second quit; "exited" at start on Amiberry's drive | from RAM: ok, -8,192 on MUI 3.8 | FS-UAE's; Amiberry's host drive cannot start it (`RAMRUN`) |
+| ViewCSV's reset at the second quit (MUI 3.8) | ok | FS-UAE's |
+| YAM 2.5 frozen at the second quit (MUI 3.8) | ok, +58,096 | FS-UAE's |
+| MUI 5's Clock demo "nowindow,busy", EmbeddedImages "exited" (MUI 5) | both open | FS-UAE's |
+| SimpleMail never opening its window (all three) | opens within 5 s on both, both MUIs | the suite's: `wasabi ps` cuts the task name, fixed; its quit resets the machine on both |
+| YAM 2.10 stalls, "Error messages" window not closing (OpenMUI) | the same, and the same on MUI 3.8 | YAM's modal request underneath; the hook answers it, YAM quits now |
+| MQTTExplorer exits at once (all) | the same | the program's |
+| mui5-embeddedimages "exited" on OpenMUI | no window: OpenMUI's, fixed below | OpenMUI's |
+| TabGroup freeze under load | not seen in any run of this round | load-dependent, open |
+| InstallerNG ok | **freezes the whole Amiga at its start, OpenMUI and MUI 3.8 alike** | Amiberry's (with and without FPU, `cpu_compatible`, `cpu_speed=real`; the 68000 build resets instead); run it with `EMU=fsuae` |
+
+**OpenMUI's fault, fixed**: a window larger than the screen went into MUI 5's scrollable group
+only for a program that gets MUI 5; MUI 5's own EmbeddedImages and Pointers demos ask for
+muimaster version 20 (MUI 4 under Automatic) and open scrollable on real MUI 5, so the fallback
+is for MUI 4 and 5 now (never MUI 3.8: the condition for them is the one it was, in the same
+branch of the fitting loop, no new code on their path). EmbeddedImages opens 640x256 as on MUI 5
+(it waited for ever without a window before), Pointers 640x246 (MUI 5: 640x256; was 364x248).
+Against the FS-UAE run of the same library the MUI 4/5 group is otherwise 22 of 24 the same (YAM
+2.10 and IBrowse 3.0a the two, both for the better).
+
+**RTG**: `amiberry-test --rtg` gives the uaegfx Zorro III board and `scripts/rtg-setup.sh` installs
+Picasso96 3.6.3 for it by hand (the libraries, the monitor with its tool type set on the Amiga by
+tests/lean/settt.c, the settings with the board name, screenmode.prefs): Picasso96 sees the board
+(CheckBoards: "UAE, 16 MB", rtg.library 43.787), **but headless Amiberry offers one 320x200 mode**
+(8/16/24 bit): its Picasso96 mode list comes from the host display's modes, and with SDL's
+offscreen or dummy driver there is none; `gfx_width/height_fullscreen` adds nothing. An RTG
+Workbench stays FS-UAE's (rtgfix) until a round with a display.
+
+Knowledge: ~/Projects/Knowledge/amiga/amiberry-headless.md (updated from
+/tmp/amiberry/knowledge-amiberry-headless.md).
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
@@ -2373,4 +2441,6 @@ f41e5783 built in the same session):
   211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
   list pools of 1 KB puddles, Text contents.)
 
-- Tested in FS-UAE only, not on real hardware; RTG only as uaegfx with Picasso96 3.6.3 (rtgfix).
+- Tested in emulators only (Amiberry headless since 2026-11-11, FS-UAE before and still
+  selectable), not on real hardware; RTG only as uaegfx with Picasso96 3.6.3 in FS-UAE (rtgfix):
+  headless Amiberry has no RTG modes. InstallerNG cannot be tested on Amiberry (it freezes it).

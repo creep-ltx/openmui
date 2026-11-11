@@ -330,9 +330,12 @@ run_prog() {
     result "$why" ? ? "$wl"; reboot_instance; return
   fi
   hook dismiss
+  # the windows before the memory check: a "wasabi run" (avail) while SimpleMail runs ends
+  # wasabid, on both emulators, and its windows would be lost from the record
+  wl=$(wins | cut -f1,2 | tr '\t\n' '@;')
   f1=$(avail); [ -n "$f0" ] && [ -n "$f1" ] && inuse1=$((f1-f0))
   tally_dump "$id-1"
-  wl=$(wins | cut -f1,2 | tr '\t\n' '@;')
+  [ -n "$wl" ] || wl=$(wins | cut -f1,2 | tr '\t\n' '@;')
   [ -z "$wl" ] && [ "$status" = ok ] && status=nowindow
   grab "$OUT/$id.png"
   # extra windows from the menus

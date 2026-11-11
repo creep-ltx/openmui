@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# suite.sh: the real-program suite. Boots its own FS-UAE instance of one target, installs the
+# suite.sh: the real-program suite. Boots its own emulator instance of one target (Amiberry
+# headless by default, EMU=fsuae for FS-UAE: emu.sh; the same machine copies either way), installs the
 # programs of tests/lean/real/programs.sh and their classes, then for each program: start, wait for
 # its first window, answer start-up requesters, screenshot, open the listed extra windows
 # (menus) with a screenshot each, quit; a second run measures the memory it loses.
@@ -24,6 +25,7 @@
 #   --keep         leave the instance running at the end (default: stopped)
 #   --reuse        do not make a fresh copy of the machine (files from the last run stay)
 #   --update       keep the other programs' lines in results.tsv (run some programs again)
+#   EMU=amiberry|fsuae in the environment: the emulator (default amiberry)
 #
 # Results: $ZWORK/suite-real/TAG/results.tsv (one line per program: id, status, windows with
 # sizes, still running after quit, in-use before minus after the 2nd run (negative: memory

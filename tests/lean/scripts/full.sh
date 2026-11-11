@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# full.sh TAG NAME MACH PORT LIB EXTRA
+# full.sh TAG NAME MACH PORT LIB EXTRA: fullcheck.sh on a freshly booted instance with LIB installed
+# (EMU=amiberry|fsuae: the emulator, default amiberry; EXTRA: amiga-test options, e.g. --config ...)
 export ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
 . "$(dirname "$0")/emu.sh"   # EMU=amiberry|fsuae: which emulator boots the machine
 S=$(cd "$(dirname "$0")" && pwd)

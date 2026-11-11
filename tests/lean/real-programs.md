@@ -3,7 +3,7 @@
 Real MUI programs, started on Zune and on real MUI, compared side by side. Every change of the
 lean edition is checked with it (roadmap phase 1). The programs are freely downloadable; they are
 fetched into `~/.cache/zune68k-real/` (never committed, never redistributed) and run only in the
-FS-UAE test machines.
+test machines (`~/UAE/TestMachines`), in Amiberry headless since 2026-11-11 (`EMU=fsuae` for FS-UAE).
 
 ## Running it
 
@@ -19,9 +19,11 @@ tests/lean/scripts/suite-compare.py $ZWORK/suite-real/zune5 $ZWORK/suite-real/mu
 ```
 
 PATH needs the toolchain (`~/opt/amiga-gcc16/bin`, the suite adds it when it is there) for
-`menupos`. A whole run of the 36 MUI 3.x entries takes about 70 minutes per target (every
-program on a freshly booted machine); `suite.sh zune --update ID...` runs some again and keeps
-the other lines. The contact sheets: `$ZWORK/suite-real/compare-zune-mui38.html` and
+`menupos`. The machines boot in **Amiberry 8.5 headless** by default (`scripts/amiberry-test`,
+the same commands and copies as `amiga-test`; `scripts/emu.sh` chooses, `EMU=fsuae` boots FS-UAE
+as before). A whole run of the 36 MUI 3.x entries takes about 40 minutes per target on Amiberry
+(every program on a freshly booted machine, a boot being 2 s there; about 70 on FS-UAE);
+`suite.sh zune --update ID...` runs some again and keeps the other lines. The contact sheets: `$ZWORK/suite-real/compare-zune-mui38.html` and
 `compare-zune5-mui5.html`.
 
 - `suite.sh TARGET [ID...]` boots its own instance (a fresh copy of the machine), copies the
@@ -402,6 +404,46 @@ quits clean. Also added: MUIM_FindObject (IBrowse 3.0a), MUIA_FrameVisible/Frame
 2.10), List's sort mark (MUI 5 List1), Title's register tabs (MUI 5 Title). Details and the
 results in docs/lean/README.md ("LumiZip's reset found").
 
+**Update, branch `amiberry` (2026-11-11): the suite on Amiberry.** Every run above was FS-UAE's;
+this round moved the suite onto Amiberry 8.5 headless (docs/lean/README.md, "Testing on
+Amiberry") and ran all of it there, real MUI 3.8 and MUI 5 included, so that the emulator's own
+failures could be told from OpenMUI's. **MUI 3 group on Amiberry: 35 of 36 as on MUI 3.8** (the one:
+MultiRen's run on MUI 3.8 is "still running after quit", as always); against the same library's
+FS-UAE run 33 of 36 the same, the three being the emulators': InstallerNG freezes Amiberry at its
+start (Zune and MUI 3.8 alike, see the traps), IBrowse 2.5.9's second quit is clean on Amiberry
+(-64 bytes; FS-UAE dies there), AmTelnet does not start from Amiberry's drive (now started from
+RAM: by `RAMRUN[amtelnet]`: ok, -8,192 on MUI 3.8 as on FS-UAE). MUI 3.8 on Amiberry against MUI 3.8
+on FS-UAE: 31 of 36 the same; the five are FS-UAE's frozen second quit of YAM 2.5, its reset at
+ViewCSV's second quit, InstallerNG, AmTelnet, and SimpleMail. **MUI 4/5 group: 22 of 24 as the
+FS-UAE run** (YAM 2.10 and IBrowse 3.0a, below); against real MUI 5 on Amiberry the same window
+differences as before, and two that FS-UAE had hidden: MUI 5's own EmbeddedImages demo opens on
+real MUI 5 (640x256, scrollable; FS-UAE's MUI 5 had "exited") and OpenMUI gave it no window, its
+Clock demo opens on MUI 5 (FS-UAE: "nowindow,busy"). Found and fixed on the way:
+
+- **SimpleMail's "no window" was the suite's** (every round since 2026-11-06, both emulators):
+  `wasabi ps` cuts a task name at about 34 characters, so `running()` never saw
+  `Workbench:Real/simplemail/SimpleMa` and gave up 2 s after the start; its window opens within
+  5 s on both emulators and both MUIs. What is real on both: a `wasabi run` while SimpleMail runs
+  ends wasabid (the suite's `avail` does), and its quit resets the machine, so there is still no
+  memory figure; the windows are recorded before the memory check now.
+- **YAM 2.10's "Error messages" window that would not close**: YAM's own "Invalid configuration"
+  request (a MUI request: the application asleep, its menus gone) was up underneath; on MUI 3.8
+  the same (by hand, Amiberry). On Amiberry the fifty errors come faster than the suite closed the
+  window, so the request was always up first. The hook answers it (Ok); YAM 2.10 now quits on
+  OpenMUI with its main window listed ("YAM 2.10-dev - User:" 640x256, -336 bytes).
+- **The "frozen after the first window" path died** on an unbound `wl` under `set -u`; FS-UAE had
+  hardly ever taken it.
+- **OpenMUI: a window larger than the screen is scrollable for a MUI 4 program too** (Window):
+  MUI 5's EmbeddedImages and Pointers demos ask for muimaster version 20 (MUI 4 under Automatic)
+  and open scrollable on real MUI 5; EmbeddedImages now opens 640x256 as there (was: no window
+  at all, the demo waiting for ever), Pointers 640x246 (was 364x248; MUI 5 640x256). MUI 3.8
+  programs are not touched (the same branch of the fitting loop, their condition unchanged).
+
+Results: `/tmp/amiberry/zwork/suite-real/ab-z3` (OpenMUI, MUI 3 group), `ab-m38` (MUI 3.8),
+`ab-z5` / `ab-z5b` (OpenMUI, MUI 4/5 group, before / after the Window change), `ab-m5` (MUI 5),
+`ab-z3c` / `ab-m38c` (SimpleMail and AmTelnet again with the fixes); contact sheets
+`compare-ab-z3-ab-m38.html`, `compare-ab-z5-ab-m5.html`, `/tmp/amiberry/cmp-*-fsuae.html`.
+
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second
 run minus in-use after it: a *negative* figure is memory the second run left in use, a positive one
@@ -603,6 +645,23 @@ marked, with its commit in docs/lean/README.md.
     instead.
 
 ## Traps found while building it
+
+Amiberry (2026-11-11; the runner's own traps are in `scripts/amiberry-test`'s header and
+~/Projects/Knowledge/amiga/amiberry-headless.md):
+
+- **InstallerNG 1.5 freezes the whole machine at its start in Amiberry** (OS 3.1, 68020; the .020
+  and .debug builds freeze, the .000 build resets; with or without FPU, `cpu_compatible=true`,
+  `cpu_speed=real`; a DOS script in another process stops too), with OpenMUI and with MUI 3.8.
+  FS-UAE runs it. The suite marks it "frozen" there (six minutes of waiting); run `installerng`
+  with `EMU=fsuae`.
+- **AmTelnet II does not start from Amiberry's host-directory drive**, x bit or not: it opens its
+  own file and its `RunCommand` of itself returns -1 (snooped). `RAMRUN[amtelnet]` copies it to
+  RAM: first.
+- A `wasabi run` while SimpleMail runs ends wasabid, and SimpleMail's quit resets the machine,
+  on Amiberry as on FS-UAE: SimpleMail's own doing.
+- YAM 2.10's "Invalid configuration" request is up before its error window can be closed on
+  Amiberry (the errors come faster): answer the request first (the hook does).
+- `wasabi ps` cuts long task names: match a prefix, or give the program a TITLE.
 
 - `wasabi ui menu` answers "picked" but MUI windows (3.8 and Zune) do nothing: the suite picks
   menus with the right mouse button at the positions `menupos` reads from the menu strip. Not

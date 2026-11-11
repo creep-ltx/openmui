@@ -9,6 +9,7 @@
 #   --compare      shoot nothing, only compare what is there
 #   --out DIR      results (default $ZWORK/demopix)
 #   --names PREFIX instance names PREFIX-zune and PREFIX-mui38 (default demopix)
+#   EMU=amiberry|fsuae in the environment: the emulator (default amiberry, emu.sh)
 #
 # SHOT: a demo name (Class1 ... BoopsiDoor, MUI-Demo) or MUIDemo-<button> (Groups Frames Backfill
 # Notify Listviews Cycle Images Strings); none = all 27. Each side runs on its own freshly booted
