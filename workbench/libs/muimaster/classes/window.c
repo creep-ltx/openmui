@@ -4420,6 +4420,86 @@ static void WindowSelectDimensions(struct MUI_WindowData *data)
 }
 
 
+/* The window's flag attributes: which flag word (1: the creation flags,
+ * 0: wd_Flags) and which bit, for OM_NEW (OM_SET has its own cases for
+ * the last three; through a call they made its frame 4 bytes larger) */
+static const struct { ULONG tag; ULONG bit; UWORD crt; } window_bool_tags[] =
+{
+    { MUIA_Window_CloseGadget, WFLG_CLOSEGADGET, 1 },
+    { MUIA_Window_SizeGadget, WFLG_SIZEGADGET, 1 },
+    { MUIA_Window_Backdrop, WFLG_BACKDROP, 1 },
+    { MUIA_Window_Borderless, WFLG_BORDERLESS, 1 },
+    { MUIA_Window_DepthGadget, WFLG_DEPTHGADGET, 1 },
+    { MUIA_Window_DragBar, WFLG_DRAGBAR, 1 },
+    { MUIA_Window_SizeRight, WFLG_SIZEBRIGHT, 1 },
+    { MUIA_Window_EraseArea, MUIWF_ERASEAREA, 0 },
+    { MUIA_Window_ToolBox, MUIWF_TOOLBOX, 0 },
+    { MUIA_Window_AppWindow, MUIWF_ISAPPWINDOW, 0 },
+    { MUIA_Window_IsSubWindow, MUIWF_ISSUBWINDOW, 0 },
+    { MUIA_Window_UseBottomBorderScroller, MUIWF_USEBOTTOMSCROLLER, 0 },
+    { MUIA_Window_UseRightBorderScroller, MUIWF_USERIGHTSCROLLER, 0 },
+};
+
+/* OM_NEW's flag and plain attributes (from its default label), stored as
+ * OM_SET stores them; the instance data is zero there, so the size's
+ * "forget the current one" changes nothing. */
+static __attribute__((noinline)) void Window_SetPlain(
+    struct MUI_WindowData *data, struct TagItem *tag)
+{
+    IPTR v = tag->ti_Data;
+    int i;
+
+    for (i = 0; i < sizeof(window_bool_tags) / sizeof(window_bool_tags[0]);
+        i++)
+    {
+        if (window_bool_tags[i].tag == tag->ti_Tag)
+        {
+            ULONG *flags = window_bool_tags[i].crt ? &data->wd_CrtFlags
+                : &data->wd_Flags;
+            _handle_bool_tag(*flags, v, window_bool_tags[i].bit);
+            return;
+        }
+    }
+
+    switch (tag->ti_Tag)
+    {
+    case MUIA_Window_DisableKeys:
+        data->wd_DisabledKeys = v;
+        break;
+
+    case MUIA_Window_RefWindow:
+        data->wd_RefWindow = (Object *) v;
+        break;
+
+    case MUIA_Window_LeftEdge:
+        data->wd_ReqX = v;
+        break;
+
+    case MUIA_Window_TopEdge:
+        data->wd_ReqY = v;
+        break;
+
+    case MUIA_Window_Width:
+        data->wd_ReqWidth = (LONG) v;
+        data->wd_Width = 0; /* otherwise windowselectdimensions()
+                             * ignores ReqWidth */
+        break;
+
+    case MUIA_Window_Height:
+        data->wd_ReqHeight = (LONG) v;
+        data->wd_Height = 0;
+        break;
+
+    case MUIA_Window_Screen:
+        data->wd_UserScreen = (struct Screen *) v;
+        break;
+
+    case MUIA_Window_PublicScreen:
+        data->wd_UserPublicScreen = (STRPTR) v;
+        break;
+    }
+}
+
 /* Construct Notify, create the private node pool, initialize lists/defaults
  * and process supported tags in order. Return the object or NULL after
  * superclass/pool failure or explicit NULL RootObject. Adopt the current
@@ -4489,67 +4569,12 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_Window_Opacity:
             data->wd_Opacity = MIN(tag->ti_Data, 255);
             break;
-        case MUIA_Window_EraseArea:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data, MUIWF_ERASEAREA);
-            break;
-
-        case MUIA_Window_ToolBox:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data, MUIWF_TOOLBOX);
-            break;
-
-        case MUIA_Window_CloseGadget:
-            _handle_bool_tag(data->wd_CrtFlags, tag->ti_Data,
-                WFLG_CLOSEGADGET);
-            break;
-
-        case MUIA_Window_SizeGadget:
-            _handle_bool_tag(data->wd_CrtFlags, tag->ti_Data,
-                WFLG_SIZEGADGET);
-            break;
-
         case MUIA_Window_ZoomGadget:
             data->wd_ZoomGadget = tag->ti_Data;
             break;
 
-        case MUIA_Window_Backdrop:
-            _handle_bool_tag(data->wd_CrtFlags, tag->ti_Data,
-                WFLG_BACKDROP);
-            break;
-
-        case MUIA_Window_Borderless:
-            _handle_bool_tag(data->wd_CrtFlags, tag->ti_Data,
-                WFLG_BORDERLESS);
-            break;
-
-        case MUIA_Window_DepthGadget:
-            _handle_bool_tag(data->wd_CrtFlags, tag->ti_Data,
-                WFLG_DEPTHGADGET);
-            break;
-
-        case MUIA_Window_DragBar:
-            _handle_bool_tag(data->wd_CrtFlags, tag->ti_Data, WFLG_DRAGBAR);
-            break;
-
-        case MUIA_Window_SizeRight:
-            _handle_bool_tag(data->wd_CrtFlags, tag->ti_Data,
-                WFLG_SIZEBRIGHT);
-            break;
-
-        case MUIA_Window_Height:
-            data->wd_ReqHeight = (LONG) tag->ti_Data;
-            break;
-
-        case MUIA_Window_Width:
-            data->wd_ReqWidth = (LONG) tag->ti_Data;
-            break;
-
         case MUIA_Window_ID:
             set(obj, MUIA_Window_ID, tag->ti_Data);
-            break;
-
-        case MUIA_Window_IsSubWindow:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data,
-                MUIWF_ISSUBWINDOW);
             break;
 
         case MUIA_Window_Title:
@@ -4602,44 +4627,10 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->wd_AltDim.Top = (WORD) tag->ti_Data;
             break;
 
-        case MUIA_Window_AppWindow:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data,
-                MUIWF_ISAPPWINDOW);
+        default:
+            Window_SetPlain(data, tag);
             break;
 
-        case MUIA_Window_LeftEdge:
-            data->wd_ReqX = tag->ti_Data;
-            break;
-
-        case MUIA_Window_TopEdge:
-            data->wd_ReqY = tag->ti_Data;
-            break;
-
-        case MUIA_Window_UseBottomBorderScroller:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data,
-                MUIWF_USEBOTTOMSCROLLER);
-            break;
-
-        case MUIA_Window_UseRightBorderScroller:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data,
-                MUIWF_USERIGHTSCROLLER);
-            break;
-
-        case MUIA_Window_DisableKeys:
-            data->wd_DisabledKeys = tag->ti_Data;
-            break;
-
-        case MUIA_Window_RefWindow:
-            data->wd_RefWindow = (Object *) tag->ti_Data;
-            break;
-
-        case MUIA_Window_Screen:
-            data->wd_UserScreen = (struct Screen *)tag->ti_Data;
-            break;
-
-        case MUIA_Window_PublicScreen:
-            data->wd_UserPublicScreen = (STRPTR) tag->ti_Data;
-            break;
         }
     }
 
