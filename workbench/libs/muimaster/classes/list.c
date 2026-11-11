@@ -1281,6 +1281,40 @@ static __attribute__((noinline)) void List_InnerToArea(Object *obj,
         g->mad_InnerBottom = 0;
 }
 
+/* The attributes that OM_NEW and OM_SET store alike (OM_SET then redraws
+ * for Stripes and clears the selection for a MultiTestHook) */
+static void List_SetPlain(struct MUI_ListData *data, struct TagItem *tag)
+{
+    IPTR v = tag->ti_Data;
+
+    switch (tag->ti_Tag)
+    {
+    case MUIA_List_HScrollerVisibility: data->hscroll_visibility = v; break;
+    case MUIA_List_SortColumn: data->sort_column = v; break;
+    case MUIA_List_Stripes: data->stripes = !!v; break;
+    case MUIA_List_Editable: data->editable = !!v; break;
+    case MUIA_List_CompareHook:
+        data->compare_hook = v ? (struct Hook *)v : &data->default_compare_hook;
+        break;
+    case MUIA_List_ConstructHook: data->construct_hook = (struct Hook *)v; break;
+    case MUIA_List_DestructHook: data->destruct_hook = (struct Hook *)v; break;
+    case MUIA_List_DisplayHook: data->display_hook = (struct Hook *)v; break;
+    case MUIA_List_MultiTestHook: data->multi_test_hook = (struct Hook *)v; break;
+    case MUIA_List_AutoVisible:
+        _handle_bool_tag(data->flags, v, LIST_AUTOVISIBLE);
+        break;
+    case MUIA_List_ShowDropMarks:
+        _handle_bool_tag(data->flags, v, LIST_SHOWDROPMARKS);
+        break;
+    case MUIA_List_DragSortable:
+        _handle_bool_tag(data->flags, v, LIST_DRAGSORTABLE);
+        break;
+    case MUIA_Listview_Input: data->read_only = !v; break;
+    case MUIA_Listview_MultiSelect: data->multiselect = v; break;
+    case MUIA_Listview_DefClickColumn: data->def_click_column = v; break;
+    }
+}
+
 /**************************************************************************
  OM_NEW
 **************************************************************************/
@@ -1412,40 +1446,6 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->intern_thresh_size = tag->ti_Data;
             break;
 
-        case MUIA_List_HScrollerVisibility:
-            data->hscroll_visibility = tag->ti_Data;
-            break;
-        case MUIA_List_SortColumn:
-            data->sort_column = tag->ti_Data;
-            break;
-        case MUIA_List_Stripes:
-            data->stripes = !!tag->ti_Data;
-            break;
-        case MUIA_List_Editable:
-            data->editable = !!tag->ti_Data;
-            break;
-        case MUIA_List_CompareHook:
-            data->compare_hook = (struct Hook *)tag->ti_Data;
-            if (data->compare_hook == NULL)
-                data->compare_hook = &data->default_compare_hook;
-            break;
-
-        case MUIA_List_ConstructHook:
-            data->construct_hook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_List_DestructHook:
-            data->destruct_hook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_List_DisplayHook:
-            data->display_hook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_List_MultiTestHook:
-            data->multi_test_hook = (struct Hook *)tag->ti_Data;
-            break;
-
         case MUIA_List_SourceArray:
             array = (APTR *) tag->ti_Data;
             break;
@@ -1470,38 +1470,18 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             _handle_bool_tag(data->flags, tag->ti_Data, LIST_ADJUSTWIDTH);
             break;
 
-        case MUIA_List_AutoVisible:
-            _handle_bool_tag(data->flags, tag->ti_Data, LIST_AUTOVISIBLE);
-            break;
-
-        case MUIA_List_ShowDropMarks:
-            _handle_bool_tag(data->flags, tag->ti_Data, LIST_SHOWDROPMARKS);
-            break;
-
-        case MUIA_List_DragSortable:
-            _handle_bool_tag(data->flags, tag->ti_Data, LIST_DRAGSORTABLE);
-            break;
-
         case MUIA_Listview_ScrollerPos:
             data->scroller_pos = tag->ti_Data;
-            break;
-
-        case MUIA_Listview_Input:
-            data->read_only = !tag->ti_Data;
-            break;
-
-        case MUIA_Listview_MultiSelect:
-            data->multiselect = tag->ti_Data;
-            break;
-
-        case MUIA_Listview_DefClickColumn:
-            data->def_click_column = tag->ti_Data;
             break;
 
         case MUIA_Listview_DragType:
             data->drag_type = tag->ti_Data;
             if (data->drag_type != MUIV_Listview_DragType_None)
                 set(obj, MUIA_Draggable, TRUE);
+            break;
+
+        default:
+            List_SetPlain(data, tag);
             break;
         }
     }
@@ -1717,44 +1697,32 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         switch (tag->ti_Tag)
         {
         case MUIA_List_HScrollerVisibility:
-            data->hscroll_visibility = tag->ti_Data;
-            break;
         case MUIA_List_SortColumn:
-            data->sort_column = tag->ti_Data;
+        case MUIA_List_Editable:
+        case MUIA_List_CompareHook:
+        case MUIA_List_ConstructHook:
+        case MUIA_List_DestructHook:
+        case MUIA_List_DisplayHook:
+        case MUIA_List_AutoVisible:
+        case MUIA_List_ShowDropMarks:
+        case MUIA_List_DragSortable:
+        case MUIA_Listview_Input: /* private set */
+        case MUIA_Listview_MultiSelect: /* private set */
+        case MUIA_Listview_DefClickColumn:
+            List_SetPlain(data, tag);
             break;
         case MUIA_List_Stripes:
-            data->stripes = !!tag->ti_Data;
+            List_SetPlain(data, tag);
             data->update = UPDATEMODE_ALL;
             MUI_Redraw(obj, MADF_DRAWUPDATE);
-            break;
-        case MUIA_List_Editable:
-            data->editable = !!tag->ti_Data;
             break;
         case MUIA_List_HideColumn:
         case MUIA_List_ShowColumn:
         case MUIA_List_TitleArray:
             zune_list_set_columns(obj, data, tag, FALSE);
             break;
-        case MUIA_List_CompareHook:
-            data->compare_hook = (struct Hook *)tag->ti_Data;
-            if (data->compare_hook == NULL)
-                data->compare_hook = &data->default_compare_hook;
-            break;
-
-        case MUIA_List_ConstructHook:
-            data->construct_hook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_List_DestructHook:
-            data->destruct_hook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_List_DisplayHook:
-            data->display_hook = (struct Hook *)tag->ti_Data;
-            break;
-
         case MUIA_List_MultiTestHook:
-            data->multi_test_hook = (struct Hook *)tag->ti_Data;
+            List_SetPlain(data, tag);
             if (data->multi_test_hook != NULL)
             {
                 /* Clearing current selections is the easiest way to keep
@@ -1972,18 +1940,6 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             }
             break;
 
-        case MUIA_List_AutoVisible:
-            _handle_bool_tag(data->flags, tag->ti_Data, LIST_AUTOVISIBLE);
-            break;
-
-        case MUIA_List_ShowDropMarks:
-            _handle_bool_tag(data->flags, tag->ti_Data, LIST_SHOWDROPMARKS);
-            break;
-
-        case MUIA_List_DragSortable:
-            _handle_bool_tag(data->flags, tag->ti_Data, LIST_DRAGSORTABLE);
-            break;
-
         case MUIA_Selected:
             /* Swallow this so the Area class doesn't redraw us */
             tag->ti_Tag = TAG_IGNORE;
@@ -2006,18 +1962,6 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_Listview_ScrollerPos: /* private set */
             data->scroller_pos = tag->ti_Data;
             List_HandleScrollerPos(cl, obj);
-            break;
-
-        case MUIA_Listview_Input: /* private set */
-            data->read_only = !tag->ti_Data;
-            break;
-
-        case MUIA_Listview_MultiSelect: /* private set */
-            data->multiselect = tag->ti_Data;
-            break;
-
-        case MUIA_Listview_DefClickColumn:
-            data->def_click_column = tag->ti_Data;
             break;
 
         case MUIA_Listview_DragType:
