@@ -2035,6 +2035,20 @@ static __attribute__((noinline)) void TitleGadgetUp(Object *win, struct MUI_Wind
 }
 #endif
 
+/* The window's limits from its contents' and its borders */
+static __attribute__((noinline)) void ContentLimits(
+    struct MUI_WindowData *data, struct Window *win)
+{
+    int hborders = win->BorderLeft + win->BorderRight;
+    int vborders = win->BorderTop + win->BorderBottom;
+
+    WindowLimits(win,
+        data->wd_MinMax.MinWidth + hborders,
+        data->wd_MinMax.MinHeight + vborders,
+        data->wd_MinMax.MaxWidth + hborders,
+        data->wd_MinMax.MaxHeight + vborders);
+}
+
 /* The native menus of a menu strip object, laid out (NULL without) */
 static __attribute__((noinline)) struct Menu *MakeMenus(APTR visinfo,
     Object *strip)
@@ -2208,9 +2222,6 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
     if (win)
     {
 
-        int hborders = win->BorderLeft + win->BorderRight;
-        int vborders = win->BorderTop + win->BorderBottom;
-
         /* recalc window size (which will hopefully equal our requested
          * size) */
         data->wd_Width = win->GZZWidth;
@@ -2220,12 +2231,7 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
         CreateNativeTitleGadgets(obj, data, win);
 #endif
         /* set window limits according to window contents */
-        WindowLimits
-            (win,
-            data->wd_MinMax.MinWidth + hborders,
-            data->wd_MinMax.MinHeight + vborders,
-            data->wd_MinMax.MaxWidth + hborders,
-            data->wd_MinMax.MaxHeight + vborders);
+        ContentLimits(data, win);
 
         win->UserData = (BYTE *) data->wd_RenderInfo.mri_WindowObject;
         win->UserPort = muiGlobalInfo(obj)->mgi_WindowsPort;
@@ -3030,18 +3036,8 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
 
     case IDCMP_NEWSIZE:
     case IDCMP_CHANGEWINDOW:
-        {
-            int hborders = iWin->BorderLeft + iWin->BorderRight;
-            int vborders = iWin->BorderTop + iWin->BorderBottom;
-
-            /* set window limits according to window contents */
-            WindowLimits
-                (iWin,
-                data->wd_MinMax.MinWidth + hborders,
-                data->wd_MinMax.MinHeight + vborders,
-                data->wd_MinMax.MaxWidth + hborders,
-                data->wd_MinMax.MaxHeight + vborders);
-        }
+        /* set window limits according to window contents */
+        ContentLimits(data, iWin);
 
         if ((iWin->GZZWidth != data->wd_Width)
             || (iWin->GZZHeight != data->wd_Height))
