@@ -9,6 +9,7 @@ from pathlib import Path
 from amitools.binfmt.BinFmt import BinFmt
 from amitools.binfmt.Relocate import Relocate
 from amitools.vamos.machine.machine import Machine
+import symbols
 from check_class_lifetime import low_memory, check_low_memory
 
 BASE, STACK = 0x10000, 0xf0000
@@ -22,10 +23,7 @@ class PrefsHarness:
     def __init__(self, path):
         image = BinFmt().load_image(str(path))
         reloc = Relocate(image)
-        self.symbols = {s.name.decode(): address + s.offset
-                        for seg, address in zip(image.get_segments(),
-                                                reloc.get_seq_addrs(BASE))
-                        if seg.symtab for s in seg.symtab.symbols}
+        self.symbols = symbols.load(image, reloc, BASE)
         self.machine = Machine()
         self.mem, self.cpu = self.machine.mem, self.machine.cpu
         self.mem.w_block(BASE, bytes(reloc.relocate_one_block(BASE)))

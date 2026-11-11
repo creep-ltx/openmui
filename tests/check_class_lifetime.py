@@ -10,6 +10,7 @@ from pathlib import Path
 from amitools.binfmt.BinFmt import BinFmt
 from amitools.binfmt.Relocate import Relocate
 from amitools.vamos.machine.machine import Machine
+import symbols
 
 # Keep linked code above the mocked OS, objects, heap and stack.
 BASE, STACK, RAM_KIB = 0x100000, 0xf0000, 2048
@@ -44,10 +45,7 @@ class Harness:
         image = BinFmt().load_image(str(path))
         reloc = Relocate(image)
         data = bytes(reloc.relocate_one_block(BASE))
-        self.symbols = {s.name.decode(): address + s.offset
-                        for seg, address in zip(image.get_segments(),
-                                                reloc.get_seq_addrs(BASE))
-                        if seg.symtab for s in seg.symtab.symbols}
+        self.symbols = symbols.load(image, reloc, BASE)
         assert len(data) < RAM_KIB * 1024 - BASE, "library exceeds code region"
         self.machine = Machine.from_name("68000", ram_size=RAM_KIB)
         self.mem, self.cpu = self.machine.mem, self.machine.cpu
@@ -369,9 +367,9 @@ def expunge(h):
 def hierarchy(h):
     h.call('LibOpen')
     count = 0
-    for name, descriptor in sorted(h.symbols.items()):
+    for name in sorted(h.symbols):
         if name.startswith('__MUI_') and name.endswith('_desc'):
-            cl = h.call('ZUNE_GetBuiltinClass', h.mem.r32(descriptor), MASTER)
+            cl = h.call('ZUNE_GetBuiltinClass', h.mem.r32(h.symbols[name]), MASTER)
             if cl:
                 count += 1
                 h.call('MUI_FreeClass', cl)

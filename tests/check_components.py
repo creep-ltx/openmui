@@ -9,6 +9,7 @@ from pathlib import Path
 from amitools.binfmt.BinFmt import BinFmt
 from amitools.binfmt.Relocate import Relocate
 from amitools.vamos.machine.machine import Machine
+import symbols as symtab
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
@@ -23,9 +24,7 @@ def plugin(path):
     image = BinFmt().load_image(str(path))
     reloc = Relocate(image)
     data = bytes(reloc.relocate_one_block(BASE))
-    symbols = {s.name.decode(): address + s.offset
-               for seg, address in zip(image.get_segments(), reloc.get_seq_addrs(BASE))
-               if seg.symtab for s in seg.symtab.symbols}
+    symbols = symtab.load(image, reloc, BASE)
     # Executable stdio and exit machinery must not enter shared libraries.
     assert not {'_exit', '___initstdio', '___INIT_LIST__'} & symbols.keys(), path
     machine = Machine()

@@ -8,6 +8,7 @@ from pathlib import Path
 from amitools.binfmt.BinFmt import BinFmt
 from amitools.binfmt.Relocate import Relocate
 from amitools.vamos.machine.machine import Machine
+import symbols as symtab
 from check_class_lifetime import BASE, STACK, RAM_KIB
 
 CLASS, OBJECT, ROOT, MESSAGE = 0x70000, 0x71000, 0x72000, 0x73000
@@ -27,9 +28,7 @@ def check(path):
     reloc = Relocate(image)
     data = bytes(reloc.relocate_one_block(BASE))
     assert len(data) < RAM_KIB * 1024 - BASE, "library exceeds code region"
-    symbols = {s.name.decode(): address + s.offset
-               for seg, address in zip(image.get_segments(), reloc.get_seq_addrs(BASE))
-               if seg.symtab for s in seg.symtab.symbols}
+    symbols = symtab.load(image, reloc, BASE)
     for mode in ['open', 'shared port', 'closed', 'partial setup', 'no root']:
         machine = Machine.from_name("68000", ram_size=RAM_KIB)
         mem, cpu = machine.mem, machine.cpu
