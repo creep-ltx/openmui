@@ -35,25 +35,41 @@ CPPFLAGS += -DNDEBUG -DMUIMASTER_YES_INLINE_STDARG= -DZUNE68_GCC_NATIVE \
   -DMUI_OBSOLETE -DMUIMASTER_LIBRARY_BUILD \
   -I$(BUILD)/include -I$(BUILD) -Igcc -Iinclude -I. -include include/clib/muimaster_protos.h -include lazylib.h \
   -include $(BUILD)/trace-config.h
-# LTO=1: link-time optimization of the library's own objects (off by
-# default). They are compiled to GIMPLE and optimized together in one
-# relocatable link ($(BUILD)/core-lto.o, -r -flinker-output=rel); the
-# final link of the library is an ordinary one, so the hunk symbols stay
-# right (an LTO final link with the m68k-amigaos linker, binutils 2.46,
-# writes most of them wrong). Functions are not inlined into their single
-# caller across files: that put whole helpers into the dispatchers and made
-# the deepest stack 600 bytes deeper. It is off because the vamos checks
-# (tests/check_*.py) trap library functions by name and LTO inlines some
-# of them into their callers, so `make check` cannot run on an LTO build
-# (docs/lean/README.md, "Toward the core"). Class files and modules are
-# linked without LTO (small links of their own).
+# LTO=1: link-time optimization of the library (off: it is measured not to
+# pay under the stack rule, docs/lean/README.md "LTO, done right, and why it
+# stays off"). The objects are compiled to GIMPLE (-flto) and the final
+# link optimizes them together with the plain objects (start, the library
+# init, the gates, modules.c, the class table); `make check` runs on the
+# result. The vamos checks (tests/check_*.py) trap and call library
+# functions by name: the names they look up (tests/trapped-symbols.txt,
+# kept by tests/symbols.py) are declared noinline and kept visible through
+# the generated $(BUILD)/trapped.h (gcc/trapped.py), so the traps are
+# reached and the symbols stay. (The symbol hunk of an LTO link also lists
+# every symbol the link made local, all at the end of the code; the names
+# on the list are right, and they are what the checks use.) Class files and
+# modules are linked without LTO (small links of their own). Knobs for
+# measuring: LTO_ONCE (the called-once inlining), LTO_PARAMS (--param ...,
+# at compile time: recorded per object, the link ignores them), LTO_KEEP
+# (what gcc/trapped.py keeps out of line beyond the list).
 LTO ?= 0
 ifneq ($(LTO),0)
 ifneq ($(LTO),1)
 $(error LTO must be 0 or 1)
 endif
-LTO_CFLAGS = -flto -fno-inline-functions-called-once
-LTO_LDFLAGS =
+LTO_ONCE ?= -fno-inline-functions-called-once
+LTO_CFLAGS = -flto $(LTO_ONCE) $(LTO_PARAMS) -include $(BUILD)/trapped.h
+LTO_LDFLAGS = -flto=auto $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS)) \
+  $(LTO_ONCE) $(LTO_PARAMS)
+LTO_GENERATED = $(BUILD)/trapped.h
+# The methods stay functions of their own (gcc/trapped.py --noinline):
+# LTO would otherwise inline each method its dispatcher alone calls into
+# the dispatcher, whose frame every method of the class then carries
+# (Poplist's 16 -> 124 bytes).
+LTO_KEEP ?= --noinline '\w+__(OM|MUIM)_\w+'
+# modules.c defines the module stubs in asm; an LTO object shows them to
+# no nm, and the class files' interface (gcc/classfiles.py) needs them:
+# it stays a plain object.
+$(BUILD)/modules.o: LTO_CFLAGS =
 endif
 # bebbo's GCC 6.5 (m68k-amigaos-gcc with -fbbb): its "i" pass turns
 # (a2) into (a2)+ and leaves the later offsets from a2 as they were, so
@@ -113,6 +129,19 @@ SOURCES = \
   classes/zmenu.c classes/zpicture.c classes/zdragdrop.c classes/zrequest.c \
   classes/zgradient.c classes/zwintitle.c classes/zframes.c \
   classes/zlist.c classes/zmui45.c classes/zprefs.c
+# The functions the checks trap, kept out of line in an LTO build (above).
+# `make trapped-list` regenerates the list from a run of the checks on an
+# LTO=0 build (tests/symbols.py records every name they look up).
+TRAPPED_LIST = ../../../tests/trapped-symbols.txt
+$(BUILD)/trapped.h: gcc/trapped.py $(TRAPPED_LIST) $(SOURCES) GNUmakefile
+	@mkdir -p $(@D)
+	$(PYTHON) gcc/trapped.py $@ $(TRAPPED_LIST) $(LTO_KEEP) $(filter %.c,$^)
+.PHONY: trapped-list
+trapped-list:
+	rm -f $(BUILD)/symbols.log
+	$(MAKE) -f GNUmakefile check BUILD=$(BUILD) LTO=0 ZUNE68_SYMBOLS_LOG=$(BUILD)/symbols.log
+	sort -u $(BUILD)/symbols.log > $(TRAPPED_LIST)
+export ZUNE68_SYMBOLS_LOG
 # Classes built as files of their own, $(BUILD)/Zune/<Name>.mui, installed
 # in LIBS:Zune/ and loaded the first time a program makes one of their
 # objects, as MUI 3.8 does with MUI:Libs/mui (classfile.h). CLASSFILES=
@@ -140,7 +169,7 @@ LDLIBS = -Wl,--start-group -lgcc -lnix20 -lnix -lm -lamiga -ldebug \
 GENERATED = $(BUILD)/muimaster_strings.h $(BUILD)/trace-config.h $(BUILD)/build-date.h \
   $(BUILD)/include/libraries/mui.h \
   $(BUILD)/include/inline/muimaster.h $(BUILD)/include/inline/muiscreen.h $(BUILD)/gates.h \
-  $(BUILD)/classfiles.h
+  $(BUILD)/classfiles.h $(LTO_GENERATED)
 
 .PHONY: all clean check check-core check-sdk release
 include ../../../tools/flags.mk
@@ -367,19 +396,9 @@ $(BUILD)/zunemaster_lib.o: zunemaster_lib.c $(GENERATED)
 	$(CC) $(CPPFLAGS) $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS)) -I$(BUILD) -MMD -MP -c $< -o $@
 
 # Keep start.o first regardless of the compiler's function ordering.
-ifneq ($(LTO),0)
-# One relocatable link optimizes the library's objects together; only
-# objects compiled with -flto go in (with a plain object among them the
-# plugin merges the GIMPLE instead of compiling it). The gates and the
-# class table are compiled without LTO and linked after it.
-$(BUILD)/core-lto.o: $(OBJECTS)
-	$(CC) $(CPUFLAGS) $(CRTFLAGS) -nostdlib -r -flinker-output=rel $(LIB_CFLAGS) -o $@ $^
-LINK_OBJECTS = $(BUILD)/gates.o $(BUILD)/core-lto.o $(BUILD)/cf/classtable.o
-else
 LINK_OBJECTS = $(BUILD)/gates.o $(OBJECTS) $(BUILD)/cf/classtable.o
-endif
 $(BUILD)/%.library: $(BUILD)/start.o $(BUILD)/%_lib.o $(LINK_OBJECTS)
-	$(CC) $(CPUFLAGS) $(CRTFLAGS) -nostdlib $(LDFLAGS) \
+	$(CC) $(CPUFLAGS) $(CRTFLAGS) -nostdlib $(LDFLAGS) $(LTO_LDFLAGS) \
 	  -Wl,-Map,$@.map -o $@ $^ $(LDLIBS)
 
 # Class files (classfile.h): which class is in which file, the class code
