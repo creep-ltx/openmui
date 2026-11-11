@@ -3674,7 +3674,7 @@ static void Layout1D_settle(struct MinList *children, WORD remainder,
  * report residual space or prove convergence for every input. No allocation
  * or result.
  */
-static void Layout1D_minmax_constraints_and_redistrib(struct MinList
+static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(struct MinList
     *children, WORD total_size, WORD remainder, WORD samesize,
     BOOL group_horiz)
 {
@@ -3810,7 +3810,7 @@ static void Layout1D_minmax_constraints_and_redistrib(struct MinList
  * clamped children keep their weight in the divisor. After eight
  * passes the rest goes one pixel at a time to the movable children from
  * the last one back. */
-static void Layout1D_mui_redistrib(struct MinList *children, WORD total_size,
+static __attribute__((noinline)) void Layout1D_mui_redistrib(struct MinList *children, WORD total_size,
     ULONG total_weight, BOOL group_horiz)
 {
     APTR cstate;
@@ -3939,7 +3939,7 @@ static void Layout1D_weight_constraint(WORD *total_sizep,
  * while the minimum sizes of the remaining children do not fit, all
  * children of the lowest disappear level still present disappear. They
  * get their minimum size and are hidden; the others are laid out. */
-static void group_disappear(Object *obj, struct MUI_GroupData *data,
+static __attribute__((noinline)) void group_disappear(Object *obj, struct MUI_GroupData *data,
     struct MinList *children, BOOL horiz, WORD available)
 {
     WORD spacing = horiz ? data->horiz_spacing : data->vert_spacing;
@@ -4022,7 +4022,7 @@ static void group_disappear(Object *obj, struct MUI_GroupData *data,
 }
 
 /* Show children that reappeared in a shown group, after their layout */
-static void group_reappear(Object *obj, struct MinList *children)
+static __attribute__((noinline)) void group_reappear(Object *obj, struct MinList *children)
 {
     APTR cstate;
     Object *child;
@@ -4042,10 +4042,13 @@ static void group_reappear(Object *obj, struct MinList *children)
  * expands content bounds. Helper failure has no reported status; MUI_Layout
  * currently returns TRUE regardless of child Layout result.
  */
-static void group_layout_vert(struct IClass *cl, Object *obj,
+static void group_layout_1d(struct IClass *cl, Object *obj,
     struct MinList *children)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
+    /* read from the flags where used: one register less across the
+     * children's layout, which nests with the groups */
+#define horiz ((data->flags & GROUP_HORIZ) != 0)
     APTR cstate;
     Object *child;
     ULONG total_weight;
@@ -4053,14 +4056,11 @@ static void group_layout_vert(struct IClass *cl, Object *obj,
     WORD total_size;
     WORD total_size_backup;
     WORD total_init_size;       /* total size of the ideally sized children */
-    WORD width;
-    WORD left = 0;
-    WORD top = 0;
+    WORD pos = 0;
     WORD layout_width;
     WORD layout_height;
-
-    //kprintf("group_layout_vert: virtoff = %d,%d\n",
-    //    GV(data)->virt_offx, GV(data)->virt_offy);
+    WORD length, breadth, spacing;
+    ULONG weight_sum;
 
     if (data->flags & GROUP_VIRTUAL)
     {
@@ -4080,16 +4080,27 @@ static void group_layout_vert(struct IClass *cl, Object *obj,
         layout_height = _mheight(obj);
     }
 
-    group_disappear(obj, data, children, FALSE, layout_height);
-    total_weight = data->vert_weight_sum;
-    total_init_size = 0;
-    total_size =
-        layout_height - (data->num_visible_children -
-        1) * data->vert_spacing;
-    total_size_backup = total_size;
+    /* the axis the children are placed along, and the other one */
+    if (horiz)
+    {
+        length = layout_width;
+        breadth = layout_height;
+        spacing = data->horiz_spacing;
+        weight_sum = data->horiz_weight_sum;
+    }
+    else
+    {
+        length = layout_height;
+        breadth = layout_width;
+        spacing = data->vert_spacing;
+        weight_sum = data->vert_weight_sum;
+    }
 
-/*      D(bug("\nvert layout for %p, A=%d W=%ld\n", */
-/*          obj, total_size, total_weight)); */
+    group_disappear(obj, data, children, horiz, length);
+    total_weight = weight_sum;
+    total_init_size = 0;
+    total_size = length - (data->num_visible_children - 1) * spacing;
+    total_size_backup = total_size;
 
     // weight constraints
     // calculate ideal size for each object, and total ideal size
@@ -4099,139 +4110,19 @@ static void group_layout_vert(struct IClass *cl, Object *obj,
         if (IS_HIDDEN(child))
             continue;
 
-        Layout1D_weight_constraint(&total_size, &total_init_size,
-            &total_weight, &_height(child), _vweight(child),
-            _minheight(child));
-/*          D(bug("child %p : ideal=%d w=%ld\n", */
-/*                child, _height(child), _vweight(child))); */
+        if (horiz)
+            Layout1D_weight_constraint(&total_size, &total_init_size,
+                &total_weight, &_width(child), _hweight(child),
+                _minwidth(child));
+        else
+            Layout1D_weight_constraint(&total_size, &total_init_size,
+                &total_weight, &_height(child), _vweight(child),
+                _minheight(child));
     }                           // while child, weight constraints
 
     total_size = total_size_backup;
-    remainder = total_size - total_init_size;
-
-    if (data->flags & GROUP_VIRTUAL)
-    {
-        /* This is also true for non virtual groups, but if this would be the
-         ** case then there is a bug in the layout function
-         */
-        if (total_size < 0)
-            total_size = 0;
-    }
-
-    if (!(data->flags & GROUP_SAME_HEIGHT) && data->vert_weight_sum > 0)
-        Layout1D_mui_redistrib(children, total_size,
-            data->vert_weight_sum, FALSE);
-    else
-        Layout1D_minmax_constraints_and_redistrib(children,
-            total_size,
-            remainder,
-            (data->flags & GROUP_SAME_HEIGHT) ?
-                data->samesize_maxmin_vert : 0,
-            FALSE);
-
-    // do the layout
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (IS_HIDDEN(child))
-            continue;
-
-        /* the maximum wins over a larger minimum, as in MUI 3.9
-         * (tests/native/defclamp.c) */
-        width = MIN(MAX(layout_width, _minwidth(child)), _maxwidth(child));
-        left = (layout_width - width) / 2;
-
-/*          D(bug("child %p -> layout %d x %d\n", */
-/*              child, width, _height(child))); */
-        if (!MUI_Layout(child, left, top, width, _height(child), 0))
-            return;
-        top += data->vert_spacing + _height(child);
-    }
-
-    if (!(data->flags & GROUP_VIRTUAL))
-        group_reappear(obj, children);
-}
-
-
-/*
- * Compute horizontal weighted child widths and centered heights using prior
- * min/max data, then lay out visible non-border children. Virtual mode
- * clamps content dimensions to saved limits. Requires live geometry and
- * consistent cached weights. No result; child layout errors are not
- * propagated by MUI_Layout.
- */
-static void group_layout_horiz(struct IClass *cl, Object *obj,
-    struct MinList *children)
-{
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    ULONG total_weight;
-    WORD remainder;    /* must converge to 0 to successfully end layout */
-    WORD total_size;
-    WORD total_size_backup;
-    WORD total_init_size;       /* total size of the ideally sized children */
-    WORD height;
-    WORD top = 0;
-    WORD left = 0;
-    WORD layout_width;
-    WORD layout_height;
-
-    //kprintf("group_layout_horiz: virtoff = %d,%d\n",
-    //    GV(data)->virt_offx, GV(data)->virt_offy);
-
-    if (data->flags & GROUP_VIRTUAL)
-    {
-        data->virt->virt_mwidth =
-            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
-            _maxwidth(obj) - _subwidth(obj));
-        data->virt->virt_mheight =
-            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
-            _maxheight(obj) - _subheight(obj));
-
-        layout_width = GV(data)->virt_mwidth;
-        layout_height = GV(data)->virt_mheight;
-
-        //kprintf("group_layout_horiz: layoutsize %d x %d "
-        //    " virtsize %d x %d  msize %d x %d\n",
-        //    layout_width, layout_height, GV(data)->virt_mwidth,
-        //    GV(data)->virt_mheight,
-        //    _mwidth(obj), _mheight(obj));
-    }
-    else
-    {
-        layout_width = _mwidth(obj);
-        layout_height = _mheight(obj);
-    }
-
-    group_disappear(obj, data, children, TRUE, layout_width);
-    total_weight = data->horiz_weight_sum;
-    total_init_size = 0;
-    total_size =
-        layout_width - (data->num_visible_children -
-        1) * data->horiz_spacing;
-    total_size_backup = total_size;
-
-/*      D(bug("\nhoriz layout for %p, A=%d W=%ld\n", */
-/*          obj, total_size, total_weight)); */
-
-    // weight constraints
-    // calculate ideal size for each object, and total ideal size
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (IS_HIDDEN(child))
-            continue;
-
-        Layout1D_weight_constraint(&total_size, &total_init_size,
-            &total_weight, &_width(child), _hweight(child),
-            _minwidth(child));
-/*          D(bug("child %p : ideal=%d w=%ld\n", */
-/*                child, _width(child), _hweight(child))); */
-    }                           // while child, weight constraints
-
-    total_size = total_size_backup;
-    if (data->horiz_weight_sum > 0)
+    /* a horizontal group without weights has no remainder (as before) */
+    if (!horiz || weight_sum > 0)
         remainder = total_size - total_init_size;
     else
         remainder = 0;
@@ -4245,39 +4136,52 @@ static void group_layout_horiz(struct IClass *cl, Object *obj,
             total_size = 0;
     }
 
-    if (!(data->flags & GROUP_SAME_WIDTH) && data->horiz_weight_sum > 0)
-        Layout1D_mui_redistrib(children, total_size,
-            data->horiz_weight_sum, TRUE);
+    if (!(data->flags & (horiz ? GROUP_SAME_WIDTH : GROUP_SAME_HEIGHT))
+        && weight_sum > 0)
+        Layout1D_mui_redistrib(children, total_size, weight_sum, horiz);
     else
         Layout1D_minmax_constraints_and_redistrib(children,
             total_size,
             remainder,
-            (data->flags & GROUP_SAME_WIDTH) ?
-                data->samesize_maxmin_horiz : 0,
-            TRUE);
+            (data->flags & (horiz ? GROUP_SAME_WIDTH : GROUP_SAME_HEIGHT)) ?
+                (horiz ? data->samesize_maxmin_horiz
+                    : data->samesize_maxmin_vert) : 0,
+            horiz);
 
     // do the layout
     cstate = children->mlh_Head;
     while ((child = NextObject(&cstate)))
     {
+        WORD size, off;
+        BOOL ok;
+
         if (IS_HIDDEN(child))
             continue;
 
-        /* the maximum wins over a larger minimum, as in MUI 3.9 */
-        height = MIN(MAX(layout_height, _minheight(child)),
-            _maxheight(child));
-        top = (layout_height - height) / 2;
-
-/*          D(bug("child %p -> layout %d x %d\n", */
-/*              child, _width(child), height)); */
-        if (!MUI_Layout(child, left, top, _width(child), height, 0))
+        /* the child's size across, centred: the maximum wins over a larger
+         * minimum, as in MUI 3.9 (tests/native/defclamp.c) */
+        if (horiz)
+        {
+            size = MIN(MAX(breadth, _minheight(child)), _maxheight(child));
+            off = (breadth - size) / 2;
+            ok = MUI_Layout(child, pos, off, _width(child), size, 0);
+            pos += data->horiz_spacing + _width(child);
+        }
+        else
+        {
+            size = MIN(MAX(breadth, _minwidth(child)), _maxwidth(child));
+            off = (breadth - size) / 2;
+            ok = MUI_Layout(child, off, pos, size, _height(child), 0);
+            pos += data->vert_spacing + _height(child);
+        }
+        if (!ok)
             return;
-        left += data->horiz_spacing + _width(child);
     }
 
     if (!(data->flags & GROUP_VIRTUAL))
         group_reappear(obj, children);
 }
+#undef horiz
 
 
 /*
@@ -4697,10 +4601,7 @@ IPTR Group__MUIM_Layout(struct IClass *cl, Object *obj,
     {
         if ((data->rows == 1) && (data->columns == 1))
         {
-            if (data->flags & GROUP_HORIZ)
-                group_layout_horiz(cl, obj, lm.lm_Children);
-            else
-                group_layout_vert(cl, obj, lm.lm_Children);
+            group_layout_1d(cl, obj, lm.lm_Children);
         }
         else
             group_layout_2d(cl, obj, lm.lm_Children);
