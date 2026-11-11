@@ -2543,9 +2543,13 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
 
 
 /* The column bars from y to bottom, in the title (title TRUE) or beside
- * the entries: MUI 3.9 draws shadow, then shine (tests/native/barfmt.c) */
-static void List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
-    LONG bottom, struct ListClip *clip, BOOL title)
+ * the entries: MUI 3.9 draws shadow, then shine (tests/native/barfmt.c).
+ * A bar that needs the entry area's clip while none is installed (not
+ * clipped) stops it: TRUE, and MUIM_Draw installs the clip and calls it
+ * again (the bars before are drawn twice, the same pixels). The clip is
+ * made in MUIM_Draw's frame, as before: MUI_AddClipping goes deep. */
+static BOOL List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
+    LONG bottom, BOOL clipped, BOOL title)
 {
     Object *area = data->area;
     struct RastPort *rp = _rp(obj);
@@ -2562,8 +2566,8 @@ static void List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
 
         if (data->ci[col].bar)
         {
-            if (x1 < _mleft(area) || (!title && y > bottom))
-                List_NeedClip(obj, data, clip);
+            if (!clipped && (x1 < _mleft(area) || (!title && y > bottom)))
+                return TRUE;
             SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
             Move(rp, x1, y);
             Draw(rp, x1, bottom);
@@ -2575,6 +2579,7 @@ static void List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
         }
         x1 += data->ci[col].delta - halfdelta;
     }
+    return FALSE;
 }
 
 /**************************************************************************
@@ -2837,11 +2842,13 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 
     if (data->title_height && data->title)
     {
-        List_DrawBars(obj, data, y,
-            y + data->entries[ENTRY_TITLE]->height - 1, &clip, TRUE);
+        while (List_DrawBars(obj, data, y,
+            y + data->entries[ENTRY_TITLE]->height - 1, clip.done, TRUE))
+            List_NeedClip(obj, data, &clip);
         y += data->entries[ENTRY_TITLE]->height + 1;
     }
-    List_DrawBars(obj, data, y, entries_bottom, &clip, FALSE);
+    while (List_DrawBars(obj, data, y, entries_bottom, clip.done, FALSE))
+        List_NeedClip(obj, data, &clip);
 
     if (clip.done)
         MUI_RemoveClipping(muiRenderInfo(obj), clip.handle);
