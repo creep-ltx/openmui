@@ -94,7 +94,7 @@ never redistributed, never committed). `ID` is the name in `programs.sh`.
 | muimine | MUIMine (game) | 1.2 | Aminet game/think/MUIMine.lha | freeware | custom class drawing, images |
 | installerng | InstallerNG (installer) | 1.5 pre | Aminet util/sys/InstallerNG.lha | freeware | Image buttons, Radio, pages (its own Install script) |
 | amftp | AmFTP (FTP) | 1.91 | Aminet comm/tcp/AmFTP191.lha | freeware (Vapor) | Busy, Listtree, Textinput; its prefs program first |
-| atc | AmiTradeCenter (FTP) | 1.4 | Aminet comm/tcp/AmiTradeCenter.lha | freeware | small toolbar window |
+| atc | AmiTradeCenter (FTP) | 1.4 | Aminet comm/tcp/AmiTradeCenter.lha | freeware | small toolbar window; with reqtools.library installed (MCP's, since 2026-11-11) it opens its Server Manager at start instead, on MUI 3.8 as well (bisected 2026-11-12): the program's |
 | simplemail | SimpleMail (mail) | 0.45 | sourceforge.net/projects/simplemail | GPL | NList(tree), TextEditor, BetterString, TheBar, Popplaceholder, expat |
 | newscoaster | NewsCoaster (news) | 1.61 | Aminet comm/news/newscoaster.lha | open source | Toolbar 15.6, NListtree, NFloattext, TextEditor; first-run user window |
 | ibrowse25 | IBrowse (web) | 2.5.9 (68020) | ibrowse-dev.net download page | commercial, demo mode without a key (30 min) | NList family, Newstring, StringHistory, TextHistory, IBCacheBrowser, big windows |
@@ -164,7 +164,7 @@ MUI). Group `mui3` (ID as in `programs.sh`):
 
 | ID | program | version | where from | licence | asks | what it exercises / what happens |
 |---|---|---|---|---|---|---|
-| voyager | Voyager (web) | 3.5.3 (2026-11-03) | Aminet comm/www/Voyager-3.5.3-AmigaOS.lha | freeware since 2026 (no keyfile) | 19, 18, 5 | Textinput, Popplaceholder, SpeedBar, TearOff, CManager; a toolbar with its own images, `[1] Voyager · About Voyager`; **resets the machine when quit by its close gadget on OpenMUI** (below) |
+| voyager | Voyager (web) | 3.5.3 (2026-11-03) | Aminet comm/www/Voyager-3.5.3-AmigaOS.lha | freeware since 2026 (no keyfile) | 19, 18, 5 | Textinput, Popplaceholder, SpeedBar, TearOff, CManager; a toolbar with its own images, `[1] Voyager · About Voyager`; **resets the machine when quit by its close gadget on OpenMUI** (below; 2026-11-12: a clear into the page bitmap its own quit routine freed, by its own task; memcheck/gfxwatch/chipwatch in tests/lean/memtally; open) |
 | evenmore | EvenMore (text viewer) | 0.94 | Aminet text/show/EvenMore.lha | freeware | 19, 11 | BetterString, plugins |
 | igame | iGame (WHDLoad front-end) | 2.6.1 (2026) | Aminet util/misc/iGame.lha | open source | 19 | NList, lists with columns, a filter string |
 | yam29 | YAM (mail) | 2.9p1 | Aminet comm/yam/YAM29p1-AmigaOS3.lha | GPL | 19 | the YAM between 2.5 and 2.10: NList, TextEditor, TheBar, codesets; its configuration window |
@@ -173,7 +173,7 @@ MUI). Group `mui3` (ID as in `programs.sh`):
 | apdf | Apdf (PDF viewer) | 1.3 (020, no FPU) | Aminet gfx/show/Apdf_nofpu.lha | freeware | 11 | an ASL "Open..." requester first |
 | mcpprefs | MCP's preferences | 1.30 | Aminet util/cdity/MCP130.lha | freeware | 8 | a MUI 2-era prefs program with many pages (reqtools, mcpgfx.library from the archive) |
 | screentabprefs | ScreenTab's preferences | 3.2 | Aminet util/cdity/ScreenTab_3_2.lha | shareware | 19, 11 | no window on any target (wants ScreenTab running) |
-| tinymeterprefs | TinyMeter's preferences | 4.31 | Aminet util/wb/Tinymeter_V431.lha | freeware | 12 | Register pages, a bitmap logo; 549x237 against MUI 3.8's 553x250 |
+| tinymeterprefs | TinyMeter's preferences | 4.31 | Aminet util/wb/Tinymeter_V431.lha | freeware | 12 | Register pages, a bitmap logo; 549x237 against MUI 3.8's 553x250, 553x239 since the root object keeps its frame (2026-11-12; the rest is its default height) |
 | newsrog | NewsRog (news) demo | 1.7b | Aminet comm/news/NewsRogDemo.lha | demo | 19, 11 | its own 30 MCCs in PROGDIR:MUI; a first-start window 272x166 against 280x170 |
 | md2 | MicroDot-II (mail/news) | 1.4 | Aminet comm/news/md2_14.lha | Vapor | ? | Textinput, Listtree, CManager; asks for its database drawer (MUI_AslRequest); does not end at quit on OpenMUI and MUI 3.8, ends at once on MUI 5 |
 | amplifier | AMPlifier (audio player) | 2.10 | Aminet mus/play/AMPlifier.lha | freeware | ? | a skinned player window with MUI gadgets |
@@ -199,7 +199,7 @@ MUI). Group `mui3` (ID as in `programs.sh`):
 | tunefinder | TuneFinderMUI (net radio) | 1.0 beta (2026) | Aminet comm/misc/TuneFinderMUI.lha | freeware | 19 | a list and strings |
 | u64ctl | u64mui (Ultimate64 control) | 0.5.0 (2026) | Aminet comm/misc/u64ctl.lha | freeware | 19 | 500x226 against MUI 3.8's 500x218 |
 | amifritzi | AmiFritzi (FRITZ!Box) | 0.5 (2026) | Aminet comm/tcp/AmiFritzi.lha | freeware | 11 | a settings window first |
-| nfsgui | NFS-GUI (nfs-handler GUI) | 1.1 (2026) | Aminet comm/net/NFS-GUI.lha | freeware | 11 | **ends with return code 20 on OpenMUI before any window** (below); opens on MUI 3.8 and MUI 5 |
+| nfsgui | NFS-GUI (nfs-handler GUI) | 1.1 (2026) | Aminet comm/net/NFS-GUI.lha | freeware | 11 | ~~ends with return code 20 on OpenMUI before any window~~ fixed 2026-11-12 (Register's frame spacing in the fitting stages: the window did not fit 640x256 by 3 pixels; 446x256 as on MUI 3.8 now) |
 | ami2ha | ami2ha (Home Assistant) | 0.5 (2026) | Aminet comm/tcp/ami2ha-0.5.lha | freeware | ? | its 020 build ends at once on every target (wants a configuration) |
 | amihomeassist | AmiHomeassist | 0.9.1 (2026) | Aminet comm/tcp/AmiHomeassist.lha | freeware | 11 | NList; a settings window and the dashboard |
 | amiatari2600 | AmiAtari2600's launcher | 0.1 (2026) | Aminet misc/emu/AmiAtari2600.lha | freeware | 19 | a list of games |
@@ -227,7 +227,7 @@ the demo itself needs something the test machines lack (an argument, a file, a l
 |---|---|---|---|---|---|
 | htmlview-demo | HTMLview | 13.4 | dev/mui/MCC_HTMLview-13.4.lha | freeware (beta) | a time-bombed beta: a system requester first (answered by the hook), then the demo |
 | toolbar-demo | Toolbar | 15.12's demo on 15.6 | dev/mui/mcc_toolbar-15.12.lha | freeware | buttons from a brush |
-| lamp-demo | Lamp | 11.1's demo | dev/mui/MCC_Lamp.lha | freeware | Lamp with Coloradjust and Register pages; 346x227 on OpenMUI, 640x256 on MUI 3.8 (Coloradjust's default size) |
+| lamp-demo | Lamp | 11.1's demo | dev/mui/MCC_Lamp.lha | freeware | Lamp with Coloradjust and Register pages; 338x219 on OpenMUI, 640x256 on MUI 3.8 (MUI 3.8's Coloradjust 60x84/126x84 against 62x72/126x72: 9-pixel labels and a 14x12 popup under the wheel that OpenMUI's lacks, measured 2026-11-12) |
 | speedbar-demo1..9 | SpeedBar, SpeedButton, SpeedBarCfg, SpeedBarVirt | 19.4 | dev/mui/MCC_SpeedBar.lha | freeware | nine toolbar demos; demo6 1 px wider on OpenMUI |
 | bwin-demo1..3 | BWin | 22.0 | dev/mui/MCC_BWin.lha | freeware | borderless windows with their own drag bar (Boopsi gadgets); **demo1 and demo3 opened no window on OpenMUI, fixed**; demo2 resets every target |
 | calendar-demo1..4 | Calendar | 18.3's demos | dev/mui/MCC_Calendar.lha | freeware | demo4 ends at once everywhere |
@@ -240,7 +240,7 @@ the demo itself needs something the test machines lack (an argument, a file, a l
 | tablegroup-demo | TableGroup | 1.0 beta | dev/mui/MCC_TableGroup.lha | freeware | 278x142 against 286x151 |
 | mailtext-demo | Mailtext | 3.1 | dev/mui/MCC_Mailtext.lha | freeware | same |
 | mathstring-demo | MathString | 1.5 | dev/mui/MCC_MathString.lha | freeware | same |
-| tipofday-demo | tipboard, tipwindow | 15.8 | dev/mui/MCC_TipOfDay.lha | freeware | the tip window; its title stays "Tip of the day..." on OpenMUI where MUI 3.8 shows the demo's "Custom titles roxx!" (set after MUIM_Tip_Show), and its list has a scroller MUI 3.8 does not show |
+| tipofday-demo | tipboard, tipwindow | 15.8 | dev/mui/MCC_TipOfDay.lha | freeware | the tip window; ~~its title stays "Tip of the day..."~~ the custom title shows since 2026-11-12 (Window's OM_GET stored 0 for tipwindow's MUIA_Tip_WindowObject), its list still has a scroller MUI 3.8 does not show |
 | transferanim-demo | TransferAnim | 1.5 | dev/mui/MCC_TransferAn.lha | freeware | no window everywhere (imagepool.library) |
 | minimailer-demo | MiniMailer | 20.1 | dev/mui/MCC_MiniMailer.lha | freeware | same |
 | htmltext-demo | HTMLtext | 14.8 | dev/mui/MCC_HTMLtext.lha | freeware | an untitled 85x71 window against 143x83 (and 1 = did not end at quit, everywhere) |
@@ -594,6 +594,14 @@ alike (the demo's: an argument, a file, a library, OS 3.1's missing PNG datatype
 group of before: 35 of 36 as the previous run (AmiTradeCenter opens its Server Manager instead
 of its toolbar this round, with `lean`'s window.c too: the widened install, open); the MUI 4/5
 group 24 of 24 as before. Which MUI each new program asks for is in its table row ("asks").
+
+**Update, branch `compat2` (2026-11-12, compatibility round 2):** NFS-GUI opens (Register's
+frame spacing in the fitting stages), the TipOfDay demo's custom title shows (Window's OM_GET
+stored 0 for a subclass's attribute), a root object keeps its frame (TinyMeterPrefs 553x239),
+List/Scale/Popobject/Popasl set their OM_NEW attributes through the superclass as MUI 3.8 does
+(measured with `probe/newset.c`); AmiTradeCenter's Server Manager is the program's own with
+reqtools.library present (MUI 3.8 too); Voyager's reset is a clear into a bitmap its own quit
+routine freed (open; docs/lean/README.md, "Compatibility round 2"). RESULTS_COMPAT2
 
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second

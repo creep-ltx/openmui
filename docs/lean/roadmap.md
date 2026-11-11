@@ -337,3 +337,11 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   before its window, the TipOfDay demo's title set after MUIM_Tip_Show, Coloradjust's default
   size (Lamp demo), OpenMUI's own Busy.mcc look, and nine windows within 1-58 pixels. Details in
   [README.md](README.md#compatibility-round-1-48-more-programs-49-class-demos-bwins-window-2026-11-11).
+- *2026-11-12 (branch `compat2`, compatibility round 2)*: NFS-GUI 1.1 opens (Register's frame
+  spacing in the fitting stages left its window 3 pixels too tall for 640x256), the TipOfDay
+  demo's custom title (Window's OM_GET cleared a subclass's stored value), the root object keeps
+  its frame (TinyMeterPrefs), the set()-in-OM_NEW audit measured on MUI 3.8 and List, Scale,
+  Popobject, Popasl made to match; AmiTradeCenter's Server Manager is the program's (reqtools);
+  Voyager's reset traced to a clear into a page bitmap its own quit routine freed, by its own
+  task (three memory tools in tests/lean/memtally; the writer not named: open). Details in
+  [README.md](README.md#compatibility-round-2-nfs-gui-tipofday-the-om_new-audit-voyagers-quit-2026-11-12).

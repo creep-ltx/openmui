@@ -2608,6 +2608,137 @@ Amiberry runs report "frozen" programs that are fine alone (known); a `TRACE=1` 
 library opens no window at all here (every program stayed windowless under it), temporary
 `kprintf` lines in a normal build with `wasabi debug` are the way.
 
+## Compatibility round 2: NFS-GUI, TipOfDay, the OM_NEW audit, Voyager's quit (2026-11-12)
+
+Branch `compat2` (from `lean`). The ranked leftovers of round 1, each taken black-box against
+MUI 3.8 on Amiberry (OS 3.1 + OpenMUI, OS 3.1 + MUI 3.8, OS 3.2.1 + MUI 5 side by side).
+
+**NFS-GUI 1.1 ended with return code 20 before any window: the Register's frame spacing in
+the fitting stages (fixed, 3 pixels).** Its binary (disassembled for interoperability; it has
+symbols) opens muimaster 11, makes its application, sets `MUIA_Window_Open` and quits with 20
+when `get(MUIA_Window_Open)` answers FALSE, its "Could not create the application" message going
+to a console it opened itself (the suite runs programs with `>NIL:`). A kprintf at WindowOpen's
+exits: the window did not fit the 640x256 screen in any of the five stages (`KK nofit fb 0 min
+392x316 ... fb 5 min 366x238`, the bottom border 10 with the size gadget there, as on MUI 3.8).
+On MUI 3.8 the same window opens 446x256 at the topaz stage with a root minimum of 358x229;
+OpenMUI's was 366x238 (`zspy` + `objdump` on both): the Register around the pages was 362x187
+against 354x179 around the same 350x163 page. Register's SetHardCoord added the group frame's
+inner spacing (4 beside, 4 above and below) to its tab height in every stage; MUI 3.8 drops
+it from the no-inner-spacing stage on, as Area already did for other frames. Fixed in
+`register.c` (fallback >= FALLBACK_NOINNER: a zero frame spec); NFS-GUI opens 446x256 at 97,0
+as on MUI 3.8, pixel-near (its list is 1 pixel taller: 37 against 36, left). Also found on the
+way: the stages are measured against the *screen font* here (topaz 8 is the normal font of the
+test machine's defaults), so stage 1 (helvetica 11) makes a window *taller* than stage 0
+(316 -> 351 for NFS-GUI) before stages 2-5 shrink it; MUI 3.8 ends at the same topaz stage.
+
+**The TipOfDay demo's title: Window's OM_GET stored 0 for an unknown attribute (fixed).**
+tipwindow.mcc (disassembled: interoperability) answers `MUIA_Tip_WindowObject` with the object
+itself, writes it into `opg_Storage` and then calls the superclass; Window's OM_GET began with
+`STORE = 0` before its switch, so the value came back 0 and the demo's `set(0, MUIA_Window_Title,
+...)` went nowhere (a kprintf in Window's OM_SET saw no title after the two creation titles).
+MUI 3.8 leaves the storage alone (the demo works there). Window and Process (the two OM_GETs
+that cleared storage first) store nothing for an attribute they do not know; the demo shows
+"Custom titles roxx!" now. Its list scroller is still open (below).
+
+**AmiTradeCenter's Server Manager: the program's own doing (documented).** Bisected by halving
+the suite's install on fresh copies (`/tmp/compat2/scripts/atcbisect.sh`: the whole install
+minus the named files): the control reproduces it, without the eight libraries the round added
+the toolbar is back, without the 41 class files the Server Manager stays; then one library at a
+time: **reqtools.library** (MCP's archive) is the trigger. On MUI 3.8 with the same install
+AmiTradeCenter opens its Server Manager too (573x256 there, 409x256 on OpenMUI). Not OpenMUI's:
+with reqtools.library present the program opens the Server Manager at start. The suite keeps
+reqtools (MCP's preferences need it); the row says so.
+
+**The set()-in-OM_NEW audit, measured on MUI 3.8 (`tests/lean/probe/newset.c`).** A subclass of
+Group, List, Scale, Popobject, Popasl, Poplist, Popscreen and Application, whose OM_SET notes
+every attribute it sees while OM_NEW still runs:
+
+| class | MUI 3.8 | OpenMUI before | after |
+|---|---|---|---|
+| Group (Disabled TRUE) | none | none | none |
+| List (DragSortable) | none | Group_LayoutHook | none |
+| Scale | none | Font | none |
+| Popobject | none | Popstring_OpenHook, CloseHook, Toggle | none |
+| Popasl | none | the same three | none |
+| Poplist | Popobject_StrObjHook, ObjStrHook | the three + the two | the two |
+| Popscreen | StrObjHook, ObjStrHook, WindowHook | the three + the two | the two |
+| Application (Base only) | none | none | none |
+
+So MUI 3.8 applies a superclass attribute inside OM_NEW without the subclass, and Poplist and
+Popscreen set their Popobject hooks through it (OpenMUI does the same there: kept). List,
+Scale, Popobject and Popasl now set those through the superclass (`superset`, `SetSuperAttrs`,
+or a constant OM_SET message for Scale). Popscreen's WindowHook is not set on OpenMUI at all
+(its Popscreen has no window hook): a difference a subclass could notice, left. Application's
+iconify-at-startup set (a settings path) is not measurable without that setting; left as is.
+
+**Voyager 3.5.3's reset after a close-gadget quit: found to be a write into Voyager's own
+freed bitmap, by its own task, after its own free; the writer not named yet (open).** Three new
+tools, kept in `tests/lean/memtally/`:
+
+- `memcheck`: patches AllocMem/FreeMem for every task and walks every memory header's chunk
+  list before and after each call; the first damage goes into chip RAM at 0x1A0000 (it survives
+  the reset) with the call, the task, up to eight return addresses, the last 16 calls, the
+  allocations and frees whose block covers the damaged chunk (a ring of 1024 each), the hunks of
+  the calling process's program and of muimaster.library, 128 bytes around the chunk, and freed
+  chip blocks of 4 KB or more filled with 0xDB (so a later write shows). `memcheck read` after
+  the reboot.
+- `gfxwatch`: patches 19 graphics.library drawing calls and reports one whose RastPort's (or
+  BitMap's) plane 0 lies in a free chunk, with callers (checked with `gwtest`: a RectFill into
+  a freed bitmap is reported at once).
+- `chipwatch ADDR`: a VBlank server watching one long (a free chunk's mc_Bytes) for 0; records
+  the task running at that moment and the supervisor stack.
+
+What they say (`/tmp/compat2/zwork/vmemcheck-1772.txt`, the records in the report): the chunk
+at 0x19510 in chip RAM gets `mc_Bytes` 0 (and 69 more zero bytes, then rows of 72 bytes cleared
+555 pixels wide: a bit-exact 2-plane clear, 0x1B where the DB fill was masked). That chunk is a
+32,688-byte block (576 x 227 pixels x 2 planes, the page area of Voyager's 572-wide window)
+that *Voyager's own code* allocated (called from a library method, i.e. in its class's setup)
+and *Voyager's own quit routine freed* (call 6112 of 6274; callers in Voyager's main hunk, not
+through the library), after which Voyager disposes its objects one by one (MUI_DisposeObject
+from its quit routine, the 0x34/0x28 frees of their notify nodes) and somewhere in there the
+clear lands: once inside a FreeMem call's window, once between two of them; chipwatch: the
+write happens while Voyager's own task runs (not another task). gfxwatch saw no drawing call
+into free memory, so the clear does not go through RectFill, SetRast, EraseRect, ScrollRaster,
+Text, Blt*, Clip/Mask/Template/Pattern blits, Draw or the pixel-array writes; with the About
+page's plugin (voyager_about.vlib) and Voyager's own classes as loaded modules outside the
+program's hunks, the writer is most likely a blit of its own. Why MUI 3.8 survives the same quit
+(a different order of Voyager's teardown, or a draw request OpenMUI still delivers during
+dispose) is the open question; the ARexx `QUIT` path, clean on OpenMUI, is Voyager's own too.
+Under `memtally guard` (now with the program's own PROGDIR: and name, so Voyager finds its
+MIMEPrefs) the quit does not reset: the guard's padding moves the block.
+
+**The root object keeps its frame (fixed): TinyMeterPrefs 549x237 -> 553x239.** `objdump` of
+TinyMeterPrefs on both: every minimum the same but the root group's: `add 6,4` on MUI 3.8,
+`add 4,3` on OpenMUI. `tests/lean/probe/rootframe.c` (a framed and a plain root group): MUI 3.8
+160x54 with `add 8,5` for the framed root against 144x50 `add 4,3` for the plain one; OpenMUI
+152x50 and `add 4,3` for both: Area's Setup turned the root object's frame into
+MUIV_Frame_None ("no frame allowed for root object (see Area.doc)"). MUI 3.8 draws it, inside
+the window's inner spacing. The block is gone; the probe gives MUI 3.8's figures. TinyMeterPrefs'
+remaining 11 pixels are its default height (MUI 3.8 opens at 250, its Register page's default
+182 against 143; the minimum 553x239 is the same).
+
+**Looked at, left:** Lamp's demo: MUI 3.8's Coloradjust is 60x84 (default 126x84) against
+OpenMUI's 62x72 (126x72): its labels are 9 pixels high there and 11 here, and below the colour
+wheel MUI 3.8 has a Popobject (14x12, a gradient control beside the wheel in the picture) that
+OpenMUI's Coloradjust lacks; the window is 640x256 there (default larger than the screen) and
+338x219 here. The NFS-GUI list 1 pixel taller (37 against 36). The TipOfDay list scroller, Busy
+2.4's look, the other windows within pixels: not reached.
+
+**THE RULES, measured:**
+
+- Nothing removed; MUI 3 programs pay nothing new (no new file, nothing loaded on demand; the
+  changes are a few instructions in Register, Window, Process, Area, List, Scale, Popobject and
+  Popasl).
+- Stack (`-fstack-usage` of every function against `lean`, `/tmp/compat2/zwork/sudiff.txt`):
+  Window__OM_GET 24 -> 20; Register's SetHardCoord and Scale's OM_NEW as before (a static zero
+  frame spec, a constant OM_SET message); Popobject__OM_NEW 56 -> 60 and Popasl__OM_NEW 64 -> 72
+  (SetSuperAttrs carries the class pointer where SetAttrs did not; object creation only, not on
+  the layout or draw paths; a static hook per class would take it back, not done).
+- Library file: see the commit sizes (278,236 before the round).
+- `make check` passes.
+
+**Results, the final library** (filled in from the final run, below).
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
@@ -2649,16 +2780,19 @@ library opens no window at all here (every program stayed windowless under it), 
   211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
   list pools of 1 KB puddles, Text contents.)
 
-- **Compatibility, found by the widened suite (2026-11-11, `compat1`)**: Voyager 3.5.3 resets
-  the machine after a quit by its close gadget (exec's memory list insane; ARexx QUIT is clean),
-  NFS-GUI 1.1 ends with return code 20 before its window, the TipOfDay demo's window title set
-  after MUIM_Tip_Show does not reach Window, MUI 3.8's Coloradjust is much larger by default
-  (Lamp's demo 640x256 against 346x227), OpenMUI's own Busy.mcc draws a thinner bar than MUI
-  3.8's Busy 2.4, and nine windows within 1-58 pixels (TinyMeterPrefs, NewsRog, the Lumi
-  programs, u64mui, HexEdit, TableGroup, HTMLtext, GIFAnim, TearOff). The `set(obj, ...)` inside
-  OM_NEW that broke BWin.mcc in Window also exists in Application, Group, List, Panelgroup,
-  Scale and the Popobject family (no program has failed on those yet). Details: "Compatibility
-  round 1" above.
+- **Compatibility (2026-11-12, after `compat2`)**: Voyager 3.5.3 still resets the machine after a
+  quit by its close gadget: a 555-pixel-wide clear lands in the 576x227 chip bitmap its own quit
+  routine freed, by its own task, through no graphics.library call; why MUI 3.8 survives it is
+  open (the three tools and the records: "Compatibility round 2" above). Left from the look at
+  sizes: Coloradjust (MUI 3.8's has a 14x12 popup under the wheel and 9-pixel labels), the
+  TipOfDay list scroller, OpenMUI's own Busy.mcc look, NFS-GUI's list 1 pixel, TinyMeterPrefs'
+  default height, NewsRog, the Lumi programs, u64mui, HexEdit, TableGroup, HTMLtext, GIFAnim,
+  TearOff within pixels, the HTMLview demo still running after quit. Popscreen sets no
+  WindowHook (MUI 3.8 does); Application's iconify-at-startup set still goes through a
+  subclass's OM_SET (unmeasured). Fixed this round: NFS-GUI's window (Register's frame spacing
+  in the fitting stages), the TipOfDay title (Window's OM_GET), the root object's frame
+  (TinyMeterPrefs), List/Scale/Popobject/Popasl's OM_NEW sets; AmiTradeCenter's Server Manager
+  is the program's with reqtools.library present (MUI 3.8 too).
 - Tested in emulators only (Amiberry headless since 2026-11-11, FS-UAE before and still
   selectable), not on real hardware; RTG only as uaegfx with Picasso96 3.6.3 in FS-UAE (rtgfix):
   headless Amiberry has no RTG modes. InstallerNG cannot be tested on Amiberry (it freezes it).

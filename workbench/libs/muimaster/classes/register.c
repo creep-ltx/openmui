@@ -531,7 +531,7 @@ static void SetHardCoord(Object *obj, struct Register_DATA *data)
     //    * (data->rows - 1 - data->active/data->columns)
     //    +  REGISTER_FRAMEBOTTOM;
 
-    struct MUI_FrameSpec_intern noinner = {0};
+    static const struct MUI_FrameSpec_intern noinner;   /* all zero */
 
     frame = &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Group];
     /* MUI 3.8 drops the frame's inner spacing in the later stages of
