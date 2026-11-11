@@ -2602,6 +2602,79 @@ static ULONG String_KeyToTextinput(Object *obj, struct MUI_StringData *data,
     return Ti_Call(obj, data, method, 0);
 }
 
+/* An edit hook (MUIA_String_EditHook) sees the key or click as with
+ * Intuition's SGWork: previous is the buffer before, oldpos/oldflags/
+ * oldmark the state before. Frees previous; returns whether the contents
+ * changed. Not inlined: its Intuition structures (about 250 bytes) stay off
+ * HandleEvent's frame, which every key passes. */
+static __attribute__((noinline)) BOOL String_CallEditHook(Object *obj,
+    struct MUI_StringData *data, struct MUIP_HandleEvent *msg,
+    STRPTR previous, LONG oldpos, ULONG oldflags, ULONG oldmark,
+    BOOL hook_key, BOOL acknowledge, ULONG *hook_actions)
+{
+    BOOL edited;
+    struct InputEvent event = {0};
+    struct StringExtend extension = {0};
+    struct StringInfo info = {0};
+    struct Gadget gadget = {0};
+    struct GadgetInfo gi = {0};
+    struct SGWork work = {0};
+    ULONG command = hook_key ? SGH_KEY : SGH_CLICK;
+    BOOL handled;
+    event.ie_Class = hook_key ? IECLASS_RAWKEY : IECLASS_RAWMOUSE;
+    event.ie_Code = msg->imsg->Code;
+    event.ie_Qualifier = msg->imsg->Qualifier;
+    info.Buffer = previous;
+    info.BufferPos = oldpos;
+    info.NumChars = strlen(previous);
+    info.MaxChars = data->BufferSize;
+    info.Extension = &extension;
+    extension.WorkBuffer = data->Buffer;
+    extension.EditHook = data->msd_EditHook;
+    gadget.SpecialInfo = &info;
+    gadget.LeftEdge = _mleft(obj); gadget.TopEdge = _mtop(obj);
+    gadget.Width = _mwidth(obj); gadget.Height = _mheight(obj);
+    gi.gi_Window = _window(obj); gi.gi_Screen = _screen(obj);
+    gi.gi_RastPort = _rp(obj);
+    work.Gadget = &gadget; work.StringInfo = &info;
+    work.GadgetInfo = &gi; work.IEvent = &event;
+    work.WorkBuffer = data->Buffer; work.PrevBuffer = previous;
+    work.BufferPos = data->BufferPos; work.NumChars = data->NumChars;
+    work.Code = hook_key ? ConvertKey(msg->imsg) : 0;
+    work.Actions = SGA_USE | SGA_REDISPLAY;
+    work.EditOp = EO_NOOP;
+    if (acknowledge) work.EditOp = EO_ENTER;
+    else if (data->NumChars > info.NumChars) work.EditOp = EO_INSERTCHAR;
+    else if (data->NumChars < info.NumChars)
+    {
+        work.EditOp = EO_DELFORWARD;
+        if (work.Code == 8) work.Code = 127;
+    }
+    else if (data->BufferPos != oldpos) work.EditOp = EO_MOVECURSOR;
+    else if (strcmp((char *)previous, (char *)data->Buffer)) work.EditOp = EO_REPLACECHAR;
+    handled = CallHookPkt(data->msd_EditHook, &work, &command);
+    if (handled && (work.Actions & SGA_USE))
+    {
+        LONG length = MAX(0, MIN((LONG)data->BufferSize - 1, work.NumChars));
+        data->Buffer[length] = 0;
+        data->NumChars = strlen((char *)data->Buffer);
+        data->BufferPos = MAX(0, MIN((LONG)data->NumChars, work.BufferPos));
+    }
+    else if (handled)
+    {
+        memcpy(data->Buffer, previous, data->BufferSize);
+        data->NumChars = info.NumChars;
+        data->BufferPos = oldpos;
+        data->msd_Flags = oldflags;
+        data->MarkPos = oldmark;
+    }
+    if (handled && hook_key) *hook_actions = work.Actions;
+    if (handled && (work.Actions & SGA_BEEP)) DisplayBeep(_screen(obj));
+    edited = strcmp((char *)previous, (char *)data->Buffer) != 0;
+    FreeVec(previous);
+    return edited;
+}
+
 /**************************************************************************
  MUIM_HandleEvent
 **************************************************************************/
@@ -2735,38 +2808,28 @@ IPTR String__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             break;
 
         case MUIKEY_UP:
-            if (data->KeyUpFocus && muiRenderInfo(obj) && _win(obj))
-                set(_win(obj), MUIA_Window_ActiveObject, data->KeyUpFocus);
-            else if (data->msd_AttachedList)
-                set(data->msd_AttachedList,
-                    MUIA_List_Active, MUIV_List_Active_Up);
-            break;
         case MUIKEY_DOWN:
-            if (data->KeyDownFocus && muiRenderInfo(obj) && _win(obj))
-                set(_win(obj), MUIA_Window_ActiveObject, data->KeyDownFocus);
-            else if (data->msd_AttachedList)
-                set(data->msd_AttachedList,
-                    MUIA_List_Active, MUIV_List_Active_Down);
-            break;
         case MUIKEY_PAGEUP:
-            if (data->msd_AttachedList)
-                set(data->msd_AttachedList,
-                    MUIA_List_Active, MUIV_List_Active_PageUp);
-            break;
         case MUIKEY_PAGEDOWN:
-            if (data->msd_AttachedList)
-                set(data->msd_AttachedList,
-                    MUIA_List_Active, MUIV_List_Active_PageDown);
-            break;
         case MUIKEY_TOP:
-            if (data->msd_AttachedList)
-                set(data->msd_AttachedList,
-                    MUIA_List_Active, MUIV_List_Active_Top);
-            break;
         case MUIKEY_BOTTOM:
-            if (data->msd_AttachedList)
-                set(data->msd_AttachedList,
-                    MUIA_List_Active, MUIV_List_Active_Bottom);
+            {
+                /* BetterString's focus objects for up and down, else the
+                 * attached list moves */
+                static const BYTE active[] = {
+                    MUIV_List_Active_Up, MUIV_List_Active_Down,
+                    MUIV_List_Active_PageUp, MUIV_List_Active_PageDown,
+                    MUIV_List_Active_Top, MUIV_List_Active_Bottom
+                };
+                Object *focus = muikey == MUIKEY_UP ? data->KeyUpFocus
+                    : muikey == MUIKEY_DOWN ? data->KeyDownFocus : NULL;
+
+                if (focus && muiRenderInfo(obj) && _win(obj))
+                    set(_win(obj), MUIA_Window_ActiveObject, focus);
+                else if (data->msd_AttachedList)
+                    set(data->msd_AttachedList, MUIA_List_Active,
+                        (LONG)active[muikey - MUIKEY_UP]);
+            }
             break;
         case MUIKEY_PRESS:
             /* Return is a newline in a Multiline String */
@@ -3079,67 +3142,10 @@ IPTR String__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
     if (previous)
     {
-        struct InputEvent event = {0};
-        struct StringExtend extension = {0};
-        struct StringInfo info = {0};
-        struct Gadget gadget = {0};
-        struct GadgetInfo gi = {0};
-        struct SGWork work = {0};
-        ULONG command = hook_key ? SGH_KEY : SGH_CLICK;
-        BOOL handled;
-        event.ie_Class = hook_key ? IECLASS_RAWKEY : IECLASS_RAWMOUSE;
-        event.ie_Code = msg->imsg->Code;
-        event.ie_Qualifier = msg->imsg->Qualifier;
-        info.Buffer = previous;
-        info.BufferPos = oldpos;
-        info.NumChars = strlen(previous);
-        info.MaxChars = data->BufferSize;
-        info.Extension = &extension;
-        extension.WorkBuffer = data->Buffer;
-        extension.EditHook = data->msd_EditHook;
-        gadget.SpecialInfo = &info;
-        gadget.LeftEdge = _mleft(obj); gadget.TopEdge = _mtop(obj);
-        gadget.Width = _mwidth(obj); gadget.Height = _mheight(obj);
-        gi.gi_Window = _window(obj); gi.gi_Screen = _screen(obj);
-        gi.gi_RastPort = _rp(obj);
-        work.Gadget = &gadget; work.StringInfo = &info;
-        work.GadgetInfo = &gi; work.IEvent = &event;
-        work.WorkBuffer = data->Buffer; work.PrevBuffer = previous;
-        work.BufferPos = data->BufferPos; work.NumChars = data->NumChars;
-        work.Code = hook_key ? ConvertKey(msg->imsg) : 0;
-        work.Actions = SGA_USE | SGA_REDISPLAY;
-        work.EditOp = EO_NOOP;
-        if (acknowledge) work.EditOp = EO_ENTER;
-        else if (data->NumChars > info.NumChars) work.EditOp = EO_INSERTCHAR;
-        else if (data->NumChars < info.NumChars)
-        {
-            work.EditOp = EO_DELFORWARD;
-            if (work.Code == 8) work.Code = 127;
-        }
-        else if (data->BufferPos != oldpos) work.EditOp = EO_MOVECURSOR;
-        else if (strcmp((char *)previous, (char *)data->Buffer)) work.EditOp = EO_REPLACECHAR;
-        handled = CallHookPkt(data->msd_EditHook, &work, &command);
-        if (handled && (work.Actions & SGA_USE))
-        {
-            LONG length = MAX(0, MIN((LONG)data->BufferSize - 1, work.NumChars));
-            data->Buffer[length] = 0;
-            data->NumChars = strlen((char *)data->Buffer);
-            data->BufferPos = MAX(0, MIN((LONG)data->NumChars, work.BufferPos));
-        }
-        else if (handled)
-        {
-            memcpy(data->Buffer, previous, data->BufferSize);
-            data->NumChars = info.NumChars;
-            data->BufferPos = oldpos;
-            data->msd_Flags = oldflags;
-            data->MarkPos = oldmark;
-        }
-        if (handled && hook_key) hook_actions = work.Actions;
-        if (handled && (work.Actions & SGA_BEEP)) DisplayBeep(_screen(obj));
-        edited = strcmp((char *)previous, (char *)data->Buffer) != 0;
+        edited = String_CallEditHook(obj, data, msg, previous, oldpos,
+            oldflags, oldmark, hook_key, acknowledge, &hook_actions);
         update = TRUE;
         retval = MUI_EventHandlerRC_Eat;
-        FreeVec(previous);
     }
 
     /* Trigger notification */
