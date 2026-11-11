@@ -1,9 +1,13 @@
-Zune68k lean [RELEASE] for AmigaOS 3.x / m68k
-=============================================
+[STAGE] [RELEASE] for AmigaOS 3.x / m68k
+=======================================
 
-Zune68k lean is a muimaster.library for AmigaOS 3.x: AROS's Zune as
-ported to AmigaOS 3 by Zune68 (Stefan Reinauer), with a diet so that it
-runs on a stock 68000 with OS 3.1 and stays close to MUI 3.8 in memory.
+OpenMUI is a muimaster.library for AmigaOS 3.x: AROS's Zune (The AROS
+Development Team) as ported to AmigaOS 3 by Zune68 (Stefan Reinauer), with
+a diet so that it runs on a stock 68000 with OS 3.1 and stays close to
+MUI 3.8 in look and memory. MUI 3.8 was studied clean-room: its
+behaviour, never its code. OpenMUI is not MUI and is not affiliated with
+MUI's authors; MUI is the product of Stefan Stuntz. Earlier test builds
+were called Zune68k lean.
 This is a test build ([STAGE], [RELEASE]). The figures here were
 measured in an emulator (FS-UAE), not on a real Amiga.
 
@@ -23,63 +27,65 @@ Double-click Install, or from a Shell in this drawer:
 
 The installer first shows what it found: a MUI you already have (MUI 3.x,
 4 or 5 in SYS:MUI or MUI:, its lines in S:User-Startup), every
-muimaster.library in the LIBS: drawers, and an earlier Zune. None of it
-is changed. Zune goes into the first LIBS: drawer (normally SYS:Libs),
-which programs search before MUI's MUI:Libs, so they get Zune; nothing is
+muimaster.library in the LIBS: drawers, and an earlier installation. None of it
+is changed. OpenMUI goes into the first LIBS: drawer (normally SYS:Libs),
+which programs search before MUI's MUI:Libs, so they get OpenMUI; nothing is
 added to S:Startup-Sequence or S:User-Startup.
 
   Libs/muimaster.library, zunemaster.library -> first LIBS: drawer
-  Libs/Zune/*        -> LIBS:Zune/ (Zune's own class files and modules,
+  Libs/Zune/*        -> LIBS:Zune/ (OpenMUI's own class files and modules,
                         loaded when a program first needs them)
   Libs/MUI/*         -> LIBS:MUI/ of the first LIBS: drawer, never into
                         MUI's own MUI:Libs/mui
-  Prefs/Zune         -> SYS:Prefs/Zune
+  Prefs/OpenMUI      -> SYS:Prefs/OpenMUI
   Locale/Catalogs/*  -> LOCALE:Catalogs/<language>/ (optional)
-  Tools/ZuneSwitch and the icons below -> SYS:Zune68k
+  Tools/OpenMUISwitch and the icons below -> SYS:OpenMUI
 
-Every file the installer replaces is kept in SYS:Zune68k/Data/Backup, and
-every file it installs is written down in SYS:Zune68k/Data/Manifest.
+Every file the installer replaces is kept in SYS:OpenMUI/Data/Backup, and
+every file it installs is written down in SYS:OpenMUI/Data/Manifest.
 
 The bundled MUI classes (NList, TextEditor, TheBar, ...): one is installed
 only when you have no same or newer version of it in a LIBS:MUI drawer; an
 older one of yours is kept in the backup. The classes that come with a
-real MUI (in MUI:Libs/mui) belong to that MUI and are not used by Zune:
-Zune gets its own copy, and the real MUI gets its own back with "Use real
+real MUI (in MUI:Libs/mui) belong to that MUI and are not used by OpenMUI:
+OpenMUI gets its own copy, and the real MUI gets its own back with "Use real
 MUI". The last page of the installer lists what it did with each.
 
 Running Install again offers "Install this version over it" (an update:
 the earlier installation is removed first, your files put back, then this
-one installed; your Zune settings are kept) and "Remove Zune68k".
+one installed; your settings are kept) and "Remove OpenMUI".
 
 Novice installs everything without questions; Intermediate and Expert
 ask whether to install the translations. Pretend mode changes nothing.
 
-Use real MUI, Use Zune, Uninstall
----------------------------------
-In SYS:Zune68k (Use real MUI and Use Zune only when a real MUI was
+Use real MUI, Use OpenMUI, Uninstall
+------------------------------------
+In SYS:OpenMUI (Use real MUI and Use OpenMUI only when a real MUI was
 found):
 
-  Use real MUI  puts Zune's libraries and classes aside (into
-                SYS:Zune68k/Data/Parked) and your own files they had
+  Use real MUI  puts OpenMUI's libraries and classes aside (into
+                SYS:OpenMUI/Data/Parked) and your own files they had
                 replaced back. After a reboot programs get your MUI.
-  Use Zune      the other way round, after a reboot programs get Zune.
-  Uninstall     deletes every file Zune installed, puts back every file
+  Use OpenMUI   the other way round, after a reboot programs get OpenMUI.
+  Uninstall     deletes every file OpenMUI installed, puts back every file
                 of yours it had replaced, and removes the drawers it made
-                when they are empty. Asks whether to keep your Zune
+                when they are empty. Asks whether to keep your OpenMUI
                 settings (ENVARC:Zune). Your MUI keeps working.
 
-From a Shell: SYS:Zune68k/Data/ZuneSwitch MUI, ZUNE, UNINSTALL [SETTINGS]
+From a Shell: SYS:OpenMUI/Data/OpenMUISwitch MUI, OPENMUI, UNINSTALL [SETTINGS]
 or STATUS (what is installed where).
 
 Settings
 --------
-SYS:Prefs/Zune, the Zune preferences program. MUI's own settings
-(ENVARC:MUI) are not read or changed by Zune.
+SYS:Prefs/OpenMUI, the OpenMUI preferences program. MUI's own settings
+(ENVARC:MUI) are not read or changed by OpenMUI. Its own settings are still
+in ENV:Zune and ENVARC:Zune, and its classes in LIBS:Zune; those paths keep
+their old names for now (programs and earlier installations depend on them).
 
 Each program gets the MUI it asks for: a program written for MUI 3 sees
 MUI 3.8 (muimaster.library 19.35), one asking for MUI 4 sees MUI 4, one
-asking for MUI 5 sees MUI 5 (21.227), and Zune follows the same choice.
-Zune prefs, System page, "MUI version": "Behave as" Automatic (the
+asking for MUI 5 sees MUI 5 (21.227), and OpenMUI follows the same choice.
+OpenMUI prefs, System page, "MUI version": "Behave as" Automatic (the
 default), MUI 3.8, MUI 4 or MUI 5 for all programs, and a list of
 programs (by file name) with a MUI of their own. Many programs written
 for MUI 4/5 ask for 19 and so get MUI 3.8 under Automatic: give such a

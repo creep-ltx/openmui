@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the native Zune68 package from native GCC build outputs."""
+"""Assemble the native OpenMUI package (the lean edition of Zune68) from native GCC build outputs."""
 import argparse
 import re
 import shutil
@@ -35,13 +35,14 @@ def library_version(path):
     The library version is the one it reports to applications; releases
     are identified by the $VER date and the text after it: "Zune68 <stage>"
     for upstream's release lines (stage "Beta 2"), or an edition of its own
-    such as "Zune68k lean", which is then the stage.
+    such as "OpenMUI 0.1b1" (earlier: "Zune68k lean"), which is then the
+    stage.
     """
     data = path.read_bytes()
     if data[:4] != struct.pack('>I', 1011):
         raise ValueError(f'{path}: expected an Amiga Hunk load file')
     pattern = (rb'\$VER: ' + re.escape(path.name.encode()) +
-               rb' (\d+\.\d+) \((\d\d)\.(\d\d)\.(\d{4})\)(?: (Zune68[A-Za-z0-9 ]*?))?[\r\n\0]')
+               rb' (\d+\.\d+) \((\d\d)\.(\d\d)\.(\d{4})\)(?: (Zune68[A-Za-z0-9 ]*?|OpenMUI [0-9][A-Za-z0-9.]*))?[\r\n\0]')
     versions = set(re.findall(pattern, data))
     if len(versions) != 1:
         raise ValueError(f'{path}: missing or ambiguous matching $VER string')
@@ -55,8 +56,9 @@ def library_version(path):
 
 def archive_name(date, stage):
     """Zune68-DATE-amigaos3-m68k.lha for upstream's release lines; an
-    edition of its own goes by its name: Zune68k-lean-DATE-amigaos3-m68k.lha"""
-    prefix = stage.replace(' ', '-') if stage.startswith('Zune68k') else 'Zune68'
+    edition of its own goes by its name: OpenMUI-0.1b1-DATE-amigaos3-m68k.lha"""
+    prefix = (stage.replace(' ', '-') if stage.startswith(('Zune68k', 'OpenMUI'))
+              else 'Zune68')
     return f'{prefix}-{date}-amigaos3-m68k.lha'
 
 
@@ -75,7 +77,7 @@ def substitute(text, version, date, stage):
 
 
 def component_files(build_dir):
-    files = ['Prefs/Zune', 'Prefs/Zune.info']
+    files = ['Prefs/OpenMUI', 'Prefs/OpenMUI.info']
     files += ['Libs/MUI/' + name for name in CLASS_FILES]
     files += ['Examples/' + name for name in EXAMPLES]
     files += catalog_paths(build_dir)
@@ -88,7 +90,7 @@ def component_files(build_dir):
     for name in files:
         if not (build_dir / name).is_file():
             raise ValueError(f'{build_dir}: missing {name}')
-    for name in ['Prefs/Zune', *['Libs/MUI/' + n for n in CLASS_FILES]]:
+    for name in ['Prefs/OpenMUI', *['Libs/MUI/' + n for n in CLASS_FILES]]:
         component_version(build_dir / name)
     return files
 
@@ -124,7 +126,7 @@ def install_script(files, class_files=()):
     for name in files:
         preflight.append('(if (<> (exists (tackon #package "' + name + '")) 1)\n'
                          '    (abort "The package is incomplete. Extract the complete archive again."))')
-        if name == 'Prefs/Zune' or name.startswith(('Libs/MUI/', 'Libs/Zune/')):
+        if name == 'Prefs/OpenMUI' or name.startswith(('Libs/MUI/', 'Libs/Zune/')):
             preflight.append(f'(if (= (getversion (tackon #package "{name}")) 0)\n'
                              f'    (abort "Cannot read the bundled version of {name}."))')
     lines = []
@@ -145,7 +147,7 @@ def install_script(files, class_files=()):
             .replace('; COMPONENT_CATALOGS', '\n'.join(lines)))
 
 
-# Workbench icons for the SYS:Zune68k drawer, made from the checked-in ones
+# Workbench icons for the SYS:OpenMUI drawer, made from the checked-in ones
 WBDRAWER, WBTOOL, WBPROJECT = 2, 3, 4
 NO_ICON_POSITION = -0x80000000
 
@@ -192,31 +194,31 @@ def make_icon(template, kind, position=None, default_tool=None, tool_types=(),
 
 
 HOME_PROJECTS = {
-    # file in SYS:Zune68k: (ACTION, its text, icon position)
-    'Use real MUI': ('MUI', 'Zune68k: double-click the icon to use your real MUI\n'
-                     'again (after a reboot). "Use Zune" switches back.\n', (24, 8)),
-    'Use Zune': ('ZUNE', 'Zune68k: double-click the icon to use Zune again\n'
-                 '(after a reboot) after "Use real MUI".\n', (120, 8)),
-    'Uninstall': ('UNINSTALL', 'Zune68k: double-click the icon to remove Zune68k and\n'
+    # file in SYS:OpenMUI: (ACTION, its text, icon position)
+    'Use real MUI': ('MUI', 'OpenMUI: double-click the icon to use your real MUI\n'
+                     'again (after a reboot). "Use OpenMUI" switches back.\n', (24, 8)),
+    'Use OpenMUI': ('OPENMUI', 'OpenMUI: double-click the icon to use OpenMUI again\n'
+                    '(after a reboot) after "Use real MUI".\n', (120, 8)),
+    'Uninstall': ('UNINSTALL', 'OpenMUI: double-click the icon to remove OpenMUI and\n'
                   'put back every file of yours it had replaced.\n', (216, 8)),
 }
 
 
 def stage_home(package):
-    """Home/: what the installer puts in SYS:Zune68k besides the tool"""
+    """Home/: what the installer puts in SYS:OpenMUI besides the tool"""
     home = package / 'Home'
     home.mkdir()
     for name, (action, text, position) in HOME_PROJECTS.items():
         (home / name).write_text(text, encoding='latin1')
         (home / (name + '.info')).write_bytes(make_icon(
-            ROOT / 'dist/Zune.info', WBPROJECT, position,
-            default_tool='SYS:Zune68k/Data/ZuneSwitch',
+            ROOT / 'dist/OpenMUI-Prefs.info', WBPROJECT, position,
+            default_tool='SYS:OpenMUI/Data/OpenMUISwitch',
             tool_types=(f'ACTION={action}',), stack=16384))
     readme = ROOT / 'dist/ReadMe.info'
     (home / 'ReadMe.info').write_bytes(make_icon(
         readme, WBPROJECT, (312, 8), default_tool='MultiView'))
-    (home / 'Zune68k.info').write_bytes(make_icon(
-        ROOT / 'dist/Zune68.info', WBDRAWER, (NO_ICON_POSITION, NO_ICON_POSITION)))
+    (home / 'OpenMUI.info').write_bytes(make_icon(
+        ROOT / 'dist/OpenMUI.info', WBDRAWER, (NO_ICON_POSITION, NO_ICON_POSITION)))
 
 
 def strip_binaries(package, strip):
@@ -233,7 +235,7 @@ def strip_binaries(package, strip):
 def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
     build_dir, output_dir = build_dir.resolve(), output_dir.resolve()
     version, date, line = identity(build_dir)
-    for name in ('opentest', 'Tools/ZuneSwitch'):
+    for name in ('opentest', 'Tools/OpenMUISwitch'):
         if not (build_dir / name).is_file():
             raise ValueError(f'{build_dir}: missing {name}')
     files = component_files(build_dir) if full else []
@@ -247,13 +249,13 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
         raise ValueError(f'{strip}: Amiga strip tool not found; set STRIP or --strip')
     output_dir.mkdir(parents=True, exist_ok=True)
     archive = output_dir / archive_name(date, line)
-    readme = substitute((ROOT / 'Zune68.readme').read_text(encoding='ascii'),
+    readme = substitute((ROOT / 'OpenMUI.readme').read_text(encoding='ascii'),
                         version, date, line)
     # Always assemble a fresh tree: removed files must not survive a release.
     # Publish only after archiving and CRC checking complete successfully.
-    with tempfile.TemporaryDirectory(prefix='.zune68-', dir=output_dir) as temp:
+    with tempfile.TemporaryDirectory(prefix='.openmui-', dir=output_dir) as temp:
         stage = Path(temp)
-        package = stage / 'Zune68'
+        package = stage / 'OpenMUI'
         (package / 'Libs').mkdir(parents=True)
         (package / 'Tests').mkdir()
         for name in LIBRARIES:
@@ -267,8 +269,8 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
             shutil.copyfile(build_dir / 'Zune' / name, package / 'Libs/Zune' / name)
             (package / 'Libs/Zune' / name).chmod(0o755)
         (package / 'Tools').mkdir()
-        shutil.copyfile(build_dir / 'Tools/ZuneSwitch', package / 'Tools/ZuneSwitch')
-        (package / 'Tools/ZuneSwitch').chmod(0o755)
+        shutil.copyfile(build_dir / 'Tools/OpenMUISwitch', package / 'Tools/OpenMUISwitch')
+        (package / 'Tools/OpenMUISwitch').chmod(0o755)
         stage_home(package)
         shutil.copyfile(build_dir / 'opentest', package / 'Tests/opentest')
         (package / 'Tests/opentest').chmod(0o755)
@@ -276,7 +278,7 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
             shutil.copyfile(build_dir / 'compatcheck', package / 'Tests/compatcheck')
             (package / 'Tests/compatcheck').chmod(0o755)
         shutil.copyfile(ROOT / 'LICENSE', package / 'LICENSE')
-        (package / 'Zune68.readme').write_text(readme, encoding='ascii')
+        (package / 'OpenMUI.readme').write_text(readme, encoding='ascii')
         for name in ('ReadMe.info', 'Install.info'):
             shutil.copyfile(ROOT / 'dist' / name, package / name)
         for name in ('ReadMe', 'Compatibility'):
@@ -313,16 +315,16 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
             shutil.copytree(ROOT / '.github', source / '.github')
             for name in ['GNUmakefile', 'LICENSE', 'LICENSE.Author', 'LICENSE.GPL',
                          'LICENSE.LGPL', 'LEGAL', 'ACKNOWLEDGEMENTS',
-                         '.gitmodules', 'Zune68.readme']:
+                         '.gitmodules', 'OpenMUI.readme']:
                 shutil.copyfile(ROOT / name, source / name)
             if (ROOT / 'BUILD.md').exists():
                 shutil.copyfile(ROOT / 'BUILD.md', source / 'BUILD.md')
             with tarfile.open(package / 'Source.tar.gz', 'w:gz') as archive_source:
                 archive_source.add(source, arcname='Source')
-        shutil.copyfile(ROOT / 'dist/Zune68.info', stage / 'Zune68.info')
+        shutil.copyfile(ROOT / 'dist/OpenMUI.info', stage / 'OpenMUI.info')
         temporary_archive = stage / archive.name
         subprocess.run([archiver, 'ao5', str(temporary_archive),
-                        'Zune68', 'Zune68.info'], cwd=stage, check=True)
+                        'OpenMUI', 'OpenMUI.info'], cwd=stage, check=True)
         subprocess.run([archiver, 't', str(temporary_archive)], check=True)
         temporary_readme = stage / archive.with_suffix('.readme').name
         temporary_readme.write_text(readme, encoding='ascii')

@@ -21,6 +21,8 @@
 #include "support_classes.h"
 #include "aboutmui_private.h"
 #include "locale.h"
+#include "native_version.h"
+#include "build-date.h"
 
 #if ZUNE_BUILTIN_ABOUTMUI
 #   define USE_INTERNAL_IMAGE 0
@@ -887,6 +889,26 @@ static const UBYTE body[] =
 #define IMAGE
 #endif /* !USE_INTERNAL_IMAGE */
 
+/* What the window says: where OpenMUI comes from, who made what, and that
+ * it is not MUI. English only (the catalogs' old Zune text is not used);
+ * 15 lines of at most 66 characters, so it fits 640x256 in Topaz 8. */
+#define ABOUT_TEXT \
+    MUIX_B "OpenMUI " ZUNE68_EDITION_NUMBER " (test build)" MUIX_N "\n" \
+    "muimaster.library " ZUNE68_LIBRARY_VERSION_STRING ", " ZUNE68_LIBRARY_DATE "\n" \
+    "\n" \
+    "The lean edition of Zune for classic AmigaOS 3: it aims at the\n" \
+    "look and memory use of MUI 3.8, and runs MUI 3, 4 and 5 programs.\n" \
+    "MUI 3.8 was studied clean-room: its behaviour, never its code.\n" \
+    "\n" \
+    "Zune: The AROS Development Team (AROS).\n" \
+    "Zune68: Zune on classic AmigaOS 3, by Stefan Reinauer.\n" \
+    "OpenMUI: the lean edition, by its contributors.\n" \
+    "\n" \
+    "OpenMUI is not MUI and is not affiliated with MUI's authors.\n" \
+    "MUI is the product of Stefan Stuntz.\n" \
+    "\n" \
+    "AROS Public License. Copyright 2002-2026 The AROS Development Team."
+
 /****** Aboutmui.mui/MUIA_Aboutmui_Application *******************************
 *
 *   NAME
@@ -905,21 +927,18 @@ IPTR Aboutmui__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct Aboutmui_DATA   *data;
     struct TagItem *tag, *tags;
-    static char about_text[100];
-
-    snprintf(about_text, sizeof (about_text), _(MSG_ABOUTMUI_STRING), __DATE__);
 
     obj = (Object *) DoSuperNewTags
     (
         cl, obj, NULL,
         
-        MUIA_Window_Title, (IPTR) "About Zune",
+        MUIA_Window_Title, (IPTR) "About OpenMUI",
         WindowContents,    (IPTR) VGroup,
             IMAGE
             Child, (IPTR) TextObject,
                 TextFrame,
                 MUIA_Text_PreParse, (IPTR) MUIX_C,
-                MUIA_Text_Contents, (IPTR) about_text,
+                MUIA_Text_Contents, (IPTR) ABOUT_TEXT,
             End,
         End,
         

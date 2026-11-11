@@ -228,7 +228,7 @@ int main(int argc, char **argv)
         if (result != (select_item ? 42 : 0)) failures++;
     }
     if (!draws) failures++;
-    if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+    if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
     {
         Object *deep = MO(MUIC_Menuitem, MUIA_Menuitem_Title, "Deep leaf",
             MUIA_UserData, 42, TAG_DONE);
@@ -248,7 +248,7 @@ int main(int argc, char **argv)
         if (result != 42) failures++;
         MUI_DisposeObject(deepstrip);
     }
-    if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68") != NULL)
+    if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI") != NULL)
     {
         DoMethod(app, MUIM_Application_PushMethod, win, 3,
             MUIM_Set, MUIA_Window_Open, FALSE);

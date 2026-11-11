@@ -1,4 +1,4 @@
-Zune68 native compatibility and measurements
+OpenMUI (the lean edition of Zune68) native compatibility and measurements
 ==========================================
 
 Scope
@@ -15,7 +15,7 @@ The two native library names share library version [VERSION] and the
 release [RELEASE] ([STAGE]). The library and built-in classes report
 21.227, the version of MUI 5, which enables application version gates; it
 does not claim complete MUI 5 compatibility. External MCCs retain their own
-version reporting. The date identifies the Zune68 release.
+version reporting. The date identifies the OpenMUI release.
 
 Native version definitions are centralized in native_version.h. Building
 with MUI5_TEST=0 gives AROS version 19.81 and built-in class version 1.1.

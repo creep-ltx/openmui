@@ -1,4 +1,4 @@
-; $VER: Install-Zune68k 2.0 (06.11.2026) Zune68k lean
+; $VER: Install-OpenMUI 2.1 (11.11.2026) OpenMUI 0.1b1
 ; Amiga Installer script, Installer 43 or newer (OS 3.1: Installer 43.3
 ; from Aminet; OS 3.2: SYS:System/Installer). tools/release.py fills in the
 ; lines marked COMPONENT_... when it builds the archive.
@@ -10,17 +10,20 @@
 ;   where programs find it before MUI's, and nothing is added to the
 ;   startup files;
 ; - writes down every file it puts on the system and keeps every file it
-;   replaces in SYS:Zune68k/Data (Manifest, Backup/): "Use real MUI",
-;   "Use Zune" and "Uninstall" in SYS:Zune68k use that record
-;   (Tools/ZuneSwitch);
+;   replaces in SYS:OpenMUI/Data (Manifest, Backup/): "Use real MUI",
+;   "Use OpenMUI" and "Uninstall" in SYS:OpenMUI use that record
+;   (Tools/OpenMUISwitch);
 ; - installs a bundled MUI class only when the user has no newer one of
 ;   their own (in any LIBS:MUI drawer but MUI's own; classes of a real MUI
 ;   are written for that MUI and are not used by Zune);
-; - an earlier Zune68k lean installation is removed first (its backups put
+; - an earlier OpenMUI installation is removed first (its backups put
 ;   back), so that an update starts from the user's own files; the Zune
-;   settings (ENVARC:Zune, ENV:Zune) are kept.
+;   settings (ENVARC:Zune, ENV:Zune) are kept;
+; - an installation of the same program under its earlier name, Zune68k
+;   lean (SYS:Zune68k, SYS:Prefs/Zune), is removed the same way first:
+;   its record is in SYS:Zune68k/Data, and Tools/OpenMUISwitch reads it.
 
-(set @app-name "Zune68k lean")
+(set @app-name "OpenMUI")
 (set @default-dest "")
 (if (< @installer-version (* 43 65536))
     (abort "This installation needs Amiga Installer 43 or newer.\n\n"
@@ -30,8 +33,9 @@
 )
 
 (set #package (pathonly @icon))
-(set #tool (tackon #package "Tools/ZuneSwitch"))
-(set #home "SYS:Zune68k")
+(set #tool (tackon #package "Tools/OpenMUISwitch"))
+(set #home "SYS:OpenMUI")
+(set #oldhome "SYS:Zune68k")
 (set #data (tackon #home "Data"))
 (set #backup (tackon #data "Backup"))
 (set #manifest (tackon #data "Manifest"))
@@ -107,7 +111,7 @@
     )
 )
 
-; The Zune68k drawers are always written down (removed when empty)
+; The OpenMUI drawers are always written down (removed when empty)
 (procedure P_OwnDir #dir
     (if (= (exists #dir (noreq)) 0) (makedir #dir))
     (set #rec (cat #rec "DIR " (P_Rel #dir) "\n"))
@@ -186,12 +190,12 @@
     )
     (if (>= #best #bv)
         (set #report (cat #report #name " " (P_Version #best) ": yours, kept "
-            "(Zune's: " (P_Version #bv) ").\n"))
+            "(OpenMUI's: " (P_Version #bv) ").\n"))
         (
             (if (>= #best 0)
                 (if (= #bestat #libsmui)
                     (set #report (cat #report #name " " (P_Version #best)
-                        ": yours, older: in the backup, Zune's "
+                        ": yours, older: in the backup, OpenMUI's "
                         (P_Version #bv) " installed.\n"))
                     (set #report (cat #report #name " " (P_Version #best)
                         " in " #bestat ": yours, older, left there.\n"))
@@ -210,7 +214,7 @@
     (cat #report
         (if (<> #ownlist "")
             (cat #muiname "'s own " #ownlist " stay for " #muiname
-                "; Zune uses its own.\n")
+                "; OpenMUI uses its own.\n")
             ""))
 )
 
@@ -223,8 +227,9 @@
     )
 )
 
-(welcome "Zune68k lean: a MUI-compatible user interface library for "
-    "AmigaOS 3.x (68000 or better).")
+(welcome "OpenMUI 0.1b1 (test build): a MUI-compatible user interface "
+    "library for AmigaOS 3.x (68000 or better). Not MUI, and not affiliated "
+    "with MUI's authors.")
 
 ; ---- check the package ----
 (if (or
@@ -283,14 +288,14 @@
 (set #i 1)
 (while (= 0 (run (cat (P_Quote #tool) " LIBSDIR " #i) (safe)))
     (
-        (set #d (getenv "Zune68k-LibsDir"))
+        (set #d (getenv "OpenMUI-LibsDir"))
         (set #f (tackon #d "muimaster.library"))
         ; MUI's own Libs drawer is reported above
         (if (and (= (exists #f (noreq)) 1) (<> #d #muilibs))
             (
                 (set #iszune (= 0 (run (cat (P_Quote #tool) " ISZUNE " (P_Quote #f)) (safe))))
                 (set #found (cat #found #f " " (P_Version (getversion #f))
-                    (if #iszune ": Zune" ": not Zune (a real MUI)") ".\n"))
+                    (if #iszune ": OpenMUI" ": not OpenMUI (a real MUI)") ".\n"))
                 (if (and #iszune (= #i 1)) (set #zuneold 1))
                 (if (not #iszune) (set #realmui 1))
             )
@@ -308,15 +313,22 @@
         ": Zune68's earlier backup, left as it is.\n"))
 )
 (set #update (= (exists #manifest (noreq)) 1))
+(set #oldrec (tackon (tackon #oldhome "Data") "Manifest"))
+(set #old (= (exists #oldrec (noreq)) 1))
+(if #old
+    (set #found (cat #found "An earlier installation of this program, under "
+        "its old name Zune68k lean, is in " #oldhome ": it is removed first "
+        "(your files put back, your settings kept).\n"))
+)
 (if #update
-    (set #found (cat #found "Zune68k lean is installed in " #home ".\n"))
-    (if #zuneold
+    (set #found (cat #found "OpenMUI is installed in " #home ".\n"))
+    (if (and #zuneold (not #old))
         (set #found (cat #found "That Zune is not from this installer: "
             "it is kept in the backup.\n"))
     )
 )
 (if (= (exists "ENVARC:Zune" (noreq)) 2)
-    (set #found (cat #found "Your Zune settings (ENVARC:Zune) are kept.\n"))
+    (set #found (cat #found "Your OpenMUI settings (ENVARC:Zune) are kept; OpenMUI still reads and writes them there.\n"))
 )
 (if (= (exists "ENVARC:MUI" (noreq)) 2)
     (set #found (cat #found "MUI's settings (ENVARC:MUI) are not touched.\n"))
@@ -326,9 +338,9 @@
 (message "On this Amiga:\n\n" #found "\n"
     (if #realmui
         (cat "Your MUI stays as it is (its files and S:User-Startup "
-             "lines too). Zune goes to " #libsdir ", searched first; "
+             "lines too). OpenMUI goes to " #libsdir ", searched first; "
              "\"Use real MUI\" in " #home " switches back.")
-        (cat "Zune goes to " #libsdir ". Nothing is added to S:Startup-"
+        (cat "OpenMUI goes to " #libsdir ". Nothing is added to S:Startup-"
              "Sequence or S:User-Startup."))
     (all)
 )
@@ -336,31 +348,31 @@
 ; ---- installed already: update or remove ----
 (if #update
     (if (= 1 (askchoice
-            (prompt "Zune68k lean is installed in " #home ".")
+            (prompt "OpenMUI is installed in " #home ".")
             (help "Install: the earlier installation is removed first (every "
                 "file of yours it had replaced is put back), then this one is "
-                "installed. Your Zune settings are kept.\n\nRemove: Zune68k "
+                "installed. Your settings are kept.\n\nRemove: OpenMUI "
                 "is removed and your files are put back, as Uninstall in "
                 #home " does.")
-            (choices "Install this version over it" "Remove Zune68k")
+            (choices "Install this version over it" "Remove OpenMUI")
             (default 0)))
         (
             (set #keep (askbool
-                (prompt "Keep your Zune settings (ENVARC:Zune)?")
+                (prompt "Keep your OpenMUI settings (ENVARC:Zune)?")
                 (help "The settings are small text files. Keep them if you "
-                    "may install Zune68k again.")
+                    "may install OpenMUI again.")
                 (choices "Keep them" "Remove them")
                 (default 1)))
             (if (= @pretend 0)
                 (if (<> 0 (run (cat (P_Quote #tool) " UNINSTALL QUIET HOME="
                         (P_Quote #home) (if #keep "" " SETTINGS"))))
-                    (abort "Zune68k could not be removed completely (a file in "
+                    (abort "OpenMUI could not be removed completely (a file in "
                         "use or protected?). Its record is kept in " #data
                         ": try again after a reboot.")
                 )
             )
-            (message "Zune68k is removed and your own files are back. Reboot "
-                "so that no program still uses Zune." (all))
+            (message "OpenMUI is removed and your own files are back. Reboot "
+                "so that no program still uses OpenMUI." (all))
             (exit (quiet))
         )
     )
@@ -370,11 +382,27 @@
 (if #update
     (if (= @pretend 0)
         (
-            (working "Removing the earlier Zune68k installation...")
+            (working "Removing the earlier OpenMUI installation...")
             (if (<> 0 (run (cat (P_Quote #tool) " UNINSTALL QUIET HOME=" (P_Quote #home))))
-                (abort "The earlier Zune68k installation could not be removed "
+                (abort "The earlier OpenMUI installation could not be removed "
                     "completely (a file in use or protected?). Nothing new was "
                     "installed. See " #home ", or run \"" #home "/Uninstall\".")
+            )
+        )
+    )
+)
+
+; ---- the same program under its old name (Zune68k lean): SYS:Zune68k,
+; SYS:Prefs/Zune. Its record lists every file it installed, the drawer and
+; the old prefs program too; the tool reads it as it reads ours. ----
+(if #old
+    (if (= @pretend 0)
+        (
+            (working "Removing the earlier Zune68k lean installation...")
+            (if (<> 0 (run (cat (P_Quote #tool) " UNINSTALL QUIET HOME=" (P_Quote #oldhome))))
+                (abort "The earlier Zune68k lean installation could not be "
+                    "removed completely (a file in use or protected?). "
+                    "Nothing new was installed. See " #oldhome ".")
             )
         )
     )
@@ -384,7 +412,7 @@
 (set #catalogs (askbool
     (prompt "Install the translations (catalogs for 28 languages) to "
         (tackon #localedir "Catalogs") "?")
-    (help "Without them Zune and its classes speak English. They can be "
+    (help "Without them OpenMUI and its classes speak English. They can be "
         "removed again with Uninstall like every other file.")
     (choices "Install" "Skip")
     (default 1)
@@ -394,14 +422,14 @@
 (P_OwnDir #home)
 (P_OwnDir #data)
 (P_OwnDir #backup)
-(P_Put (tackon #package "Home/Zune68k.info") (pathonly #home) "Zune68k.info")
-(P_Put #tool #data "ZuneSwitch")
+(P_Put (tackon #package "Home/OpenMUI.info") (pathonly #home) "OpenMUI.info")
+(P_Put #tool #data "OpenMUISwitch")
 (if #realmui
     (
         (P_Put (tackon #package "Home/Use real MUI") #home "Use real MUI")
         (P_Put (tackon #package "Home/Use real MUI.info") #home "Use real MUI.info")
-        (P_Put (tackon #package "Home/Use Zune") #home "Use Zune")
-        (P_Put (tackon #package "Home/Use Zune.info") #home "Use Zune.info")
+        (P_Put (tackon #package "Home/Use OpenMUI") #home "Use OpenMUI")
+        (P_Put (tackon #package "Home/Use OpenMUI.info") #home "Use OpenMUI.info")
     )
 )
 (P_Put (tackon #package "Home/Uninstall") #home "Uninstall")
@@ -423,8 +451,8 @@
 (complete 40)
 
 ; ---- the preferences program ----
-(P_Put (tackon #package "Prefs/Zune") "SYS:Prefs" "Zune")
-(P_Put (tackon #package "Prefs/Zune.info") "SYS:Prefs" "Zune.info")
+(P_Put (tackon #package "Prefs/OpenMUI") "SYS:Prefs" "OpenMUI")
+(P_Put (tackon #package "Prefs/OpenMUI.info") "SYS:Prefs" "OpenMUI.info")
 (P_SaveRecord)
 (complete 50)
 
@@ -450,12 +478,12 @@
 (if @pretend
     (message "Pretend mode: nothing was changed.\n\n"
         (P_ClassReport))
-    (message "Zune68k lean is installed: " #done " files"
+    (message "OpenMUI 0.1b1 is installed: " #done " files"
         (if (> #nb 0) (cat "; the " #nb " it replaced are kept in " #backup) "")
         ".\n\n"
         (P_ClassReport) "\n"
         "Reboot to use it. " #home " has "
-        (if #realmui "\"Use real MUI\" / \"Use Zune\" and " "")
-        "Uninstall. Settings: SYS:Prefs/Zune." (all))
+        (if #realmui "\"Use real MUI\" / \"Use OpenMUI\" and " "")
+        "Uninstall. Settings: SYS:Prefs/OpenMUI." (all))
 )
 (exit (quiet))

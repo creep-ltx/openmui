@@ -1,12 +1,13 @@
 /*
- * ZuneSwitch - switch between Zune68k and a real MUI, and uninstall
- * Zune68k. Part of the lean edition's installer (dist/Install).
+ * OpenMUISwitch - switch between OpenMUI and a real MUI, and uninstall
+ * OpenMUI. Part of the lean edition's installer (dist/Install).
  *
  * The installer records every file it puts on the system in
- * <home>/Data/Manifest (home: SYS:Zune68k unless HOME= says otherwise, or
+ * <home>/Data/Manifest (home: SYS:OpenMUI unless HOME= says otherwise, or
  * the drawer this program was started from):
  *
- *   ZUNE68K-MANIFEST 1
+ *   ZUNE68K-MANIFEST 1   (the name of the first editions' records, kept so
+ *                        that an earlier installation is still removed)
  *   LIBS <dir>          the LIBS: directory Zune's libraries went to
  *   NEW <path>          a file Zune put where there was none
  *   REPLACED <path>     a file Zune replaced; the old one follows as
@@ -24,7 +25,7 @@
  * STATUS:  what is installed where (Shell).
  * ISZUNE FILE: return code 0 when FILE is a Zune68 library, 5 when it is
  *          not, 10 when it cannot be read (for the installer).
- * LIBSDIR N: sets ENV:Zune68k-LibsDir to the Nth directory of the LIBS:
+ * LIBSDIR N: sets ENV:OpenMUI-LibsDir to the Nth directory of the LIBS:
  *          assign; return code 5 when there is none (for the installer).
  *
  * From Workbench the icon's ACTION tool type chooses (MUI, ZUNE or
@@ -69,7 +70,7 @@ static int Strnicmp(const char *a, const char *b, int n)
 
 #define Stricmp(a, b) Strnicmp((const char *)(a), (const char *)(b), 0x7fff)
 
-static const char version[] __attribute__((used)) ="$VER: ZuneSwitch 1.0 (06.11.2026) Zune68k lean";
+static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.0 (06.11.2026) OpenMUI 0.1b1";
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;
@@ -128,7 +129,7 @@ static LONG ask(const char *text, const char *gadgets)
         return 1;
     es.es_StructSize = sizeof(es);
     es.es_Flags = 0;
-    es.es_Title = (UBYTE *)"Zune68k";
+    es.es_Title = (UBYTE *)"OpenMUI";
     es.es_TextFormat = (UBYTE *)"%s";
     es.es_GadgetFormat = (UBYTE *)gadgets;
     return EasyRequest(NULL, &es, NULL, (IPTR)text);
@@ -208,7 +209,8 @@ static BOOL move(const char *from, const char *to)
     return FALSE;
 }
 
-/* Does the file contain "Zune68"? 1 yes, 0 no, -1 unreadable */
+/* Does the file contain "OpenMUI" (this edition) or "Zune68" (earlier
+ * editions, Zune68k lean)? 1 yes, 0 no, -1 unreadable */
 static int file_is_zune(const char *path)
 {
     static const char key[] = "Zune68";
@@ -228,12 +230,13 @@ static int file_is_zune(const char *path)
     {
         n += keep;
         for (i = 0; i + 6 <= n; i++)
-            if (buf[i] == 'Z' && !memcmp(buf + i, key, 6))
+            if ((buf[i] == 'Z' && !memcmp(buf + i, key, 6))
+                || (buf[i] == 'O' && i + 7 <= n && !memcmp(buf + i, "OpenMUI", 7)))
             {
                 found = 1;
                 break;
             }
-        keep = n < 5 ? n : 5;
+        keep = n < 6 ? n : 6;
         memmove(buf, buf + n - keep, keep);
     }
     FreeVec(buf);
@@ -522,19 +525,19 @@ static int do_park(void)
 
     if (parked())
     {
-        say("Real MUI is already chosen. Reboot if programs still get Zune.\n");
+        say("Real MUI is already chosen. Reboot if programs still get OpenMUI.\n");
         return 0;
     }
     if (!real_mui_after_park())
     {
-        say("No real MUI was found in LIBS:, so Zune stays in use.\n"
+        say("No real MUI was found in LIBS:, so OpenMUI stays in use.\n"
             "Nothing was changed.\n");
         return 5;
     }
-    if (ask("Use the real MUI instead of Zune68k?\n\n"
-            "Zune's libraries and classes are put aside in\n"
-            "the Zune68k drawer, and your own files they had\n"
-            "replaced are put back. \"Use Zune\" undoes it.",
+    if (ask("Use the real MUI instead of OpenMUI?\n\n"
+            "OpenMUI's libraries and classes are put aside in\n"
+            "the OpenMUI drawer, and your own files they had\n"
+            "replaced are put back. \"Use OpenMUI\" undoes it.",
             "Use real MUI|Cancel") != 1)
         return 5;
     join(p, home, "Data/Parked");
@@ -557,7 +560,7 @@ static int do_park(void)
     }
     set_parked(TRUE);
     say("Real MUI chosen. Reboot: programs started after\n"
-        "the reboot get the real MUI. \"Use Zune\" switches back.\n");
+        "the reboot get the real MUI. \"Use OpenMUI\" switches back.\n");
     return 0;
 fail:
     undo_ops();
@@ -572,7 +575,7 @@ static int do_unpark(void)
 
     if (!parked())
     {
-        say("Zune68k is already in use.\n");
+        say("OpenMUI is already in use.\n");
         return 0;
     }
     for (i = nents - 1; i >= 0; i--)
@@ -592,8 +595,8 @@ static int do_unpark(void)
             goto fail;
     }
     set_parked(FALSE);
-    say("Zune68k chosen. Reboot: programs started after\n"
-        "the reboot get Zune.\n");
+    say("OpenMUI chosen. Reboot: programs started after\n"
+        "the reboot get OpenMUI.\n");
     return 0;
 fail:
     undo_ops();
@@ -661,19 +664,19 @@ static void delete_tree(const char *path)
  * started now removes it a moment later, if it is empty by then. */
 static void delete_home_later(void)
 {
-    char script[] = "T:Zune68k-remove";
+    char script[] = "T:OpenMUI-remove";
     BPTR fh, in, out;
 
     if (!(fh = Open((STRPTR)script, MODE_NEWFILE)))
         return;
     /* A Workbench window of the drawer locks it too: try for two minutes */
-    FPrintf(fh, (STRPTR)"FailAt 21\nSet zune68k-n 0\nLab again\nWait 3\n"
+    FPrintf(fh, (STRPTR)"FailAt 21\nSet openmui-n 0\nLab again\nWait 3\n"
         "Delete >NIL: \"%s/Data/Backup\" \"%s/Data/Parked\" QUIET\n"
         "Delete >NIL: \"%s/Data\" QUIET\nDelete >NIL: \"%s\" QUIET\n"
         "If NOT EXISTS \"%s\"\n  Skip done\nEndIf\n"
-        "Set zune68k-n `Eval $zune68k-n + 1`\n"
-        "If $zune68k-n LT 40 VAL\n  Skip again BACK\nEndIf\n"
-        "Lab done\nUnSet zune68k-n\nDelete >NIL: T:Zune68k-remove QUIET\n",
+        "Set openmui-n `Eval $openmui-n + 1`\n"
+        "If $openmui-n LT 40 VAL\n  Skip again BACK\nEndIf\n"
+        "Lab done\nUnSet openmui-n\nDelete >NIL: T:OpenMUI-remove QUIET\n",
         (IPTR)home, (IPTR)home, (IPTR)home, (IPTR)home, (IPTR)home);
     Close(fh);
     in = Open((STRPTR)"NIL:", MODE_OLDFILE);
@@ -684,7 +687,7 @@ static void delete_home_later(void)
         BPTR ram = Lock((STRPTR)"T:", ACCESS_READ);
         BPTR old = ram ? CurrentDir(ram) : 0;
 
-        if (!in || !out || SystemTags((STRPTR)"C:Execute T:Zune68k-remove",
+        if (!in || !out || SystemTags((STRPTR)"C:Execute T:OpenMUI-remove",
                 SYS_Input, in, SYS_Output, out, SYS_Asynch, TRUE,
                 NP_StackSize, 8192, TAG_DONE) == -1)
         {
@@ -709,10 +712,10 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
 
     if (askfirst)
     {
-        LONG r = ask("Remove Zune68k?\n\n"
-            "Zune's files are deleted and the files of yours\n"
+        LONG r = ask("Remove OpenMUI?\n\n"
+            "OpenMUI's files are deleted and the files of yours\n"
             "it had replaced are put back. A MUI of yours stays\n"
-            "as it is. Keep your Zune settings (ENVARC:Zune)?",
+            "as it is. Keep your OpenMUI settings (ENVARC:Zune)?",
             "Remove, keep settings|Remove all|Cancel");
 
         if (r == 0)
@@ -764,7 +767,7 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
     for (i = nents - 1; i >= 0; i--)
         if (ents[i].kind == E_DIR && !DeleteFile((STRPTR)ents[i].path)
             && IoErr() == ERROR_DIRECTORY_NOT_EMPTY
-            && Strnicmp(ents[i].path, "SYS:Zune68k", 11))
+            && Strnicmp(ents[i].path, home, strlen(home)))
             say2("Kept ", ents[i].path, ": other files are in it.\n");
     if (settings)
     {
@@ -787,16 +790,16 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
     }
     if (kept)
         say("Some files could not be changed (see above); the record\n"
-            "in the Zune68k drawer is kept.\n");
+            "in the OpenMUI drawer is kept.\n");
     else
     {
-        say("Zune68k is removed. Reboot to make sure no program\n"
+        say("OpenMUI is removed. Reboot to make sure no program\n"
             "still uses it.\n");
         if (home_later)
             say("The empty drawer goes in a moment (once no window shows it).\n");
     }
     if (!settings)
-        say("Your Zune settings in ENVARC:Zune are kept.\n");
+        say("Your OpenMUI settings in ENVARC:Zune are kept.\n");
     (void)removed;
     (void)restored;
     return kept ? 10 : 0;
@@ -821,7 +824,7 @@ static void status(void)
         {
             file_version(path, ver, sizeof(ver));
             Printf((STRPTR)"    muimaster.library: %s%s\n", (IPTR)ver,
-                (IPTR)(z ? " (Zune)" : " (not Zune)"));
+                (IPTR)(z ? " (OpenMUI)" : " (not OpenMUI)"));
         }
     }
     if (exists("MUI:", &type))
@@ -834,10 +837,10 @@ static void status(void)
     else
         PutStr((STRPTR)"MUI: is not assigned\n");
     if (libsdir)
-        Printf((STRPTR)"Zune68k is installed (record in %s/Data), %s.\n",
+        Printf((STRPTR)"OpenMUI is installed (record in %s/Data), %s.\n",
             (IPTR)home, (IPTR)(parked() ? "real MUI chosen" : "in use"));
     else
-        PutStr((STRPTR)"No Zune68k installation record was found.\n");
+        PutStr((STRPTR)"No OpenMUI installation record was found.\n");
 }
 
 static LONG to_long(const char *s)
@@ -890,7 +893,7 @@ int main(void)
     {
         if (!(rda = ReadArgs((STRPTR)tmpl, args, NULL)))
         {
-            PrintFault(IoErr(), (STRPTR)"ZuneSwitch");
+            PrintFault(IoErr(), (STRPTR)"OpenMUISwitch");
             rc = 10;
             goto end;
         }
@@ -903,7 +906,7 @@ int main(void)
             home[0] = 0;
     }
     /* home: the given drawer, or ours (also when we are its Data copy),
-     * or SYS:Zune68k */
+     * or SYS:OpenMUI */
     {
         char p[PATHLEN];
 
@@ -914,7 +917,7 @@ int main(void)
             if (home[0] && exists(p, NULL))
                 *PathPart((STRPTR)home) = 0;
             else if (!args[2])
-                strcpy(home, "SYS:Zune68k");
+                strcpy(home, "SYS:OpenMUI");
         }
     }
 
@@ -934,7 +937,7 @@ int main(void)
         rc = 5;
         if (want >= 1 && want <= n && dirs[want - 1][0])
         {
-            SetVar((STRPTR)"Zune68k-LibsDir", (STRPTR)dirs[want - 1], -1,
+            SetVar((STRPTR)"OpenMUI-LibsDir", (STRPTR)dirs[want - 1], -1,
                 GVF_GLOBAL_ONLY);
             rc = 0;
         }
@@ -952,13 +955,14 @@ int main(void)
     }
     if (!libsdir)
     {
-        say2("No Zune68k installation record in ", home, "/Data.\n");
+        say2("No OpenMUI installation record in ", home, "/Data.\n");
         rc = 10;
         goto end;
     }
     if (!Stricmp((STRPTR)action, (STRPTR)"MUI"))
         rc = do_park();
-    else if (!Stricmp((STRPTR)action, (STRPTR)"ZUNE"))
+    else if (!Stricmp((STRPTR)action, (STRPTR)"ZUNE")
+             || !Stricmp((STRPTR)action, (STRPTR)"OPENMUI"))
         rc = do_unpark();
     else if (!Stricmp((STRPTR)action, (STRPTR)"UNINSTALL"))
         rc = do_uninstall(args[3] != 0, fromwb);

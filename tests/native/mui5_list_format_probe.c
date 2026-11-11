@@ -82,7 +82,7 @@ int main(int argc,char **argv)
         SetAttrs(win,MUIA_Window_Open,FALSE,TAG_DONE);
     }
     printf("object setups=%lu cleanups=%lu draws=%lu entries=%lu\n",setups,cleanups,draws,attr(list,MUIA_List_Entries));
-    if(strstr((char *)MUIMasterBase->lib_IdString,"Zune68"))
+    if(strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
         check(draws>0,"object cell drawn");
     else if(!draws) puts("REFERENCE DIFFERENCE: 21.227 does not draw ISOBJECT cells");
     check(setups==cleanups,"object setup and cleanup balanced");

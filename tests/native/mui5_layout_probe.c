@@ -133,7 +133,7 @@ static void report(const char *kind, const char *stage, Object *parent,
                 (mode ? 0 : _mtop(parent));
         failed += layout_calls + group_layout_calls !=
             (ULONG)(custom == 2 || (mode == 2 && custom));
-        if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68") != NULL)
+        if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI") != NULL)
             failed += legacy_calls != (ULONG)(ready && custom);
         printf("%s %s %s rc=%lu parent=%d,%d inner=%d,%d "
             "child=%d,%d,%d,%d calls=%lu",

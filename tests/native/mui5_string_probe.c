@@ -59,7 +59,7 @@ int main(void)
     GetAttr(MUIA_String_Integer64, obj, &got);
     printf("get64 pointer=%08lx value=%08lx%08lx\n", got,
         got ? ((ULONG *)got)[0] : 0, got ? ((ULONG *)got)[1] : 0);
-    if (!strstr((char *)MUIMasterBase->lib_IdString, "Zune68") &&
+    if (!strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI") &&
         MUIMasterBase->lib_Version == 21 && MUIMasterBase->lib_Revision == 227)
     {
         check(got && *(long long *)got == -2147483648LL,
@@ -79,7 +79,7 @@ int main(void)
             SetAttrs(obj, MUIA_String_Integer64, &value, TAG_DONE);
             contents(obj, cases[i].text);
             got = 0; GetAttr(MUIA_String_Integer64, obj, &got);
-            if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68") != NULL)
+            if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI") != NULL)
                 check(got && *(long long *)got == value, "integer64 boundary");
         }
     }

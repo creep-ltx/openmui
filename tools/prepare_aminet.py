@@ -11,9 +11,10 @@ def prepare(release_dir, output_dir, tag):
         raise ValueError('expected a release date tag such as v2026.10.12')
     version = tag[1:]
     archive = release_dir / f'Zune68-{version}-amigaos3-m68k.lha'
-    editions = sorted(release_dir.glob(f'Zune68k-*-{version}-amigaos3-m68k.lha'))
+    editions = sorted([*release_dir.glob(f'Zune68k-*-{version}-amigaos3-m68k.lha'),
+                      *release_dir.glob(f'OpenMUI-*-{version}-amigaos3-m68k.lha')])
     if not archive.is_file() and len(editions) == 1:
-        archive = editions[0]   # an edition: Zune68k-lean-DATE-...
+        archive = editions[0]   # an edition: OpenMUI-0.1b1-DATE-...
     readme = archive.with_suffix('.readme')
     text = readme.read_text(encoding='ascii')
     fields = dict(re.findall(r'^([A-Za-z-]+):\s*([^\n]*)$',

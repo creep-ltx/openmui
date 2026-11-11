@@ -90,7 +90,7 @@ int main(void)
     printf("nested exit=%lu\n", DoMethod(strip, MUIM_Menustrip_ExitChange));
     printf("exit=%lu\n", DoMethod(strip, MUIM_Menustrip_ExitChange));
     MUI_DisposeObject(strip);
-    if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+    if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
     {
     /* Copying preserves menu settings, not Family identity or UserData. */
     obj = MUI_NewObject(MUIC_Menuitem, MUIA_Menuitem_Title, "Source",
@@ -114,7 +114,7 @@ int main(void)
     got = 0; GetAttr(MUIA_Menuitem_Title, copy, &got);
     check(got && !strcmp((char *)got, "Changed"), "get copies to supplied object");
     MUI_DisposeObject(obj); MUI_DisposeObject(copy);
-    if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+    if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
     {
         /* Arbitrary BOOPSI images cannot be cloned. Keep the shared image
          * alive until both menu owners have released it. */

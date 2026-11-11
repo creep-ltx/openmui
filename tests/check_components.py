@@ -108,7 +108,7 @@ def plugin(path):
 def check(build):
     for name in CLASS_FILES:
         plugin(build / 'Libs/MUI' / name)
-    check_stack(build / 'Prefs/Zune')
+    check_stack(build / 'Prefs/OpenMUI')
     for name in EXAMPLES:
         check_stack(build / 'Examples' / name)
     for name in catalog_paths(build):

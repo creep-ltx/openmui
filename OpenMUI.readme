@@ -1,13 +1,24 @@
-Short:        MUI-compatible GUI library, lean edition (test)
-Author:       The AROS Development Team, Stefan Reinauer (Zune68), Zune68k lean contributors
+Short:        MUI-compatible GUI library for OS 3.x (lean, test)
+Author:       The AROS Development Team, Stefan Reinauer (Zune68), OpenMUI contributors
 Type:         util/libs
 Version:      [RELEASE] - [STAGE]
 Architecture: m68k-amigaos >= 3.1
 Requires:     AmigaOS 3.1+, 68000+, Installer 43+
 
-Zune68k lean is a muimaster.library for AmigaOS 3.x: AROS's Zune, as
-ported to AmigaOS 3 by Zune68, with a memory and size diet so that it
-runs on a stock 68000 with OS 3.1 and stays close to MUI 3.8 in memory.
+OpenMUI is a muimaster.library for AmigaOS 3.x that runs programs written
+for MUI 3, 4 and 5. It is the lean edition of Zune: it aims at the look
+and the memory use of MUI 3.8 and runs on a stock 68000 with OS 3.1.
+
+OpenMUI is not MUI and is not affiliated with MUI's authors. MUI is the
+product of Stefan Stuntz. MUI 3.8 was studied clean-room: its behaviour,
+never its code.
+
+Where it comes from
+-------------------
+Zune is the MUI-compatible GUI toolkit of AROS, by The AROS Development
+Team. Zune68 is Stefan Reinauer's port of it to classic AmigaOS 3.
+OpenMUI is the lean edition of Zune68, with a memory and size diet and
+MUI 3.8's look. Earlier test builds of it were called Zune68k lean.
 
 This is a test build ([STAGE], [RELEASE]). Every figure below was
 measured in an emulator (FS-UAE, A1200 with OS 3.1), not on a real Amiga.
@@ -15,19 +26,24 @@ measured in an emulator (FS-UAE, A1200 with OS 3.1), not on a real Amiga.
 What is in it
 -------------
 - muimaster.library [VERSION] and zunemaster.library (the same library
-  under a second name, which the Zune preferences program uses).
+  under a second name, which the preferences program uses).
 - About 45 rarely used classes and parts of the library as files of their
   own in LIBS:Zune, loaded the first time a program needs one.
-- The Zune preferences program (SYS:Prefs/Zune).
+- The OpenMUI preferences program (SYS:Prefs/OpenMUI).
 - [PLUGINS] MUI classes: NList, NListtree, TextEditor, BetterString,
   TheBar, Busy, Listtree and others, with their preference pages.
 - Translations, an SDK with examples, and the full source.
 
+The library files keep the names muimaster.library and zunemaster.library,
+the library version stays [VERSION], and the settings stay in ENV:Zune and
+ENVARC:Zune, the classes in LIBS:Zune: programs and earlier installations
+depend on them. They may be renamed in a later release.
+
 Each program gets the MUI it asks for
 -------------------------------------
 A program written for MUI 3 sees MUI 3.8 (19.35), one asking for MUI 4
-sees MUI 4, one asking for MUI 5 sees MUI 5 (21.227), and Zune behaves
-accordingly. In Zune prefs, System page, "MUI version": "Behave as"
+sees MUI 4, one asking for MUI 5 sees MUI 5 (21.227), and OpenMUI behaves
+accordingly. In OpenMUI prefs, System page, "MUI version": "Behave as"
 Automatic (the default), MUI 3.8, MUI 4 or MUI 5 for all programs, and a
 list of programs with a MUI of their own.
 
@@ -37,27 +53,29 @@ Double-click Install (Installer 43 or newer: on OS 3.1 use Installer
 43.3 from Aminet, OS 3.2 has its own). The installer:
 - looks for a MUI you already have (MUI 3.x, 4 or 5, its MUI: assign,
   its S:User-Startup lines, every muimaster.library in LIBS:) and tells
-  you what it found. None of it is changed: Zune goes into your first
+  you what it found. None of it is changed: OpenMUI goes into your first
   LIBS: drawer (normally SYS:Libs), where programs find it before MUI,
   and nothing is added to S:Startup-Sequence or S:User-Startup;
 - keeps every file it replaces, and writes down every file it installs,
-  in SYS:Zune68k/Data;
+  in SYS:OpenMUI/Data;
 - installs a bundled MUI class only when you do not have the same or a
   newer one yourself. The classes that come with a real MUI stay as they
-  are for that MUI; Zune uses its own;
-- keeps your Zune settings (ENVARC:Zune) on an update, and does not
-  touch MUI's (ENVARC:MUI).
+  are for that MUI; OpenMUI uses its own;
+- keeps your settings (ENVARC:Zune) on an update, and does not touch
+  MUI's (ENVARC:MUI);
+- removes an earlier test build installed as Zune68k lean (the drawer
+  SYS:Zune68k and SYS:Prefs/Zune) first, and puts your own files back.
 Novice, Intermediate and Expert levels and pretend mode work.
 
 Switching and removing
 ----------------------
-SYS:Zune68k has "Use real MUI" and "Use Zune" (when a real MUI was found)
-and "Uninstall". "Use real MUI" puts Zune's libraries and classes aside
-and puts your own files back: after a reboot programs get your MUI.
-"Use Zune" switches back. "Uninstall" (or Install again, "Remove
-Zune68k") deletes Zune's files and puts back every file of yours it had
-replaced; your MUI keeps working. The same from a Shell:
-SYS:Zune68k/Data/ZuneSwitch MUI|ZUNE|UNINSTALL|STATUS.
+SYS:OpenMUI has "Use real MUI" and "Use OpenMUI" (when a real MUI was
+found) and "Uninstall". "Use real MUI" puts OpenMUI's libraries and
+classes aside and puts your own files back: after a reboot programs get
+your MUI. "Use OpenMUI" switches back. "Uninstall" (or Install again,
+"Remove OpenMUI") deletes OpenMUI's files and puts back every file of
+yours it had replaced; your MUI keeps working. The same from a Shell:
+SYS:OpenMUI/Data/OpenMUISwitch MUI|OPENMUI|UNINSTALL|STATUS.
 
 Status
 ------

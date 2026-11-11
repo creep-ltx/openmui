@@ -142,7 +142,7 @@ int main(int argc,char **argv)
         input(app,IECLASS_RAWMOUSE,IECODE_LBUTTON,0,0,0);
         input(app,IECLASS_RAWMOUSE,IECODE_LBUTTON|IECODE_UP_PREFIX,0,0,0);
         printf("title click get=%lu notify=%lu\n",attr(list,MUIA_List_TitleClick),clicked);
-        if(strstr((char *)MUIMasterBase->lib_IdString, "Zune68") != NULL)
+        if(strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI") != NULL)
             check(clicked==1,"title click notifies column");
         else if(clicked!=1)
             puts("REFERENCE LIMIT: no TitleClick notification in this fixture");

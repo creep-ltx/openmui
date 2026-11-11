@@ -158,7 +158,7 @@ int main(int argc, char **argv)
     key(app, io, 0x34); /* paste */
     qualifier = 0;
     contents(obj, "fi");
-    if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68") != NULL)
+    if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI") != NULL)
     {
         Object *menu = (Object *)DoMethod(obj, MUIM_ContextMenuBuild, 0, 0);
         if ((ULONG)menu <= 1) failures++;

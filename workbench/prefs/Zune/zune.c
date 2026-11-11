@@ -60,7 +60,21 @@
 })
 
 
-#define ZUNEVERSION "$VER: Zune 0.2 (22.02.2006) AROS Dev Team"
+/* OpenMUI 0.1b1: the name the Version command shows; the beta number is in
+ * the text after the date. */
+#define ZUNEVERSION "$VER: OpenMUI 0.1 (11.11.2026) 0.1b1, The AROS Dev Team and contributors"
+
+/* The catalogs (translations too) still say "Zune" in window titles and the
+ * About menu item: show the same text with "OpenMUI" in its place. */
+static char *openmui_text(const char *text, char *buf, size_t size)
+{
+    const char *z = strstr(text, "Zune");
+
+    if (!z)
+        return (char *)text;
+    snprintf(buf, size, "%.*sOpenMUI%s", (int)(z - text), text, z + 4);
+    return buf;
+}
 
 ULONG __stack = 65536;
 struct Library *MUIMasterBase, *LocaleBase, *MUIScreenBase;
@@ -127,6 +141,7 @@ static Object *main_page_group_displayed; /* The current displayed group */
 static Object *main_page_space; /* a space object */
 
 char titlebuf[255];
+static char aboutbuf[64];
 
 #ifdef PREFS_TIMING
 static LONG ts_start = -1;
@@ -594,17 +609,19 @@ int init_gui(void)
     page_display_hook.h_SubEntry = (APTR)main_page_list_display;
 
     if (!strcmp(appname, "global"))
-        wintitle = (STRPTR) _(MSG_WINTITLE1);
+        wintitle = (STRPTR) openmui_text(_(MSG_WINTITLE1), titlebuf, 255);
     else
     {
-        snprintf(titlebuf, 255, _(MSG_WINTITLE2), appname);
+        char fmt[160];
+
+        snprintf(titlebuf, 255, openmui_text(_(MSG_WINTITLE2), fmt, sizeof(fmt)), appname);
         wintitle = titlebuf;
     }
 
     app = ApplicationObject,
-        MUIA_Application_Title, (IPTR) "Zune",
+        MUIA_Application_Title, (IPTR) "OpenMUI",
         MUIA_Application_Version, (IPTR) ZUNEVERSION,
-        MUIA_Application_Copyright, (IPTR) " 2006, The AROS Development Team",
+        MUIA_Application_Copyright, (IPTR) " 2002-2026, The AROS Development Team and contributors",
         MUIA_Application_Description, wintitle,
         MUIA_Application_SingleTask, TRUE,
         MUIA_Application_Base, "ZUNEPREF",
@@ -623,7 +640,7 @@ int init_gui(void)
                 End,
                 MUIA_Family_Child, MenuitemObject, MUIA_Menuitem_Title, NM_BARLABEL, End,
                 MUIA_Family_Child, aboutzune_menuitem = MenuitemObject,
-                    MUIA_Menuitem_Title, _(MSG_MEN_ABOUT), MUIA_Menuitem_Shortcut, _(MSG_MEN_ABOUT_SC),
+                    MUIA_Menuitem_Title, openmui_text(_(MSG_MEN_ABOUT), aboutbuf, sizeof(aboutbuf)), MUIA_Menuitem_Shortcut, _(MSG_MEN_ABOUT_SC),
                 End,
                 MUIA_Family_Child, MenuitemObject, MUIA_Menuitem_Title, NM_BARLABEL, End,
                 MUIA_Family_Child, quit_menuitem = MenuitemObject,
@@ -882,7 +899,7 @@ void main_open_menu(void)
 {
     static char dirpart[500]="ENVARC:Zune",filepart[500],filename[1000];
 
-    if (aslfilerequest ("Load a Zune Prefs File", (char *)&dirpart, (char *)&filepart, (char *)&filename, prefstags))
+    if (aslfilerequest ("Load an OpenMUI Prefs File", (char *)&dirpart, (char *)&filepart, (char *)&filename, prefstags))
         open_file(filename);
 }
 
@@ -904,7 +921,7 @@ void main_import_menu(void)
         open_file(tmp);
         DeleteFile(tmp);
     }
-    MUI_Request(app, main_wnd, 0, "Zune", "*_OK", global
+    MUI_Request(app, main_wnd, 0, "OpenMUI", "*_OK", global
         ? "MUI 3.8's settings are shown and in use for a test:\n"
           "Save or Use keeps them, Cancel goes back.\n"
           "Programs' own MUI 3.8 settings copied: %ld."
@@ -934,7 +951,7 @@ static void reload_behave_as(void)
         Forbid();
         lib = (struct Library *)FindName(&SysBase->LibList, names[i]);
         if (lib && (!lib->lib_IdString
-            || !strstr((const char *)lib->lib_IdString, "Zune68")))
+            || !strstr((const char *)lib->lib_IdString, "OpenMUI")))
             lib = NULL;
         if (lib)
             lib = OpenLibrary(names[i], 0); /* in memory: no loading */
@@ -1006,7 +1023,7 @@ void main_saveas_menu(void)
 {
     static char dirpart[500]="ENVARC:Zune",filepart[500],filename[1000];
 
-    if (aslfilerequest("Save a Zune Prefs File", (char *)&dirpart, (char *)&filepart, (char *)&filename, prefstags))
+    if (aslfilerequest("Save an OpenMUI Prefs File", (char *)&dirpart, (char *)&filepart, (char *)&filename, prefstags))
     {
         Object *configdata;
 
@@ -1116,9 +1133,9 @@ int main(void)
                 /* First run: no Zune settings yet, MUI 3.8's there */
                 if (XGET(main_wnd, MUIA_Window_Open)
                     && !strcmp(appname, "global") && mui38_first_run()
-                    && MUI_Request(app, main_wnd, 0, "Zune",
+                    && MUI_Request(app, main_wnd, 0, "OpenMUI",
                         "_Import|_Not now",
-                        "Zune has no settings yet, and MUI 3.8's settings\n"
+                        "OpenMUI has no settings yet, and MUI 3.8's settings\n"
                         "were found. Import them?") == 1)
                     main_import_menu();
 #ifdef PREFS_SIZES

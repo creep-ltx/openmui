@@ -96,17 +96,17 @@ int main(int argc, char **argv)
         for (int i=0;i<4;i++) { DoMethod(app,MUIM_Application_InputBuffered); Delay(2); }
         SetAttrs(sel, MUIA_Selectgroup_Active, MUIV_Selectgroup_Active_Next, TAG_DONE);
         printf("next active=%ld\n", (LONG)attr(sel, MUIA_Selectgroup_Active));
-        if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+        if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
             check(attr(sel, MUIA_Selectgroup_Active) == 2, "next selection");
         SetAttrs(sel, MUIA_Selectgroup_Active, MUIV_Selectgroup_Active_Next, TAG_DONE);
         printf("next again active=%ld\n", (LONG)attr(sel, MUIA_Selectgroup_Active));
-        if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+        if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
             check(attr(sel, MUIA_Selectgroup_Active) == 0, "next wraps");
         SetAttrs(sel, MUIA_Selectgroup_Active, MUIV_Selectgroup_Active_Prev, TAG_DONE);
         printf("previous active=%ld\n", (LONG)attr(sel, MUIA_Selectgroup_Active));
-        if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+        if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
             check(attr(sel, MUIA_Selectgroup_Active) == 2, "previous wraps");
-        if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+        if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
         {
             ULONG rgb[3];
             GetRGB32(native->WScreen->ViewPort.ColorMap, _pens(text)[MPEN_TEXT], 1, rgb);
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
         check(attr(sel, MUIA_Selectgroup_Active) == 0, "label click selects its option");
         check(attr(buttons[0], MUIA_Selected) && !attr(buttons[1], MUIA_Selected) &&
             !attr(buttons[2], MUIA_Selected), "radio images reflect selection");
-        if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+        if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
         {
             SetAttrs(win, MUIA_Window_ActiveObject, edit, TAG_DONE);
             input(app, IECLASS_RAWKEY, 0x4e, 0, 0, 0);
@@ -137,7 +137,7 @@ int main(int argc, char **argv)
         }
     }
     SetAttrs(win, MUIA_Window_Open, FALSE, TAG_DONE);
-    if (strstr((char *)MUIMasterBase->lib_IdString, "Zune68"))
+    if (strstr((char *)MUIMasterBase->lib_IdString, "OpenMUI"))
     {
         check(attr(text, MUIA_TextColor) == 0, "TextColor cleared after cleanup");
         check(!DoMethod(text, MUIM_Relayout, 0), "hidden object relayout rejected");

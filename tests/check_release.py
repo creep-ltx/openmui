@@ -28,7 +28,7 @@ class ReleaseTests(unittest.TestCase):
             self.library(name, '35.6')
         self.library('opentest', '1.0')
         (self.build / 'Tools').mkdir()
-        self.library('Tools/ZuneSwitch', '1.0')
+        self.library('Tools/OpenMUISwitch', '1.0')
 
     def library(self, name, version, date='12.10.2026', stage=' Zune68 Beta 1'):
         code = b'\x70\x00\x4e\x75' + f'$VER: {name} {version} ({date}){stage}\r\n\0'.encode()
@@ -71,41 +71,41 @@ class ReleaseTests(unittest.TestCase):
 
     def test_lean_edition_names_the_archive(self):
         for name in release.LIBRARIES:
-            self.library(name, '21.227', date='06.11.2026', stage=' Zune68k lean')
+            self.library(name, '21.227', date='11.11.2026', stage=' OpenMUI 0.1b1')
         self.assertEqual(release.identity(self.build),
-                         ('21.227', '2026.11.06', 'Zune68k lean'))
+                         ('21.227', '2026.11.11', 'OpenMUI 0.1b1'))
         archive = release.release(self.build, self.output, 'lha', full=False)
-        self.assertEqual(archive.name, 'Zune68k-lean-2026.11.06-amigaos3-m68k.lha')
+        self.assertEqual(archive.name, 'OpenMUI-0.1b1-2026.11.11-amigaos3-m68k.lha')
         readme = archive.with_suffix('.readme').read_text()
-        self.assertIn('2026.11.06', readme)
+        self.assertIn('2026.11.11', readme)
         destination = self.root / 'aminet'
-        prepare(self.output, destination, 'v2026.11.06')
-        self.assertEqual((destination / 'Zune68k-lean.lha').read_bytes(),
+        prepare(self.output, destination, 'v2026.11.11')
+        self.assertEqual((destination / 'OpenMUI-0.1b1.lha').read_bytes(),
                          archive.read_bytes())
 
     def test_switch_tool_and_home_icons(self):
         archive = release.release(self.build, self.output, 'lha', full=False)
         listing = subprocess.check_output(['lha', 'l', str(archive)]).decode('latin1')
-        for member in ['Zune68/Tools/ZuneSwitch', 'Zune68/Home/Uninstall.info',
-                       'Zune68/Home/Use real MUI.info', 'Zune68/Home/Zune68k.info']:
+        for member in ['OpenMUI/Tools/OpenMUISwitch', 'OpenMUI/Home/Uninstall.info',
+                       'OpenMUI/Home/Use real MUI.info', 'OpenMUI/Home/OpenMUI.info']:
             self.assertIn(member, listing)
         icon = subprocess.check_output(['lha', 'pq', str(archive),
-                                        'Zune68/Home/Use real MUI.info'])
+                                        'OpenMUI/Home/Use real MUI.info'])
         self.assertEqual(icon[:2], b'\xe3\x10')
         self.assertEqual(icon[48], release.WBPROJECT)
-        self.assertIn(b'SYS:Zune68k/Data/ZuneSwitch\0', icon)
+        self.assertIn(b'SYS:OpenMUI/Data/OpenMUISwitch\0', icon)
         self.assertIn(b'ACTION=MUI\0', icon)
 
     def test_package_readmes_name_the_release(self):
         archive = release.release(self.build, self.output, 'lha', full=False)
-        for member in ['Zune68/Zune68.readme', 'Zune68/ReadMe', 'Zune68/Compatibility']:
+        for member in ['OpenMUI/OpenMUI.readme', 'OpenMUI/ReadMe', 'OpenMUI/Compatibility']:
             text = subprocess.check_output(['lha', 'pq', str(archive), member]).decode('ascii')
             self.assertNotIn('[VERSION]', text)
             self.assertNotIn('[RELEASE]', text)
             self.assertNotIn('[STAGE]', text)
             self.assertIn('2026.10.12', text)
             self.assertIn('35.6', text)
-        readme = subprocess.check_output(['lha', 'pq', str(archive), 'Zune68/Zune68.readme']).decode('ascii')
+        readme = subprocess.check_output(['lha', 'pq', str(archive), 'OpenMUI/OpenMUI.readme']).decode('ascii')
         self.assertIn('Version:      2026.10.12 - Beta 1\n', readme)
 
     def test_missing_version(self):
@@ -133,12 +133,12 @@ class ReleaseTests(unittest.TestCase):
         originals = {p.name: p.read_bytes() for p in self.build.iterdir() if p.is_file()}
         archive = release.release(self.build, self.output, 'lha', full=False)
         for name, original in originals.items():
-            member = 'Zune68/' + ('Tests/' if name == 'opentest' else 'Libs/') + name
+            member = 'OpenMUI/' + ('Tests/' if name == 'opentest' else 'Libs/') + name
             data = subprocess.check_output(['lha', 'pq', str(archive), member])
             self.assertNotIn(b'fixture_symbol', data)
             self.assertIn(b'$VER: ' + name.encode(), data)
             self.assertEqual((self.build / name).read_bytes(), original)
-        icon = subprocess.check_output(['lha', 'pq', str(archive), 'Zune68/Libs.info'])
+        icon = subprocess.check_output(['lha', 'pq', str(archive), 'OpenMUI/Libs.info'])
         self.assertEqual(icon, (ROOT / 'dist/Libs.info').read_bytes())
 
     def test_strip_failure_preserves_previous_release(self):
@@ -154,7 +154,7 @@ class ReleaseTests(unittest.TestCase):
         archive = release.release(self.build, self.output, 'lha', full=False,
                                   strip=None)
         data = subprocess.check_output(['lha', 'pq', str(archive),
-                                        'Zune68/Tests/opentest'])
+                                        'OpenMUI/Tests/opentest'])
         self.assertEqual(data, (self.build / 'opentest').read_bytes())
 
     def test_incomplete_full_package(self):
@@ -162,7 +162,7 @@ class ReleaseTests(unittest.TestCase):
             path = self.build / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'fixture')
-        for name in ['Prefs/Zune', 'Prefs/Zune.info']:
+        for name in ['Prefs/OpenMUI', 'Prefs/OpenMUI.info']:
             with self.assertRaisesRegex(ValueError, 'missing ' + name):
                 release.release(self.build, self.output, 'lha')
             path = self.build / name

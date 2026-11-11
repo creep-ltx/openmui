@@ -106,7 +106,7 @@ def copy(source, target):
 
 
 def sdk(build):
-    copy(ROOT / 'dist/Zune.info', build / 'Prefs/Zune.info')
+    copy(ROOT / 'dist/OpenMUI-Prefs.info', build / 'Prefs/OpenMUI.info')
     master = ROOT / 'workbench/libs/muimaster'
     for directory in ['clib', 'proto', 'pragmas', 'fd', 'libraries', 'inline']:
         for source in (master / 'include' / directory).glob('*'):

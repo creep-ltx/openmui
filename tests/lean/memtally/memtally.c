@@ -377,7 +377,7 @@ int main(int argc, char **argv)
         mb = OpenLibrary(argv[2], argc > 3 ? atoi(argv[3]) : 0);
         if (mb) {
             Forbid(); lb = (struct Library *)FindName(&SysBase->LibList, argv[2]); Permit();
-            if (lb && lb->lib_IdString && strstr((char *)lb->lib_IdString, "Zune68"))
+            if (lb && lb->lib_IdString && (strstr((char *)lb->lib_IdString, "OpenMUI") || strstr((char *)lb->lib_IdString, "Zune68")))
                 ranges(*(BPTR *)((UBYTE *)lb + 38), m->mlo, m->mhi, &m->nm);
         }
         Printf("%s %s\n", argv[2], mb ? "open" : "not opened");
@@ -404,9 +404,9 @@ int main(int argc, char **argv)
             lb = (struct Library *)FindName(&SysBase->LibList, "muimaster.library");
             Permit(); if (lb) mb = lb; }
         /* Zune68k (the separate port) keeps its seglist at 42; Zune68 and its
-           lean edition ("Zune68k lean" since 2026-11-06) at 38 */
+           lean edition ("Zune68k lean" since 2026-11-06, "OpenMUI" since 2026-11-11) at 38 */
         if (mb && strstr((char *)mb->lib_IdString, "Zune68k") && !strstr((char *)mb->lib_IdString, "lean")) ranges(*(BPTR *)((UBYTE *)mb + 42), m->mlo, m->mhi, &m->nm);
-        else if (mb && strstr((char *)mb->lib_IdString, "Zune68")) ranges(*(BPTR *)((UBYTE *)mb + 38), m->mlo, m->mhi, &m->nm);
+        else if (mb && (strstr((char *)mb->lib_IdString, "OpenMUI") || strstr((char *)mb->lib_IdString, "Zune68"))) ranges(*(BPTR *)((UBYTE *)mb + 38), m->mlo, m->mhi, &m->nm);
         if (!(seg = LoadSeg(argv[2]))) return 20;
         ranges(seg, m->plo, m->phi, &m->np);
         m->task = FindTask(NULL);

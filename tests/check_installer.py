@@ -121,8 +121,8 @@ def main():
     problems = check(script)
     # the files the script installs from the package by name
     known = {package_path(n) for n in files} | {'Libs/zunemaster.library', 'Libs/muimaster.library',
-                          'Tools/ZuneSwitch', 'ReadMe', 'ReadMe.info',
-                          'Home/Zune68k.info', 'Home/ReadMe.info'}
+                          'Tools/OpenMUISwitch', 'ReadMe', 'ReadMe.info',
+                          'Home/OpenMUI.info', 'Home/ReadMe.info'}
     known |= {'Home/' + n for n in HOME_PROJECTS} | {'Home/' + n + '.info' for n in HOME_PROJECTS}
     known |= {'Libs/Zune', 'Libs/MUI'} | {'Libs/Zune/' + n for n in builtin_class_files(build)}
     for name in set(re.findall(r'\(tackon #package "([^"]+)"\)', script)):

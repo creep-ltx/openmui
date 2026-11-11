@@ -114,7 +114,7 @@ int main(void)
     check(strchr((char*)attr(o,MUIA_Keyadjust_Key),',')!=NULL,"multiple shortcuts");
     SetAttrs(o,MUIA_Keyadjust_AllowMultipleKeys,FALSE,MUIA_Keyadjust_Key,"rcommand c",TAG_DONE);
     check(!attr(o,MUIA_Keyadjust_AllowMultipleKeys),"multiple flag");
-    if(strstr((char*)MUIMasterBase->lib_IdString,"Zune68"))
+    if(strstr((char*)MUIMasterBase->lib_IdString, "OpenMUI"))
     {
         SetAttrs(o,MUIA_Keyadjust_Key,"not a valid key expression",TAG_DONE);
         check(!strcmp((char*)attr(o,MUIA_Keyadjust_Key),"rcommand c"),"invalid expression rejected");
@@ -139,10 +139,10 @@ int main(void)
         event.ie_Code|=IECODE_UP_PREFIX;DoIO((APTR)io);
         for(int i=0;i<4;i++){Delay(2);DoMethod(app,MUIM_Application_InputBuffered);}
         char *key=(APTR)attr(o,MUIA_Keyadjust_Key);printf("captured=%s\n",key);
-        if(strstr((char*)MUIMasterBase->lib_IdString,"Zune68"))
+        if(strstr((char*)MUIMasterBase->lib_IdString, "OpenMUI"))
             check(!ParseIX(key,&ix)&&ix.ix_Code==0x20&&(ix.ix_Qualifier&IEQUALIFIER_CONTROL),"captured system expression");
         else puts("REFERENCE DIFFERENCE: shortcut capture uses a different input path");
-        if(strstr((char*)MUIMasterBase->lib_IdString,"Zune68"))
+        if(strstr((char*)MUIMasterBase->lib_IdString, "OpenMUI"))
         {
             struct IntuiMessage mouse={0};mouse.Class=IDCMP_MOUSEBUTTONS;
             mouse.Code=SELECTDOWN;mouse.MouseX=attr(s,MUIA_LeftEdge)+2;

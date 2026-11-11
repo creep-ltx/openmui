@@ -19,8 +19,8 @@ $(BUILD)/prefs/cflags: FORCE
 	@$(call record_flags,$(CC) $(CPUFLAGS) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS))
 $(OBJECTS): GNUmakefile $(BUILD)/prefs/cflags
 .PHONY: all
-all: $(BUILD)/Prefs/Zune
-$(BUILD)/Prefs/Zune: $(OBJECTS)
+all: $(BUILD)/Prefs/OpenMUI
+$(BUILD)/Prefs/OpenMUI: $(OBJECTS)
 	@mkdir -p $(@D)
 	$(CC) $(CPUFLAGS) -noixemul $(LDFLAGS) -Wl,-u,___stkinit -o $@ $^ -lmui -ldebug
 $(BUILD)/prefs/%.o: %.c

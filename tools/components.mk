@@ -34,18 +34,18 @@ check: check-components
 check-components: prefs plugins catalogs sdk examples
 	$(PYTHON) $(ROOT)/tests/check_components.py $(COMPONENT_BUILD)
 	$(PYTHON) $(ROOT)/tests/check_installer.py $(COMPONENT_BUILD)
-	$(PYTHON) $(ROOT)/tests/check_prefs_cancel.py $(COMPONENT_BUILD)/Prefs/Zune
+	$(PYTHON) $(ROOT)/tests/check_prefs_cancel.py $(COMPONENT_BUILD)/Prefs/OpenMUI
 	$(PYTHON) $(ROOT)/tests/check_thebar.py $(COMPONENT_BUILD)
 	$(PYTHON) $(ROOT)/tests/check_bzip2.py
 	$(PYTHON) $(ROOT)/tests/check_pixmap.py $(COMPONENT_BUILD)/Libs/MUI/Pixmap.mui
 	$(PYTHON) $(ROOT)/tests/check_pixmap_render.py $(COMPONENT_BUILD)/Libs/MUI/Pixmap.mui
-# The installer's switch and uninstall tool (dist/Install, SYS:Zune68k)
-tools: $(BUILD)/Tools/ZuneSwitch
-$(BUILD)/Tools/ZuneSwitch: $(ROOT)/workbench/tools/zuneswitch/ZuneSwitch.c
+# The installer's switch and uninstall tool (dist/Install, SYS:OpenMUI)
+tools: $(BUILD)/Tools/OpenMUISwitch
+$(BUILD)/Tools/OpenMUISwitch: $(ROOT)/workbench/tools/openmuiswitch/OpenMUISwitch.c
 	@mkdir -p $(@D)
 	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) -Wno-pointer-sign $(PROGRAM_DEPS) -o $@ $<
-$(BUILD)/Tools/ZuneSwitch: $(BUILD)/cflags
--include $(BUILD)/Tools/ZuneSwitch.d
+$(BUILD)/Tools/OpenMUISwitch: $(BUILD)/cflags
+-include $(BUILD)/Tools/OpenMUISwitch.d
 examples: $(EXAMPLES)
 $(BUILD)/Examples/%: tutorial/examples/%.c tutorial/examples/muizunesupport.h $(GENERATED)
 	@mkdir -p $(@D)

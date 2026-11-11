@@ -306,7 +306,7 @@ static IPTR ExecuteScreenInspectorFunc(struct Hook *hook, Object *caller, void *
     return (IPTR) TRUE;
 }
 
-/* Which MUI programs see and Zune behaves as (ENV:Zune/BehaveAs, read
+/* Which MUI programs see and OpenMUI behaves as (ENV:Zune/BehaveAs, read
  * by the library when it is loaded and when these settings are saved or
  * used; muimaster identity.c). Automatic: the MUI each program asks
  * for. The per-program lines win over the setting for all. A line of
@@ -493,7 +493,7 @@ static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                 Child, (IPTR) HGroup,
                     Child, (IPTR) Label1("Behave as:"),
                     Child, (IPTR) (d.identity_cycle = MakeCycle("Behave as:", identity_labels)),
-                    MUIA_ShortHelp, (IPTR) "The MUI programs see and Zune behaves as.\n"
+                    MUIA_ShortHelp, (IPTR) "The MUI programs see and OpenMUI behaves as.\n"
                         "Automatic: the one each program asks for\n"
                         "(MUI 3 programs get MUI 3.8, MUI 4 and 5\n"
                         "programs MUI 4 and 5).\n"

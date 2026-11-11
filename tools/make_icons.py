@@ -30,7 +30,7 @@ def main():
         subprocess.run([args.icontool, '--strict', *options,
                         str(source)], check=True)
 
-    drawer = DIST / 'Zune68.info'
+    drawer = DIST / 'OpenMUI.info'
     edit(drawer, '--pos', '24,24', '--winsize', '420,180',
          '--edit', 'DrawerData:CurrentX=0',
          '--edit', 'DrawerData:CurrentY=0',
@@ -46,7 +46,7 @@ def main():
              '-o', str(DIST / (name + '.info')))
 
     if not args.drawers_only:
-        edit(DIST / 'Zune.info', '--pos', '24,16',
+        edit(DIST / 'OpenMUI-Prefs.info', '--pos', '24,16',
              '--edit', 'DiskObject:StackSize=65536',
              '--edit', 'DiskObject:Gadget:Width=54',
              '--edit', 'DiskObject:Gadget:Height=27',

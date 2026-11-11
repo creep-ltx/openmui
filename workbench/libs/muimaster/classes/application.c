@@ -4032,8 +4032,9 @@ static IPTR Application__MUIM_OpenWindows(struct IClass *cl, Object *obj,
 *       IPTR result = DoMethod(obj, MUIM_Application_OpenConfigWindow, flags);
 *
 *   FUNCTION
-*       Launch sys:prefs/Zune asynchronously with the application base and
-*       object address on its command line.
+*       Launch sys:prefs/OpenMUI (sys:prefs/Zune if that is missing, as
+*       an earlier installation had it) asynchronously with the
+*       application base and object address on its command line.
 *
 *   INPUTS
 *       flags - ULONG declared in the message; ignored.
@@ -4065,8 +4066,15 @@ static IPTR Application__MUIM_OpenConfigWindow(struct IClass *cl,
         {TAG_DONE}
     };
     char cmd[255];
+    CONST_STRPTR prefs = "sys:prefs/OpenMUI";
+    BPTR lock = Lock((STRPTR)prefs, SHARED_LOCK);
 
-    snprintf(cmd, 255, "sys:prefs/Zune %s %ld",
+    if (lock)
+        UnLock(lock);
+    else
+        prefs = "sys:prefs/Zune";
+
+    snprintf(cmd, 255, "%s %s %ld", prefs,
         data->app_Base ? data->app_Base : (STRPTR) "", (long)obj);
 
     if (SystemTagList(cmd, tags) == -1)

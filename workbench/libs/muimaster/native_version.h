@@ -30,9 +30,15 @@
 #define ZUNE68_MUI38_REVISION 35
 #define ZUNE68_MUI4_VERSION 20
 #define ZUNE68_MUI4_REVISION 6000
-/* The edition after the date in the $VER strings. It must contain
- * "Zune68": Zune prefs and the class-file check look for it there. */
-#define ZUNE68_EDITION "Zune68k lean"
+/* The edition after the date in the $VER strings: OpenMUI, the lean
+ * edition of Zune68, with its beta number (X.YbN until it is daily driven).
+ * It must contain "OpenMUI": OpenMUI prefs, OpenMUISwitch and the tests
+ * look for it in the library's id string to tell it from a real MUI
+ * (earlier editions said "Zune68k lean"; OpenMUISwitch knows those too).
+ * The file names muimaster.library and zunemaster.library, the version
+ * numbers above and LIBS:Zune, ENV:Zune, ENVARC:Zune stay as they are. */
+#define ZUNE68_EDITION_NUMBER "0.1b1"
+#define ZUNE68_EDITION "OpenMUI " ZUNE68_EDITION_NUMBER
 #define ZUNE68_STRINGIFY_(x) #x
 #define ZUNE68_STRINGIFY(x) ZUNE68_STRINGIFY_(x)
 #define ZUNE68_LIBRARY_VERSION_STRING \
