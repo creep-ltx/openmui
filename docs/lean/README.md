@@ -1,5 +1,18 @@
 # Zune68, lean edition
 
+> **Renamed 2026-11-11: this edition is now OpenMUI** (first beta
+> 0.1b1), earlier test builds were "Zune68k lean". OpenMUI is not MUI and
+> is not affiliated with MUI's authors; MUI is the product of Stefan
+> Stuntz. The notes below keep the names of their time ("Zune", "Zune68k",
+> "lean") where they describe what was done then. The rename changed
+> texts only: the library files `muimaster.library` and
+> `zunemaster.library`, the version numbers, `LIBS:Zune`, `ENV:Zune` and
+> `ENVARC:Zune` are as they were; the prefs program is `SYS:Prefs/OpenMUI`,
+> the installer drawer `SYS:OpenMUI` (was `SYS:Zune68k`), the switch tool
+> `OpenMUISwitch` (was `ZuneSwitch`, source `workbench/tools/openmuiswitch`).
+> The archive is `OpenMUI-0.1b1-DATE-amigaos3-m68k.lha`. See the
+> [root README](../../README.md).
+
 Branch `lean`: Zune68 with the memory diet of Zune68k ported, so that it
 reports MUI 5 (21.227) and stays close to MUI 3.8 in memory. The goal:
 stock OS 3.1 works (68000 build the default, 68020 too), every feature

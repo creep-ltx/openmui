@@ -1,177 +1,101 @@
-# Zune68
+# OpenMUI
 
-Zune for classic AmigaOS 3, starting from current AROS source.
+A MUI-compatible `muimaster.library` for classic AmigaOS 3.x. It runs programs
+written for MUI 3, 4 and 5 on a stock 68000 with OS 3.1, and aims at the look
+and the memory use of MUI 3.8.
 
-**On the same 68020 widget benchmark, original MUI 5 takes 1.2 to 3 times as
-long as MUI 3.8. Zune68 reporting MUI 5 is level with or faster than MUI 3.8
-in all eight tests.**
+**Version 0.1b1, a test build.** Betas are `X.YbN` until OpenMUI has been in
+daily use for a while. Every figure in these pages was measured in an emulator
+(FS-UAE), not on a real Amiga.
 
-The native GCC port builds both library names, Zune Prefs, every class under
-`workbench/classes/zune` (MCC/MCP plugins, image classes, and the AROS
-utility classes such as Calltips and Calendar), catalogs, SDK headers,
-examples and an Installer package.
-The library reports 21.227, the version of MUI 5, so that applications take
-their current code paths; this is not a claim of complete MUI 5 compatibility.
-Releases are identified by date and the current line is a beta. `MUI5_TEST=0`
-builds the AROS baseline identity 19.81, and the `mui38-dev` branch holds the
-last line that targeted MUI 3.8.
+> **OpenMUI is not MUI and is not affiliated with MUI's authors.** MUI is the
+> product of Stefan Stuntz. OpenMUI is a separate library that is compatible
+> with MUI's programming interface. MUI 3.8 was studied clean-room: its
+> behaviour, never its code.
 
-The native runtime supplies register gates, explicit resource ownership,
-safe class and notification lifetimes, classic application services, and
-planar rendering. Sorting and clipping avoid unnecessary work on m68k.
-Normal builds omit trace output; diagnostics are enabled with `TRACE=1`.
+## Where it comes from
 
-With m68k-amigaos-gcc, GNU make, sfdc, fd2sfd, FlexCat and lha installed:
+| | |
+|---|---|
+| **Zune** | The MUI-compatible GUI toolkit of [AROS](https://github.com/aros-development-team/AROS), by The AROS Development Team. |
+| **Zune68** | Zune ported to classic AmigaOS 3 by Stefan Reinauer ([reinauer/zune68](https://github.com/reinauer/zune68)). |
+| **OpenMUI** | The *lean edition* of Zune68: MUI 3.8's look, memory use and speed as the goal, MUI 3/4/5 programs as the target. Earlier test builds were called Zune68k lean. |
+
+The AROS Public License applies to the core (see `LICENSE`); the bundled
+classes keep their own licences and notices (`LEGAL`, `ACKNOWLEDGEMENTS`).
+
+## What is in it
+
+- **muimaster.library** (and `zunemaster.library`, the same library under a
+  second name, which the preferences program uses), built with GCC for
+  68000 or better, no FPU.
+- **Each program gets the MUI it asks for.** A MUI 3 program sees MUI 3.8
+  (19.35), a MUI 4 program MUI 4, a MUI 5 program MUI 5 (21.227). OpenMUI prefs
+  has "Behave as" (Automatic, MUI 3.8, MUI 4, MUI 5) and a list of programs
+  with a MUI of their own.
+- **Lean:** about 45 rarely used classes and parts of the library are files of
+  their own in `LIBS:Zune`, loaded the first time a program needs one.
+- **OpenMUI preferences** (`SYS:Prefs/OpenMUI`), with an import of MUI 3.8's
+  settings.
+- **Bundled MUI classes** with their preference pages: NList, NListtree,
+  TextEditor, BetterString, TheBar, Busy, Listtree and others.
+- **Installer** that leaves a real MUI alone, keeps what it replaces,
+  and has *Use real MUI*, *Use OpenMUI* and *Uninstall* in `SYS:OpenMUI`.
+- Translations, an SDK with examples, and the full source.
+
+## Install
+
+Download the archive `OpenMUI-0.1b1-YYYY.MM.DD-amigaos3-m68k.lha`, unpack it
+and double-click *Install* (Installer 43 or newer; on OS 3.1 use Installer
+43.3 from Aminet). The `ReadMe` inside has the details. An earlier Zune68k lean
+test build is removed first and your own files put back.
+
+Paths that keep their old names for now, because programs and earlier
+installations depend on them: the library files `muimaster.library` and
+`zunemaster.library`, the library version numbers, `LIBS:Zune`, `ENV:Zune`
+and `ENVARC:Zune`. They may change in a later release.
+
+## Build
+
+With m68k-amigaos-gcc (GCC 16 used), GNU make, sfdc, fd2sfd, FlexCat and lha:
 
 ```sh
 git submodule update --init --recursive
 make -j4 all
-make check
-make release
+make check     # needs the Python bundled with the Amiga toolchain
+make release   # the archive and its Aminet readme, in build/muimaster/release
 ```
 
-Rebuilding an existing build directory recompiles what changed sources,
-headers or flags (`CFLAGS`, `CPUFLAGS`, `LTO`, `TRACE`) affect. The make
-3.81 shipped with macOS compares timestamps to the second, so a change in
-the same second as the previous build can be missed; GNU make 4 does not.
+`make check` runs the linked 68000 code with modelled OS calls; it does not
+establish GUI compatibility or speed on Amiga hardware.
 
-Checks need the Python bundled with the Amiga toolchain, which has matching
-`amitools` and `machine68k`: `make check
-PYTHON=<toolchain>/libexec/amitools/bin/python`. They execute linked
-68000 code with modelled OS calls. They do not establish GUI compatibility
-or speed on Amiga hardware. `dist/Compatibility` describes guest workloads.
-The release archive is under `build/muimaster/release`; packaged binaries
-are stripped while local build outputs keep their symbols.
+## More
 
-## Speed
+Details are in [docs/lean/](docs/lean/README.md): what differs from Zune68
+commit by commit, memory and speed measurements, the class split, how each
+program gets its MUI, the roadmap. [dist/Compatibility](dist/Compatibility)
+describes the compatibility workloads; [tests/native/PERFORMANCE.md](tests/native/PERFORMANCE.md)
+the speed method.
 
-`perfbench` on an emulated 68020 with AGA, milliseconds per batch, lower is
-better. The tree uses only what MUI 3.8 offers, and the same executable runs
-on all three.
-
-| Test | MUI 3.8 | MUI 5 | Zune68 |
-|---|---:|---:|---:|
-| Create/dispose widget tree | 116.32 | 263.36 | 86.78 |
-| Open/close window | 359.95 | 705.86 | 359.96 |
-| Full redraw x10 | 1567.54 | 2198.56 | 1546.51 |
-| Group change cycle x5 | 956.24 | 1305.22 | 927.28 |
-| Insert 200 entries | 1552.02 | 4721.00 | 835.03 |
-| Selection/autoscroll x50 | 1071.64 | 2122.24 | 983.91 |
-| Notification chain x100 | 695.11 | 1260.20 | 654.16 |
-| Text update x100 | 158.80 | 193.96 | 154.60 |
-
-[PERFORMANCE.md](tests/native/PERFORMANCE.md) has the method and what these
-numbers do not cover.
-
-## Tested applications
-
-These MUI applications have been run with Zune68 on AmigaOS 3:
-
-- IBrowse 3.0 (build 30.8, AmigaOS/68020 version)
-- YAM 2.9p1
-- Voyager 3.5.2, with Zune68's Textinput.mcc 29
-- Odyssey Web Browser
-- AmiPG 17.340
+Tested with (in FS-UAE): MUI 3.8's 19 demos and real MUI programs such as YAM,
+AmIRC, AmFTP and IBrowse; 30 of 36 MUI 3 programs behave as with MUI 3.8 there.
 
 ![IBrowse 3.0 running with Zune68, next to Zune Prefs](iBrowse.png)
 
-## CI and releases
+*(Picture from the Zune68 base, before the OpenMUI name.)*
 
-GitHub Actions builds and checks branch pushes and pull requests. A release
-date tag such as `v2026.11.02`, matching the date in the library's version
-string, creates a draft pre-release with an LHA and Aminet readme. Publishing the release uploads those same assets to Aminet as
-`Zune68.lha` and `Zune68.readme`. Local preparation without uploading:
+## Branches and the upstream import
 
-```sh
-python3 tools/prepare_aminet.py --tag v2026.11.02
-```
+- `aros-upstream` holds the filtered AROS history (component source, layout,
+  authorship and dates retained; commit messages carry an `AROS-Commit`
+  trailer). `main` is Zune68's work on top of it; `lean` is the lean edition's
+  line, and OpenMUI is that line under its new name.
+- The importer, the path list and how to merge later AROS updates are in
+  `tools/upstream/` (`import-aros.py`, `paths.txt`, `source.json`,
+  `commit-map`). Use a complete AROS clone and a new output directory; never
+  fetch the unfiltered AROS branch into `aros-upstream`.
+- The translations and TheBar are git submodules: run
+  `git submodule update --init --recursive` after cloning.
 
-## Branches
-
-- `aros-upstream` contains the filtered AROS history. Component source,
-  directory layout, authorship, and dates are retained. Commit messages
-  include an `AROS-Commit` trailer identifying the original commit.
-- `main` contains Zune68 work on top of that baseline. The native
-  build supports GCC; inherited SAS/C files are historical source,
-  not a commitment to maintain a SAS/C build.
-
-The source revision is
-`5f32b5ee24fd4f80f7ba9a4730fda143093f6e98` (2 November 2026).
-The last retained component change is from 2 November 2026. Unrelated AROS
-commits are pruned, so the filtered tip represents the selected tree at
-the source revision rather than a one-to-one copy of the AROS tip commit.
-
-## Included source
-
-The baseline includes muimaster, muiscreen, Zune Prefs, all classes under
-`workbench/classes/zune`, demos, developer tests, supporting MUI interface
-files, and license/credit files. Historical paths retain the earlier test
-and demo locations and the Calendar/Clock sources from Time Prefs.
-
-BetterString, HotkeyString, the NList family, and TextEditor are included
-with their preferences modules, headers, documentation, and examples.
-The history of the AROS classes here is the history recorded in AROS, not
-a reconstruction of their separate upstream repos.
-
-The five translation repositories remain pinned submodules. TheBar is an
-additional submodule pinned to its 26.22 release. Its native build includes
-TheBar, TheBarVirt, TheButton, the preferences module and Toolbar wrapper,
-along with catalogs, SDK headers and a runnable example. After cloning:
-
-```sh
-git submodule update --init --recursive
-```
-
-On `aros-upstream`, the top-level `.gitmodules` is filtered to the selected
-translation components; all other selected file contents and modes match
-the original upstream revision.
-Original license and copyright notices remain in place; see `LICENSE`,
-`LEGAL`, and the component-specific license files.
-
-## Reproducing the upstream branch
-
-Use a complete AROS clone. The importer reads it without modifying it and
-requires a new output directory. It fetches independent Git objects rather
-than sharing object storage with the source repository.
-
-```sh
-python3 -m venv /tmp/zune68-filter-env
-/tmp/zune68-filter-env/bin/pip install git-filter-repo==2.47.0
-/tmp/zune68-filter-env/bin/python tools/upstream/import-aros.py \
-    --source "$HOME/git/AROS" \
-    --revision 5f32b5ee24fd4f80f7ba9a4730fda143093f6e98 \
-    --output /tmp/zune68-upstream-import
-```
-
-`tools/upstream/paths.txt` specifies the extraction scope.
-`filter_submodules.py` scopes translation metadata. The importer preserves
-original identities, dates, message encodings, and hash references while
-adding original-commit trailers. It checks the resulting tree against the
-selected upstream paths and writes its report to `.git/filter-repo/`.
-
-`tools/upstream/source.json` records the current baseline and recipe hashes.
-`tools/upstream/commit-map` maps retained original commits to filtered
-commits. The full extraction map, including pruned commits, also lives
-locally in `.git/filter-repo/commit-map`; Git does not publish that directory.
-
-## Importing later AROS updates
-
-Run the same importer into a new temporary directory with a newer pinned
-AROS revision. Keep the path list, filter version, and callbacks stable:
-changing the recipe may rewrite earlier filtered history.
-
-While on `main`, fetch the new filtered branch without a force flag:
-
-```sh
-git fetch /tmp/zune68-upstream-import \
-    aros-upstream:aros-upstream
-git merge aros-upstream
-git submodule update --init --recursive
-```
-
-The fetch should fast-forward `aros-upstream`. If it does not, investigate
-the source ancestry and extraction recipe before proceeding. Resolve native
-port conflicts on `main`, preserving the imported branch. Update the
-tracked provenance report and retained commit map in the same integration.
-
-Do not fetch the unfiltered AROS branch directly into `aros-upstream`.
+GitHub Actions builds and checks pushes; a date tag such as `v2026.11.11`
+creates a draft pre-release with the archive and Aminet readme.
