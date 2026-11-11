@@ -4015,121 +4015,32 @@ static struct ObjNode *FindObjNode(struct MinList *list, Object *obj)
     return NULL;
 }
 
-/* Return the borrowed object in the first cycle-chain node, or NULL for an
- * empty chain. Do not filter disabled or hidden state; callers must account
- * for this fallback behavior.
- */
-static Object *GetFirstActiveObject(struct MUI_WindowData *data)
+/* From the supplied node forwards (next) or backwards through the cycle
+ * chain, the first non-disabled object with SHOWME set; NULL at the end
+ * (no wrapping). Require valid stable chain links and live Area targets. */
+static Object *GetPrevNextActiveObject(struct ObjNode *node, BOOL next)
 {
-    ASSERT_VALID_PTR(data);
-
-    if (!IsListEmpty(&data->wd_CycleChain))
-        return ((struct ObjNode *)data->wd_CycleChain.mlh_Head)->obj;
-    else
-        return NULL;
-}
-
-/* Return the borrowed object in the last cycle-chain node, or NULL for an
- * empty chain. Do not filter disabled or hidden state; no ownership or
- * state changes occur.
- */
-static Object *GetLastActiveObject(struct MUI_WindowData *data)
-{
-    ASSERT_VALID_PTR(data);
-
-    if (!IsListEmpty(&data->wd_CycleChain))
-        return ((struct ObjNode *)data->wd_CycleChain.mlh_TailPred)->obj;
-    else
-        return NULL;
-}
-
-/* Cycle-chain iterator signature. Receive a linked live ObjNode and return
- * the borrowed adjacent node or NULL at the sentinel. Do not mutate the
- * chain or transfer ownership.
- */
-typedef struct ObjNode *objnode_iterator_t(struct ObjNode *curr_node);
-
-/* Forward declaration of the next-node iterator; its contract is defined
- * with the implementation below. Input links must remain valid and the
- * return value is borrowed.
- */
-static objnode_iterator_t NextObjNodeIterator;
-/* Forward declaration of the previous-node iterator; its contract is
- * defined with the implementation below. Input links must remain valid and
- * the return value is borrowed.
- */
-static objnode_iterator_t PrevObjNodeIterator;
-
-/* Return the next borrowed cycle-chain node or NULL at the tail sentinel.
- * curr_node must be a linked live node; no wrapping, mutation or ownership
- * transfer occurs.
- */
-static struct ObjNode *NextObjNodeIterator(struct ObjNode *curr_node)
-{
-    if (curr_node->node.mln_Succ->mln_Succ)
-        return (struct ObjNode *)curr_node->node.mln_Succ;
-    else
-        return NULL;
-}
-
-/* Return the previous borrowed cycle-chain node or NULL at the head
- * sentinel. curr_node must be a linked live node; no wrapping, mutation or
- * ownership transfer occurs.
- */
-static struct ObjNode *PrevObjNodeIterator(struct ObjNode *curr_node)
-{
-    if (curr_node->node.mln_Pred->mln_Pred)
-        return (struct ObjNode *)curr_node->node.mln_Pred;
-    else
-        return NULL;
-}
-
-/* Traverse from the supplied node with a callable next/previous iterator,
- * selecting a non-disabled object with SHOWME set. Require valid stable
- * chain links and live Area targets. Return a borrowed target or NULL; this
- * helper does not wrap at a sentinel.
- */
-static Object *GetPrevNextActiveObject(struct ObjNode *old_activenode,
-    objnode_iterator_t node_iterator)
-{
-    struct ObjNode *curr_node;
-    struct ObjNode *node;
-    Object *obj;
-
-    ASSERT_VALID_PTR(old_activenode);
-
-    curr_node = old_activenode;
-    node = NULL;
-    obj = NULL;
-
-    while (curr_node)
+    for (;;)
     {
-        node = node_iterator(curr_node);
+        struct MinNode *n = next ? node->node.mln_Succ : node->node.mln_Pred;
+        Object *obj;
 
-        if (node)
-            obj = node->obj;
+        if (!(next ? n->mln_Succ : n->mln_Pred))
+            return NULL;
+        node = (struct ObjNode *)n;
 
         /* let's see if this object meets cycle requirements
          * (enabled & visible) */
-        if (obj)
+        if ((obj = node->obj))
         {
             IPTR is_disabled = 0;
 
             get(obj, MUIA_Disabled, &is_disabled);
-
             if (!is_disabled && (_flags(obj) & MADF_SHOWME))
-            {
                 return obj;
-            }
         }
-
-        curr_node = node;
-        obj = NULL;
-        node = NULL;
     }
-    return obj;
 }
-
 
 /**************************************************************************
  Code for setting MUIA_Window_ActiveObject
@@ -4193,20 +4104,21 @@ static void SetActiveObject(struct MUI_WindowData *data, Object *obj,
         break;
 
     case MUIV_Window_ActiveObject_Next:
+    case MUIV_Window_ActiveObject_Prev:
+    {
+        BOOL next = newval == MUIV_Window_ActiveObject_Next;
+
         if (old_activenode != NULL)
             data->wd_ActiveObject = GetPrevNextActiveObject(old_activenode,
-                NextObjNodeIterator);
-        if (NULL == data->wd_ActiveObject)
-            data->wd_ActiveObject = GetFirstActiveObject(data);
+                next);
+        /* else the first or last of the chain, disabled or hidden or not */
+        if (NULL == data->wd_ActiveObject
+            && !IsListEmpty((struct List *)&data->wd_CycleChain))
+            data->wd_ActiveObject = ((struct ObjNode *)(next
+                ? data->wd_CycleChain.mlh_Head
+                : data->wd_CycleChain.mlh_TailPred))->obj;
         break;
-
-    case MUIV_Window_ActiveObject_Prev:
-        if (old_activenode)
-            data->wd_ActiveObject = GetPrevNextActiveObject(old_activenode,
-                PrevObjNodeIterator);
-        if (NULL == data->wd_ActiveObject)
-            data->wd_ActiveObject = GetLastActiveObject(data);
-        break;
+    }
 
     default:
         data->wd_ActiveObject = (Object *) newval;
