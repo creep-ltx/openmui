@@ -62,6 +62,18 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    are MUI 3 programs that hit them at start). 166 KB is still not
    reached: the rest is the big classes' own code;
    [README.md](README.md#a-smaller-library-second-round-2026-11-11-phase-3).
+   *List 2026-11-11* (branch `listslim`): the largest class rewritten
+   smaller, 28,824 -> 24,388 bytes of code (-15.4%; 25-35% was aimed
+   at): MUI 3.9/4/5-only parts (horizontal scroller, title buttons,
+   ISOBJECT cells, column order and hiding, title arrays, SortEntries,
+   the format's MUI 4/5 keywords) into Zlist.mui, duplicated paths made
+   one (dispatcher call, column bars, compare, OM_NEW/OM_SET stores,
+   text calls), 64-byte column records, an unreachable separator gone.
+   Library file 267,716 -> 263,208 bytes; speed, stack and the tests as
+   `lean`'s; programs that get MUI 4/5 now load Zlist.mui with their
+   first list, MUI 3 programs never;
+   [README.md](README.md#list-made-smaller-2026-11-11-phase-3).
+   Next: Window (26 KB), Group (22 KB), String (20 KB) the same way.
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.

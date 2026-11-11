@@ -620,3 +620,10 @@ marked, with its commit in docs/lean/README.md.
   installer would.
 - One program can spoil the next (a task left running, MUI 3.8 after a flush): every program
   starts on a freshly booted instance.
+- A `wasabi snoop` attached to the instance (`snooplog.sh`, the LoadSeg trace) makes YAM 2.10 on
+  the zune target answer nothing for minutes: OS 3.1 has no PNG datatype, YAM tries its 50 theme
+  pictures through datatypes and every DOS call is traced. Its "Error messages" window then stays
+  (neither its close gadget nor its Close window button does anything), YAM does not quit and the
+  second run is lost (2026-11-11, branch `listslim`: yam210 alone with a snoop three times, the
+  window every time; without, never). Trace the MUI 4/5 group without yam210. The dismiss hook
+  ends only after two quiet checks, as the window may come late.

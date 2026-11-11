@@ -1680,7 +1680,8 @@ Checked (final build unless said):
   "Error messages" window (YAM's own: a theme picture it could not load through datatypes) in all
   three group runs of this branch. Run alone, it is exactly `lean`'s (no error window, the same
   windows, the same memory lost, -392 bytes), and `lean` alone the same: not traced further; it
-  came in the group runs with five instances busy.
+  came in the group runs with five instances busy. (Found on `listslim`: it was the LoadSeg
+  trace attached to the group runs, not Zune; "List made smaller" below.)
 - `tests/lean/string45.c` (String's Integer64 init/set/get with the 64-bit extremes and the twelve
   Textinput values), `tests/lean/cfgset.c` (every Configdata setter, set and back to its default),
   `m45probe` (MUI 3.8 identity and `m45probe 21`): the same output as before the moves (MUI 3.8
@@ -1720,7 +1721,7 @@ new test tools `tests/lean/setleft.c` and `tests/lean/mpress.c`):
 Library file (stripped) 267,400 -> 267,716 bytes. Unregistered MUI 3.8 ignores the Cycles page's
 popup control (position, level, speed) in its files; its settings program's test mode applies
 them to running programs. Not done: the middle-button drag and the drag look (no drag starts
-from synthetic input in FS-UAE on MUI 3.8, so nothing could be measured), YAM 2.10's "Error messages" window in the MUI 4/5 group runs.
+from synthetic input in FS-UAE on MUI 3.8, so nothing could be measured), YAM 2.10's "Error messages" window in the MUI 4/5 group runs (explained on `listslim`: the LoadSeg trace).
 
 Checked: `make check` (`check_window_pens.py` knows the extra pen request); fullcheck (below);
 the popup at speeds 0, 10, 30, 50 and the active frame on a1200-31 with the branch's library.
@@ -1752,6 +1753,48 @@ Known: the default "1:17" / "1:23" images are drawn stretched in the Right / Dow
 (MUI 3.8 shows small arrows); Zune prefs shows Lines / Shadow / Right / Down enabled in
 every style (MUI 3.8 enables by style); Save writes only items that differ from the
 defaults (MUI 3.8 writes all).
+
+## List made smaller (2026-11-11, phase 3)
+
+Branch `listslim` (from `lean`). List was the largest class (`classes/list.o` 28,824 bytes of code).
+Measured per function (`m68k-amigaos-nm --size-sort` on the object, `-fstack-usage` against `lean`
+after every step), then: what only lists of programs that get MUI 4/5 use went into the list module
+(`Zlist.mui`, `listx.c`), and code paths that were there twice became one. Same rules as the rounds
+before: the library keeps what layout and the common path need and the decision whether a feature is
+used; a MUI 3 program never loads the module for it; no stack frame larger than `lean`'s.
+
+| commit | what | List's code |
+|---|---|---|
+| 499ea190 | into Zlist.mui: MUI 3.9's horizontal scroller and title buttons (a list has them only in a program that gets MUI 4/5, or asks with `MUIA_List_HScrollerVisibility` Always: `MUIM_Setup`, `List_TitleStrip()`), ISOBJECT cells and `MUIA_List_ColumnOrder` (MUI 5); one function changes the drag event mask | 28,824 -> 26,556 |
+| d34ca31f | the dispatcher's cases only pick the method, one call for all; the title's and the entries' column bars one function; `struct ColumnInfo` 64 bytes instead of 66 (its flags as UBYTE), so `data->ci[col]` is a shift at ~110 places | -> 25,840 |
+| 6ea458b0 | `MUIM_List_Sort` and `MUIM_List_SortEntries` compared through two copies of one function: now one (`zune_list_compare`); SortEntries (MUI 5) into the module | -> 25,516 |
+| d04adeaf, 8daad8bf | `MUIA_List_HideColumn`/`ShowColumn`/`TitleArray` and the format's FIXWIDTH, ISOBJECT, ELIDE, HIDDEN, SORTABLE, ORDER (none of them in MUI 3.8) into the module, called only when a program passes one | -> 25,028 |
+| 73e26528, 35201178 | the horizontal check's early outs (quiet, not set up) stay in the library, so a quiet insert never calls the module; `data->area` and the event's message read once | -> 24,984 |
+| e8259a6d, 898ca289 | the scrollbar made in one place and its three notifications in a loop; the 15 attributes OM_NEW and OM_SET both stored in one function (OM_SET reaches it through explicit case labels: a foreign tag calls nothing) | -> 24,676 |
+| 320680bb, 0182e888 | a cell's four text calls (ELIDE, laid out format, MUI 3.8's cut, plain) one call after working out where the text ends; one `MUIM_List_Jump` call for the keys | -> 24,564 |
+| e2a66931 | **found by stackrun**: the bar function made the entry area's clip itself, one frame deeper (Virtual's deepest stack 2,676 -> 2,704 on the first build); now it returns "needs the clip" and `MUIM_Draw` makes it and draws the bars again (the same pixels) | -> 24,636 |
+
+**List's code 28,824 -> 24,636 bytes (-4,188, -14.5%)**; Zlist.mui 4,220 -> 7,820 bytes. Library file
+(stripped) 267,716 -> 263,480 bytes (-4,236).
+
+Not reached: the 25-35% aimed at. What is left is code every MUI 3 program runs (per function, bytes:
+Draw 2,546, OM_SET 1,946, HandleEvent 1,878, the format parser 1,494, OM_NEW 1,326, DrawEntry 940, Insert
+882, dispatcher 902). Tried and taken back or left: GCC already merges identical tails (four inline "remove
+the event handler, change the mask, add it" blocks as one function saved 20 bytes); a shared function for
+`MUIA_List_Active`'s special values made OM_SET's frame 4 bytes larger for 16 bytes of code, and loops over
+the three highlight images in MUIM_Setup/Cleanup 4 bytes each (both taken back); an OM_GET table would be
+smaller but slower than GCC's compare tree on every get (not done); the StringArray display/compare hooks
+(MUI 4/5) stay in the library because a module call per row costs a class lookup (`zune_module_get`); a
+format parser without ReadArgs might save ~1 KB but has to match ReadArgs' rules exactly (not tried).
+
+**Programs that get MUI 4/5 now load Zlist.mui** with their first list (every such list has the
+horizontal scroller, laid out by the module): MUI 5's demos and PassPocket in the suite. MUI 3 programs
+never: LoadSeg trace below.
+
+Checked (FS-UAE, emulator figures): `make check` after every commit; `-fstack-usage` of every List function against `lean`: none larger (dispatcher -16, DrawEntry -24, LayoutFunction -24, Draw -4); stackrun on the final build: MUI-Demo 5,404 -> 5,368, Layout 2,268, Virtual 2,676, Pages 2,240, Slidorama 2,304 (as `lean`); perfbench (68EC020, 15 reps, `lean` and the branch side by side, then swapped): list insert +0.6 / -0.5%, list active +1.8 / -0.2%, all batches within the spread of two instances. MUI 3 group (on 6ea458b0+, the module moves): 35 of 36 as `lean`'s spread (SimpleMail reset at quit as always), the LoadSeg trace shows no Zlist.mui in any MUI 3 program, only `lean`'s Zrequest/Zpicture loads; AmIRC's tree now has dotted lines, which is `lean`'s own Listtree default (ltbusy), not this branch. MUI 4/5 group (first 12 of 24): identical to `lean`'s except the clock demo's time; YAM 2.10 without a trace: no error window, -392 bytes as alone. Not finished at hand-back: the final build's suite runs, fullcheck and demopix.
+
+**YAM 2.10's "Error messages" window** (smaller2's MUI 4/5 group runs): the LoadSeg trace attached to those runs, not Zune. OS 3.1 has no PNG datatype, YAM tries its 50 theme pictures through datatypes, `wasabi snoop --output full` traces every DOS call and YAM then answers nothing for minutes (its close gadget and Close button do nothing, it does not quit). yam210 alone with a snoop: the window three times of three; without: never. The suite's dismiss hook now ends after two quiet checks; snooplog.sh and real-programs.md say not to trace YAM 2.10.
+
 
 ## Left open
 
