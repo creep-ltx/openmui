@@ -81,17 +81,29 @@ P lumizip      mui5 lumizip/x/LumiZip                      LumiZip              
 
 # ---- hooks ----
 # YAM: two "Ignore always" requesters (charset, AmiSSL: underlined a), then the error window
-# (missing datatypes on 3.1) and the update check's window, both closed
+# (OS 3.1 has no PNG datatype: YAM 2.10's 50 theme pictures all fail, so it comes on every run
+# on the zune target) and the update check's window, both closed. The loop ends only after two
+# quiet checks a few seconds apart, as the error window may come late. With a "wasabi snoop"
+# attached (snooplog.sh's LoadSeg trace) YAM 2.10 does not answer for minutes while it tries
+# its pictures through datatypes (every DOS call is traced): neither the close gadget nor the
+# window's Close button closes the error window, YAM does not quit, and the second run is lost.
+# That was the extra "Error messages" window of smaller2's MUI 4/5 group runs (2026-11-11,
+# branch listslim: yam210 alone with a snoop shows it, without one never). Trace the MUI 4/5
+# group without yam210, or run yam210 apart without the trace.
 dismiss_yam() {
-  local i
-  for i in 1 2 3 4 5 6 7 8; do
+  local i quiet=0
+  for i in 1 2 3 4 5 6 7 8 9 10; do
     if   [ -n "$(winline "Snapshot Warning")" ]; then answer "Go on"      # 2.10dev: a system requester
     elif [ -n "$(winline "charset warning")" ]; then press "charset warning" a
     elif [ -n "$(winline "AmiSSL")" ]; then press "AmiSSL" a
     elif [ -n "$(winline "Update notification")" ]; then wasabi ui click close --window "Update notification" >/dev/null 2>&1
-    elif [ -n "$(winline "Error messages")" ]; then wasabi ui click close --window "Error messages" >/dev/null 2>&1
-    else break; fi
-    sleep 3; settle 8
+    elif [ -n "$(winline "Error messages")" ]; then log "$P_ID: dismiss $i Error messages"
+      wasabi ui click close --window "Error messages" >/dev/null 2>&1
+    else
+      quiet=$((quiet + 1)); log "$P_ID: dismiss $i quiet"; [ $quiet -ge 2 ] && break
+      sleep 5; settle 8; continue
+    fi
+    quiet=0; sleep 3; settle 8
   done
 }
 dismiss_yam25() { dismiss_yam; }
