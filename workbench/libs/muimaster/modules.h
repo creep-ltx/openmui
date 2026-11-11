@@ -29,6 +29,7 @@
 #define MUIC_Zframes    "Zframes.zmod"      /* Zframes.mui: frame_round.c */
 #define MUIC_Zlist      "Zlist.zmod"        /* Zlist.mui: listx.c */
 #define MUIC_Zmui45     "Zmui45.zmod"       /* Zmui45.mui: mui45.c */
+#define MUIC_Zprefs     "Zprefs.zmod"       /* Zprefs.mui: configset.c */
 
 /* Numbers, not an enum: modules.c's call stubs give them to the
  * assembler */
@@ -41,7 +42,8 @@
 #define ZMOD_FRAMES 6
 #define ZMOD_LIST 7
 #define ZMOD_MUI45 8
-#define ZMOD_COUNT 9
+#define ZMOD_PREFS 9
+#define ZMOD_COUNT 10
 
 /* The only method of a module class; answered with no object */
 #define MUIM_ZuneModule_Get 0xDA4D0001
@@ -212,6 +214,15 @@ struct ZuneMui45Module
     IPTR (*area)(Object *, ULONG, IPTR, IPTR *);
 };
 IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
+
+/* Configdata's setters (configset.c): MUIM_Configdata_SetULong ...
+ * SetString, with the defaults to compare with */
+struct ZuneCfgTables;
+struct ZunePrefsModule
+{
+    IPTR (*configdata_set)(Object *, Msg, const struct ZuneCfgTables *);
+};
+IPTR zune_configdata_set(Object *obj, Msg msg, const struct ZuneCfgTables *t);
 
 /* In a module built as a file: take the library bases over again before
  * code that reads CyberGfxBase, which the library opens at the first

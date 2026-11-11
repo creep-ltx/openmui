@@ -26,6 +26,8 @@
 #include "support.h"
 #include "prefs.h"
 #include "imspec.h"
+#include "modules.h"
+#include "classes/configdata_private.h"
 
 #include <proto/muiscreen.h>
 
@@ -80,12 +82,6 @@ static CONST_STRPTR cfg_string(struct IClass *cl, Object *obj, ULONG id);
  Default ImageSpec values
 **************************************************************************/
 
-struct spec_cfg
-{
-    ULONG muiv;
-    ULONG cfgid;
-    CONST_STRPTR defspec;
-};
 
 const static struct spec_cfg DefImspecValues[] =
 {
@@ -208,13 +204,6 @@ static void init_framespecs(struct IClass *cl, Object *obj,
  Default ULONG values
 **************************************************************************/
 
-struct def_ulval
-{
-    ULONG id;
-    ULONG val;
-    UWORD offset;
-    UWORD size;
-};
 
 #define PREF_DEFAULT(id, value, field) \
     {id, value, offsetof(struct ZunePrefsNew, field), \
@@ -289,12 +278,6 @@ const static struct def_ulval DefULValues[] = {
 /* Every string setting: its id, where it goes in the prefs (Configdata_
  * StoreString: a string, or a key parsed into a ZuneKeySpec), and its
  * default. A table instead of a switch per id (2026-11-06: 0.8 KB less). */
-struct def_strval
-{
-    UWORD id;
-    UWORD field;            /* offsetof in struct ZunePrefsNew, flags */
-    CONST_STRPTR val;
-};
 #define FIELD(f) ((UWORD)offsetof(struct ZunePrefsNew, f))
 #define KEYFIELD 0x8000     /* a key (Configdata__SetKey) */
 #define NOFIELD 0xffff      /* kept in the dataspace only */
@@ -428,6 +411,11 @@ static void Configdata_StoreString(struct MUI_ConfigdataData *data,
             return;
         }
 }
+
+/* The defaults the setters compare with (configset.c, in the module) */
+static const struct ZuneCfgTables cfg_tables = {
+    DefImspecValues, DefFramespecValues, DefULValues, DefStrValues
+};
 
 static void Configdata_SynchronizeString(struct IClass *cl, Object *obj,
     ULONG id)
@@ -811,155 +799,6 @@ IPTR Configdata__MUIM_GetString(struct IClass *cl, Object *obj,
 }
 
 /**************************************************************************
- MUIM_Configdata_SetImspec
- search in builtin array first, to not not have in dataspace the default
- value (would be redundant)
-**************************************************************************/
-IPTR Configdata__MUIM_SetImspec(struct IClass *cl, Object *obj,
-    struct MUIP_Configdata_SetImspec *msg)
-{
-    int i;
-
-    if (!msg->imspec || !*msg->imspec || *msg->imspec == '6')
-    {
-/*          D(bug("Configdata_SetImspec(%p) : id %08lx, val invalid\n", */
-/*                obj, msg->id)); */
-        return 0;
-    }
-
-    for (i = 0; DefImspecValues[i].defspec; i++)
-    {
-        if (DefImspecValues[i].cfgid == msg->id)
-            if (!strcmp(DefImspecValues[i].defspec, msg->imspec))
-            {
-/*                  D(bug("Configdata_SetImspec(%p) : set to def, id %08lx, val %s\n", */
-/*                        obj, msg->id, msg->imspec)); */
-                DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
-                return 0;
-            }
-    }
-
-    for (i = 0; DefStrValues[i].id; i++)
-    {
-        if (DefStrValues[i].id == msg->id)
-            if (!strcmp(DefStrValues[i].val, msg->imspec))
-            {
-                DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
-                return 0;
-            }
-    }
-
-    DoMethod(obj, MUIM_Dataspace_Add, (IPTR) msg->imspec,
-        strlen(msg->imspec) + 1, msg->id);
-    return 0;
-}
-
-/**************************************************************************
- MUIM_Configdata_SetFramespec
-**************************************************************************/
-IPTR Configdata__MUIM_SetFramespec(struct IClass *cl, Object *obj,
-    struct MUIP_Configdata_SetFramespec *msg)
-{
-    int i;
-
-    if (!msg->framespec || !*msg->framespec)
-    {
-/*          D(bug("Configdata_SetFramespec(%p) : id %08lx, val invalid\n", */
-/*                obj, msg->id)); */
-        return 0;
-    }
-
-    for (i = 0; DefFramespecValues[i].defspec; i++)
-    {
-        if (DefFramespecValues[i].cfgid == msg->id)
-            if (!strcmp(DefFramespecValues[i].defspec, msg->framespec))
-            {
-/*                D(bug("Configdata_SetFramespec(%p): " */
-/*                    "set to def, id %08lx, val %s\n", */
-/*                    obj, msg->id, msg->framespec)); */
-                DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
-                return 0;
-            }
-    }
-
-    DoMethod(obj, MUIM_Dataspace_Add, (IPTR) msg->framespec,
-        strlen(msg->framespec) + 1, msg->id);
-    return 0;
-}
-
-/**************************************************************************
- MUIM_Configdata_SetPenspec
-**************************************************************************/
-IPTR Configdata__MUIM_SetPenspec(struct IClass *cl, Object *obj,
-    struct MUIP_Configdata_SetPenspec *msg)
-{
-    int i;
-
-    if (!msg->penspec || !*msg->penspec)
-        return 0;
-
-    for (i = 0; DefStrValues[i].id; i++)
-    {
-        if (DefStrValues[i].id == msg->id)
-            if (!strcmp(DefStrValues[i].val, msg->penspec))
-            {
-                DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
-                return 0;
-            }
-    }
-
-    DoMethod(obj, MUIM_Dataspace_Add, (IPTR) msg->penspec,
-        strlen(msg->penspec) + 1, msg->id);
-    return 0;
-}
-
-/**************************************************************************
- MUIM_Configdata_SetFont
-**************************************************************************/
-IPTR Configdata__MUIM_SetFont(struct IClass *cl, Object *obj,
-    struct MUIP_Configdata_SetFont *msg)
-{
-    if (!msg->font || !*msg->font)
-    {
-/*          D(bug("Configdata_SetFont(%p) : id %08lx, val invalid\n", */
-/*                obj, msg->id)); */
-        DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
-        return 0;
-    }
-
-    DoMethod(obj, MUIM_Dataspace_Add, (IPTR) msg->font,
-        strlen(msg->font) + 1, msg->id);
-    return 0;
-}
-
-/**************************************************************************
- MUIM_Configdata_SetString
-**************************************************************************/
-IPTR Configdata__MUIM_SetString(struct IClass *cl, Object *obj,
-    struct MUIP_Configdata_SetString *msg)
-{
-    int i;
-
-    /* If the value is the same as default value, remove it from dataspace (and config file) */
-    for (i = 0; DefStrValues[i].id; i++)
-    {
-        if (DefStrValues[i].id == msg->id)
-            if (!strcmp(DefStrValues[i].val, msg->string))
-            {
-                DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
-                Configdata_SynchronizeString(cl, obj, msg->id);
-                return 0;
-            }
-    }
-
-    DoMethod(obj, MUIM_Dataspace_Add, (IPTR) msg->string,
-        strlen(msg->string) + 1, msg->id);
-    Configdata_SynchronizeString(cl, obj, msg->id);
-
-    return 0;
-}
-
-/**************************************************************************
  MUIM_Configdata_GetULong
 **************************************************************************/
 static ULONG cfg_ulong(struct IClass *cl, Object *obj, ULONG id)
@@ -1028,37 +867,6 @@ IPTR Configdata__MUIM_GetConfigItem(struct IClass *cl, Object *obj,
     *msg->storage = value;
     return TRUE;
 }
-
-/**************************************************************************
- MUIM_Configdata_SetULong
-**************************************************************************/
-IPTR Configdata__MUIM_SetULong(struct IClass *cl, Object *obj,
-    struct MUIP_Configdata_SetULong *msg)
-{
-    ULONG v = msg->val;
-    ULONG *vp = &v;
-    int i;
-
-    for (i = 0; DefULValues[i].id != 0; i++)
-    {
-        if (DefULValues[i].id == msg->id)
-            if (DefULValues[i].val == v)
-            {
-/*                D(bug("Configdata_SetULong(%p):" */
-/*                    " set to def, id %08lx, val %ld\n", */
-/*                    obj, msg->id, v)); */
-                DoMethod(obj, MUIM_Dataspace_Remove, msg->id);
-                return 0;
-            }
-    }
-
-    v = AROS_LONG2BE(v);
-/*      D(bug("Configdata_SetULong(%p): adding %08lx to %08lx chunk\n", */
-/*          obj, v, msg->id)); */
-    DoMethod(obj, MUIM_Dataspace_Add, (IPTR) vp, 4, msg->id);
-    return 0;
-}
-
 
 /**************************************************************************
  SavePrefsHeader: Write a PRHD chunk
@@ -1322,18 +1130,19 @@ BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
         return Configdata__MUIM_GetString(cl, obj, (APTR) msg);
     case MUIM_Configdata_GetULong:
         return Configdata__MUIM_GetULong(cl, obj, (APTR) msg);
+    /* the setters: only the prefs program (and
+     * MUIM_Application_SetConfigItem) uses them, in the module */
     case MUIM_Configdata_SetULong:
-        return Configdata__MUIM_SetULong(cl, obj, (APTR) msg);
     case MUIM_Configdata_SetImspec:
-        return Configdata__MUIM_SetImspec(cl, obj, (APTR) msg);
     case MUIM_Configdata_SetFramespec:
-        return Configdata__MUIM_SetFramespec(cl, obj, (APTR) msg);
     case MUIM_Configdata_SetPenspec:
-        return Configdata__MUIM_SetPenspec(cl, obj, (APTR) msg);
     case MUIM_Configdata_SetFont:
-        return Configdata__MUIM_SetFont(cl, obj, (APTR) msg);
+        return zune_configdata_set(obj, msg, &cfg_tables);
     case MUIM_Configdata_SetString:
-        return Configdata__MUIM_SetString(cl, obj, (APTR) msg);
+        zune_configdata_set(obj, msg, &cfg_tables);
+        Configdata_SynchronizeString(cl, obj,
+            ((struct MUIP_Configdata_SetString *)msg)->id);
+        return 0;
     case MUIM_Configdata_SaveWindowPositions:
         return Configdata_SaveWindowPositions(cl, obj, (APTR) msg);
     case MUIM_Configdata_Save:

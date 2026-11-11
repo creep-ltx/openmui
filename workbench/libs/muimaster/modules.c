@@ -31,7 +31,8 @@ extern struct Library *MUIMasterBase;
 
 static CONST_STRPTR const module_names[ZMOD_COUNT] = {
     MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient,
-    MUIC_Zwintitle, MUIC_Zframes, MUIC_Zlist, MUIC_Zmui45
+    MUIC_Zwintitle, MUIC_Zframes, MUIC_Zlist, MUIC_Zmui45,
+    MUIC_Zprefs
 };
 
 /* Modules a process could not load: not tried again while the library
@@ -255,6 +256,9 @@ ZMC_CHECK(ZuneListModule, draw_sort_mark, 24);
 #define ZMC_OFS_ZuneMui45Module_area 0
 ZMC_CHECK(ZuneMui45Module, area, 0);
 
+#define ZMC_OFS_ZunePrefsModule_configdata_set 0
+ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
+
 /* Zune-drawn menus: context menus and MUIM_Menustrip_Popup (menu.c); the
  * others are only called with a menu the module made */
 ZMC(zune_open_menu_at, ZMOD_MENU, ZuneMenuModule, open_menu_at, 4, 0);
@@ -466,3 +470,7 @@ ZMC(zune_list_draw_sort_mark, ZMOD_LIST, ZuneListModule, draw_sort_mark, 5,
 /* MUI 4/5 attributes of the core classes (mui45.c): only programs that
  * use them call these */
 ZMC(zune_area_mui45, ZMOD_MUI45, ZuneMui45Module, area, 4, 0);
+
+/* Configdata's setters (configset.c): the prefs program's; without the
+ * module a setting is not changed */
+ZMC(zune_configdata_set, ZMOD_PREFS, ZunePrefsModule, configdata_set, 3, 0);

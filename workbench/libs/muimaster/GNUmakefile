@@ -100,7 +100,7 @@ SOURCES = \
   classes/volumelist.c classes/window.c \
   classes/zmenu.c classes/zpicture.c classes/zdragdrop.c classes/zrequest.c \
   classes/zgradient.c classes/zwintitle.c classes/zframes.c \
-  classes/zlist.c classes/zmui45.c
+  classes/zlist.c classes/zmui45.c classes/zprefs.c
 # Classes built as files of their own, $(BUILD)/Zune/<Name>.mui, installed
 # in LIBS:Zune/ and loaded the first time a program makes one of their
 # objects, as MUI 3.8 does with MUI:Libs/mui (classfile.h). CLASSFILES=
@@ -115,7 +115,7 @@ CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   selectgroup process dtpic register bitmap bodychunk chunkyimage \
   settingsgroup settings \
   zmenu zpicture zdragdrop zrequest zgradient zwintitle zframes \
-  zlist zmui45
+  zlist zmui45 zprefs
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
 CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
 CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/Zune/$(shell echo $(c) | sed 's/^./\U&/').mui)
