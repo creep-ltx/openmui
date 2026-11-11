@@ -67,9 +67,17 @@ struct ZuneMenuModule
     struct MenuItem *(*leave_menu)(struct ZMenu *);
     void (*close_menu)(struct ZMenu *);
     IPTR (*menustrip_popup)(Object *, struct MUIP_Menustrip_Popup *);
+    BOOL (*popup_rollout)(struct Window *, LONG, void (*)(Object *, APTR),
+        Object *, APTR);
 };
 /* MUIM_Menustrip_Popup (menupopup.c) */
 IPTR zune_menustrip_popup(Object *obj, struct MUIP_Menustrip_Popup *msg);
+/* A cycle popup rolled out from the top in about FRAMES video frames
+ * (the settings' popup speed, MUI 3.8's look): draw(obj, data) is called
+ * once per band of rows, clipped to it. FALSE without the module: the
+ * caller draws it at once. */
+BOOL zune_popup_rollout(struct Window *win, LONG frames,
+    void (*draw)(Object *, APTR), Object *obj, APTR data);
 
 struct dt_node;
 struct dt_frame_image;

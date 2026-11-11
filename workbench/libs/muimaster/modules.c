@@ -169,12 +169,14 @@ asm(
 #define ZMC_OFS_ZuneMenuModule_leave_menu 12
 #define ZMC_OFS_ZuneMenuModule_close_menu 16
 #define ZMC_OFS_ZuneMenuModule_menustrip_popup 20
+#define ZMC_OFS_ZuneMenuModule_popup_rollout 24
 ZMC_CHECK(ZuneMenuModule, open_menu_at, 0);
 ZMC_CHECK(ZuneMenuModule, mouse_update, 4);
 ZMC_CHECK(ZuneMenuModule, poll_menu, 8);
 ZMC_CHECK(ZuneMenuModule, leave_menu, 12);
 ZMC_CHECK(ZuneMenuModule, close_menu, 16);
 ZMC_CHECK(ZuneMenuModule, menustrip_popup, 20);
+ZMC_CHECK(ZuneMenuModule, popup_rollout, 24);
 
 #define ZMC_OFS_ZunePictureModule_load_picture 0
 #define ZMC_OFS_ZunePictureModule_dispose_picture 4
@@ -273,6 +275,8 @@ ZMC(zune_close_menu, ZMOD_MENU, ZuneMenuModule, close_menu,
 /* MUIM_Menustrip_Popup (menupopup.c): no pop-up menu without the
  * module, as when it cannot make the menu */
 ZMC(zune_menustrip_popup, ZMOD_MENU, ZuneMenuModule, menustrip_popup, 2, 0);
+/* A cycle popup rolled out (the settings' popup speed above 0) */
+ZMC(zune_popup_rollout, ZMOD_MENU, ZuneMenuModule, popup_rollout, 5, 0);
 
 struct ZMenu *zune_open_menu(struct Window *wnd, struct NewMenu *newmenu)
 {

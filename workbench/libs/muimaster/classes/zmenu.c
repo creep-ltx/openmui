@@ -17,9 +17,49 @@
 #include "support.h"
 #include "modules.h"
 
+#include <proto/graphics.h>
+#include <proto/layers.h>
+
+/* zune_popup_rollout (modules.h): MUI 3.8 rolls a cycle popup out from
+ * the top, a band of rows a frame; each band drawn once, clipped to it */
+static BOOL zmod_popup_rollout(struct Window *win, LONG frames,
+    void (*draw)(Object *, APTR), Object *obj, APTR data)
+{
+    WORD shown = 0, upto, step;
+    struct Rectangle rows;
+    struct Region *band, *oldclip;
+
+    rows.MinX = 0;
+    rows.MaxX = win->Width - 1;
+    for (step = 1; shown < win->Height; step++)
+    {
+        upto = win->Height * step / frames;
+        if (!(band = NewRegion()))
+            upto = win->Height;
+        else
+        {
+            rows.MinY = shown;
+            rows.MaxY = upto - 1;
+            OrRectRegion(band, &rows);
+            if (shown)
+                WaitTOF();
+            oldclip = InstallClipRegion(win->WLayer, band);
+        }
+        if (upto > shown)
+            draw(obj, data);
+        if (band)
+        {
+            InstallClipRegion(win->WLayer, oldclip);
+            DisposeRegion(band);
+        }
+        shown = upto;
+    }
+    return TRUE;
+}
+
 static const struct ZuneMenuModule menu_module = {
     zmod_open_menu_at, zmod_mouse_update, zmod_poll_menu, zmod_leave_menu,
-    zmod_close_menu, zmod_menustrip_popup
+    zmod_close_menu, zmod_menustrip_popup, zmod_popup_rollout
 };
 
 BOOPSI_DISPATCHER(IPTR, Zmenu_Dispatcher, cl, obj, msg)

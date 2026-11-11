@@ -21,6 +21,7 @@
 #include "support.h"
 #include "prefs.h"
 #include "textengine.h"
+#include "modules.h"
 
 /****** Cycle.mui/MUIC_Cycle ************
 *
@@ -648,6 +649,69 @@ static void RenderPopupItem(Object *obj, struct MUI_CycleData *data,
 }
 
 /*
+ * Draw the open popup's frame, background and entries (MakePopupWin, or a
+ * band of rows at a time when the settings' popup speed rolls it out).
+ */
+static void DrawPopup(Object *obj, struct MUI_CycleData *data)
+{
+    const struct ZuneFrameGfx *zframe = zune_zframe_get(obj,
+        &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_PopUp]);
+    struct MinList *childlist = NULL;
+    struct RastPort *rp, *saverp;
+    Object *child, *cstate;
+    WORD x, y, winw = data->popwin->Width, winh = data->popwin->Height;
+
+    get(data->pageobj, MUIA_Group_ChildList, &childlist);
+    rp = data->popwin->RPort;
+
+    saverp = _rp(obj);
+    _rp(obj) = rp;
+    zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0, winw, winh,
+        0, 0, winw, winh);
+
+    if (data->popbg)
+    {
+        zune_imspec_draw(data->popbg, muiRenderInfo(obj),
+            zframe->ileft, zframe->itop,
+            winw - zframe->ileft - zframe->iright,
+            winh - zframe->itop - zframe->ibottom,
+            zframe->ileft, zframe->itop, 0);
+    }
+    else
+    {
+        SetAPen(rp, 0);
+        RectFill(rp, zframe->ileft, zframe->itop,
+            winw - 1 - zframe->iright, winh - 1 - zframe->ibottom);
+    }
+
+    x = data->popitemoffx;
+    y = data->popitemoffy + POPITEM_EXTRAHEIGHT / 2;
+
+    if (muiGlobalInfo(obj)->mgi_Prefs->cycle_menu_recessed_entries)
+    {
+        y++;
+    }
+
+    cstate = (Object *) childlist->mlh_Head;
+    while ((child = NextObject(&cstate)))
+    {
+        ZText *text = NULL;
+
+        get(child, MUIA_UserData, &text);
+
+        SetAPen(_rp(obj), _pens(obj)[MPEN_TEXT]);
+        if (text)               /* paranoia */
+        {
+            zune_text_draw(text, obj, x, x + data->popitemwidth - 1, y);
+        }
+
+        y += data->popitemheight;
+    }
+
+    _rp(obj) = saverp;
+}
+
+/*
  * Build popup text/background and nonactivating screen window using live
  * setup/render context and borrowed entries. Return FALSE for excessive
  * screen size or detected allocation/open failure, TRUE after rendering.
@@ -659,9 +723,8 @@ static BOOL MakePopupWin(Object *obj, struct MUI_CycleData *data)
 {
     const struct ZuneFrameGfx *zframe;
     struct MinList *childlist = NULL;
-    struct RastPort *rp, *saverp;
     Object *child, *cstate;
-    WORD x, y, winx, winy, winw, winh, i;
+    WORD winx, winy, winw, winh, i;
 
     data->popitemwidth = 0;
     data->popitemheight = 0;
@@ -764,54 +827,15 @@ static BOOL MakePopupWin(Object *obj, struct MUI_CycleData *data)
         return FALSE;
     }
 
-    rp = data->popwin->RPort;
-
-    saverp = _rp(obj);
-    _rp(obj) = rp;
-    zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0, winw, winh,
-        0, 0, winw, winh);
-
-    if (data->popbg)
-    {
-        zune_imspec_draw(data->popbg, muiRenderInfo(obj),
-            zframe->ileft, zframe->itop,
-            winw - zframe->ileft - zframe->iright,
-            winh - zframe->itop - zframe->ibottom,
-            zframe->ileft, zframe->itop, 0);
-    }
-    else
-    {
-        SetAPen(rp, 0);
-        RectFill(rp, zframe->ileft, zframe->itop,
-            winw - 1 - zframe->iright, winh - 1 - zframe->ibottom);
-    }
-
-    x = data->popitemoffx;
-    y = data->popitemoffy + POPITEM_EXTRAHEIGHT / 2;
-
-    if (muiGlobalInfo(obj)->mgi_Prefs->cycle_menu_recessed_entries)
-    {
-        y++;
-    }
-
-    i = 0;
-    cstate = (Object *) childlist->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        ZText *text = NULL;
-
-        get(child, MUIA_UserData, &text);
-
-        SetAPen(_rp(obj), _pens(obj)[MPEN_TEXT]);
-        if (text)               /* paranoia */
-        {
-            zune_text_draw(text, obj, x, x + data->popitemwidth - 1, y);
-        }
-
-        y += data->popitemheight;
-    }
-
-    _rp(obj) = saverp;
+    /* The settings' popup speed (Cycles page): MUI 3.8 rolls its popup
+     * out from the top in about speed * height / 400 frames (measured
+     * with tests/lean/setleft.c and mpress: at 50 a 58-row popup's last
+     * row showed after 7 frames, at 10 after 2; 0, the default, at once) */
+    i = (UWORD)(muiGlobalInfo(obj)->mgi_Prefs->cycle_menu_speed * winh)
+        / (UWORD)400;
+    if (i < 2 || !zune_popup_rollout(data->popwin, i,
+            (void (*)(Object *, APTR))DrawPopup, obj, data))
+        DrawPopup(obj, data);
 
     data->activepopitem = -1;
 
