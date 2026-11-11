@@ -4612,6 +4612,8 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
     BOOL select = FALSE, clear = FALSE, range_select = FALSE, changing;
     WORD delta;
     typeof(msg->muikey) muikey = msg->muikey;
+#define LIST_NO_JUMP 0x7fffffff
+    LONG jump = LIST_NO_JUMP;   /* MUIM_List_Jump's position for a key */
 
     new_active = old_active = XGET(obj, MUIA_List_Active);
     visible = data->entries_visible;
@@ -4656,7 +4658,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             }
             else
             {
-                DoMethod(obj, MUIM_List_Jump, 0);
+                jump = 0;
                 muikey = MUIKEY_NONE;
             }
             break;
@@ -4671,20 +4673,20 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
         case MUIKEY_LEFT:
         case MUIKEY_WORDLEFT:
-            DoMethod(obj, MUIM_List_Jump, MUIV_List_Jump_Up);
+            jump = MUIV_List_Jump_Up;
             break;
 
         case MUIKEY_RIGHT:
         case MUIKEY_WORDRIGHT:
-            DoMethod(obj, MUIM_List_Jump, MUIV_List_Jump_Down);
+            jump = MUIV_List_Jump_Down;
             break;
 
         case MUIKEY_LINESTART:
-            DoMethod(obj, MUIM_List_Jump, MUIV_List_Jump_Top);
+            jump = MUIV_List_Jump_Top;
             break;
 
         case MUIKEY_LINEEND:
-            DoMethod(obj, MUIM_List_Jump, MUIV_List_Jump_Bottom);
+            jump = MUIV_List_Jump_Bottom;
             break;
 
         case MUIKEY_UP:
@@ -4719,6 +4721,8 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
         default:
             result = 0;
         }
+        if (jump != LIST_NO_JUMP)
+            DoMethod(obj, MUIM_List_Jump, jump);
     }
     else if (imsg)
     {
