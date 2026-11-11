@@ -28,7 +28,7 @@ PLUGINS = {
     'thebar/mcp': 'TheBar.mcp',
     'thebar/toolbar_mcc': 'Toolbar.mcc',
 }
-IMAGE_CLASSES = ('Rawimage.mcc', 'Pixmap.mui', 'Listtree.mcc', 'Busy.mcc',
+IMAGE_CLASSES = ('Rawimage.mcc', 'Pixmap.mui', 'Listtree.mcc', 'Listtree.mcp', 'Busy.mcc', 'Busy.mcp',
                  'Calltips.mcc', 'Textinput.mcc', 'Textinputscroll.mcc', 'Aboutbox.mcc', 'AboutWindow.mcc', 'Calendar.mcc',
                  'Clock.mcc', 'Flexgroup.mcc', 'Graph.mcc', 'Hyperlink.mcc', 'IconImage.mcc',
                  'Lamp.mcc', 'LoginWindow.mcc', 'PrefsEditor.mcc', 'PrefsWindow.mcc',

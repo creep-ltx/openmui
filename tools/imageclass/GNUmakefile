@@ -27,7 +27,7 @@ BZOBJS := $(addprefix $(OBJ)/bz2/,$(addsuffix .o,$(BZFILES)))
 .PHONY: all
 all: $(BUILD)/Libs/MUI/Rawimage.mcc $(BUILD)/Libs/MUI/Pixmap.mui \
  $(BUILD)/Libs/MUI/Listtree.mcc \
- $(BUILD)/Libs/MUI/Busy.mcc \
+ $(BUILD)/Libs/MUI/Busy.mcc $(BUILD)/Libs/MUI/Busy.mcp $(BUILD)/Libs/MUI/Listtree.mcp \
  $(BUILD)/Libs/MUI/Calltips.mcc \
  $(BUILD)/Libs/MUI/Textinput.mcc $(BUILD)/Libs/MUI/Textinputscroll.mcc
 $(OBJ)/rawimage.o: library.c $(RAW)/Rawimage.c $(RAW)/Rawimage_private.h
@@ -55,6 +55,19 @@ $(OBJ)/busy.o: busy_library.c $(wildcard $(BUSY)/*.[ch])
 	@mkdir -p $(@D)
 	$(CC) $(FLAGS) -I. -I$(BUSY) -MMD -MP -c $< -o $@
 $(BUILD)/Libs/MUI/Busy.mcc: $(OBJ)/busy.o
+	@mkdir -p $(@D)
+	$(CC) $(CPUFLAGS) -noixemul -nostdlib -o $@ $^ -Wl,--start-group -lmui -lgcc -lnix20 -lnix -lamiga -ldebug -Wl,--end-group
+# the settings pages of Busy.mcc and Listtree.mcc (MUI 3.8's settings)
+$(OBJ)/busy_mcp.o: busy_mcp_library.c mcp_support.h $(wildcard $(BUSY)/*.[ch])
+	@mkdir -p $(@D)
+	$(CC) $(FLAGS) -I. -I$(BUSY) -MMD -MP -c $< -o $@
+$(OBJ)/listtree_mcp.o: listtree_mcp_library.c mcp_support.h
+	@mkdir -p $(@D)
+	$(CC) $(FLAGS) -I. -MMD -MP -c $< -o $@
+$(BUILD)/Libs/MUI/Busy.mcp: $(OBJ)/busy_mcp.o $(OBJ)/format.o
+	@mkdir -p $(@D)
+	$(CC) $(CPUFLAGS) -noixemul -nostdlib -o $@ $^ -Wl,--start-group -lmui -lgcc -lnix20 -lnix -lamiga -ldebug -Wl,--end-group
+$(BUILD)/Libs/MUI/Listtree.mcp: $(OBJ)/listtree_mcp.o $(OBJ)/format.o
 	@mkdir -p $(@D)
 	$(CC) $(CPUFLAGS) -noixemul -nostdlib -o $@ $^ -Wl,--start-group -lmui -lgcc -lnix20 -lnix -lamiga -ldebug -Wl,--end-group
 $(OBJ)/calltips.o: calltips_library.c $(wildcard $(CALLTIPS)/*.[ch])
@@ -145,7 +158,7 @@ $(eval $(call CLASS_RULE,PrefsEditor,prefseditor))
 $(eval $(call CLASS_RULE,PrefsWindow,prefswindow,$(GEN)/prefswindow/prefswindow_strings.h))
 $(eval $(call CLASS_RULE,QRCode,qrcode))
 $(eval $(call CLASS_RULE,SystemPrefsWindow,systemprefswindow,$(GEN)/systemprefswindow/strings.h,-Dsystemprefswindow_ARRAY -DCatCompArray=systemprefswindow_Array))
-OBJECTS := $(addprefix $(OBJ)/,rawimage.o pixmap.o listtree.o busy.o calltips.o \
+OBJECTS := $(addprefix $(OBJ)/,rawimage.o pixmap.o listtree.o busy.o busy_mcp.o listtree_mcp.o calltips.o \
  textinput.o textinputscroll.o $(CLASS_NAMES:=.o)) $(BZOBJS) $(CLASS_SUPPORT)
 include $(ROOT)/tools/flags.mk
 $(OBJ)/cflags: FORCE
