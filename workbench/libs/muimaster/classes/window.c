@@ -5422,9 +5422,11 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
         CloseRenderInfoFonts(mri);
         /* MUI 5 (its ChangeLog, 5.0-2018R1) first puts the contents into a
          * scrollable virtual group, for this window only, the stages being
-         * the fallback; only for a program that gets MUI 5, the code in the
-         * title gadget module */
-        if (MGI_IDENTITY(muiGlobalInfo(obj)) == ZUNE_ID_MUI5
+         * the fallback; for a program that gets MUI 4 or 5 (MUI 5 is what a
+         * program asking for version 20 meets today: its own EmbeddedImages
+         * and Pointers demos open scrollable on real MUI 5, 2026-11-11),
+         * never for MUI 3.8; the code in the title gadget module */
+        if (MGI_IDENTITY(muiGlobalInfo(obj)) >= ZUNE_ID_MUI4
             && !(data->wd_Flags & MUIWF_SCROLLWRAP)
             && (sg = zune_window_scrollwrap(obj, ZUNE_SW_WRAP)))
         {

@@ -13,6 +13,8 @@
 # TITLE[ID]    a regular expression for the program's window titles, for programs whose windows
 #              belong to another process than the command that started them
 # QUITMENU[ID] the menu item that quits (default Project/Quit; "-": close the windows instead)
+# RAMRUN[ID]   1: copy the program's folder to RAM: and start it there (AmTelnet does not start
+#              from Amiberry's host-directory drive: its own re-start of itself fails there)
 # Hooks (shell functions, ID with '-' written as '_'), with the helpers of suite-lib.sh:
 #   pre_host_ID DIR DRIVE  on the PC, after copying the program (settings files, ...)
 #   pre_ID                 on the Amiga before each start
@@ -20,7 +22,7 @@
 #   quit_ID                before the quit menu item / close gadgets
 P() { local IFS="|"; PROGS+=("$*"); }
 PROGS=()
-declare -A TITLE QUITMENU
+declare -A TITLE QUITMENU RAMRUN
 
 # ---- MCC demos ----
 P nlist-demo      mui3 nlist/x/MCC_NList/Demos/AmigaOS3        NList-Demo                30 -
@@ -41,11 +43,13 @@ TITLE[amftp]='^AmFTP'                     # its first start runs AmFTPPrefs, a p
 P atc          mui3 atc/x/AmiTradeCenter                   AmiTradeCenter       60 -
 P simplemail   mui3 simplemail/x/SimpleMail                SimpleMail           90 -
 QUITMENU[simplemail]=-                    # no "wasabi run" while it runs (wasabid dies), see below
+TITLE[simplemail]='^SimpleMail'           # its full task name is longer than "wasabi ps" shows
 P newscoaster  mui3 newscoaster/x/NewsCoaster              NewsCoaster          60 -
 P ibrowse25    mui3 "ibrowse25/x/IBrowse2.5.9-020+"        IBrowse              90 -
 P amirc        mui3 amirc/x/AmIRC-68000                    AmIRC                60 -
 P wookiechat   mui3 wookiechat/x/WookieChat2.11_OS3_Installer WookieChat_OS3    60 -
 P amtelnet     mui3 amtelnet/x/AmTelnet-II-24              AmTelnet             60 -
+RAMRUN[amtelnet]=1
 P scout        mui3 scout/x/Scout                          Scout.os3            60 -
 P muibase      mui3 muibase/x/MUIbase                      MUIbase-m68k-amigaos 90 -
 P homebank     mui3 homebank/x/HomeBank                    HomeBank             60 -
@@ -97,6 +101,11 @@ dismiss_yam() {
     elif [ -n "$(winline "charset warning")" ]; then press "charset warning" a
     elif [ -n "$(winline "AmiSSL")" ]; then press "AmiSSL" a
     elif [ -n "$(winline "Update notification")" ]; then wasabi ui click close --window "Update notification" >/dev/null 2>&1
+    # 2.10dev's "Invalid configuration" request (Ok): a MUI request, the application asleep until
+    # it is answered, so the error window's close gadget does nothing while it is up (on MUI 3.8
+    # too; seen on Amiberry, where the errors come faster and the request is up before the window
+    # could be closed) and the menus are gone
+    elif [ -n "$(winline "Confirmation Request")" ]; then press "Confirmation Request" o
     elif [ -n "$(winline "Error messages")" ]; then log "$P_ID: dismiss $i Error messages"
       wasabi ui click close --window "Error messages" >/dev/null 2>&1
     else

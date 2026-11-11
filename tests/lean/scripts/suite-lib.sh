@@ -104,8 +104,8 @@ winline() { # TITLE-PART: the raw line of the program's first window whose title
   wasabi windows --raw 2>/dev/null | awk -F'\t' -v t="$P_TASK" -v ti="$P_TITLE" -v p="$1" '
     $1=="W" && ($(NF-1)==t || (ti!="" && $(NF-1)!="Workbench" && $NF ~ ti)) && (p=="" || index($NF,p)) {print; exit}'
 }
-running() {
-  wasabi ps 2>/dev/null | grep -qF "$P_TASK" && return 0
+running() { # "wasabi ps" cuts a long task name (Workbench:Real/simplemail/SimpleMa): a prefix
+  wasabi ps 2>/dev/null | grep -qF "${P_TASK:0:30}" && return 0
   [ -n "$P_TITLE" ] && [ -n "$(wins)" ]
 }
 # free memory, without "avail flush": on the MUI 3.8 machine a flush (even on a fresh boot,
@@ -300,8 +300,11 @@ tally_dump() { # NAME
 tally_end() { [ -n "$mt" ] && P_TASK=$task0; mt=; }
 
 run_prog() {
-  local id=$P_ID dir="$RD/$P_ID" exe=${P_EXE%% *} wl status=ok left=0 lost=? al0 al1 n x before w a0 a1 why inuse=? mt= mtq= task0=
+  local id=$P_ID dir="$RD/$P_ID" exe=${P_EXE%% *} wl= status=ok left=0 lost=? al0 al1 n x before w a0 a1 why inuse=? mt= mtq= task0=
   P_ARGS=; [ "$P_EXE" != "$exe" ] && P_ARGS=${P_EXE#* }
+  if [ -n "${RAMRUN[$id]:-}" ]; then   # run from RAM: (before the first avail: the copy is memory)
+    wasabi run "copy \"$dir\" RAM:$id ALL QUIET" >/dev/null 2>&1; dir=RAM:$id
+  fi
   P_TASK="$dir/$exe"; P_TITLE=${TITLE[$id]:-}
   al0=$(alerts)
   log "$id: start $P_TASK"

@@ -11,4 +11,4 @@ case "$EMU" in
   *) echo "EMU=$EMU: amiberry or fsuae" >&2; exit 2 ;;
 esac
 export EMU
-amiga-test() { "$EMU_CMD" "$@"; }
+amiga-test() { command "$EMU_CMD" "$@"; }   # command: not this function again
