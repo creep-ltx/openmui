@@ -1276,43 +1276,6 @@ static __attribute__((noinline)) void List_InnerToArea(Object *obj,
         g->mad_InnerBottom = 0;
 }
 
-/* MUIA_List_Active's value as an entry index: the special values
- * resolved against the active entry, kept within the list; -1 for
- * MUIV_List_Active_Off or an empty list */
-static LONG List_ActiveIndex(struct MUI_ListData *data, LONG active)
-{
-    if (!data->entries_num || active == MUIV_List_Active_Off)
-        return -1;
-    switch (active)
-    {
-    case MUIV_List_Active_Top:
-        active = 0;
-        break;
-    case MUIV_List_Active_Bottom:
-        active = data->entries_num - 1;
-        break;
-    case MUIV_List_Active_Up:
-        active = data->entries_active - 1;
-        break;
-    case MUIV_List_Active_Down:
-        active = data->entries_active + 1;
-        break;
-    /* MUI 3.9 pages by one row less than visible
-     * (tests/native/listprop.c) */
-    case MUIV_List_Active_PageUp:
-        active = data->entries_active - MAX(data->entries_visible - 1, 1);
-        break;
-    case MUIV_List_Active_PageDown:
-        active = data->entries_active + MAX(data->entries_visible - 1, 1);
-        break;
-    }
-    if (active < 0)
-        active = 0;
-    else if (active >= data->entries_num)
-        active = data->entries_num - 1;
-    return active;
-}
-
 /**************************************************************************
  OM_NEW
 **************************************************************************/
@@ -1597,10 +1560,27 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             MUIV_List_Insert_Top);
     }
 
-    /* Up, Down, PageUp and PageDown from no active entry give 0, as
-     * any other value below 0 did here */
     if ((data->entries_num) && (new_entries_active != MUIV_List_Active_Off))
-        data->entries_active = List_ActiveIndex(data, new_entries_active);
+    {
+        switch (new_entries_active)
+        {
+        case MUIV_List_Active_Top:
+            new_entries_active = 0;
+            break;
+
+        case MUIV_List_Active_Bottom:
+            new_entries_active = data->entries_num - 1;
+            break;
+        }
+
+        if (new_entries_active < 0)
+            new_entries_active = 0;
+        else if (new_entries_active >= data->entries_num)
+            new_entries_active = data->entries_num - 1;
+
+        data->entries_active = new_entries_active;
+        /* Selected entry will be moved into visible area */
+    }
 
     NewList((struct List *)&data->images);
 
@@ -1817,7 +1797,49 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_List_Active:
             {
-                LONG new_entries_active = List_ActiveIndex(data, tag->ti_Data);
+                LONG new_entries_active = tag->ti_Data;
+
+                if ((data->entries_num)
+                    && (new_entries_active != MUIV_List_Active_Off))
+                {
+                    switch (new_entries_active)
+                    {
+                    case MUIV_List_Active_Top:
+                        new_entries_active = 0;
+                        break;
+
+                    case MUIV_List_Active_Bottom:
+                        new_entries_active = data->entries_num - 1;
+                        break;
+
+                    case MUIV_List_Active_Up:
+                        new_entries_active = data->entries_active - 1;
+                        break;
+
+                    case MUIV_List_Active_Down:
+                        new_entries_active = data->entries_active + 1;
+                        break;
+
+                    /* MUI 3.9 pages by one row less than visible
+                     * (tests/native/listprop.c) */
+                    case MUIV_List_Active_PageUp:
+                        new_entries_active = data->entries_active
+                            - MAX(data->entries_visible - 1, 1);
+                        break;
+
+                    case MUIV_List_Active_PageDown:
+                        new_entries_active = data->entries_active
+                            + MAX(data->entries_visible - 1, 1);
+                        break;
+                    }
+
+                    if (new_entries_active < 0)
+                        new_entries_active = 0;
+                    else if (new_entries_active >= data->entries_num)
+                        new_entries_active = data->entries_num - 1;
+                }
+                else
+                    new_entries_active = -1;
 
                 if (data->entries_active != new_entries_active)
                 {
