@@ -83,6 +83,106 @@ P ticklish     mui5 ticklish/x/Ticklish                    Ticklish             
 P tabgroup-demo mui5 tabgroup/x/MCC_TabGroup/Demos         TabGroup-Demo        30 -
 P lumizip      mui5 lumizip/x/LumiZip                      LumiZip              40 -
 
+# ---- programs added 2026-11-11 (branch compat1): more of what people use, old and new ----
+# Chosen from Aminet's most downloaded MUI programs and its 2026 uploads (tests/lean/real-programs.md
+# has versions, licences and what each asks for). All say MUI 3.8 (or less); the 2026 ones
+# use MUI 4/5 features where present. Programs that need AmiSSL to get to a window were left out.
+P voyager      mui3 voyager/x/Voyager                      V                    90 -
+P evenmore     mui3 evenmore/x/EvenMore                    EvenMore             40 -
+P igame        mui3 igame/x/iGame-v2.6.1                   iGame                60 -
+P yam29        mui3 "yam29/x/YAM 2.9p1"                    YAM                  120 "Settings/Configuration..."
+P amigg        mui3 amigg/x/AmiGG                          AmiGG_m68k           60 -
+P freeciv      mui3 freeciv/x/Freeciv                      civclient            90 -
+P apdf         mui3 apdf/x/Apdf                            Apdf                 60 -
+P mcpprefs     mui3 mcp/x/MCP                              Prefs/MCPPrefs       60 -
+P screentabprefs mui3 screentab/x/ScreenTab                Prefs/ScreenTabPrefs 40 -
+P tinymeterprefs mui3 tinymeter/x/TinyMeter                Prefs/TinyMeter      40 -
+P newsrog      mui3 newsrog/x/NewsRog                      NewsRog              90 -
+P md2          mui3 md2/x/MicroDot-II-14                   MicroDot             90 -
+P amplifier    mui3 amplifier/x/amplifier                  AMPlifier            60 -
+P makecd       mui3 makecd/x/MakeCD_3.2d                   MakeCD               60 -
+P ahiprefs     mui3 ahiusr/x/AHI/User                      Prefs/AHI_MUI        40 -
+P fiasco       mui3 fiasco/x/Fiasco_2.22                   Fiasco               60 -
+P amster       mui3 amster/x/Amster_Install                Amster               60 -
+P beebase      mui3 beebase/x/BeeBase                      BeeBase-m68k-amigaos 120 -
+P amimodradio  mui3 amimodradio/x/AmiModRadio              AmiModRadio_MUI      90 -
+P dmodp        mui3 dmodp/x/DASModPlayer                   DASModPlayer         60 -
+P amfinger     mui3 amfinger/x                             AmFinger             40 -
+P abacus       mui3 abacus/x/Abacus                        Abacus               40 -
+P address      mui3 address/x/Address                      Bin/Address          40 -
+P rqchoicemui  mui3 rqchoicemui/x/RequestChoiceMUI_1.1     "RequestChoiceMUI Suite \"A question for the suite?\" \"Yes|No\"" 30 -
+P assampler    mui3 assampler/x/Assampler                  Assampler            60 -
+P cyclone      mui3 cyclone/x/Cyclone_125                  Bin020/Cyclone       60 -
+P amigamark    mui3 amigamark/x/AmigaMARK                  AmigaMARK            60 -
+P ali          mui3 ali/x/ALI                              ALI                  40 -
+P lumiamp      mui3 lumiamp/x/LumiAMP                      LumiAMP              60 -
+P lumipass     mui3 lumipass/x/LumiPass                    LumiPass             90 -
+P lumitorrent  mui3 lumitorrent/x/LumiTorrent              LumiTorrent          60 -
+P lumiftp      mui3 lumiftp/x/LumiFTP                      LumiFTP              60 -
+P tunefinder   mui3 tunefinder/x/TuneFinderMUI             TuneFinderMUI        40 -
+P u64ctl       mui3 u64ctl/x/u64                           u64mui               40 -
+P amifritzi    mui3 amifritzi/x/AmiFritzi                  AmiFritzi            40 -
+P nfsgui       mui3 nfsgui/x/NFS-GUI                       NFS-GUI              40 -
+P ami2ha       mui3 ami2ha/x/ami2ha                        ami2ha.020           40 -
+P amihomeassist mui3 amihomeassist/x/AmiHomeassist         AmiHomeassist        40 -
+P amiatari2600 mui3 amiatari2600/x/AmiAtari2600            AmiAtari2600         40 -
+P amipg        mui3 amipg/x/AmiPG                          AmiPG_MUI            40 -
+P xsysinfo     mui3 xsysinfo/x/xSysInfo-0.12.0             "xSysInfo MUI"       40 -
+P kompensator  mui3 kompensator/x/Kompensator              Kompensator          40 -
+P rsgui        mui3 rsgui/x/rsGUI                          RSGUI                40 -
+P layview      mui3 layview/x/LayView                      LayView              40 -
+P 3doc         mui3 3doc/x/3dconverter                     3dconverter          90 -
+P aminetuploader mui3 aminetuploader/x/Aminet-Uploader     Aminet-Uploader-MUI  40 -
+P jmri         mui3 jmri/x/JMRIController                  JMRIController       40 -
+P amidrop      mui3 amidrop/x/AmiDrop_MUI                  Setup/AmiDrop_MUI    40 -
+
+# ---- add-on class (MCC) demos, group mcc (2026-11-11): each class's own demo program ----
+# Run on every target with the same class files (CLASSES below); the classes that the suite
+# already installs (NList, TextEditor, BetterString, TheBar, Toolbar 15.6, Textinput, Popph,
+# Urltext, Busy, Lamp, Calendar, MiniMailer, Guigfx, LayGroup, GIFAnim) stay as they are.
+P htmlview-demo   mcc htmlview/x/MCC_HTMLview/Demos            HTMLview-Demo        30 -
+P toolbar-demo    mcc toolbar/x/MCC_Toolbar/Demos              Toolbar-Demo         30 -
+P lamp-demo       mcc lamp/x/MCC_Lamp/Demos                    Lamp-Demo            30 -
+for n in 1 2 3 4 5 6 7 8 9; do
+  P speedbar-demo$n mcc speedbar/x/MCC_SpeedBar/Demos          demo$n               30 -
+done
+for n in 1 2 3; do
+  P bwin-demo$n   mcc bwin/x/MCC_BWin/Demos                    demo$n               30 -
+done
+for n in 1 2 3 4; do
+  P calendar-demo$n mcc calendar/x/MCC_Calendar/Demos          demo$n               30 -
+done
+P monthnavi-demo  mcc monthnavi/x/MCC_MonthNavigator/Demos     MonthNavigator-Demo  30 -
+P busy-demo       mcc busy24/x/MCC_Busy/Demos                  Busy-Demo            30 -
+P hexedit-demo    mcc hexedit/x/MCC_HexEdit/Demos              HexEdit-Demo         30 -
+P twfmultiled-demo mcc twfmultiled/x/MCC_TWFmultiLED/Demos     TWFmultiLED-demo     30 -
+P tearoff-demo    mcc tearoff/x/MCC_TearOff/demo               TearOffDemo          30 -
+P compactwin-demo mcc compactwin/x/MCC_CompactWindow/demo      CompactWindowDemo    30 -
+P tablegroup-demo mcc tablegroup/x/MCC_TableGroup/Demos        MCCTableDemo         30 -
+P mailtext-demo   mcc mailtext/x/MCC_Mailtext/Demos            Mailtext-Demo        30 -
+P mathstring-demo mcc mathstring/x/MCC_MathString/Demos        MathString-Demo      30 -
+P tipofday-demo   mcc tipofday/x/MCC_TipOfDay/Demos            tip_demo             30 -
+P transferanim-demo mcc transferanim/x/mcc_transferanim/demos  TransferAnim-Demo    30 -
+P minimailer-demo mcc minimailer/x/MCC_MiniMailer/Demos        demo                 30 -
+P htmltext-demo   mcc htmltext/x/MCC_HTMLtext/Demos            HTMLtext-DEMO        30 -
+P settingswindow-demo mcc settingswindow/x/MCC_SettingsWindow/Demos SettingsWindow-Demo 30 -
+P mysticview-demo mcc mysticview/x/mcc_mysticview/demos        MysticView-Demo      30 -
+P icon-demo       mcc iconmcc/x/MCC_Icon/Demos                 Icon-Demo            30 -
+P datestring-demo mcc datestring/x/MCC_DateString/Demos        DateString-Demo      30 -
+P timestring-demo mcc timestring/x/MCC_TimeString/Demos        TimeString-Demo      30 -
+P envelope-demo   mcc envelope/x/MCC_Envelope/Demos            Envelope-Demo        30 -
+P pkb-demo        mcc pkb/x/MCC_Pkb/Demos                      Pkb-Demo             30 -
+P wheel-demo      mcc wheel/x/MCC_Wheel/Demos                  Wheel-Demo           30 -
+P hotkeystring-test mcc hotkeystring/x/MCC_HotkeyString/AmigaOS-68k/Demos HotkeyStringTest 30 -
+P popph-demo      mcc popph/x/MCC_Popph/Demos                  popph_demo           30 -
+P urltext-demo    mcc urltext/x/MCC_Urltext/Demos              Urltext              30 -
+P guigfx-demo     mcc guigfxmcc/x/MCC_Guigfx/Demos             Guigfx-Demo          30 -
+P laygroup-demo   mcc laygroup/x/MCC_LayGroup-19.2/Demos       LayGroup-Demo        30 -
+P gifanim-demo    mcc gifanim/x/MCC_GIFAnim/Demos              demo                 30 -
+P nbitmap-demo    mcc nlist/x/MCC_NList/Demos/AmigaOS3         NBitmap-Demo         30 -
+P nlist102-demo   mcc nlist102/x/demo                          NList-Demo           30 -
+P tron-demo       mcc mui38dev/x/MUI/Developer/ExtClasses/MCC_Tron/Demos Tron-Demo 30 -
+
 # ---- hooks ----
 # YAM: two "Ignore always" requesters (charset, AmiSSL: underlined a), then the error window
 # (OS 3.1 has no PNG datatype: YAM 2.10's 50 theme pictures all fail, so it comes on every run
@@ -117,6 +217,12 @@ dismiss_yam() {
 }
 dismiss_yam25() { dismiss_yam; }
 dismiss_yam210() { dismiss_yam; }
+dismiss_yam29() { dismiss_yam; }
+# AHI's MUI prefs: ahi.device and its drivers from the same archive into the drive's Devs
+pre_host_ahiprefs() {
+  mkdir -p "$2/Devs/AHI"; cp "$REAL/ahiusr/x/AHI/User/Devs/ahi.device" "$2/Devs/"
+  cp "$REAL/ahiusr/x/AHI/User/Devs/AHI/"*.audio "$2/Devs/AHI/"
+}
 # NewsCoaster: the first start asks for a user (string gadget first in the cycle chain, Okay = o)
 dismiss_newscoaster() {
   [ -n "$(winline "New User")" ] || return 0
@@ -225,6 +331,31 @@ CLASSES=(
   # the classic Aminet ones
   laygroup/x/MCC_LayGroup-19.2/Libs/MUI/LayGroup.mcc laygroup/x/MCC_LayGroup-19.2/Libs/MUI/LayGroup.mcp
   gifanim/x/MCC_GIFAnim/MUI/GIFAnim.mcc
+  # the add-on class set (group mcc, 2026-11-11)
+  htmlview/x/MCC_HTMLview/Libs/MUI/AmigaOS3/HTMLview.mcc htmlview/x/MCC_HTMLview/Libs/MUI/AmigaOS3/HTMLview.mcp
+  speedbar/x/MCC_SpeedBar/MUI/SpeedBar.mcc speedbar/x/MCC_SpeedBar/MUI/SpeedBar.mcp
+  speedbar/x/MCC_SpeedBar/MUI/SpeedBarCfg.mcc speedbar/x/MCC_SpeedBar/MUI/SpeedBarVirt.mcc
+  speedbar/x/MCC_SpeedBar/MUI/SpeedButton.mcc
+  bwin/x/MCC_BWin/MUI/BWin.mcc bwin/x/MCC_BWin/MUI/BWin.mcp
+  monthnavi/x/MCC_MonthNavigator/Libs/mui/MonthNavigator.mcc monthnavi/x/MCC_MonthNavigator/Libs/mui/MonthNavigator.mcp
+  hexedit/x/MCC_HexEdit/Libs/MUI/HexEdit.mcc hexedit/x/MCC_HexEdit/Libs/MUI/HexEdit.mcp
+  twfmultiled/x/MCC_TWFmultiLED/Libs/mui/TWFmultiLED.mcc twfmultiled/x/MCC_TWFmultiLED/Libs/mui/TWFmultiLED.mcp
+  tearoff/x/MCC_TearOff/libs/CompactWindow.mcc tearoff/x/MCC_TearOff/libs/CompactWindow.mcp
+  tearoff/x/MCC_TearOff/libs/TearOff.mcp tearoff/x/MCC_TearOff/libs/TearOffBay.mcc tearoff/x/MCC_TearOff/libs/TearOffPanel.mcc
+  tablegroup/x/MCC_TableGroup/Libs/mui/TableGroup.mcc
+  mailtext/x/MCC_Mailtext/Libs/MUI/Mailtext.mcc mailtext/x/MCC_Mailtext/Libs/MUI/Mailtext.mcp
+  mathstring/x/MCC_MathString/Libs/MUI/MathString.mcc
+  tipofday/x/MCC_TipOfDay/Libs/mui/tipboard.mcc tipofday/x/MCC_TipOfDay/Libs/mui/tipwindow.mcc
+  transferanim/x/mcc_transferanim/libs/mui/TransferAnim.mcc transferanim/x/mcc_transferanim/libs/mui/TransferAnim.mcp
+  htmltext/x/MCC_HTMLtext/Libs/MUI/HTMLtext.mcc htmltext/x/MCC_HTMLtext/Libs/MUI/HTMLtext.mcp
+  settingswindow/x/MCC_SettingsWindow/Libs/MUI/SettingsWindow.mcc
+  mysticview/x/mcc_mysticview/libs/mui/MysticView.mcc
+  iconmcc/x/MCC_Icon/Libs/MUI/Icon.mcc
+  datestring/x/MCC_DateString/Libs/mui/DateString.mcc
+  timestring/x/MCC_TimeString/Libs/mui/TimeString.mcc
+  envelope/x/MCC_Envelope/Libs/MUI/Envelope.mcc envelope/x/MCC_Envelope/Libs/MUI/Envelope.mcp
+  pkb/x/MCC_Pkb/Libs/MUI/Pkb.mcc pkb/x/MCC_Pkb/Libs/MUI/Pkb.mcp
+  wheel/x/MCC_Wheel/Libs/mui/Wheel.mcc wheel/x/MCC_Wheel/Libs/mui/Wheel.mcp
 )
 # Libraries into SYS:Libs (left alone where the machine has the library already)
 LIBRARIES=(
@@ -234,6 +365,14 @@ LIBRARIES=(
   cmanager/x/CManager/Libs/CManager.library
   guigfxmcc/x/MCC_Guigfx/Libs/guigfx.library guigfxmcc/x/MCC_Guigfx/Libs/render.library
   simplemail/x/SimpleMail/Libs/expat.library
+  # for the programs and classes added 2026-11-11
+  voyager/x/Voyager/Libs/amitls.library
+  fiasco/x/Fiasco_2.22/gtlayout.library
+  xsysinfo/x/xSysInfo-0.12.0/Libs/identify.library
+  mcp/x/MCP/Libs/mcpgfx.library mcp/x/MCP/Libs/reqtools.library
+  monthnavi/x/MCC_MonthNavigator/Libs/date.library
+  transferanim/x/mcc_transferanim/libs/imagepool.library
+  mysticview/x/mcc_mysticview/mysticviewlibrary/libs/mysticview.library
 )
 
 # ---- downloads (suite-fetch.sh): NAME URL ----
@@ -282,4 +421,92 @@ FETCH=(
   "lumizip https://aminet.net/util/arc/LumiZip.lha"
   "laygroup https://aminet.net/dev/mui/MCC_LayGroup-19.2.lha"
   "gifanim https://aminet.net/dev/mui/MCC_GIFAnim.lha"
+  # ---- add-on class (MCC) demos, group mcc (2026-11-11) ----
+  "htmlview https://aminet.net/dev/mui/MCC_HTMLview-13.4.lha"
+  "toolbar https://aminet.net/dev/mui/mcc_toolbar-15.12.lha"
+  "lamp https://aminet.net/dev/mui/MCC_Lamp.lha"
+  "speedbar https://aminet.net/dev/mui/MCC_SpeedBar.lha"
+  "bwin https://aminet.net/dev/mui/MCC_BWin.lha"
+  "calendar https://aminet.net/dev/mui/MCC_Calendar.lha"
+  "monthnavi https://aminet.net/dev/mui/MCC_MonthNavi.lha"
+  "busy24 https://aminet.net/dev/mui/MCC_Busy2_4.lha"
+  "nlist102 https://aminet.net/dev/mui/MCC_NList-0.102_68k.lha"
+  "betterstring68k https://aminet.net/dev/mui/MCC_BetterString_68k.lha"
+  "texteditor68k https://aminet.net/dev/mui/MCC_TextEditor_68k.lha"
+  "thebar68k https://aminet.net/dev/mui/MCC_TheBar_68k.lha"
+  "hexedit https://aminet.net/dev/mui/MCC_HexEdit.lha"
+  "imgbutton https://aminet.net/dev/mui/MCC_ImgButton.lha"
+  "twfmultiled https://aminet.net/dev/mui/MCC_TWFmultiLE.lha"
+  "tearoff https://aminet.net/dev/mui/MCC_TearOff.lha"
+  "compactwin https://aminet.net/dev/mui/MCC_CompactWin.lha"
+  "tablegroup https://aminet.net/dev/mui/MCC_TableGroup.lha"
+  "mailtext https://aminet.net/dev/mui/MCC_Mailtext.lha"
+  "mathstring https://aminet.net/dev/mui/MCC_MathString.lha"
+  "tipofday https://aminet.net/dev/mui/MCC_TipOfDay.lha"
+  "transferanim https://aminet.net/dev/mui/MCC_TransferAn.lha"
+  "bbalance https://aminet.net/dev/mui/MCC_BBalance.lha"
+  "minimailer https://aminet.net/dev/mui/MCC_MiniMailer.lha"
+  "htmltext https://aminet.net/dev/mui/MCC_HTMLtext.lha"
+  "settingswindow https://aminet.net/dev/mui/MCC_SettingsWi.lha"
+  "mysticview https://aminet.net/dev/mui/MCC_MysticView.lha"
+  "volumelist https://aminet.net/dev/mui/DC-VLmui.lha"
+  "iconmcc https://aminet.net/dev/mui/MCCIcon_1_1.lha"
+  "datemcc https://aminet.net/dev/mui/MCC_Date.lha"
+  "datestring https://aminet.net/dev/mui/MCC_DateString.lha"
+  "timemcc https://aminet.net/dev/mui/MCC_Time.lha"
+  "timestring https://aminet.net/dev/mui/MCC_TimeString.lha"
+  "envelope https://aminet.net/dev/mui/MCC_Envelope.lha"
+  "pkb https://aminet.net/dev/mui/MCC_Pkb14_6.lha"
+  "wheel https://aminet.net/dev/mui/MCC_Wheel.lha"
+  "hotkeystring https://aminet.net/dev/mui/MCC_HotkeyStr.lha"
+  "muirexx https://aminet.net/dev/mui/MUIRexx_3_0a.lha"
+  # ---- programs added 2026-11-11 (branch compat1) ----
+  "voyager https://aminet.net/comm/www/Voyager-3.5.3-AmigaOS.lha"
+  "evenmore https://aminet.net/text/show/EvenMore.lha"
+  "igame https://aminet.net/util/misc/iGame.lha"
+  "yam29 https://aminet.net/comm/yam/YAM29p1-AmigaOS3.lha"
+  "amigg https://aminet.net/comm/misc/amigg.lha"
+  "freeciv https://aminet.net/game/strat/freeciv.lha"
+  "apdf https://aminet.net/gfx/show/Apdf_nofpu.lha"
+  "mcp https://aminet.net/util/cdity/MCP130.lha"
+  "screentab https://aminet.net/util/cdity/ScreenTab_3_2.lha"
+  "tinymeter https://aminet.net/util/wb/Tinymeter_V431.lha"
+  "newsrog https://aminet.net/comm/news/NewsRogDemo.lha"
+  "md2 https://aminet.net/comm/news/md2_14.lha"
+  "amplifier https://aminet.net/mus/play/AMPlifier.lha"
+  "makecd https://aminet.net/disk/cdrom/MakeCD_3.2d.lha"
+  "ahiusr https://aminet.net/driver/audio/ahiusr_4.18.lha"
+  "fiasco https://aminet.net/biz/dbase/Fiasco_main.lha"
+  "amster https://aminet.net/comm/tcp/Amster-main.lha"
+  "beebase https://aminet.net/biz/dbase/BeeBase-1.2.lha"
+  "amimodradio https://aminet.net/mus/play/AmiModRadio.lha"
+  "dmodp https://aminet.net/mus/play/DMODP35b.lha"
+  "amfinger https://aminet.net/comm/tcp/AmFinger1.5.lha"
+  "abacus https://aminet.net/game/board/abacus220.lha"
+  "address https://aminet.net/biz/dbase/Address.lha"
+  "rqchoicemui https://aminet.net/util/sys/2b_RqChoiceMUI.lha"
+  "assampler https://aminet.net/mus/edit/Assampler.lha"
+  "cyclone https://aminet.net/comm/fido/Cyclone125c.lha"
+  "amigamark https://aminet.net/util/moni/AmigaMARK-amigaos3.lha"
+  "ali https://aminet.net/comm/irc/ALI-amigaos3.lha"
+  "lumiamp https://aminet.net/mus/play/LumiAMP.lha"
+  "lumipass https://aminet.net/util/crypt/LumiPass.lha"
+  "lumitorrent https://aminet.net/comm/net/LumiTorrent.lha"
+  "lumiftp https://aminet.net/comm/tcp/LumiFTP.lha"
+  "tunefinder https://aminet.net/comm/misc/TuneFinderMUI.lha"
+  "u64ctl https://aminet.net/comm/misc/u64ctl.lha"
+  "amifritzi https://aminet.net/comm/tcp/AmiFritzi.lha"
+  "nfsgui https://aminet.net/comm/net/NFS-GUI.lha"
+  "ami2ha https://aminet.net/comm/tcp/ami2ha-0.5.lha"
+  "amihomeassist https://aminet.net/comm/tcp/AmiHomeassist.lha"
+  "amiatari2600 https://aminet.net/misc/emu/AmiAtari2600.lha"
+  "amipg https://aminet.net/mus/midi/AmiPG_MUI.lha"
+  "xsysinfo https://aminet.net/util/moni/xSysInfo.lha"
+  "kompensator https://aminet.net/util/batch/Kompensator.lha"
+  "rsgui https://aminet.net/comm/net/RSGUI.lha"
+  "layview https://aminet.net/misc/sci/LayView.lha"
+  "3doc https://aminet.net/gfx/3d/3doc-m68k-amigaos_v1.90.lha"
+  "aminetuploader https://aminet.net/util/misc/AminetUploader.lha"
+  "jmri https://aminet.net/misc/misc/JMRIController.lha"
+  "amidrop https://aminet.net/comm/net/AmiDrop_MUI.lha"
 )
