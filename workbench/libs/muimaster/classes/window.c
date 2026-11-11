@@ -1161,10 +1161,9 @@ struct MUI_WindowData
     Object *wd_ChildMenustrip;  /* If window has its own Menustrip */
     struct Menu *wd_Menu;       /* the intuition menustrip */
 
-    Object *wd_VertProp;
+    Object *wd_VertProp;        /* these six in this order (UndisplayWindow) */
     Object *wd_UpButton;
     Object *wd_DownButton;
-
     Object *wd_HorizProp;
     Object *wd_LeftButton;
     Object *wd_RightButton;
@@ -2349,22 +2348,23 @@ static void UndisplayWindow(Object *obj, struct MUI_WindowData *data)
     FreeNativeTitleGadgets(data);
 #endif
 
-#define DISPOSEGADGET(x) \
-    if (x)\
-    {\
-        DoMethod(obj, MUIM_Window_FreeGadgetID,\
-            ((struct Gadget*)x)->GadgetID);\
-        DisposeObject(x);\
-        x = NULL;\
-    }
+    /* the six border scroller gadgets, wd_VertProp ... wd_RightButton in
+     * this order in the instance data */
+    {
+        Object **gad = &data->wd_VertProp;
+        int i;
 
-    DISPOSEGADGET(data->wd_VertProp);
-    DISPOSEGADGET(data->wd_UpButton);
-    DISPOSEGADGET(data->wd_DownButton);
-    DISPOSEGADGET(data->wd_HorizProp);
-    DISPOSEGADGET(data->wd_LeftButton);
-    DISPOSEGADGET(data->wd_RightButton);
-#undef DISPOSEGADGET
+        for (i = 0; i < 6; i++, gad++)
+        {
+            if (*gad)
+            {
+                DoMethod(obj, MUIM_Window_FreeGadgetID,
+                    ((struct Gadget *)*gad)->GadgetID);
+                DisposeObject(*gad);
+                *gad = NULL;
+            }
+        }
+    }
 }
 
 
