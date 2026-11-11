@@ -4851,8 +4851,9 @@ IPTR Window__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 
     struct MUI_WindowData *data = INST_DATA(cl, obj);
 
-    STORE = (IPTR) 0;
-
+    /* Nothing is stored for an attribute this class does not know: a
+     * subclass that stores its own value and then calls the superclass
+     * (tipwindow.mcc's MUIA_Tip_WindowObject) keeps it, as on MUI 3.8 */
     switch (msg->opg_AttrID)
     {
     case MUIA_WindowObject:

@@ -135,8 +135,8 @@ IPTR Process__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 
     struct Process_DATA *data = INST_DATA(cl, obj);
 
-    STORE = 0;
-
+    /* nothing stored for an unknown attribute (a subclass's own value
+     * passed on to the superclass must survive) */
     switch (msg->opg_AttrID)
     {
     case MUIA_Process_Task:
