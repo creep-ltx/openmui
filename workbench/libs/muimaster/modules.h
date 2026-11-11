@@ -233,6 +233,7 @@ struct ZuneListModule
  * (mui45.c). area: Area's MUIA_FrameVisible and MUIA_FrameDynamic; with
  * store set, OM_GET (TRUE when answered), else OM_NEW/OM_SET of value. */
 struct MUI_StringData;
+struct ZuneStringOps;
 struct TagItem;
 struct ZuneMui45Module
 {
@@ -242,6 +243,8 @@ struct ZuneMui45Module
     void (*string_draw)(Object *, struct MUI_StringData *, ULONG, ULONG,
         LONG, LONG);
     LONG (*string_pos_at)(Object *, struct MUI_StringData *, LONG, LONG);
+    IPTR (*string_textinput)(struct IClass *, Object *, Msg,
+        const struct ZuneStringOps *);
 };
 IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
 /* string: String's kept Textinput attributes and MUIA_String_Integer64
@@ -261,6 +264,12 @@ void zune_string_draw45(Object *obj, struct MUI_StringData *data,
     ULONG what, ULONG textpen, LONG markstart, LONG markstop);
 LONG zune_string_pos_at(Object *obj, struct MUI_StringData *data, LONG x,
     LONG y);
+/* string_textinput: String's MUIM_Textinput_* methods (a MUI 4/5 program
+ * sends them; a program that gets MUI 4/5 has its keys sent as them), on
+ * the library's editing through ops (classes/string_private.h). Without
+ * the module a method does nothing (0). */
+IPTR zune_string_textinput(struct IClass *cl, Object *obj, Msg msg,
+    const struct ZuneStringOps *ops);
 
 /* Configdata's setters (configset.c): MUIM_Configdata_SetULong,
  * SetImspec, SetFramespec, SetPenspec, SetFont, with the defaults to

@@ -1,13 +1,18 @@
 /* MUI 4/5 attributes of the core classes that MUI 3 programs never use
  * (Area's frame attributes, String's kept Textinput values and 64-bit
- * integer, its multiline drawing and MUI 5's placeholder).
+ * integer, its multiline drawing and MUI 5's placeholder) and String's
+ * Textinput methods.
  * Built as the module Zmui45.mui (modules.h, classes/zmui45.c): a MUI 3
  * program never loads it, and the library keeps only the recognition of
  * the attributes and a call (modules.c). */
 #include <string.h>
+#include <ctype.h>
 #include <exec/types.h>
 #include <intuition/classusr.h>
 #include <clib/alib_protos.h>
+#include <proto/exec.h>
+#include <proto/dos.h>
+#include <proto/utility.h>
 #include <proto/intuition.h>
 #include <proto/graphics.h>
 #include <proto/muimaster.h>
@@ -406,4 +411,287 @@ LONG zune_string_pos_at(Object *obj, struct MUI_StringData *data, LONG x,
     SetFont(rp, _font(obj));
     return from + TextFit(rp, data->VisualBuffer + from, end - from, &te,
         NULL, 1, x - _mleft(obj), ysize);
+}
+
+/* String's Textinput methods (MUI 4/5): a program sends them, or
+ * classes/string.c sends a key as one in a program that gets MUI 4/5, so
+ * that a subclass sees it (MSDF_INEVENT: the event handler notifies and
+ * redraws afterwards from TiPending; else the method does). What a method
+ * shares with a key is the library's String_Edit (ops->edit, an SE_*
+ * operation); the rest edits through the ops' buffer helpers. */
+#define TI_MULTILINE(data) ((data)->msd_Flags & MSDF_MULTILINE)
+
+/* The methods that are one editing operation; writable: nothing without
+ * MUIA_Textinput_Editable */
+static const struct { ULONG method; UBYTE op; UBYTE writable; } ti_edits[] =
+{
+    { MUIM_Textinput_HandleChar, SE_CHAR, 0 },
+    { MUIM_Textinput_DoBS, SE_BS, 1 }, { MUIM_Textinput_DoBSSOL, SE_BSSOL, 1 },
+    { MUIM_Textinput_DoDel, SE_DEL, 1 },
+    { MUIM_Textinput_DoDelEOL, SE_DELEOL, 1 },
+    { MUIM_Textinput_DoCopy, SE_COPY, 0 }, { MUIM_Textinput_DoCut, SE_CUT, 0 },
+    { MUIM_Textinput_DoCopyCut, SE_CUT, 0 },
+    { MUIM_Textinput_DoPaste, SE_PASTE, 1 },
+    { MUIM_Textinput_DoLeft, MUIKEY_LEFT, 0 },
+    { MUIM_Textinput_DoRight, MUIKEY_RIGHT, 0 },
+    { MUIM_Textinput_DoPrevWord, MUIKEY_WORDLEFT, 0 },
+    { MUIM_Textinput_DoNextWord, MUIKEY_WORDRIGHT, 0 },
+    { MUIM_Textinput_DoLineStart, MUIKEY_LINESTART, 0 },
+    { MUIM_Textinput_DoLineEnd, MUIKEY_LINEEND, 0 },
+    { MUIM_Textinput_DoTop, MUIKEY_TOP, 0 },
+    { MUIM_Textinput_DoBottom, MUIKEY_BOTTOM, 0 },
+    { MUIM_Textinput_DoUp, MUIKEY_UP, 0 }, { MUIM_Textinput_DoDown, MUIKEY_DOWN, 0 },
+    { MUIM_Textinput_DoPageUp, MUIKEY_PAGEUP, 0 },
+    { MUIM_Textinput_DoPageDown, MUIKEY_PAGEDOWN, 0 },
+};
+
+/* Read a file into a new buffer of at most max bytes, NUL-terminated */
+static __attribute__((noinline)) STRPTR Ti_ReadFile(CONST_STRPTR name, ULONG max)
+{
+    BPTR file = Open(name, MODE_OLDFILE);
+    STRPTR text;
+    LONG length;
+
+    if (!file)
+        return NULL;
+    text = AllocVec(max, MEMF_ANY);
+    length = text ? Read(file, text, max - 1) : -1;
+    Close(file);
+    if (length < 0)
+    {
+        FreeVec(text);
+        return NULL;
+    }
+    text[length] = 0;
+    return text;
+}
+
+/* Find the decimal number at or just before the cursor and add delta */
+static __attribute__((noinline)) BOOL Ti_AddToNumber(struct MUI_StringData *data,
+    const struct ZuneStringOps *ops, LONG delta)
+{
+    STRPTR buf = data->Buffer;
+    LONG pos = MIN(data->BufferPos, data->NumChars), start, stop, value = 0;
+    char number[22];
+    LONG length;
+
+    if (!isdigit(buf[pos]) && pos > 0 && isdigit(buf[pos - 1]))
+        pos--;
+    if (!isdigit(buf[pos]))
+        return FALSE;
+    for (start = pos; start > 0 && isdigit(buf[start - 1]); start--);
+    for (stop = pos; stop < data->NumChars && isdigit(buf[stop]); stop++);
+    if (start > 0 && buf[start - 1] == '-')
+        start--;
+    StrToLong(&buf[start], &value);
+    format64(number, (long long)value + delta);
+    length = strlen(number);
+    if (data->NumChars - (stop - start) + length >= data->BufferSize)
+        return FALSE;
+    pos = data->BufferPos;
+    ops->buffer_delete(data, start, stop);
+    ops->buffer_insert(data, start, number, length);
+    data->BufferPos = MIN(pos, (LONG)data->NumChars);
+    return TRUE;
+}
+
+IPTR zune_string_textinput(struct IClass *cl, Object *obj, Msg msg,
+    const struct ZuneStringOps *ops)
+{
+    struct MUI_StringData *data = INST_DATA(cl, obj);
+    BOOL writable = !(data->msd_Flags & MSDF_NOINPUT);
+    BOOL edited = FALSE, moved = FALSE;
+    IPTR retval = TRUE;
+    ULONG pending = 0;
+    LONG start, stop;
+    unsigned int i;
+
+    for (i = 0; i < sizeof(ti_edits) / sizeof(ti_edits[0]); i++)
+        if (ti_edits[i].method == msg->MethodID)
+        {
+            if (ti_edits[i].writable && !writable)
+                return 0;
+            pending = ops->edit(cl, obj, data, ti_edits[i].op,
+                msg->MethodID == MUIM_Textinput_DoCopyCut ? 1 :
+                (LONG)((struct MUIP_Textinput_HandleChar *)msg)->ch);
+            if (msg->MethodID == MUIM_Textinput_HandleChar)
+                retval = !!(pending & TIP_EDITED);
+            goto done;
+        }
+
+    switch (msg->MethodID)
+    {
+    case MUIM_Textinput_DoBSWord:
+    case MUIM_Textinput_DoDelWord:
+        if (!writable)
+            return 0;
+        if (!(edited = ops->kill_marked(data)))
+        {
+            stop = data->BufferPos;
+            if (msg->MethodID == MUIM_Textinput_DoBSWord)
+                edited = ops->buffer_delete(data,
+                    ops->prev_word(data, stop), stop);
+            else
+                edited = ops->buffer_delete(data, stop,
+                    ops->succ_word(data, stop));
+        }
+        break;
+
+    case MUIM_Textinput_DoDelLine:
+    case MUIM_Textinput_DoCutLine:
+        if (!writable)
+            return 0;
+        start = 0;
+        stop = data->NumChars;
+        if (TI_MULTILINE(data))
+        {
+            /* The current line with its newline */
+            start = Ml_LineStart(data, data->BufferPos);
+            stop = Ml_LineEnd(data, data->BufferPos);
+            if (stop < (LONG)data->NumChars)
+                stop++;
+            else if (start > 0)
+                start--;
+        }
+        if (msg->MethodID == MUIM_Textinput_DoCutLine && stop > start
+            && !data->msd_useSecret)
+            ops->clip_write(data->Buffer + start, stop - start);
+        data->msd_Flags &= ~(MSDF_MARKING | MSDF_TIMARK);
+        edited = ops->buffer_delete(data, start, stop);
+        break;
+
+    case MUIM_Textinput_DoMarkStart:
+        ops->freeze_mark(data);
+        data->msd_Flags &= ~MSDF_TIMARK;
+        data->MarkPos = data->BufferPos;
+        data->MultiClick = 0;
+        data->msd_Flags |= MSDF_MARKING | MSDF_KEYMARKING;
+        moved = TRUE;
+        break;
+
+    case MUIM_Textinput_DoMarkAll:
+        data->TiMarkStart = 0;
+        data->TiMarkEnd = data->NumChars;
+        data->BufferPos = data->NumChars;
+        data->msd_Flags &= ~MSDF_KEYMARKING;
+        data->msd_Flags |= MSDF_MARKING | MSDF_TIMARK;
+        moved = TRUE;
+        break;
+
+    case MUIM_Textinput_DoToggleCase:
+    case MUIM_Textinput_DoToggleCaseEOW:
+        if (!writable)
+            return 0;
+        stop = msg->MethodID == MUIM_Textinput_DoToggleCase ?
+            MIN(data->BufferPos + 1, data->NumChars) :
+            ops->word_end(data, data->BufferPos);
+        for (start = data->BufferPos; start < stop; start++)
+        {
+            UBYTE c = data->Buffer[start];
+            data->Buffer[start] = ToUpper(c) != c ? ToUpper(c) : ToLower(c);
+            edited = TRUE;
+        }
+        data->BufferPos = MAX((LONG)data->BufferPos, stop);
+        break;
+
+    case MUIM_Textinput_DoIncrementDec:
+    case MUIM_Textinput_DoDecrementDec:
+        if (!writable)
+            return 0;
+        edited = Ti_AddToNumber(data, ops,
+            msg->MethodID == MUIM_Textinput_DoIncrementDec ? 1 : -1);
+        break;
+
+    case MUIM_Textinput_InsertText:
+    case MUIM_Textinput_AppendText:
+        {
+            struct MUIP_Textinput_InsertText *m = (APTR)msg;
+            BOOL append = msg->MethodID == MUIM_Textinput_AppendText;
+            LONG count = ops->buffer_insert(data,
+                append ? data->NumChars : data->BufferPos, m->text, m->len);
+
+            if (!append)
+                data->BufferPos += count;
+            edited = count > 0;
+        }
+        break;
+
+    case MUIM_Textinput_SaveToFile:
+        {
+            struct MUIP_Textinput_SaveToFile *m = (APTR)msg;
+            BPTR file = Open(m->filename, MODE_NEWFILE);
+
+            if (!file)
+                return FALSE;
+            retval = Write(file, data->Buffer, data->NumChars)
+                == data->NumChars;
+            Close(file);
+            return retval;
+        }
+
+    case MUIM_Textinput_LoadFromFile:
+    case MUIM_Textinput_InsertFromFile:
+        {
+            struct MUIP_Textinput_LoadFromFile *m = (APTR)msg;
+            STRPTR text = Ti_ReadFile(m->filename, data->BufferSize);
+
+            if (!text)
+                return FALSE;
+            if (msg->MethodID == MUIM_Textinput_LoadFromFile)
+            {
+                data->msd_Flags &= ~(MSDF_MARKING | MSDF_TIMARK);
+                ops->buffer_delete(data, 0, data->NumChars);
+                data->BufferPos = 0;
+            }
+            data->BufferPos += ops->buffer_insert(data, data->BufferPos,
+                text, -1);
+            FreeVec(text);
+            edited = TRUE;
+        }
+        break;
+
+    case MUIM_Textinput_Acknowledge:
+        ops->acknowledge(cl, obj, data);
+        return TRUE;
+
+    case MUIM_Textinput_DoNextGadget:
+        if (muiRenderInfo(obj) && _win(obj))
+            set(_win(obj), MUIA_Window_ActiveObject,
+                MUIV_Window_ActiveObject_Next);
+        return TRUE;
+
+    default:
+        /* Undo, file requesters, popups and URLs are not available in a
+         * String */
+        return 0;
+    }
+
+    if (edited)
+    {
+        data->msd_RedrawReason = NEW_CONTENTS;
+        data->msd_Flags |= MSDF_CHANGED;
+        pending = TIP_EDITED | TIP_UPDATE;
+    }
+    else if (moved)
+    {
+        if (data->msd_RedrawReason == NO_REASON)
+            data->msd_RedrawReason = MOVE_CURSOR;
+        pending = TIP_UPDATE;
+    }
+
+done:
+    if (data->msd_Flags & MSDF_INEVENT)
+    {
+        data->TiPending |= pending;
+        return retval;
+    }
+    if (pending & TIP_EDITED)
+    {
+        data->AckBuffer = NULL;
+        SetSuperAttrs(cl, obj, MUIA_String_Contents, (IPTR)data->Buffer,
+            MUIA_Textinput_Contents, (IPTR)data->Buffer, TAG_DONE);
+    }
+    if (pending)
+        MUI_Redraw(obj, MADF_DRAWUPDATE);
+    return retval;
 }

@@ -54,7 +54,7 @@ static const char *entries[] = {
     NULL
 };
 
-static Object *app, *win, *root, *list, *slider, *numeric, *text;
+static Object *app, *win, *root, *list, *slider, *numeric, *text, *string;
 static struct Screen *benchmark_screen;
 static int fixed_geometry;
 
@@ -102,7 +102,7 @@ static Object *build(void)
                 Child, HGroup, GroupFrameT("Controls"),
                     Child, ColGroup(2),
                         Child, Label2("Name:"),
-                        Child, StringObject, StringFrame, End,
+                        Child, string = StringObject, StringFrame, End,
                         Child, Label1("Mode:"),
                         Child, CycleObject, MUIA_Cycle_Entries, cycles, End,
                         Child, Label1("Check:"),
@@ -388,6 +388,27 @@ int main(int argc, char **argv)
         samples[i] = now() - t;
     }
     report("text set x100", REPS, 100);
+
+    /* Keys into the active String as the window hands them to it: 60
+     * characters typed, then 40 backspaces, each edit redrawn */
+    set(win, MUIA_Window_ActiveObject, string);
+    DoMethod(app, MUIM_Application_InputBuffered);
+    for (i = 0; i < REPS; i++)
+    {
+        struct IntuiMessage imsg;
+
+        set(string, MUIA_String_Contents, "");
+        memset(&imsg, 0, sizeof(imsg));
+        imsg.Class = IDCMP_RAWKEY;
+        t = now();
+        for (j = 0; j < 100; j++)
+        {
+            imsg.Code = j < 60 ? 0x20 : 0x41;
+            DoMethod(string, MUIM_HandleEvent, &imsg, MUIKEY_NONE);
+        }
+        samples[i] = now() - t;
+    }
+    report("string keys x100", REPS, 100);
     rc = 0;
 done:
     if (app)

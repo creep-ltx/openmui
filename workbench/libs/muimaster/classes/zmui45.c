@@ -6,11 +6,12 @@
 #define zune_string_mui45 zmod_string_mui45
 #define zune_string_draw45 zmod_string_draw45
 #define zune_string_pos_at zmod_string_pos_at
+#define zune_string_textinput zmod_string_textinput
 #include "../mui45.c"
 
 static const struct ZuneMui45Module mui45_module = {
     zmod_area_mui45, zmod_string_mui45, zmod_string_draw45,
-    zmod_string_pos_at
+    zmod_string_pos_at, zmod_string_textinput
 };
 
 BOOPSI_DISPATCHER(IPTR, Zmui45_Dispatcher, cl, obj, msg)

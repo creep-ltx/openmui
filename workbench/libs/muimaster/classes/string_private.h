@@ -81,10 +81,62 @@ struct MUI_StringData
 #define MSDF_SETVMIN        (1<<15)
 #define MSDF_SETVMAX        (1<<16)
 
+#define MSDF_DIRECTKEYS     (1<<17) /* MUI 3.8: keys edit directly, not
+                                     * through the Textinput methods */
+
 #define TIP_UPDATE 1
 #define TIP_EDITED 2
 
 #define TI_MARKED(data) (((data)->msd_Flags & (MSDF_MARKING | MSDF_TIMARK)) \
     == (MSDF_MARKING | MSDF_TIMARK))
+
+/* Why the next MADF_DRAWUPDATE draws (msd_RedrawReason) */
+enum
+{
+    NO_REASON = 0,
+    WENT_ACTIVE = 1,
+    WENT_INACTIVE,
+    DO_CURSOR_LEFT = 3,
+    DO_CURSOR_RIGHT,
+    DO_DELETE = 5,
+    DO_BACKSPACE,
+    DO_ADDCHAR = 7,
+    NEW_CONTENTS,
+    MOVE_CURSOR,
+    DO_UNKNOWN,
+};
+
+/* The editing operations of String_Edit (classes/string.c), what a key
+ * does: MUIKEY_UP .. MUIKEY_LINEEND (2 .. 13) move the cursor, then */
+#define SE_CHAR    14   /* arg: the character */
+#define SE_BS      15
+#define SE_BSSOL   16   /* to the start of the line (Shift-Backspace, Ctrl-U) */
+#define SE_DEL     17
+#define SE_DELEOL  18   /* to the end of the line (Shift-Del, Ctrl-K) */
+#define SE_COPY    19
+#define SE_CUT     20   /* arg: copy even with nothing marked (DoCopyCut) */
+#define SE_PASTE   21
+#define SE_NONE    22   /* a key String eats and does nothing with */
+#define SE_COUNT   23
+
+/* The library's editing, as the MUI 4/5 module's Textinput methods
+ * (mui45.c) call it: edit does an SE_* operation and answers TIP_*;
+ * the rest are the buffer helpers of classes/string.c */
+struct IClass;
+struct ZuneStringOps
+{
+    ULONG (*edit)(struct IClass *, Object *, struct MUI_StringData *,
+        ULONG op, LONG arg);
+    BOOL (*kill_marked)(struct MUI_StringData *);
+    BOOL (*buffer_delete)(struct MUI_StringData *, ULONG, ULONG);
+    LONG (*buffer_insert)(struct MUI_StringData *, ULONG, CONST_STRPTR,
+        LONG);
+    LONG (*prev_word)(struct MUI_StringData *, LONG);
+    LONG (*succ_word)(struct MUI_StringData *, LONG);
+    LONG (*word_end)(struct MUI_StringData *, LONG);
+    void (*freeze_mark)(struct MUI_StringData *);
+    void (*clip_write)(STRPTR, LONG);
+    void (*acknowledge)(struct IClass *, Object *, struct MUI_StringData *);
+};
 
 #endif
