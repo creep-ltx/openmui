@@ -7090,7 +7090,7 @@ static IPTR Window__MUIM_Import(struct IClass *cl, Object *obj,
  * stage by stage as at the first opening. Nothing if the window was closed
  * (or opened again) since. */
 static __attribute__((noinline)) IPTR Window__MUIM_Refit(struct IClass *cl,
-    Object *obj)
+    Object *obj, Msg msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
 
@@ -7108,14 +7108,47 @@ static __attribute__((noinline)) IPTR Window__MUIM_Refit(struct IClass *cl,
 
 BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
 {
+    IPTR (*method)(struct IClass *, Object *, APTR);
+
     switch (msg->MethodID)
     {
-    case MUIM_Window_SetCycleChain:
-        return Window__MUIM_SetCycleChain(cl, obj, (APTR)msg);
-    case OM_NEW:
-        return Window__OM_NEW(cl, obj, (struct opSet *)msg);
-    case OM_DISPOSE:
-        return Window__OM_DISPOSE(cl, obj, msg);
+    case MUIM_Window_SetCycleChain: method = (APTR)Window__MUIM_SetCycleChain; break;
+    case OM_NEW: method = (APTR)Window__OM_NEW; break;
+    case OM_DISPOSE: method = (APTR)Window__OM_DISPOSE; break;
+    case OM_GET: method = (APTR)Window__OM_GET; break;
+    case MUIM_FindUData:
+    case MUIM_FindObject: method = (APTR)Window__MUIM_FindUData; break;
+    case MUIM_SetUDataOnce: method = (APTR)Window__MUIM_SetUDataOnce; break;
+    case MUIM_GetUData: method = (APTR)Window__MUIM_GetUData; break;
+    case MUIM_SetUData: method = (APTR)Window__MUIM_SetUData; break;
+    case MUIM_Window_AddEventHandler: method = (APTR)Window__MUIM_AddEventHandler; break;
+    case MUIM_Window_RemEventHandler: method = (APTR)Window__MUIM_RemEventHandler; break;
+    case MUIM_ConnectParent: method = (APTR)Window__MUIM_ConnectParent; break;
+    case MUIM_DisconnectParent: method = (APTR)Window__MUIM_DisconnectParent; break;
+    case MUIM_Window_RecalcDisplay: method = (APTR)Window__MUIM_RecalcDisplay; break;
+    case MUIM_Window_Refit: method = (APTR)Window__MUIM_Refit; break;
+    case MUIM_Window_Setup: method = (APTR)Window__MUIM_Setup; break;
+    case MUIM_Window_Cleanup: method = (APTR)Window__MUIM_Cleanup; break;
+    case MUIM_Window_AddControlCharHandler: method = (APTR)Window__MUIM_AddControlCharHandler; break;
+    case MUIM_Window_RemControlCharHandler: method = (APTR)Window__MUIM_RemControlCharHandler; break;
+    case MUIM_Window_DragObject: method = (APTR)Window__MUIM_DragObject; break;
+    case MUIM_Window_AllocGadgetID: method = (APTR)Window__MUIM_AllocGadgetID; break;
+    case MUIM_Window_FreeGadgetID: method = (APTR)Window__MUIM_FreeGadgetID; break;
+    case MUIM_Window_GetMenuCheck: method = (APTR)Window__MUIM_GetMenuCheck; break;
+    case MUIM_Window_SetMenuCheck: method = (APTR)Window__MUIM_SetMenuCheck; break;
+    case MUIM_Window_GetMenuState: method = (APTR)Window__MUIM_GetMenuState; break;
+    case MUIM_Window_SetMenuState: method = (APTR)Window__MUIM_SetMenuState; break;
+    case MUIM_Window_DrawBackground: method = (APTR)Window__MUIM_DrawBackground; break;
+    case MUIM_Window_ToFront: method = (APTR)Window__MUIM_ToFront; break;
+    case MUIM_Window_ToBack: method = (APTR)Window__MUIM_ToBack; break;
+    case MUIM_Window_ScreenToFront: method = (APTR)Window__MUIM_ScreenToFront; break;
+    case MUIM_Window_ScreenToBack: method = (APTR)Window__MUIM_ScreenToBack; break;
+    case MUIM_Window_ActionIconify: method = (APTR)Window__MUIM_ActionIconify; break;
+    case MUIM_Window_Snapshot: method = (APTR)Window__MUIM_Snapshot; break;
+    case MUIM_Window_UpdateMenu: method = (APTR)Window__MUIM_UpdateMenu; break;
+    case MUIM_Window_Refresh: method = (APTR)Window__MUIM_Refresh; break;
+    case MUIM_Export: method = (APTR)Window__MUIM_Export; break;
+    case MUIM_Import: method = (APTR)Window__MUIM_Import; break;
     case OM_SET:
 #if defined(ZUNE68_GCC_NATIVE) && defined(__mc68000__)
         /* Opening a window draws all of it: see zune_deep_call() */
@@ -7126,78 +7159,11 @@ BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
                 cl, obj, msg);
 #endif
         return Window__OM_SET(cl, obj, (struct opSet *)msg);
-    case OM_GET:
-        return Window__OM_GET(cl, obj, (struct opGet *)msg);
-    case MUIM_FindUData:
-    case MUIM_FindObject:
-        return Window__MUIM_FindUData(cl, obj,
-            (struct MUIP_FindUData *)msg);
-    case MUIM_GetUData:
-        return Window__MUIM_GetUData(cl, obj, (struct MUIP_GetUData *)msg);
-    case MUIM_SetUData:
-        return Window__MUIM_SetUData(cl, obj, (struct MUIP_SetUData *)msg);
-    case MUIM_SetUDataOnce:
-        return Window__MUIM_SetUDataOnce(cl, obj,
-            (struct MUIP_SetUDataOnce *)msg);
-    case MUIM_Window_AddEventHandler:
-        return Window__MUIM_AddEventHandler(cl, obj, (APTR) msg);
-    case MUIM_Window_RemEventHandler:
-        return Window__MUIM_RemEventHandler(cl, obj, (APTR) msg);
-    case MUIM_ConnectParent:
-        return Window__MUIM_ConnectParent(cl, obj, (APTR) msg);
-    case MUIM_DisconnectParent:
-        return Window__MUIM_DisconnectParent(cl, obj, (APTR) msg);
-    case MUIM_Window_RecalcDisplay:
-        return Window__MUIM_RecalcDisplay(cl, obj, (APTR) msg);
-    case MUIM_Window_Refit:
-        return Window__MUIM_Refit(cl, obj);
-    case MUIM_Window_Setup:
-        return Window__MUIM_Setup(cl, obj, (APTR) msg);
-    case MUIM_Window_Cleanup:
-        return Window__MUIM_Cleanup(cl, obj, (APTR) msg);
-    case MUIM_Window_AddControlCharHandler:
-        return Window__MUIM_AddControlCharHandler(cl, obj, (APTR) msg);
-    case MUIM_Window_RemControlCharHandler:
-        return Window__MUIM_RemControlCharHandler(cl, obj, (APTR) msg);
-    case MUIM_Window_DragObject:
-        return Window__MUIM_DragObject(cl, obj, (APTR) msg);
-    case MUIM_Window_AllocGadgetID:
-        return Window__MUIM_AllocGadgetID(cl, obj, (APTR) msg);
-    case MUIM_Window_FreeGadgetID:
-        return Window__MUIM_FreeGadgetID(cl, obj, (APTR) msg);
-    case MUIM_Window_GetMenuCheck:
-        return Window__MUIM_GetMenuCheck(cl, obj, (APTR) msg);
-    case MUIM_Window_SetMenuCheck:
-        return Window__MUIM_SetMenuCheck(cl, obj, (APTR) msg);
-    case MUIM_Window_GetMenuState:
-        return Window__MUIM_GetMenuState(cl, obj, (APTR) msg);
-    case MUIM_Window_SetMenuState:
-        return Window__MUIM_SetMenuState(cl, obj, (APTR) msg);
-    case MUIM_Window_DrawBackground:
-        return Window__MUIM_DrawBackground(cl, obj, (APTR) msg);
-    case MUIM_Window_ToFront:
-        return Window__MUIM_ToFront(cl, obj, (APTR) msg);
-    case MUIM_Window_ToBack:
-        return Window__MUIM_ToBack(cl, obj, (APTR) msg);
-    case MUIM_Window_ScreenToFront:
-        return Window__MUIM_ScreenToFront(cl, obj, (APTR) msg);
-    case MUIM_Window_ScreenToBack:
-        return Window__MUIM_ScreenToBack(cl, obj, (APTR) msg);
-    case MUIM_Window_ActionIconify:
-        return Window__MUIM_ActionIconify(cl, obj, (APTR) msg);
-    case MUIM_Window_Snapshot:
-        return Window__MUIM_Snapshot(cl, obj, (APTR) msg);
-    case MUIM_Window_UpdateMenu:
-        return Window__MUIM_UpdateMenu(cl, obj, (APTR) msg);
-    case MUIM_Window_Refresh:
-        return Window__MUIM_Refresh(cl, obj, (APTR) msg);
-    case MUIM_Export:
-        return Window__MUIM_Export(cl, obj, (APTR) msg);
-    case MUIM_Import:
-        return Window__MUIM_Import(cl, obj, (APTR) msg);
+    default:
+        return DoSuperMethodA(cl, obj, msg);
     }
 
-    return DoSuperMethodA(cl, obj, msg);
+    return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 
