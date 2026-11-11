@@ -1114,6 +1114,18 @@ static IPTR Configdata_PubScreensChanged(struct IClass *cl, Object *obj,
 /*
  * The class dispatcher
  */
+/* MUIM_Configdata_SetString: the module stores the string, then the prefs
+ * structure follows (a function of its own: the dispatcher's frame stays
+ * as small as it was) */
+static __attribute__((noinline)) IPTR Configdata_SetString(struct IClass *cl,
+    Object *obj, Msg msg)
+{
+    zune_configdata_set(obj, msg, &cfg_tables);
+    Configdata_SynchronizeString(cl, obj,
+        ((struct MUIP_Configdata_SetString *)msg)->id);
+    return 0;
+}
+
 BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
 {
     switch (msg->MethodID)
@@ -1139,10 +1151,7 @@ BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
     case MUIM_Configdata_SetFont:
         return zune_configdata_set(obj, msg, &cfg_tables);
     case MUIM_Configdata_SetString:
-        zune_configdata_set(obj, msg, &cfg_tables);
-        Configdata_SynchronizeString(cl, obj,
-            ((struct MUIP_Configdata_SetString *)msg)->id);
-        return 0;
+        return Configdata_SetString(cl, obj, msg);
     case MUIM_Configdata_SaveWindowPositions:
         return Configdata_SaveWindowPositions(cl, obj, (APTR) msg);
     case MUIM_Configdata_Save:

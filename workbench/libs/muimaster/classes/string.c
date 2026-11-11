@@ -1083,6 +1083,15 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 /**************************************************************************
  OM_GET
 **************************************************************************/
+/* OM_GET of the attributes in the module: a function of its own, so that
+ * the call's five arguments do not make OM_GET's frame larger */
+static __attribute__((noinline)) IPTR String_Get45(Object *obj,
+    struct MUI_StringData *data, struct opGet *msg)
+{
+    return zune_string_mui45(obj, data, msg->opg_AttrID, NULL,
+        msg->opg_Storage);
+}
+
 IPTR String__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 {
     struct MUI_StringData *data = INST_DATA(cl, obj);
@@ -1124,8 +1133,7 @@ IPTR String__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
     case MUIA_Textinput_Styles:
     case MUIA_Textinput_Font:
     case MUIA_String_Integer64:
-        return zune_string_mui45(obj, data, msg->opg_AttrID, NULL,
-            msg->opg_Storage);
+        return String_Get45(obj, data, msg);
     case MUIA_Textinput_Editable:
         STORE = !(data->msd_Flags & MSDF_NOINPUT);
         return TRUE;
