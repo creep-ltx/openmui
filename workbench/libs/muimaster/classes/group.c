@@ -2798,33 +2798,35 @@ static __attribute__((noinline)) void group_minmax_1d(struct IClass *cl, Object 
     Object *child;
     struct MUI_MinMax tmp;
     /* The axis the children are placed along: a = 0 for a horizontal
-     * group (widths), 1 for a vertical one; b is the other. MUI_MinMax is
+     * group (widths), 1 for a vertical one. MUI_MinMax is
      * MinWidth, MinHeight, MaxWidth, MaxHeight, DefWidth, DefHeight, so
-     * min[a] is t[a], max[a] t[2 + a], def[a] t[4 + a]; the group's and
+     * min is [0], max [2], def [4] from the axis' first field; the group's and
      * Area's horizontal fields are followed by the vertical ones. */
-    WORD *t = &tmp.MinWidth;
-    int a = (data->flags & GROUP_HORIZ) ? 0 : 1, b = 1 - a;
+    int a = (data->flags & GROUP_HORIZ) ? 0 : 1;
+    /* ta: the axis along, tb: the other; [0] min, [2] max, [4] def (with a
+     * constant offset each: no index arithmetic per child) */
+    WORD *ta = &tmp.MinWidth + a, *tb = &tmp.MinWidth + (1 - a);
     WORD spacing = (&data->horiz_spacing)[a];
     BOOL same = (data->flags & (a ? GROUP_SAME_HEIGHT : GROUP_SAME_WIDTH)) != 0;
     WORD maxmin = 0;
     ULONG weight_sum = 0;
     BOOL found_nonzero_weight = FALSE, counted = FALSE;
 
-    t[b] = 0;
-    t[4 + b] = 0;
-    t[2 + b] = MUI_MAXMAX;
+    tb[0] = 0;
+    tb[4] = 0;
+    tb[2] = MUI_MAXMAX;
     if (data->num_visible_children > 0)
     {
-        t[a] = t[4 + a] = (data->num_visible_children - 1) * spacing;
+        ta[0] = ta[4] = (data->num_visible_children - 1) * spacing;
         /* MUI 3.9 adds spacing and each child's maximum, itself at most
          * MUI_MAXMAX, until the sum reaches MUI_MAXMAX, without clamping
          * the sum (tests/native/demolayout.c, widgetsizes.c) */
-        t[2 + a] = -spacing;
+        ta[2] = -spacing;
     }
     else
     {
-        t[a] = t[4 + a] = 0;
-        t[2 + a] = MUI_MAXMAX;
+        ta[0] = ta[4] = 0;
+        ta[2] = MUI_MAXMAX;
     }
 
     if (same)
@@ -2843,8 +2845,9 @@ static __attribute__((noinline)) void group_minmax_1d(struct IClass *cl, Object 
     cstate = children->mlh_Head;
     while ((child = NextObject(&cstate)))
     {
-        WORD *cm = &_minwidth(child);
-        UWORD *cw = &_hweight(child);
+        /* the child's fields along (cm) and across (cx) */
+        WORD *cm = &_minwidth(child) + a, *cx = &_minwidth(child) + (1 - a);
+        UWORD wa = (&_hweight(child))[a], wb = (&_hweight(child))[1 - a];
         WORD min, def;
 
         if (IS_HIDDEN(child))
@@ -2865,45 +2868,44 @@ static __attribute__((noinline)) void group_minmax_1d(struct IClass *cl, Object 
              * its weight-0 maximum; a vertical group counts the minimum
              * height of a child of vertical weight 0 */
             if (same)
-                cm[1] = MIN(maxmin, cw[1] ? cm[3] : cm[1]);
-            min = cm[1];
-            def = cw[1] ? cm[5] : cm[1];
+                cm[0] = MIN(maxmin, wa ? cm[2] : cm[0]);
+            min = cm[0];
+            def = wa ? cm[4] : cm[0];
         }
         /* MUI 3.9 leaves children that may disappear, and their spacing,
          * out of the minimum and default (tests/native/disappear.c) */
         if ((&muiAreaData(child)->mad_HorizDisappear)[a] > 0)
         {
-            t[a] -= spacing;
-            t[4 + a] -= spacing;
+            ta[0] -= spacing;
+            ta[4] -= spacing;
         }
         else
         {
             /* a child whose own children may all disappear has a
              * negative minimum; MUI 3.9 counts it as 0 here */
-            t[a] += MAX(min, 0);
-            t[4 + a] += MAX(def, 0);
+            ta[0] += MAX(min, 0);
+            ta[4] += MAX(def, 0);
         }
-        if (t[2 + a] < MUI_MAXMAX)
-            t[2 + a] += spacing
-                + MIN(cw[a] ? cm[2 + a] : cm[a], MUI_MAXMAX);
-        t[b] = MAX(t[b], cm[b]);
-        t[4 + b] = MAX(t[4 + b], cm[4 + b]);
+        if (ta[2] < MUI_MAXMAX)
+            ta[2] += spacing + MIN(wa ? cm[2] : cm[0], MUI_MAXMAX);
+        tb[0] = MAX(tb[0], cx[0]);
+        tb[4] = MAX(tb[4], cx[4]);
         /*
            if all children have null weight then the other axis' max is its
            min; if all but some children have null weights, it is the min
            of all maxima
          */
-        t[2 + b] = MIN(t[2 + b], cm[2 + b]);
-        weight_sum += cw[a];
+        tb[2] = MIN(tb[2], cx[2]);
+        weight_sum += wa;
         counted = TRUE;
-        if (cw[b] > 0)
+        if (wb > 0)
             found_nonzero_weight = TRUE;
     }
     (&data->horiz_weight_sum)[a] = weight_sum;
     /* an empty group keeps its full maximum, so MUIA_FixWidth and
      * MUIA_FixHeight size it, as in MUI 3.9 (tests/native/emptyfixprobe.c) */
     if (counted && !found_nonzero_weight)
-        t[2 + b] = t[b];
+        tb[2] = tb[0];
 
     END_MINMAX();
 }
