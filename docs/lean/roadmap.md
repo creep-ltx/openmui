@@ -136,6 +136,15 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   file is smaller than `lean`'s: the settings-only classes Settings and Settingsgroup became class
   files. Details, results and what is left in
   [README.md](README.md#mui-45-programs-a-wider-test-set-and-what-they-missed-2026-11-10-phase-6).
+- *2026-11-11 (branch `mui45b`)*: LumiZip's reset at quit found and fixed: it passes a supername
+  with garbage as supermcc to MUI_CreateCustomClass; MUI 3.8 and MUI 5 take the name (measured),
+  Zune took the garbage and closed it as a library at quit. Added: MUIM_FindObject (MUI 5's
+  answers), MUIA_FrameVisible/FrameDynamic (FrameVisible acts, FrameDynamic is kept), List's sort
+  mark (in the list module), Title's register tabs (in its class file). UseScreenNotify needs
+  nothing (Zune never closes windows for the Workbench). The library grew 544 bytes, about 420 of
+  them for MUI 4/5 features MUI 3 programs never call: to be paid back (the Area attributes are
+  the candidate). Left: RegisterGadget's popup menu, FrameDynamic's hover. Details in
+  [README.md](README.md#lumizips-reset-found-mui-45-calls-programs-use-2026-11-11-phase-6).
 
 ## Later (wanted, not scheduled)
 

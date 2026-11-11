@@ -393,6 +393,15 @@ for EmbeddedImages and finds its window by title (its task name is longer than `
 Results: `/tmp/mui45/zwork/suite-real/` m5a/m5b (MUI 5), za/zb and z5a/z5b (Zune before, Automatic
 and MUI 5), fa/fb and z5f (after), n3a/n3b and f3a/f3b (MUI 3 group, with `.loadseg` traces).
 
+**Update, branch `mui45b` (2026-11-11, phase 6):** LumiZip's reset at quit is fixed: LumiZip
+calls MUI_CreateCustomClass with a supername and garbage as supermcc; MUI 3.8 and MUI 5 take the
+name (tests/lean/ccprio.c), Zune took the garbage and closed it as a library when the class was
+deleted at quit. Found with a start/quit loop on one boot (`trapcap` caught it within 1-11 rounds;
+the suite reboots between programs, so it saw only two quits per run). With the fix: 26 of 26
+quits clean. Also added: MUIM_FindObject (IBrowse 3.0a), MUIA_FrameVisible/FrameDynamic (YAM
+2.10), List's sort mark (MUI 5 List1), Title's register tabs (MUI 5 Title). Details and the
+results in docs/lean/README.md ("LumiZip's reset found").
+
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second
 run minus in-use after it: a *negative* figure is memory the second run left in use, a positive one

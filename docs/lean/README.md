@@ -1497,7 +1497,7 @@ fault. What the lines say:
   machines (MUI 5 too); MQTTExplorer ends at once; PassPocket opens its password window.
 - **On MUI 5, not on Zune**: the Clock demo never opened its window on MUI 5 (busy), EmbeddedImages
   ended at once there; YAM 2.10dev reset MUI 5's machine at quit (known).
-- **Open**: LumiZip 1.0 resets the OS 3.1 machine when it quits on Zune with the MUI 3.8 identity
+- **Open** (fixed on `mui45b`, next section): LumiZip 1.0 resets the OS 3.1 machine when it quits on Zune with the MUI 3.8 identity
   (4 of 4 suite runs, `lean`'s library too), never with MUI 5 forced, never on MUI 3.8 or MUI 5;
   three quits by hand with `trapcap` running were clean and the suite run with trapcap recorded no
   exception and no alert. Cause not found.
@@ -1512,6 +1512,97 @@ fault. What the lines say:
 
 Tools on the way (not committed; in this session's /tmp/mui45/scripts): a side-by-side crop of a
 program's windows from two suite runs, the id scan, a LoadSeg logger that survives reboots.
+
+## LumiZip's reset found; MUI 4/5 calls programs use (2026-11-11, phase 6)
+
+Branch `mui45b` (from `lean`). The rule is the same as in the section above: MUI 3, 4 and 5
+programs run as fully as possible, and a MUI 3 program pays nothing for MUI 4/5.
+
+**LumiZip 1.0's reset at quit** (open since `mui45`: it reset the machine at quit with the MUI 3.8
+identity in 4 of 4 suite runs, never with MUI 5 forced, never on MUI 3.8 or MUI 5). Found and
+fixed (e3e69e1e):
+
+- **Caught**: a loop that starts and quits LumiZip on one boot (no reboot between rounds, `trapcap`
+  running) reset in round 11, 1, 1 and 1 of four tries. The trap record: an illegal instruction at
+  a garbage address, reached from `CloseLibrary()` called by `MUI_FreeClass()`, called by
+  `MUI_DeleteCustomClass()` (the return addresses on the stack, matched in the library's
+  disassembly). A temporary debug build (RawPutChar, `wasabi debug`) printed every
+  `MUI_CreateCustomClass()` call: LumiZip makes an Area subclass with supername "Area.mui" **and
+  garbage in A2 (supermcc) and A0 (base)**. Zune took A2 as the superclass descriptor, so the
+  new class's superclass was the name string itself; at quit `MUI_DeleteCustomClass()` passed that
+  "class" to `MUI_FreeClass()`, which closed its dispatcher data as a library: a jump into
+  garbage. What the garbage pointed at changed from run to run, so most quits survived; the class
+  is never used for an object, so nothing showed while LumiZip ran.
+- **What MUI does** (black box, `tests/lean/ccprio.c`: a class with both a supername and a
+  supermcc): MUI 3.8 (19.35) and MUI 5 (21.227) both take **the name**. Zune does too now. And
+  `MUI_DeleteCustomClass()` gives back only a superclass it took by name (a supermcc's class is
+  borrowed from its owner; a private flag after `mcc_Module` remembers which). Library +24 bytes;
+  each custom class +4 bytes (the flag).
+- **Proof**: the same loop with the fix: 16 of 16 quits clean, then 10 of 10 with the final
+  library; `ccprio` on Zune prints MUI's answer ("super: name").
+- Why only with the MUI 3.8 identity: not traced; with MUI 5 forced LumiZip probably does not
+  make that class (its window differs too, 627 against 611 pixels wide).
+
+**MUI 4/5 calls the programs use** (from the id scan of the section above), black-box against
+MUI 3.8 and MUI 5 with `tests/lean/m45probe.c`:
+
+| commit | what | MUI 3 programs pay |
+|---|---|---|
+| 055933c5 | **MUIM_FindObject** (IBrowse 3.0a): the found object or 0. MUI 3.8 answers it from a Group and the object itself only (from a Window or Application: 0); MUI 5 also from Window (its root) and Application (its windows). Zune now gives MUI 5's answers everywhere (m45probe's lines are MUI 5's): it walks the tree as MUIM_FindUData does, only the comparison differs | library +84 bytes (MUI 3.8 has the method too) |
+| 6b487894 | **MUIA_FrameVisible / MUIA_FrameDynamic** (YAM 2.10, ISG BOOL, defaults TRUE/FALSE as MUI 5 answers them). FrameVisible FALSE draws the frame as a phantom (room kept, not drawn). FrameDynamic is kept and answered; showing the frame while the pointer is over the object is not done | library +250 bytes (six switch cases in Area and a draw test) |
+| 1418ad37 | **List's sort mark** (MUI 5 List1): an outlined triangle after the sort column's title, up for ascending, down for descending, and room for it in a SORTABLE column's title | drawing in the list module `Zlist.mui` (+312 bytes), called only for a SORTABLE column (MUI 3.8's format has no SORTABLE); library +172 bytes (the call, the room, the glue) |
+| (title.c) | **Title's tabs** drawn as register tabs (MUI 5's Title demo): shine left and top with cut corners, shadow right, the active tab 2 pixels higher and open at the bottom | class file `Title.mui` +336 bytes; library unchanged |
+
+- **MUIA_Application_UseScreenNotify** (LumiZip, [I..]): FALSE asks MUI not to close and reopen the
+  windows when the Workbench screen closes. Zune never does that (no screen notification on OS 3.x
+  here), so a program gets what FALSE asks for; nothing was added.
+- **Not done**: MUIM_Mccprefs_RegisterGadget's popup menu (Reset to defaults / Last saved /
+  Restore on mcp gadgets: needs the prefs program's dataspaces; the method still answers 0, which
+  the mcps ignore); FrameDynamic's hover; Title's white inactive tabs and the frame round the
+  pages; MUIM_Application_BuildSettingsPanel.
+
+**THE RULE, measured** (FS-UAE A1200 OS 3.1, 68000 build, GCC 16.2):
+
+- **Library file** 271,132 (`lean`) -> 271,676 bytes (+544): the LumiZip fix 24, FindObject 84
+  (a MUI 3.8 method), FrameVisible/FrameDynamic 250, the sort mark's call and room 172. So a MUI 3
+  program carries about 420 bytes of library code for MUI 4/5 features it never calls; it runs
+  none of it but a flag test per Area draw and a column test per title cell. **This bends the
+  rule**: the Area attributes are the candidate to pay back (they could move into a module the way
+  Zwintitle did, or something else could leave the library), left for the next round.
+- **No new file and no new load for MUI 3 programs**: the sort mark's module is the one List
+  already had for drag and drop and in-place editing, and it is called only for a SORTABLE column;
+  Title.mui is loaded only by programs that make a Title (MUI 4/5).
+- **Stack**: no new recursion or locals on the MUI 3 paths (one LONG in List's title width).
+
+**Results** (final library 271,676 bytes, commit of Title's tabs; FS-UAE A1200 OS 3.1):
+
+- `make check` passes.
+- **LumiZip**: 26 of 26 start/quit rounds clean on one boot with `trapcap` running (16 with the
+  fix alone, 10 with the final library); before the fix, resets in round 11, 1, 1 and 1. In the
+  suite's MUI 4/5 group: "ok", both quits clean (before: "reset at quit").
+- **fullcheck**: the whole output identical between the first and the final library of this
+  branch, and `lean`'s figures: MUI-Demo's 8 sub-windows
+  and the 18 other demos open and close, lost 608, 200 each, AppWindow 264, no alert.
+- **demopix**: 18 of 27 pixel-identical with MUI 3.8, every window's size as before (Layout and
+  InputHandler not comparable, as always).
+- **MUI 3 group**: 35 of 36 as `mui45`'s run: every window's title and size identical, the
+  second run's memory in use identical (to 48 bytes; NewsCoaster 2.9 KB and ViewCSV 552 bytes
+  less), SimpleMail windowless and reset at its quit as always in FS-UAE. The first-run figures of
+  this session are 15 KB above `mui45`'s session for every program, `lean`'s library included
+  (thebar-demo1: `lean` 589,184, this branch 589,680 bytes in the same session: +496, the library).
+- **MUI 4/5 group** (Automatic): all 24 as `mui45`'s "after" column, window sizes identical;
+  LumiZip now quits cleanly; IBrowse 3.0a "frozen at 2nd quit" as in `mui45`'s run (FS-UAE
+  itself crashes there, see "Finding why an OS 3.1 machine resets", Amiberry is clean).
+- **Stack** (`stackrun.sh`, twice each, the same session): Layout 2,268, Pages 2,240, Slidorama
+  2,304 bytes on both; MUI-Demo 5,388 or 5,420 on `lean` (three runs), 5,420 on this branch (two
+  runs); Virtual varies on both (2,408-2,732 and 2,680-2,740).
+- **Library alone in memory** (`libonly.sh`, 4 MB fast): 284,488 -> 285,080 bytes (+592; the file
+  grew 544).
+
+Scripts of this session (in /tmp/mui45b/scripts, not committed): `lzloop.sh` (start/quit rounds
+on one boot with trapcap, saving the trap record and the FS-UAE log at a reset), `cmp.sh` (two
+suite runs line by line), `findbytes.py` (a trap record's code bytes in the files on the host).
+
 
 ## Left open
 
