@@ -1486,6 +1486,19 @@ static void InitRenderInfoPens(Object *obj, struct MUI_RenderInfo *mri,
         muiGlobalInfo(obj)->mgi_Prefs->active_object_color, 0);
 }
 
+/* Unlock the render info's public screen if it was locked, forget the
+ * screen */
+static __attribute__((noinline)) void ReleaseRenderScreen(
+    struct MUI_WindowData *data, struct MUI_RenderInfo *mri)
+{
+    if (data->wd_Flags & MUIWF_SCREENLOCKED)
+    {
+        UnlockPubScreen(NULL, mri->mri_Screen);
+        data->wd_Flags &= ~MUIWF_SCREENLOCKED;
+    }
+    mri->mri_Screen = NULL;
+}
+
 /* Select a supplied, application-custom, requested-public, preference-
  * public or default public screen; acquire DrawInfo, custom-frame cache
  * references, pens and optional scrollbar images. Borrow obj/data/mri and
@@ -1572,12 +1585,7 @@ static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     struct Screen *scr = mri->mri_Screen;
     if (!(mri->mri_DrawInfo = GetScreenDrawInfo(scr)))
     {
-        if (data->wd_Flags & MUIWF_SCREENLOCKED)
-        {
-            UnlockPubScreen(NULL, scr);
-            data->wd_Flags &= ~MUIWF_SCREENLOCKED;
-        }
-        mri->mri_Screen = NULL;
+        ReleaseRenderScreen(data, mri);
         return FALSE;
     }
 
@@ -1591,12 +1599,7 @@ static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
         DisposeCustomFrames(mri);
         FreeScreenDrawInfo(scr, mri->mri_DrawInfo);
         mri->mri_DrawInfo = NULL;
-        if (data->wd_Flags & MUIWF_SCREENLOCKED)
-        {
-            UnlockPubScreen(NULL, scr);
-            data->wd_Flags &= ~MUIWF_SCREENLOCKED;
-        }
-        mri->mri_Screen = NULL;
+        ReleaseRenderScreen(data, mri);
         return FALSE;
     }
 
@@ -1737,31 +1740,21 @@ static void CleanupRenderInfo(Object *obj, struct MUI_WindowData *data,
 
     DisposeCustomFrames(mri);
 
-    if (mri->mri_LeftImage)
+    /* the five system images, mri_LeftImage ... mri_SizeImage in this
+     * order in the render info (window.h) */
     {
-        DisposeObject(mri->mri_LeftImage);
-        mri->mri_LeftImage = NULL;
-    };
-    if (mri->mri_RightImage)
-    {
-        DisposeObject(mri->mri_RightImage);
-        mri->mri_RightImage = NULL;
-    };
-    if (mri->mri_UpImage)
-    {
-        DisposeObject(mri->mri_UpImage);
-        mri->mri_UpImage = NULL;
-    };
-    if (mri->mri_DownImage)
-    {
-        DisposeObject(mri->mri_DownImage);
-        mri->mri_DownImage = NULL;
-    };
-    if (mri->mri_SizeImage)
-    {
-        DisposeObject(mri->mri_SizeImage);
-        mri->mri_SizeImage = NULL;
-    };
+        Object **img = &mri->mri_LeftImage;
+        int i;
+
+        for (i = 0; i < 5; i++, img++)
+        {
+            if (*img)
+            {
+                DisposeObject(*img);
+                *img = NULL;
+            }
+        }
+    }
 
     CloseRenderInfoFonts(mri);
     CleanupRenderInfoPens(mri, data);
@@ -1796,12 +1789,7 @@ static void CleanupRenderInfo(Object *obj, struct MUI_WindowData *data,
         }
     }
 
-    if (data->wd_Flags & MUIWF_SCREENLOCKED)
-    {
-        UnlockPubScreen(NULL, mri->mri_Screen);
-        data->wd_Flags &= ~MUIWF_SCREENLOCKED;
-    }
-    mri->mri_Screen = NULL;
+    ReleaseRenderScreen(data, mri);
 }
 
 /* Select the buffer RastPort when a buffer bitmap exists, otherwise the
