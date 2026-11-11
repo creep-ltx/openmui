@@ -3165,58 +3165,31 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
                    gadget, the prop gadget's userdata will point to
                    that propclass object. See classes/prop.c */
 
+                ULONG id = tag->ti_Data, method = 0;
+                Object *gad = NULL;
+
                 if (data->wd_VertProp)
                 {
-                    if (tag->ti_Data == GADGETID(data->wd_VertProp))
-                        ;
-
-                    if (tag->ti_Data == GADGETID(data->wd_UpButton))
-                    {
-                        Object *prop =
-                            (Object *) ((struct Gadget *)data->
-                            wd_VertProp)->UserData;
-                        is_handled = TRUE;
-                        if (prop)
-                            DoMethod(prop, MUIM_Prop_Decrease, 1);
-                    }
-
-                    if (tag->ti_Data == GADGETID(data->wd_DownButton))
-                    {
-                        Object *prop =
-                            (Object *) ((struct Gadget *)data->
-                            wd_VertProp)->UserData;
-                        is_handled = TRUE;
-                        if (prop)
-                            DoMethod(prop, MUIM_Prop_Increase, 1);
-                    }
-
+                    gad = data->wd_VertProp;
+                    if (id == GADGETID(data->wd_UpButton))
+                        method = MUIM_Prop_Decrease;
+                    else if (id == GADGETID(data->wd_DownButton))
+                        method = MUIM_Prop_Increase;
                 }
-
-                if (data->wd_HorizProp)
+                if (!method && data->wd_HorizProp)
                 {
-                    if (tag->ti_Data == GADGETID(data->wd_HorizProp))
-                        ;
-
-                    if (tag->ti_Data == GADGETID(data->wd_LeftButton))
-                    {
-                        Object *prop =
-                            (Object *) ((struct Gadget *)data->
-                            wd_HorizProp)->UserData;
-                        is_handled = TRUE;
-                        if (prop)
-                            DoMethod(prop, MUIM_Prop_Decrease, 1);
-                    }
-
-                    if (tag->ti_Data == GADGETID(data->wd_RightButton))
-                    {
-                        Object *prop =
-                            (Object *) ((struct Gadget *)data->
-                            wd_HorizProp)->UserData;
-                        is_handled = TRUE;
-                        if (prop)
-                            DoMethod(prop, MUIM_Prop_Increase, 1);
-                    }
-
+                    gad = data->wd_HorizProp;
+                    if (id == GADGETID(data->wd_LeftButton))
+                        method = MUIM_Prop_Decrease;
+                    else if (id == GADGETID(data->wd_RightButton))
+                        method = MUIM_Prop_Increase;
+                }
+                if (method)
+                {
+                    Object *prop = (Object *) ((struct Gadget *)gad)->UserData;
+                    is_handled = TRUE;
+                    if (prop)
+                        DoMethod(prop, method, 1);
                 }
             }
         }
