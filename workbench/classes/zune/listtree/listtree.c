@@ -853,6 +853,61 @@ IPTR Listtree__MUIM_Listtree_Close(struct IClass *cl, Object *obj, struct MUIP_L
     return DoMethod(data->nlisttree, MUIM_NListtree_Close, ln, tn, msg->Flags);
 }
 
+/*** Settings ***************************************************************/
+/* MUI 3.8's Listtree settings (Listtree.mcp) are in the configuration under
+ * 0x8002....: numbers as 4 bytes, images and pens as spec strings. The tree
+ * is drawn by the NListtree inside; its own settings (the same kinds) are
+ * given to it with its configuration attributes (those of NListtree.mcp's
+ * sample). Missing items are MUI 3.8's defaults: style Win95, space 6,
+ * remember status on; the images and pens stay NListtree's. */
+#define LTCFG_Right     0x80020010  /* image spec: closed node */
+#define LTCFG_Down      0x80020011  /* image spec: open node */
+#define LTCFG_Remember  0x80020012
+#define LTCFG_Style     0x80020013  /* 0 Normal, 1 Inserted, 2 Lines, 3 Win95, 4 Mac, 5 Lines3D */
+#define LTCFG_Space     0x80020014  /* 0..16 */
+#define LTCFG_Lines     0x80020016  /* pen spec */
+#define LTCFG_Shadow    0x80020020  /* pen spec */
+
+/* NListtree's configuration attributes (CLASS_TAGBASE 0xfec81000 + n) */
+#define NLTCFG_ImageClosed  0xfec81001
+#define NLTCFG_ImageOpen    0xfec81002
+#define NLTCFG_PenLines     0xfec81004
+#define NLTCFG_PenShadow    0xfec81005
+#define NLTCFG_Remember     0xfec81007
+#define NLTCFG_Indent       0xfec81008
+#define NLTCFG_LineType     0xfec8100b
+
+static IPTR ConfigItem(Object *obj, ULONG id)
+{
+    IPTR d;
+
+    return DoMethod(obj, MUIM_GetConfigItem, id, (IPTR)&d) ? d : 0;
+}
+
+IPTR Listtree__MUIM_Setup(struct IClass *cl, Object *obj, Msg msg)
+{
+    struct Listtree_DATA *data = INST_DATA(cl, obj);
+    /* NListtree's line types: none, solid, dotted, 3D. Win95 and the other
+     * styles with boxes or arrows are drawn with the Right and Down images. */
+    static const UBYTE linetype[] = { 0, 0, 1, 2, 0, 3 };
+    IPTR r = DoSuperMethodA(cl, obj, msg), d;
+    ULONG style = 3, space = 6, remember = TRUE;
+
+    if (!r)
+        return r;
+    if ((d = ConfigItem(obj, LTCFG_Style)) && *(ULONG *)d < 6) style = *(ULONG *)d;
+    if ((d = ConfigItem(obj, LTCFG_Space)) && *(ULONG *)d <= 16) space = *(ULONG *)d;
+    if ((d = ConfigItem(obj, LTCFG_Remember))) remember = *(ULONG *)d != 0;
+    SetAttrs(data->nlisttree, NLTCFG_LineType, linetype[style], NLTCFG_Indent, space,
+        NLTCFG_Remember, remember, TAG_DONE);
+    if ((d = ConfigItem(obj, LTCFG_Right))) SetAttrs(data->nlisttree, NLTCFG_ImageClosed, d, TAG_DONE);
+    if ((d = ConfigItem(obj, LTCFG_Down))) SetAttrs(data->nlisttree, NLTCFG_ImageOpen, d, TAG_DONE);
+    if ((d = ConfigItem(obj, LTCFG_Lines))) SetAttrs(data->nlisttree, NLTCFG_PenLines, d, TAG_DONE);
+    if ((d = ConfigItem(obj, LTCFG_Shadow))) SetAttrs(data->nlisttree, NLTCFG_PenShadow, d, TAG_DONE);
+    return r;
+}
+
+
 #define FORWARDNLISTTREEMETHOD(methodname)                                          \
 IPTR Listtree__##methodname(struct IClass *cl, Object *obj, Msg msg)                \
 {                                                                                   \

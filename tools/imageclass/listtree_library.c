@@ -70,6 +70,7 @@ DISPATCHER(_Dispatcher)
     case OM_GET: return Listtree__OM_GET(cl, obj, (APTR)msg);
     case OM_DISPOSE: return Listtree__OM_DISPOSE(cl, obj, msg);
     case MUIM_Notify: return Listtree__MUIM_Notify(cl, obj, (APTR)msg);
+    case MUIM_Setup: return Listtree__MUIM_Setup(cl, obj, msg);
     case MUIM_Listtree_Insert:
         return Listtree__MUIM_Listtree_Insert(cl, obj, (APTR)msg);
     case MUIM_Listtree_GetEntry:
