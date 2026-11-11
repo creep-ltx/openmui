@@ -1174,6 +1174,25 @@ static void List_CheckHoriz(struct IClass *cl, Object *obj)
 
 /* At entry to this function, data->area is always set, but data->vert may
  * or may not be set */
+/* The list's notifications on its three VertProp attributes, which keep
+ * the scrollbar in step (on), or their removal. Pass prop object as
+ * DestObj (based on code in NList); the hook gives the scrollbar all
+ * three in its units */
+static __attribute__((noinline)) void List_VertNotify(Object *obj,
+    struct MUI_ListData *data, BOOL on)
+{
+    static const ULONG vertprop[3] = { MUIA_List_VertProp_First,
+        MUIA_List_VertProp_Visible, MUIA_List_VertProp_Entries };
+
+    for (LONG i = 0; i < 3; i++)
+        if (on)
+            DoMethod(obj, MUIM_Notify, vertprop[i], MUIV_EveryTime,
+                (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
+                PROP_VERT_SYNC);
+        else
+            DoMethod(obj, MUIM_KillNotifyObj, vertprop[i], (IPTR) obj);
+}
+
 static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
@@ -1190,26 +1209,17 @@ static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
     if (data->vert_connected)
         DoMethod(obj, OM_REMMEMBER, data->vert);
 
-    /* Add list and/or scroller */
-    switch (data->scroller_pos)
-    {
-    case MUIV_Listview_ScrollerPos_None:
+    /* Add list and/or scroller: the scroller left of the list or right
+     * of it (the default), or none */
+    if (data->scroller_pos == MUIV_Listview_ScrollerPos_None)
         vert_not_used = TRUE;
-        DoMethod(obj, OM_ADDMEMBER, data->area);
-        break;
-    case MUIV_Listview_ScrollerPos_Left:
-        if (!data->vert)
-            data->vert =ScrollbarObject, MUIA_Group_Horiz, FALSE, End;
+    else if (!data->vert)
+        data->vert = ScrollbarObject, MUIA_Group_Horiz, FALSE, End;
+    if (data->scroller_pos == MUIV_Listview_ScrollerPos_Left)
         DoMethod(obj, OM_ADDMEMBER, data->vert);
-        DoMethod(obj, OM_ADDMEMBER, data->area);
-        break;
-    default:
-        if (!data->vert)
-            data->vert = ScrollbarObject, MUIA_Group_Horiz, FALSE, End;
-        DoMethod(obj, OM_ADDMEMBER, data->area);
+    DoMethod(obj, OM_ADDMEMBER, data->area);
+    if (!vert_not_used && data->scroller_pos != MUIV_Listview_ScrollerPos_Left)
         DoMethod(obj, OM_ADDMEMBER, data->vert);
-        break;
-    }
 
     data->area_connected = TRUE;
 
@@ -1220,12 +1230,7 @@ static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
         {
             if (data->vert_connected)
             {
-                DoMethod(obj, MUIM_KillNotifyObj, MUIA_List_VertProp_First,
-                    (IPTR) obj);
-                DoMethod(obj, MUIM_KillNotifyObj, MUIA_List_VertProp_Visible,
-                    (IPTR) obj);
-                DoMethod(obj, MUIM_KillNotifyObj, MUIA_List_VertProp_Entries,
-                    (IPTR) obj);
+                List_VertNotify(obj, data, FALSE);
                 data->vert_connected = FALSE;
             }
 
@@ -1244,17 +1249,7 @@ static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
             (IPTR) obj, 4, MUIM_CallHook, (IPTR) &data->hook, PROP_VERT_FIRST,
             MUIV_TriggerValue);
 
-        /* Pass prop object as DestObj (based on code in NList); the hook
-         * gives the scrollbar all three in its units */
-        DoMethod(obj, MUIM_Notify, MUIA_List_VertProp_First, MUIV_EveryTime,
-            (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
-            PROP_VERT_SYNC);
-        DoMethod(obj, MUIM_Notify, MUIA_List_VertProp_Visible, MUIV_EveryTime,
-            (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
-            PROP_VERT_SYNC);
-        DoMethod(obj, MUIM_Notify, MUIA_List_VertProp_Entries, MUIV_EveryTime,
-            (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
-            PROP_VERT_SYNC);
+        List_VertNotify(obj, data, TRUE);
 
         data->vert_connected = TRUE;
     }
@@ -2124,6 +2119,17 @@ IPTR List__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 #undef STORE
 }
 
+/* The three highlight images, list_cursor, list_select and list_selcur,
+ * as an array (they are next to each other in MUI_ListData) */
+static inline struct MUI_ImageSpec_intern **List_Highlights(
+    struct MUI_ListData *data)
+{
+    return &data->list_cursor;
+}
+_Static_assert(offsetof(struct MUI_ListData, list_selcur)
+    == offsetof(struct MUI_ListData, list_cursor) + 2 * sizeof(APTR),
+    "the highlight images are an array");
+
 /**************************************************************************
  MUIM_Setup
 **************************************************************************/
@@ -2452,9 +2458,8 @@ IPTR List__MUIM_Show(struct IClass *cl, Object *obj,
     struct MUI_ListData *data = INST_DATA(cl, obj);
     ULONG rc = DoSuperMethodA(cl, obj, (Msg) msg);
 
-    zune_imspec_show(data->list_cursor, obj);
-    zune_imspec_show(data->list_select, obj);
-    zune_imspec_show(data->list_selcur, obj);
+    for (LONG i = 0; i < 3; i++)
+        zune_imspec_show(List_Highlights(data)[i], obj);
     if (data->edit_object) DoShowMethod(data->edit_object);
     return rc;
 }
@@ -2469,9 +2474,8 @@ IPTR List__MUIM_Hide(struct IClass *cl, Object *obj,
     struct MUI_ListData *data = INST_DATA(cl, obj);
     if (data->edit_object) DoHideMethod(data->edit_object);
 
-    zune_imspec_hide(data->list_cursor);
-    zune_imspec_hide(data->list_select);
-    zune_imspec_hide(data->list_selcur);
+    for (LONG i = 0; i < 3; i++)
+        zune_imspec_hide(List_Highlights(data)[i]);
 
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
