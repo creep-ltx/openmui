@@ -1720,11 +1720,38 @@ new test tools `tests/lean/setleft.c` and `tests/lean/mpress.c`):
 Library file (stripped) 267,400 -> 267,716 bytes. Unregistered MUI 3.8 ignores the Cycles page's
 popup control (position, level, speed) in its files; its settings program's test mode applies
 them to running programs. Not done: the middle-button drag and the drag look (no drag starts
-from synthetic input in FS-UAE on MUI 3.8, so nothing could be measured), the Listtree and Busy
-pages in Zune prefs, YAM 2.10's "Error messages" window in the MUI 4/5 group runs.
+from synthetic input in FS-UAE on MUI 3.8, so nothing could be measured), YAM 2.10's "Error messages" window in the MUI 4/5 group runs.
 
 Checked: `make check` (`check_window_pens.py` knows the extra pen request); fullcheck (below);
 the popup at speeds 0, 10, 30, 50 and the active frame on a1200-31 with the branch's library.
+
+## Settings pages for Listtree and Busy (2026-11-11, phase 7)
+
+Branch `ltbusy`. The two outside classes MUI 3.8 ships with got their pages in Zune
+prefs, as class files like NListtree.mcp (`LIBS:MUI/Listtree.mcp` 8 KB and
+`Busy.mcp` 8.8 KB, built by `tools/imageclass`; **the library did not change**, no
+source of it was touched). MUI 3.8's item ids were measured first (its settings
+program on `a1200-31-mui38`, one setting at a time, the file dumped; ids, ranges
+and defaults in [settings-mui38.md](settings-mui38.md)).
+
+| what | in short |
+|---|---|
+| `Busy.mcp` | the sample bar (live), Color 1 / 2, Style (Old, Queue, KnightRider, StarTrek), Speed (1-250 ms, 251 = OFF), Size (Old only), Number, Fade, Frame (the other three styles) |
+| `Listtree.mcp` | Right / Down images, Lines / Shadow pens, Style (Normal, Inserted, Lines, Win95, Mac, Lines3D), Space (0-16), Remember status. Left out: MUI 3.8's sample tree (the tree reads its settings in Setup) and "Display opened" (item 0x15, meaning unknown; an item that is there is kept) |
+| `Busy.mcc` | reads the eight items; `MUIA_Busy_Speed` is honoured in OM_NEW (it was always 50 ms), `MUIV_Busy_Speed_User` = the setting, 251 = still; the three new styles are our own drawing (what MUI 3.8 draws for Number / Fade / Frame is not known) |
+| `Listtree.mcc` | gives Right / Down / Lines / Shadow / Space / Remember / Style (as line type) to its NListtree; without items the MUI 3.8 default (Win95: dotted lines, space 6) |
+
+Seen on `a1200-31` (FS-UAE, 8 MB fast): both pages open, fit 640x256 (`PREFS_SIZES`
+build: Listtree 247 x 78, Busy 359 x 118, room 446 x 195; first draft of Listtree 504
+wide because of a long credit line, shortened), show MUI 3.8's saved file
+(Mac / space 0 / no remember, Old / size 20 / speed 1 ms) correctly, and
+`tests/lean/ltbusy.c` shows the classes honouring it. Screenshots
+`~/Documents/zune68-ltbusy/` (pg-listtree.png, pg-busy.png, t2.png defaults, t3.png the
+imported file, m38-lt.png / m38-busy.png MUI 3.8's own pages for comparison).
+Known: the default "1:17" / "1:23" images are drawn stretched in the Right / Down boxes
+(MUI 3.8 shows small arrows); Zune prefs shows Lines / Shadow / Right / Down enabled in
+every style (MUI 3.8 enables by style); Save writes only items that differ from the
+defaults (MUI 3.8 writes all).
 
 ## Left open
 

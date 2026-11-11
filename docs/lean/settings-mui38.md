@@ -59,16 +59,15 @@ whether the library honours it ("yes" = the library reads and uses it).
 | Special | Text field frame / background, gauge frame | 0x2d / 0x3b / 0x32 = | yes | yes |
 | Special | Device images, tape images | 0x4d-0x53, 0x55-0x59, 0x5d, 0x5e = | yes | yes |
 | MagicWB | (information only) | - | - | - |
-| Listtree | Listtree.mcc's page (a third-party class shipped with MUI 3.8) | 0x8002xxxx (the class's own) | **no** | - (no Listtree in Zune) |
-| Busy | Busy.mcc's page (third-party, shipped with MUI 3.8) | the class's own | **no** | - |
+| Listtree | Right / Down images, Lines / Shadow pens, Style, Space, Remember status (`Listtree.mcp`) | 0x8002 0010, 11, 16, 20, 13, 14, 12 | yes (`ltbusy`) | yes, as far as NListtree draws it (below); "Display opened" (0x15) and the sample tree are left out |
+| Busy | Color 1 / 2, Style, Speed, Size, Number, Fade, Frame (`Busy.mcp`) | 0x8002 0001-0004, 08-0b | yes (`ltbusy`) | yes (own drawing of the three new styles, below) |
 
 Zune prefs has more than MUI 3.8: string cursor and marked colours
 (0x400-0x402), register "truncate titles" (0x403), screen mode (0x505-0x508),
 active object look, custom frames (0x600-), the Frames page, "Behave as"
 (MUI 3.8/4/5 per program) and the settings pages of the MCCs installed.
 
-So: **Zune prefs already offers every MUI 3.8 setting** except the two
-third-party class pages. The library ignored the ARexx switch, the drag
+So: **Zune prefs offers every MUI 3.8 setting**, the two outside classes' pages (`Listtree.mcp`, `Busy.mcp`) included since `ltbusy`. The library ignored the ARexx switch, the drag
 settings and the iconification settings (hotkey, icon, menu, iconified at
 start); since `prefs38` it honours them. It still ignores the cycle popup
 speed, the middle-button drag, the drag look and the active object colour.
@@ -203,5 +202,69 @@ changes).
 - The drag settings' exact MUI 3.8 behaviour (does the qualifier start the
   drag at once?) is not measured; Zune starts it after one pixel with the
   qualifier held.
-- Listtree.mcc's and Busy.mcc's pages: their settings are carried over in
-  the imported file but Zune has no such classes.
+- Listtree.mcc's and Busy.mcc's settings (found 2026-11-11, MUI 3.8's own
+  settings program on `a1200-31-mui38`, one setting at a time, Use in test
+  mode and the file dumped; screenshots of both pages only, no disassembly).
+  MUI 3.8 writes **all** of a class's items, defaults too (not only the
+  non-default ones): numbers 4 bytes, pens "m5" in 32-byte strings, images
+  "1:17" in 64-byte strings (the tail is whatever was in the buffer).
+
+  | id | Busy.mcp | values |
+  |---|---|---|
+  | 0x80020001 / 02 | Color 1 / Color 2 (pen specs) | defaults "m5" (text) / "m0" (shine) |
+  | 0x80020003 | Style | 0 Old, 1 Queue, 2 KnightRider, 3 StarTrek (default 3) |
+  | 0x80020004 | Size (only with Old) | 4..20, default 8 |
+  | 0x80020008 | Number (not with Old) | 4..32, default 8 |
+  | 0x80020009 | Fade (not with Old) | 0 "No fade" .. 16 segments, default 6 |
+  | 0x8002000a | Frame (not with Old) | 0 "No frame" .. 4 pixel, default 1 |
+  | 0x8002000b | Speed | 1 ("Wowww!") .. 250 ms, **251 = OFF**, default 50 |
+
+  | id | Listtree.mcp | values |
+  |---|---|---|
+  | 0x80020010 / 11 | Right / Down (image specs) | defaults "1:17" / "1:23" |
+  | 0x80020016 / 20 | Lines / Shadow (pen specs) | defaults "m5" / "m4" |
+  | 0x80020013 | Style | 0 Normal, 1 Inserted, 2 Lines, 3 Win95, 4 Mac, 5 Lines3D (default 3) |
+  | 0x80020014 | Space | 0..16, default 6 |
+  | 0x80020012 | Remember status | 0/1, default 1 |
+  | 0x80020015 | Display opened | 0/1, default 1: **meaning unknown**, not offered by Zune's page, an item that is there is kept |
+
+  Which gadgets are enabled depends on the style (Busy: Size only for Old,
+  Number / Fade / Frame for the other three; Listtree, as seen: Win95 enables Lines only, Mac enables
+  Right / Down only, the other styles were not looked at);
+  Zune's pages show them all, enabled by style only on the Busy page.
+  Not known: what exactly Number, Fade and Frame draw in each Busy style, and
+  what "Display opened" does.
+
+- **Zune68k's pages and classes (`ltbusy`)**: `Busy.mcp` and `Listtree.mcp`
+  are class files in LIBS:MUI like NListtree.mcp (built by `tools/imageclass`,
+  7-9 KB each, the library did not change). The settings file is read as it
+  is: the import converter copies the 0x8002.... items unchanged. Saved by
+  Zune prefs only when different from the defaults.
+  - **Busy.mcc** reads all eight items in MUIM_Setup (and `MUIA_Busy_Speed`
+    now works in OM_NEW: the old code always used 50 ms; `MUIV_Busy_Speed_User`,
+    which the `BusyBar` macro gives, takes the setting, 251 = no movement).
+    The three new styles are drawn by our own interpretation: Number
+    segments, the head runs left to right (Queue), back and forth
+    (KnightRider) or two heads from the ends towards the middle (StarTrek),
+    Fade segments behind it get lower, Frame pixels are the gap around each
+    segment, Color 1 behind, Color 2 the bars. Old is the stripes with Size
+    pixels (before: always 8 pixels, shadow / shine pens, now MUI 3.8's
+    default pens text / shine). Six private attributes (`MUIA_Busy_Style`
+    .. `MUIA_Busy_Color2`) let the page's sample bar show the gadgets live.
+  - **Listtree.mcc** (a wrapper around NListtree) reads Right, Down, Lines,
+    Shadow, Style, Space and Remember in MUIM_Setup and gives them to its
+    NListtree: Right / Down = its closed / open node images, Lines / Shadow =
+    its pens, Space = its indent width, Remember = remember status, Style =
+    its line type (Normal, Inserted, Mac: no lines; Lines: solid; Win95:
+    dotted; Lines3D: shadow lines). NListtree cannot draw Win95's boxes (the
+    images are used) and has no separate "Inserted" look. **Without any item
+    the tree is now MUI 3.8's default**: style Win95 (dotted lines), space 6
+    (it was NListtree's: no lines, indent 0).
+  - Seen on `a1200-31` (ltbusy, tests/lean/ltbusy.c): defaults give dotted
+    lines and triangles; the 3.8 file with Mac / space 0 / Old / size 20 /
+    number 4 / fade 0 / frame 0 gives no lines, no indent and big stripes.
+  - Pages: Zune prefs showed them in the list after BetterString; with the
+    `PREFS_SIZES` build Listtree is 247 x 78 and Busy 359 x 118 (room 446 x
+    195). The "1:17" / "1:23" defaults are drawn stretched in the Right /
+    Down boxes (MUI 3.8 shows small arrows): Zune's image display scales
+    the vector image.
