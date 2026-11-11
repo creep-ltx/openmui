@@ -2038,10 +2038,115 @@ from ac762c55 as /tmp/core/base):
   class files are within 50 bytes of `lean`'s.
 
 
+## LTO, done right, and why it stays off (2026-11-11, phase 3)
+
+Branch `lto` (from `lean`). The round before measured LTO at -5.5 to -6.8 KB and left it off
+because the vamos checks could not run on it and the dispatchers' frames grew. This round made
+`make check` run on an LTO build, measured every function's frame on it, and found that the
+bytes LTO gives *are* the frame growth: LTO stays off. The shipped library (LTO=0) is byte for
+byte `lean`'s (257,660 bytes with `LDFLAGS=-s`; `strip --strip-all` gives 258,268 for the same
+file, the figure the table below uses for all builds).
+
+**What was wrong before.** The "relocatable LTO link" (`-r -flinker-output=rel`) of the round
+before did not compile anything: `rel` means "merge the GIMPLE for a later LTO link" (`nm` on
+its output says "plugin needed to handle lto object"), so the real LTO happened in the final
+link after all, with the symbol-hunk damage the round had blamed on a final-link LTO.
+`nolto-rel` does compile, but it must keep every exported symbol, and then LTO has nothing to
+work with: 258,876 bytes, 608 more than `lean`. The library is linked with `-flto` in its final
+link now. What that link does to the symbol hunk is harmless and understood: every symbol the
+link made local is still listed, all at one address at the end of the code (the plugin's
+placeholder), and the names the checks use are kept global, so theirs are right.
+
+**`make check` on an LTO build.** The checks trap and call library functions by name; LTO inlines
+a function into its callers or makes it local, and a trap on it is never reached (or the
+address is the placeholder). Now:
+
+- `tests/symbols.py` gives every check its symbol table and records each name looked up;
+  `tests/trapped-symbols.txt` (315 names: 136 functions, the 85 class descriptors, the
+  library bases, and names that live in class files, the prefs program or libnix) is written by
+  `make trapped-list` from a run of the checks on an LTO=0 build, and a check that looks up a
+  name the list lacks fails and says so, so the list cannot go stale unnoticed. The class walk
+  in `check_class_lifetime.py` looks the descriptors up by name for that reason.
+- `gcc/trapped.py` turns the list into `$(BUILD)/trapped.h`, included (`-include`) after
+  `clib/muimaster_protos.h` in every LTO compile: for each name defined in the library's
+  sources a declaration with `noinline, noclone, no_icf, used, externally_visible` (functions)
+  or `externally_visible` (data). A declaration without a prototype, `TYPE name();`, needs only
+  the return type, read from the definition line (or the AROS_LH*/BOOPSI_DISPATCHER macros'
+  arguments), and is compatible with any definition whose parameters are int or wider (C17
+  6.7.6.3p15); where a parameter is narrower (BOOL, UWORD, TEXT) or the function is variadic
+  the parameter list is copied, the library's own struct typedefs (ZText) written as their tags,
+  and each struct tag forward-declared. The module files' `#include "../x.c"` with their
+  `#define name zmod_name` renames are followed, so `zmod_load_custom_frame` is found in
+  datatypescache.c. Data (`const struct __MUIBuiltinClass _MUI_Area_desc = ...`,
+  `struct DosLibrary *DOSBase;`) becomes an `extern` with the tag forward-declared. The
+  compiler reports any declaration that does not match its definition: that is how locale.h's
+  `VOID Locale_Initialize(VOID)` against the definition's `BOOL` was found (fixed; a plain build
+  never sees both in one unit).
+- `modules.c` stays a plain object: its ZMC stubs are top-level asm, which an LTO object shows
+  to no `nm`, and `gcc/classfiles.py` builds the class files' jump table from the objects'
+  symbols (that was the `Zmenu.mui: undefined reference to dt_load_picture`).
+- `--param` options are recorded per object at compile time; given only at the link they
+  change nothing (`LTO_PARAMS` goes into the compile).
+
+With that, `make check` passes on `LTO=1` (all checks, including the check-builtin build with
+every class inside).
+
+**The frames, measured.** `-fstack-usage` does write `.su` files for an LTO link: run the link
+from a directory with `-save-temps`, and `muimaster.library.ltransN.ltrans.su` appear there
+with every function, local ones too (the round before concluded it did not and estimated from
+prologues). Compared by name against `lean`'s `.su` of all objects (clone suffixes stripped,
+the largest of a name counts; scripts in `/tmp/lto/s/` this session: `ltosu.sh`, `sucmp.py`):
+
+| build (`strip --strip-all`) | bytes | against `lean` | frames larger than `lean`'s |
+|---|---:|---:|---|
+| `lean` | 258,268 | | |
+| LTO, `-fno-inline-functions-called-once`, trapped list only | 253,516 | -4,752 | 60: Aboutmui's dispatcher 16 -> 136, Poplist 16 -> 124, Listview 84, Slider and Scrollbutton 72, Prop and Popobject 64, Popstring, Notify, Rectangle, Radio, Common 52-60, ten more dispatchers; Text's OM_SET 76 -> 168, area_draw_parent_background 60 -> 104, Group's Layout1D/2D 64 -> 100 / 60 -> 92, Image's Draw +24, zune_imspec_setup/draw +16/+12 |
+| + `--param inline-unit-growth=0 --param max-inline-insns-auto=0` (at compile) | 254,616 | -3,652 | the same dispatchers |
+| + the methods out of line (`LTO_KEEP`, every `Class__OM_*`/`Class__MUIM_*`) | 257,452 | -816 | 40: Text's OM_SET +92, area_draw_parent_background +44, Layout1D/2D +36/+32, Image's Draw +24, Window's dispatcher +16, ... and 25 of +4 to +8 |
+| every function visible, `lean`'s own called-once inlining | 257,080 | -1,188 | 28: Group's Layout 128 -> 136 (every nesting level), MUI_LayoutObj +12, external_load +12, 20 of +4 |
+| `nolto-rel` (keeps every symbol) | 258,876 | +608 | |
+
+Why the dispatchers: with LTO a method its dispatcher alone calls is local and called once, and
+GCC inlines it whenever that removes the out-of-line copy (a size win at -Os that no
+`--param` and not `-fno-inline-functions-called-once` prevents; `optimize("no-inline")` on the
+dispatcher does not either). The dispatcher's frame then becomes that method's, and every
+other method of the class, and the superclass path, carries it. That inlining is where LTO's
+bytes are: with the methods kept out of line 3.9 KB of the 4.7 come back, and the rest of the
+growth (+4 in twenty leaf functions, Group's Layout +8) is the cross-file inlining of small
+helpers and the IPA register effects, which are the remaining 0.8-1.2 KB. With `LDFLAGS=-s` as
+the release builds, the methods-out-of-line LTO library is 257,452 bytes against `lean`'s
+257,660: 208 bytes. Under the rules (no frame larger, stack not deeper) there is nothing to
+take. The LTO=1 path is kept, documented in the makefile with its knobs (`LTO_ONCE`,
+`LTO_PARAMS`, `LTO_KEEP`), so the next measurement starts from a build that checks.
+
+**Checked on the final build** (commits 6e24b55a, 64b2f770; FS-UAE, emulator figures):
+
+- `make check` on LTO=0 and on LTO=1 (every check, both libraries, the check-builtin build).
+- The LTO=0 library stripped is byte-identical to `lean`'s (`cmp`), so its speed, stack,
+  demopix, suite and fullcheck figures are `lean`'s ("Toward the core" above) by construction.
+- The LTO=1 library (methods out of line, stripped, with its class files and plugins), as a
+  smoke test of the path, not as a release: stackrun MUI-Demo with its eight sub-windows
+  **5,348 bytes against `lean`'s 5,248** (the +4..+92 frames add up on the deepest path: the
+  stack rule fails on the real program too), Layout 2,192 (2,268), Virtual 2,340 (2,388), Pages
+  2,164 (2,240), Slidorama 2,228 (2,304); fullcheck: MUI-Demo with its eight sub-windows opens
+  and closes, the 18 other demos too, lost 608 / 200 / AppWindow 264 as `lean`, no alert: the LTO path works, it just does not pay.
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
   measurements of what the compiler and the link can still give, "Toward the core" above;
+  LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined
+  into their dispatchers, which the stack rule forbids, so it stays off and `make check` runs
+  on it now. Next in order: (1) String's direct key path for MUI 3 programs: every key goes
+  HandleEvent -> String_KeyToTextinput -> Ti_Call -> DoMethod(MUIM_Textinput_*) -> the
+  dispatcher -> String_Textinput (2,254 bytes; HandleEvent 2,920, HandleVanillakey 1,042,
+  CursorKey 414, the Ti_* helpers ~600); for a program that gets MUI 3.8 the editing can be
+  called directly (no dispatch per key) and the MUI 5-only operations (files, toggle case,
+  increment/decrement, Undo, mark all, cut line) go into Zmui45.mui, with the Textinput methods
+  themselves (a MUI 5 program's subclass may send or catch them) staying for the MUI 4/5
+  identity: all String checks, tests/lean/stringml.c, demopix's Strings window pixel-identical,
+  and the LoadSeg trace of the MUI 3 group for the proof; (2) Area (16.6 KB) and Application
+  (16.0 KB) with the List round's method;
   259,096 after `slim2`, 263,208 after List, 267,400 after `smaller2`) against MUI 3.8's 166 KB;
   what is left and the next wins in order: "Toward the core" above.
   Before: 246 KB (file 262 KB, `smaller`), 261 KB (file 279 KB).

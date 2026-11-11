@@ -105,6 +105,19 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    tests as `lean`'s. The remaining 91 KB is the core classes' C; the
    next wins in order in
    [README.md](README.md#toward-the-core-what-the-compiler-and-the-link-can-still-give-2026-11-11-phase-3).
+   *LTO, done right 2026-11-11* (branch `lto`): `make check` runs on an
+   LTO build now (the names the checks look up are recorded,
+   tests/trapped-symbols.txt, and kept out of line and visible through a
+   generated header; the -r relocatable LTO link of the round before had
+   merged GIMPLE instead of compiling, the library is linked with -flto in
+   its final link). Measured with -fstack-usage of every function, LTO's
+   bytes are the called-once inlining of the methods into their
+   dispatchers (-4.7 KB, dispatcher frames +16 to +120, carried by every
+   method of the class); with the methods kept out of line -0.8 KB and 40
+   frames larger; with lean's own inlining and every function visible -1.2
+   KB and 28 frames larger (Group's Layout +8). Not taken: LTO stays off,
+   the shipped library is byte for byte lean's. Details in
+   [README.md](README.md#lto-done-right-and-why-it-stays-off-2026-11-11-phase-3).
 4. **Memory per program** (target: first program <= 460 KB, each
    further <= 210 KB): window backing store, list pools, notifications,
    Text contents. Same rule: never at the cost of speed or features.
