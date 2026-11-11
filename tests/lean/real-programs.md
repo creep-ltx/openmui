@@ -1,6 +1,6 @@
 # The real-program suite
 
-Real MUI programs, started on Zune and on real MUI, compared side by side. Every change of the
+Real MUI programs (84 MUI 3 programs, 24 MUI 4/5 ones, 49 add-on class demos since 2026-11-11), started on Zune and on real MUI, compared side by side. Every change of the
 lean edition is checked with it (roadmap phase 1). The programs are freely downloadable; they are
 fetched into `~/.cache/zune68k-real/` (never committed, never redistributed) and run only in the
 test machines (`~/UAE/TestMachines`), in Amiberry headless since 2026-11-11 (`EMU=fsuae` for FS-UAE).
@@ -14,6 +14,7 @@ tests/lean/scripts/suite.sh zune  --lib /tmp/suite/build/muimaster.library   # p
 tests/lean/scripts/suite.sh mui38                                            # port 1411
 tests/lean/scripts/suite.sh mui5                                             # port 1412
 tests/lean/scripts/suite.sh zune --groups mui5 --tag zune5                   # MUI 4/5 programs on Zune
+tests/lean/scripts/suite.sh zune --groups mcc --tag zunemcc                   # the add-on class demos
 tests/lean/scripts/suite-compare.py $ZWORK/suite-real/zune $ZWORK/suite-real/mui38
 tests/lean/scripts/suite-compare.py $ZWORK/suite-real/zune5 $ZWORK/suite-real/mui5
 ```
@@ -148,6 +149,127 @@ target.
 Looked at and left out: Executive 2.10 (its program is packed inside its installer), Daywatch 1.2
 (the archive unpacks with broken names), MysticView (not a MUI program), AmigaAMP (skinned,
 not MUI; its MUI preferences are in), Voyager (no longer downloadable), AnArchiver (not MUI).
+
+### Added 2026-11-11 (branch `compat1`): 48 more programs, old and new
+
+Chosen from what people actually use: Aminet's most downloaded MUI programs (its readme search for
+"MUI 3.8" and "MUI" sorted by downloads) and the 2026 wave of new MUI programs (the same search
+sorted by date). The column "asks" is the muimaster version each one opens (snooped `OpenLibrary`,
+2026-11-11): all are MUI 3 programs under Automatic (nothing asks for 20 or more), the 2026 ones
+use MUI 4/5 features where present. Left out: programs that need AmiSSL before they show a window
+(LumiWeather, LumiGram, LumiReg, AmiCloud, AmiOwnCloud, AmiPlexAmp, AmiSubsonic, twittAmiga, Wet,
+ZodiTV), 68040+ (StormDJ, KVICEr), AmiArcadia (OS 3.9+, 24 MB, 11 MB archive), AmiChess (OS 3.5
+and 800x600), AAText (RTG), Trinity (its accelerator), AmBoS (needs its installer), Frogger (not
+MUI). Group `mui3` (ID as in `programs.sh`):
+
+| ID | program | version | where from | licence | asks | what it exercises / what happens |
+|---|---|---|---|---|---|---|
+| voyager | Voyager (web) | 3.5.3 (2026-11-03) | Aminet comm/www/Voyager-3.5.3-AmigaOS.lha | freeware since 2026 (no keyfile) | 19, 18, 5 | Textinput, Popplaceholder, SpeedBar, TearOff, CManager; a toolbar with its own images, `[1] Voyager · About Voyager`; **resets the machine when quit by its close gadget on OpenMUI** (below) |
+| evenmore | EvenMore (text viewer) | 0.94 | Aminet text/show/EvenMore.lha | freeware | 19, 11 | BetterString, plugins |
+| igame | iGame (WHDLoad front-end) | 2.6.1 (2026) | Aminet util/misc/iGame.lha | open source | 19 | NList, lists with columns, a filter string |
+| yam29 | YAM (mail) | 2.9p1 | Aminet comm/yam/YAM29p1-AmigaOS3.lha | GPL | 19 | the YAM between 2.5 and 2.10: NList, TextEditor, TheBar, codesets; its configuration window |
+| amigg | AmiGG (instant messenger) | 0.43.114 | Aminet comm/misc/amigg.lha | freeware | ? (its task name is cut) | TextEditor, NList; a "graphics resolver" window; it does not end at quit on any target |
+| freeciv | Freeciv client | 1.17 | Aminet game/strat/freeciv.lha | GPL | 11 | ends at once on every target (wants its server) |
+| apdf | Apdf (PDF viewer) | 1.3 (020, no FPU) | Aminet gfx/show/Apdf_nofpu.lha | freeware | 11 | an ASL "Open..." requester first |
+| mcpprefs | MCP's preferences | 1.30 | Aminet util/cdity/MCP130.lha | freeware | 8 | a MUI 2-era prefs program with many pages (reqtools, mcpgfx.library from the archive) |
+| screentabprefs | ScreenTab's preferences | 3.2 | Aminet util/cdity/ScreenTab_3_2.lha | shareware | 19, 11 | no window on any target (wants ScreenTab running) |
+| tinymeterprefs | TinyMeter's preferences | 4.31 | Aminet util/wb/Tinymeter_V431.lha | freeware | 12 | Register pages, a bitmap logo; 549x237 against MUI 3.8's 553x250 |
+| newsrog | NewsRog (news) demo | 1.7b | Aminet comm/news/NewsRogDemo.lha | demo | 19, 11 | its own 30 MCCs in PROGDIR:MUI; a first-start window 272x166 against 280x170 |
+| md2 | MicroDot-II (mail/news) | 1.4 | Aminet comm/news/md2_14.lha | Vapor | ? | Textinput, Listtree, CManager; asks for its database drawer (MUI_AslRequest); does not end at quit on OpenMUI and MUI 3.8, ends at once on MUI 5 |
+| amplifier | AMPlifier (audio player) | 2.10 | Aminet mus/play/AMPlifier.lha | freeware | ? | a skinned player window with MUI gadgets |
+| makecd | MakeCD (CD writing) | 3.2d | Aminet disk/cdrom/MakeCD_3.2d.lha | freeware since 2021 | ? | a big main window, many pages |
+| ahiprefs | AHI's MUI preferences | 4.18 | Aminet driver/audio/ahiusr_4.18.lha | LGPL | 19 | `Prefs/AHI_MUI` with ahi.device from the same archive (hook `pre_host_ahiprefs`); reset the MUI 3.8 machine once |
+| fiasco | Fiasco (database) | 2.22 | Aminet biz/dbase/Fiasco_main.lha | freeware | ? | gtlayout.library from the archive; does not end at quit on any target |
+| amster | Amster (Napster client) | 0.8a | Aminet comm/tcp/Amster-main.lha | open source | 19, 11 | NList, Textinput, Lamp; a configuration window and the main window |
+| beebase | BeeBase (database, MUIbase's successor) | 1.2 (2025) | Aminet biz/dbase/BeeBase-1.2.lha | GPL | 19, 17 | the 1.3 MB m68k program; froze MUI 5 at quit once |
+| amimodradio | AmiModRadio (module player from the net) | 1.2 (2025) | Aminet mus/play/AmiModRadio.lha | freeware | 19 | its MUI front end `AmiModRadio_MUI` |
+| dmodp | D.A.S. ModulePlayer | 3.5b | Aminet mus/play/DMODP35b.lha | freeware | 9 | a MUI 2.2 program: ends at once on every target |
+| amfinger | AmFinger | 1.5 | Aminet comm/tcp/AmFinger1.5.lha | freeware | 19, 14, 11 | Term and Busy from its own `mui` drawer |
+| abacus | Abacus (board game) | 2.20 | Aminet game/board/abacus220.lha | freeware | 12 | a MUI 3.6 game: images, a "Quit Abacus now?" requester whose buttons have no key letters (the suite presses Return now) |
+| address | Address (address book) | 1.0 | Aminet biz/dbase/Address.lha | freeware | 11 | a small list window |
+| rqchoicemui | RequestChoiceMUI | 1.1 | Aminet util/sys/2b_RqChoiceMUI.lha | freeware | 11 | MUI_Request from a shell command (`TITLE/A,BODY/A,GADGETS/A`) |
+| assampler | Assampler (sound processor) | 0.99 | Aminet mus/edit/Assampler.lha | freeware | 19 | ends at once on every target (wants AHI) |
+| cyclone | Cyclone (Fido point) | 1.25c | Aminet comm/fido/Cyclone125c.lha | shareware | 13 | its 68020 build, a first-start window |
+| amigamark | AmigaMARK (benchmark) | 1.1 | Aminet util/moni/AmigaMARK-amigaos3.lha | freeware | 19 | ends at once on every target |
+| ali | ALI (AmIRC log inspector) | 2.2 | Aminet comm/irc/ALI-amigaos3.lha | freeware | 19 | ends at once on every target |
+| lumiamp | LumiAMP (audio player) | 0.5 (2026) | Aminet mus/play/LumiAMP.lha | freeware | 11 | NList; 408x103 |
+| lumipass | LumiPass (passwords) | 1.5 (2026) | Aminet util/crypt/LumiPass.lha | freeware | 19 | NList, NListtree, BetterString, TextEditor, TheBar; 556 wide against MUI 3.8's 552 |
+| lumitorrent | LumiTorrent (BitTorrent) | 1.0 (2026) | Aminet comm/net/LumiTorrent.lha | freeware | 19 | NList, TheBar; 556 against 552 |
+| lumiftp | LumiFTP (FTP/SFTP) | 1.3 (2026) | Aminet comm/tcp/LumiFTP.lha | freeware | 19 | opens its window without AmiSSL; 556 against 552 |
+| tunefinder | TuneFinderMUI (net radio) | 1.0 beta (2026) | Aminet comm/misc/TuneFinderMUI.lha | freeware | 19 | a list and strings |
+| u64ctl | u64mui (Ultimate64 control) | 0.5.0 (2026) | Aminet comm/misc/u64ctl.lha | freeware | 19 | 500x226 against MUI 3.8's 500x218 |
+| amifritzi | AmiFritzi (FRITZ!Box) | 0.5 (2026) | Aminet comm/tcp/AmiFritzi.lha | freeware | 11 | a settings window first |
+| nfsgui | NFS-GUI (nfs-handler GUI) | 1.1 (2026) | Aminet comm/net/NFS-GUI.lha | freeware | 11 | **ends with return code 20 on OpenMUI before any window** (below); opens on MUI 3.8 and MUI 5 |
+| ami2ha | ami2ha (Home Assistant) | 0.5 (2026) | Aminet comm/tcp/ami2ha-0.5.lha | freeware | ? | its 020 build ends at once on every target (wants a configuration) |
+| amihomeassist | AmiHomeassist | 0.9.1 (2026) | Aminet comm/tcp/AmiHomeassist.lha | freeware | 11 | NList; a settings window and the dashboard |
+| amiatari2600 | AmiAtari2600's launcher | 0.1 (2026) | Aminet misc/emu/AmiAtari2600.lha | freeware | 19 | a list of games |
+| amipg | AmiPG (Roland synth editor) | 17.340 (2026) | Aminet mus/midi/AmiPG_MUI.lha | freeware | 0 | ends at once on OpenMUI and MUI 3.8 (OS 3.1), opens on MUI 5 (OS 3.2.1) |
+| xsysinfo | xSysInfo (system information) | 0.12.0 (2026) | Aminet util/moni/xSysInfo.lha | freeware | 15 | `xSysInfo MUI` with identify.library from the archive |
+| kompensator | Kompensator (startup editor) | 2.1 (2026) | Aminet util/batch/Kompensator.lha | freeware | 19, 0 | lists and strings |
+| rsgui | RSGUI (Roadshow settings) | 1.2 (2026) | Aminet comm/net/RSGUI.lha | freeware | 11 | opens without Roadshow |
+| layview | LayView (PCB viewer) | 1.1 (2026) | Aminet misc/sci/LayView.lha | freeware | 19 | an FPU program (68882 on the test machines) |
+| 3doc | 3D Object Converter | 1.90 (2026) | Aminet gfx/3d/3doc-m68k-amigaos_v1.90.lha | freeware | ? | a 6 MB program; ends at once on every target |
+| aminetuploader | Aminet-Uploader (MUI) | 1.0 (2026) | Aminet util/misc/AminetUploader.lha | freeware | 19, 11 | no window on any target within 40 s |
+| jmri | JMRIController (model trains) | 0.92 (2026) | Aminet misc/misc/JMRIController.lha | freeware | 11 | a MUI 3.1 program |
+| amidrop | AmiDrop (MUI version) | 1.1 (2026) | Aminet comm/net/AmiDrop_MUI.lha | freeware | 19 | `Setup/AmiDrop_MUI`; MUI 3.8's run did not end at quit once |
+
+### Add-on classes: each class's own demo (group `mcc`, 2026-11-11)
+
+Many programs stand on third-party classes. The group runs each class's demo or test program from
+its Aminet archive on all three targets with the same class files (the classes the suite already
+installed stay: NList 0.128, TextEditor 15.56, BetterString 11.36, TheBar 26.22, Toolbar 15.6,
+Textinput, Popph, Urltext, Busy and Listtree (Zune's own on the zune target), Lamp, Calendar and
+MiniMailer from Contact Manager's archive, Guigfx, LayGroup, GIFAnim). "fails everywhere" means
+the demo itself needs something the test machines lack (an argument, a file, a library), on MUI
+3.8 and MUI 5 as well; those stay in the table as they cost nothing.
+
+| ID | class | version | from | licence | what |
+|---|---|---|---|---|---|
+| htmlview-demo | HTMLview | 13.4 | dev/mui/MCC_HTMLview-13.4.lha | freeware (beta) | a time-bombed beta: a system requester first (answered by the hook), then the demo |
+| toolbar-demo | Toolbar | 15.12's demo on 15.6 | dev/mui/mcc_toolbar-15.12.lha | freeware | buttons from a brush |
+| lamp-demo | Lamp | 11.1's demo | dev/mui/MCC_Lamp.lha | freeware | Lamp with Coloradjust and Register pages; 346x227 on OpenMUI, 640x256 on MUI 3.8 (Coloradjust's default size) |
+| speedbar-demo1..9 | SpeedBar, SpeedButton, SpeedBarCfg, SpeedBarVirt | 19.4 | dev/mui/MCC_SpeedBar.lha | freeware | nine toolbar demos; demo6 1 px wider on OpenMUI |
+| bwin-demo1..3 | BWin | 22.0 | dev/mui/MCC_BWin.lha | freeware | borderless windows with their own drag bar (Boopsi gadgets); **demo1 and demo3 opened no window on OpenMUI, fixed**; demo2 resets every target |
+| calendar-demo1..4 | Calendar | 18.3's demos | dev/mui/MCC_Calendar.lha | freeware | demo4 ends at once everywhere |
+| monthnavi-demo | MonthNavigator | 16.8 | dev/mui/MCC_MonthNavi.lha | freeware | no window everywhere (date.library?) |
+| busy-demo | Busy | 2.4's demo | dev/mui/MCC_Busy2_4.lha | freeware | three Busy bars: thinner and smaller on OpenMUI's own Busy.mcc (136x130 against MUI 3.8's 148x151) |
+| hexedit-demo | HexEdit | 14.0 | dev/mui/MCC_HexEdit.lha | freeware | 230 wide against 237 |
+| twfmultiled-demo | TWFmultiLED | 12.6 | dev/mui/MCC_TWFmultiLE.lha | freeware | no window everywhere |
+| tearoff-demo | TearOffPanel, TearOffBay, CompactWindow | 13.0 | dev/mui/MCC_TearOff.lha | freeware | "Second TearOff Demo" 326 wide against 256 |
+| compactwin-demo | CompactWindow | 12.5 | dev/mui/MCC_CompactWin.lha | freeware | ends at once everywhere |
+| tablegroup-demo | TableGroup | 1.0 beta | dev/mui/MCC_TableGroup.lha | freeware | 278x142 against 286x151 |
+| mailtext-demo | Mailtext | 3.1 | dev/mui/MCC_Mailtext.lha | freeware | same |
+| mathstring-demo | MathString | 1.5 | dev/mui/MCC_MathString.lha | freeware | same |
+| tipofday-demo | tipboard, tipwindow | 15.8 | dev/mui/MCC_TipOfDay.lha | freeware | the tip window; its title stays "Tip of the day..." on OpenMUI where MUI 3.8 shows the demo's "Custom titles roxx!" (set after MUIM_Tip_Show), and its list has a scroller MUI 3.8 does not show |
+| transferanim-demo | TransferAnim | 1.5 | dev/mui/MCC_TransferAn.lha | freeware | no window everywhere (imagepool.library) |
+| minimailer-demo | MiniMailer | 20.1 | dev/mui/MCC_MiniMailer.lha | freeware | same |
+| htmltext-demo | HTMLtext | 14.8 | dev/mui/MCC_HTMLtext.lha | freeware | an untitled 85x71 window against 143x83 (and 1 = did not end at quit, everywhere) |
+| settingswindow-demo | SettingsWindow | 1.01 | dev/mui/MCC_SettingsWi.lha | freeware | no window everywhere |
+| mysticview-demo | MysticView | 13.1 | dev/mui/MCC_MysticView.lha | freeware | ends at once everywhere (wants a picture) |
+| icon-demo | Icon | 1.1 | dev/mui/MCCIcon_1_1.lha | freeware | same |
+| datestring-demo, timestring-demo | DateString, TimeString | 12.3, 12.5 | dev/mui/MCC_DateString.lha, MCC_TimeString.lha | freeware | same (date.library from the archives) |
+| envelope-demo | Envelope | 14.1 | dev/mui/MCC_Envelope.lha | freeware | no window everywhere |
+| pkb-demo | Pkb (piano keyboard) | 14.6 | dev/mui/MCC_Pkb14_6.lha | freeware | same |
+| wheel-demo | Wheel | 1.0 beta | dev/mui/MCC_Wheel.lha | freeware | same (MUI 3.8 froze at its quit once) |
+| hotkeystring-test | HotkeyString | 12.1's test on 11.36 | dev/mui/MCC_HotkeyStr.lha | LGPL | no window everywhere |
+| popph-demo | Popplaceholder | 15.5 | dev/mui/MCC_Popph.lha | freeware | same |
+| urltext-demo | Urltext | 19.7 | dev/mui/MCC_Urltext.lha | freeware | same |
+| guigfx-demo | Guigfx | 19.2 | dev/mui/MCC_Guigfx.lha | freeware | ends at once on OpenMUI and MUI 3.8 (OS 3.1: no PNG datatype for its Test.PNG), opens on MUI 5 (OS 3.2.1) |
+| laygroup-demo | LayGroup | 19.2 | dev/mui/MCC_LayGroup-19.2.lha | freeware | same |
+| gifanim-demo | GIFAnim | 19.5 | dev/mui/MCC_GIFAnim.lha | freeware | 424 wide against 400 |
+| nbitmap-demo | NBitmap | 0.128 | dev/mui/MCC_NList-0.128.lha | LGPL | ends at once on OpenMUI and MUI 3.8 (its icon.png: no PNG datatype on OS 3.1); reset MUI 5 once |
+| nlist102-demo | NList 0.102's demo on 0.128 | 0.102 | dev/mui/MCC_NList-0.102_68k.lha | LGPL | an old demo on the new class: same |
+| tron-demo | Tron (MUI 3.8's example class) | 3.8 | dev/mui/mui38dev.lha | MUI's | ends at once everywhere (its Tron.mcc is not installed) |
+
+Classes and libraries these add to every target (`CLASSES`, `LIBRARIES` in programs.sh): HTMLview
+(+mcp), SpeedBar, SpeedBarCfg, SpeedBarVirt, SpeedButton (+mcp), BWin (+mcp), MonthNavigator
+(+mcp), HexEdit (+mcp), TWFmultiLED (+mcp), TearOff.mcp, TearOffBay, TearOffPanel, CompactWindow
+(+mcp), TableGroup, Mailtext (+mcp), MathString, tipboard, tipwindow, TransferAnim (+mcp),
+HTMLtext (+mcp), SettingsWindow, MysticView, Icon, DateString, TimeString, Envelope (+mcp), Pkb
+(+mcp), Wheel (+mcp); amitls.library (Voyager), gtlayout.library (Fiasco), identify.library
+(xSysInfo), mcpgfx.library and reqtools.library (MCP), date.library, imagepool.library,
+mysticview.library. Programs with their own `MUI` drawer (NewsRog, Amster, MicroDot-II, AmFinger,
+Assampler) find those classes through the current directory, as on MUI.
 
 ### Classes and libraries (same files on every target)
 
@@ -451,6 +573,27 @@ Results: `/tmp/amiberry/zwork/suite-real/ab-z3` (OpenMUI, MUI 3 group), `ab-m38`
 `ab-z5` / `ab-z5b` (OpenMUI, MUI 4/5 group, before / after the Window change), `ab-m5` (MUI 5),
 `ab-z3c` / `ab-m38c` (SimpleMail and AmTelnet again with the fixes); contact sheets
 `compare-ab-z3-ab-m38.html`, `compare-ab-z5-ab-m5.html`, `/tmp/amiberry/cmp-*-fsuae.html`.
+
+**Update, branch `compat1` (2026-11-11, compatibility round 1):** 48 more programs (group `mui3`)
+and a group `mcc` of 49 add-on class demos (the tables above), all baselined on MUI 3.8, MUI 5 and
+OpenMUI (results `/tmp/compat1/zwork/suite-real/r1-new-*`, `r1-mcc-*`; the whole suite on the final
+library `fin`; docs/lean/README.md, "Compatibility round 1"). New programs, OpenMUI against MUI
+3.8: **36 of 48 the same**; OpenMUI's: Voyager 3.5.3 resets the machine at its second quit (a quit
+by its close gadget leaves exec's memory list insane; ARexx QUIT is clean), NFS-GUI 1.1 ends with
+return code 20 before its window, MicroDot-II ends at once in two runs of three (ok with its
+database requester in the third; ok on MUI 3.8, ends at once on MUI 5), and four windows a few
+pixels off (TinyMeterPrefs, NewsRog, the three Lumi programs, u64mui); MUI 3.8's or the
+emulator's: iGame frozen, AHI's preferences reset, AmiDrop still running after quit, each once.
+Class demos: 37 of 49 the same, **39 after the fix** (Window's OM_NEW no longer runs the
+subclass's OM_SET: BWin.mcc's demo1 and demo3 open); left: Lamp's demo 346x227 against 640x256
+(Coloradjust's default size), the TipOfDay demo's title and list scroller, TearOff's second
+window 326 against 256 wide, Busy 2.4's demo on OpenMUI's own Busy.mcc (136x130 against
+148x151), HexEdit, TableGroup, HTMLtext, GIFAnim and SpeedBar demo6 within 1-58 pixels, and the
+HTMLview demo still running after the suite's quit. Thirteen demos fail on all three targets
+alike (the demo's: an argument, a file, a library, OS 3.1's missing PNG datatype). The MUI 3
+group of before: 35 of 36 as the previous run (AmiTradeCenter opens its Server Manager instead
+of its toolbar this round, with `lean`'s window.c too: the widened install, open); the MUI 4/5
+group 24 of 24 as before. Which MUI each new program asks for is in its table row ("asks").
 
 **The "lost" column's sign** (found 2026-11-06): `avail`'s third column on the "total" line is
 In-Use (checked: "Type Available In-Use Maximum Largest"), so "lost" is in-use before the second

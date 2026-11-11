@@ -2480,6 +2480,134 @@ copy of the library is gone. `make check` and the release build pass;
 fullcheck (Amiberry, a1200-31): MUI-Demo with its eight sub-windows and the
 18 demos open and close, lost 608 / 200 / AppWindow 264, as before.
 
+## Compatibility round 1: 48 more programs, 49 class demos, BWin's window (2026-11-11)
+
+Branch `compat1` (from `lean`). Our partner's top goal is full compatibility with MUI 3/4/5
+programs, so this round widened the real-program suite (tests/lean/real-programs.md) from 60 to
+157 entries and baselined every new entry on real MUI 3.8, real MUI 5 and OpenMUI, on Amiberry:
+
+- **48 more programs** (group `mui3`), chosen by Aminet's download counts and its 2026 uploads:
+  Voyager 3.5.3 (freeware since this month), EvenMore, iGame 2.6.1, YAM 2.9p1, AmiGG, Apdf, MCP's,
+  ScreenTab's, TinyMeter's and AHI's preferences, NewsRog, MicroDot-II, AMPlifier, MakeCD, Fiasco,
+  Amster, BeeBase 1.2, AmiModRadio, AmFinger, Abacus, Address, RequestChoiceMUI, Cyclone, and the
+  2026 wave (LumiAMP, LumiPass, LumiTorrent, LumiFTP, TuneFinderMUI, u64ctl, AmiFritzi, NFS-GUI,
+  AmiHomeassist, AmiAtari2600, AmiPG, xSysInfo, Kompensator, RSGUI, LayView, 3doc,
+  Aminet-Uploader, JMRIController, AmiDrop), plus six that turn out to need something the test
+  machines lack (Freeciv, D.A.S. ModulePlayer, Assampler, AmigaMARK, ALI, ami2ha). Every one asks
+  for muimaster 19 or less (snooped): all MUI 3 programs under Automatic.
+- **49 add-on class demos** (new group `mcc`): each third-party class's own demo program from its
+  Aminet archive, 35 archives in all (HTMLview, Toolbar, Lamp, SpeedBar, BWin, Calendar,
+  MonthNavigator, Busy 2.4, HexEdit, TWFmultiLED, TearOff, CompactWindow, TableGroup, Mailtext,
+  MathString, TipOfDay, TransferAnim, MiniMailer, HTMLtext, SettingsWindow, MysticView, Icon,
+  DateString, TimeString, Envelope, Pkb, Wheel, HotkeyString, Popph, Urltext, Guigfx, LayGroup,
+  GIFAnim, NBitmap, NList 0.102's demo, MUI 3.8's Tron). The class files go to every target as the
+  suite's other classes do.
+
+**Results** (Amiberry headless, every program on a fresh boot; `/tmp/compat1/zwork/suite-real/`,
+tags `r1-new-*` and `r1-mcc-*` for the baselines, `fin1`..`fin6` for the whole suite on the final
+library):
+
+- New programs, OpenMUI against MUI 3.8: **36 of 48 behave the same**. OpenMUI's: Voyager resets
+  the machine at its second quit (below), NFS-GUI ends with return code 20 before its window
+  (below), and four windows a few pixels off (TinyMeterPrefs 549x237 against 553x250, NewsRog's
+  first window 272x166 against 280x170, the three Lumi programs 556 wide against 552, u64mui
+  500x226 against 500x218). MUI 3.8's or the emulator's: iGame froze that machine once, AHI's
+  preferences reset it once, AmiDrop did not end at quit there once. Abacus "still running after
+  quit" was the suite's: its "Quit Abacus now?" has no key letters and `wasabi ui click` finds
+  buttons on MUI 3.8 only; the suite presses Return (the default button) now. Against MUI 5 the
+  sizes differ as the MUI 3 group's always did (other fonts and spacing on the OS 3.2.1 machine);
+  AmiPG opens on MUI 5 (OS 3.2.1) and ends at once on both OS 3.1 machines, so that is the OS.
+- Class demos, OpenMUI against MUI 3.8: **37 of 49 the same** before the fix. **BWin's demo1 and
+  demo3 opened no window on OpenMUI** (fixed below, 39 of 49 after). Left: Lamp's demo 346x227
+  against 640x256 (MUI 3.8's Coloradjust takes much more room by default), the TipOfDay demo's
+  window title and list scroller, TearOff's second window 326 against 256 wide, Busy 2.4's demo
+  on OpenMUI's own Busy.mcc (thinner bars, 136x130 against 148x151), and HexEdit, TableGroup,
+  HTMLtext, GIFAnim, SpeedBar demo6 within 1-58 pixels. Thirteen demos fail on all three targets
+  alike (an argument, a file, a library or the OS 3.1 PNG datatype they want): the demo's, kept
+  for the record.
+
+**Fixed: a Window subclass's OM_SET ran inside Window's OM_NEW** (22c687f6). Window's OM_NEW
+applied its tags (ID, Title, ScreenTitle, DefaultObject, RootObject) with `set(obj, ...)`, which
+dispatches to the *subclass*, whose OM_SET then runs before its own OM_NEW has finished. BWin.mcc
+catches MUIA_Window_RootObject in its OM_SET (it wraps the root into its own group with the drag
+bar) and, called that early, never passed it on: the window had no root object and `WindowOpen`
+gave up at its first test. Found with a temporary `kprintf` at each of WindowOpen's exits ("WO
+fail 1": no root) and one in OM_SET (the subclass saw only the ID). On MUI 3.8 and MUI 5 the demo
+opens, so their OM_NEW does not go through the subclass. OM_NEW now calls Window's own OM_SET
+directly (`OwnSet`: a two-tag array and an opSet on the stack). The same `set(obj, ...)` inside
+OM_NEW exists in Application (Iconified), Group (Disabled), List (Draggable, LayoutHook),
+Panelgroup, Scale (Font) and the Popobject family: not changed (no program failed on them), noted
+for the next round.
+
+**Open, found this round:**
+
+- **Voyager 3.5.3 resets the machine after a quit by its close gadget** (not by ARexx `QUIT`: 8 of
+  8 clean on one boot). `trapcap` records no CPU exception but exec's alert 0100000C
+  (AN_MemoryInsane) in the next run's or the next quit's AllocMem/FreeMem, so something
+  overwrote or freed memory wrongly during that quit; MUI 3.8 and MUI 5 quit clean (-19,304 and
+  -3,512 bytes). `memtally guard` could not be used as it is: run under memtally, Voyager cannot
+  find its MIMEPrefs and shows a requester instead of its page. The close-gadget path in Zune
+  (IDCMP_CLOSEWINDOW: reply, `set(win, MUIA_Window_CloseRequest, TRUE)`, return) touches no
+  window data afterwards, so the overwrite is in what Voyager's close notification does (closing
+  and disposing its window object, probably) rather than in the event loop; a guard build is the
+  next step.
+- **NFS-GUI 1.1 ends with return code 20 on OpenMUI** before opening a window and without a
+  message; no `MUI_NewObjectA` fails (a kprintf on both failure exits printed nothing) and
+  WindowOpen is never reached, so the program itself decides to quit after creating its
+  application (its only strings: "NFS-GUI needs MUI 3.8 or better", "Could not create the
+  application"). It opens on MUI 3.8 and MUI 5. Its source would tell (not on this PC).
+- The TipOfDay demo's `set(window, MUIA_Window_Title, ...)` after `MUIM_Tip_Show` never reaches
+  Window's OM_SET on OpenMUI (a kprintf there saw only the two titles set at creation): either
+  `MUIA_Tip_WindowObject` answers 0 on OpenMUI or tipwindow.mcc's OM_SET swallows it; not traced
+  further.
+- MUI 3.8's Coloradjust is much larger by default (Lamp's demo); OpenMUI's own Busy.mcc draws a
+  thinner, smaller bar than MUI 3.8's Busy 2.4 (the Busy demo).
+
+**THE RULES, measured:**
+
+- Library file 278,184 -> 278,236 bytes (+52: `OwnSet` and five calls in place of five `set()`
+  calls). No new class or module file, nothing loaded on demand: MUI 3 programs pay the 52 bytes
+  and nothing else; a LoadSeg trace was not needed for a change that adds no file.
+- Stack: `-fstack-usage` of every file against `lean` (`/tmp/compat1/su-lean`, `su-new`): one new
+  frame, `OwnSet` 40 bytes (the tag array and the opSet), called from Window's OM_NEW in place of
+  `set()` (SetAttrs in ROM plus Window_Dispatcher's 28 bytes), so OM_NEW's deepest path is about
+  what it was; every other function's frame is `lean`'s.
+- Speed and features: nothing removed; OM_NEW makes one direct call fewer per tag than before.
+- `make check` passes (with the toolchain's Python, `PYTHON=~/opt/amiga-gcc16/libexec/amitools/bin/python`).
+
+**The final library, the whole bed** (Amiberry, 2026-11-11 22:28-23:00, six suite instances side
+by side under a PC load of about 20 from other sessions' FS-UAE instances; results
+`/tmp/compat1/zwork/suite-real/fin` (merged from `fin1`..`fin6` and the re-run `finx`), `res/full-fin.txt`,
+`demopix/report.html`):
+
+- fullcheck: MUI-Demo with its eight sub-windows and the 18 demos open and close, lost 608 / 200 /
+  AppWindow 264, as every round before.
+- demopix: **19 of 27 windows pixel-identical** with MUI 3.8, 25 comparable (18 before; not looked
+  into which one joined).
+- MUI 3 group (the 36 of before): **35 of 36 as the previous OpenMUI run** (`ab-z3f`), 33 of 36 as
+  on MUI 3.8 (MultiRen's quit and SimpleMail's reset as always, and AmiTradeCenter: this round
+  it opens its Server Manager window instead of its 194x65 toolbar, with `lean`'s window.c as well
+  (an A/B run, `ab-lean` / `ab-new`), so it is the widened install, a class or library the new
+  entries add, not the library; open). TextEditor-Demo, RO and the TipOfDay demo were "frozen"
+  under the load and fine run again alone (`finx`); InstallerNG freezes Amiberry as known.
+- MUI 4/5 group: **24 of 24 as the previous run** (`ab-z5f`); against MUI 5 the known size
+  differences.
+- New programs: 46 of 48 as the baseline run of the same day (MicroDot-II ends at once this time,
+  as on MUI 5; Abacus quits now), **36 of 48 as on MUI 3.8**.
+- Class demos: **39 of 49 as on MUI 3.8** (BWin's demo1 and demo3 open now; the HTMLview demo
+  246x242 against 247x245 and still running after the suite's quit; HTMLtext's untitled window
+  85x256 this time, 85x71 before, 143x83 on MUI 3.8; the rest as listed above).
+- `make check` passes.
+
+Traps met this round: the suite's table uses `|` as its field separator, so a program argument
+with a `|` (RequestChoiceMUI's `Yes|No`) ends the table parse for every entry after it and the
+run says "done" after 23 programs; `pkill -f PATTERN` from a shell whose command line holds
+PATTERN kills that shell (known, met again); `wasabi reboot` did not reboot the Amiberry instance
+(a stale process's window stayed), `amiberry-test stop`/`start` does; under a PC load above 20
+Amiberry runs report "frozen" programs that are fine alone (known); a `TRACE=1` build of the
+library opens no window at all here (every program stayed windowless under it), temporary
+`kprintf` lines in a normal build with `wasabi debug` are the way.
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
@@ -2521,6 +2649,16 @@ fullcheck (Amiberry, a1200-31): MUI-Demo with its eight sub-windows and the
   211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
   list pools of 1 KB puddles, Text contents.)
 
+- **Compatibility, found by the widened suite (2026-11-11, `compat1`)**: Voyager 3.5.3 resets
+  the machine after a quit by its close gadget (exec's memory list insane; ARexx QUIT is clean),
+  NFS-GUI 1.1 ends with return code 20 before its window, the TipOfDay demo's window title set
+  after MUIM_Tip_Show does not reach Window, MUI 3.8's Coloradjust is much larger by default
+  (Lamp's demo 640x256 against 346x227), OpenMUI's own Busy.mcc draws a thinner bar than MUI
+  3.8's Busy 2.4, and nine windows within 1-58 pixels (TinyMeterPrefs, NewsRog, the Lumi
+  programs, u64mui, HexEdit, TableGroup, HTMLtext, GIFAnim, TearOff). The `set(obj, ...)` inside
+  OM_NEW that broke BWin.mcc in Window also exists in Application, Group, List, Panelgroup,
+  Scale and the Popobject family (no program has failed on those yet). Details: "Compatibility
+  round 1" above.
 - Tested in emulators only (Amiberry headless since 2026-11-11, FS-UAE before and still
   selectable), not on real hardware; RTG only as uaegfx with Picasso96 3.6.3 in FS-UAE (rtgfix):
   headless Amiberry has no RTG modes. InstallerNG cannot be tested on Amiberry (it freezes it).

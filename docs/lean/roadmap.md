@@ -327,3 +327,13 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   counter-example is measured. Left: that, the Listviews window's column widths and assign image.
   Details in
   [README.md](README.md#the-leftovers-arexx-port-logos-listviews-group-spare-pixels-2026-11-10).
+- *2026-11-11 (branch `compat1`, compatibility round 1)*: the suite widened from 60 to 157 entries
+  (48 more programs chosen by Aminet's download counts and its 2026 uploads, Voyager 3.5.3 among
+  them, and a new group `mcc` with each third-party class's own demo: 49 demos from 35 archives),
+  all baselined on real MUI 3.8, real MUI 5 and OpenMUI. New programs: 36 of 48 as on MUI 3.8;
+  class demos 37 of 49, 39 after the fix. Fixed: Window's OM_NEW applied its tags through the
+  subclass's OM_SET (BWin.mcc's borderless window never opened). Open, ranked: Voyager's reset
+  after a close-gadget quit (memory list insane; ARexx QUIT clean), NFS-GUI ending with rc 20
+  before its window, the TipOfDay demo's title set after MUIM_Tip_Show, Coloradjust's default
+  size (Lamp demo), OpenMUI's own Busy.mcc look, and nine windows within 1-58 pixels. Details in
+  [README.md](README.md#compatibility-round-1-48-more-programs-49-class-demos-bwins-window-2026-11-11).
