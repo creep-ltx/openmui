@@ -42,7 +42,11 @@ static CONST_STRPTR const module_names[ZMOD_COUNT] = {
  * remembered. */
 static UBYTE module_failed[ZMOD_COUNT];
 
-APTR zune_module_get(ULONG which, Class **clp)
+/* Externally visible: zune_modcall below refers to these two by name from
+ * assembly, which link-time optimization cannot see (support_classes.c's
+ * builtinDraw for the same reason). */
+APTR __attribute__((used, externally_visible))
+zune_module_get(ULONG which, Class **clp)
 {
     struct Task *me;
     Class *cl;
@@ -69,7 +73,8 @@ APTR zune_module_get(ULONG which, Class **clp)
     return table;
 }
 
-void zune_module_put(Class *cl)
+void __attribute__((used, externally_visible))
+zune_module_put(Class *cl)
 {
     if (cl)
         MUI_FreeClass(cl);

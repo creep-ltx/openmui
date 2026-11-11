@@ -35,18 +35,25 @@ CPPFLAGS += -DNDEBUG -DMUIMASTER_YES_INLINE_STDARG= -DZUNE68_GCC_NATIVE \
   -DMUI_OBSOLETE -DMUIMASTER_LIBRARY_BUILD \
   -I$(BUILD)/include -I$(BUILD) -Igcc -Iinclude -I. -include include/clib/muimaster_protos.h -include lazylib.h \
   -include $(BUILD)/trace-config.h
-# LTO=1: link-time optimization makes the library about 20 KB (5%)
-# smaller at the same speed, but the m68k-amigaos linker (binutils 2.46)
-# then writes wrong values for most hunk symbols, which the linked checks,
-# postmortems and profilers rely on, so it is off by default. The link
-# keeps RomTag, which exec finds by scanning, not by reference.
+# LTO=1: link-time optimization of the library's own objects (off by
+# default). They are compiled to GIMPLE and optimized together in one
+# relocatable link ($(BUILD)/core-lto.o, -r -flinker-output=rel); the
+# final link of the library is an ordinary one, so the hunk symbols stay
+# right (an LTO final link with the m68k-amigaos linker, binutils 2.46,
+# writes most of them wrong). Functions are not inlined into their single
+# caller across files: that put whole helpers into the dispatchers and made
+# the deepest stack 600 bytes deeper. It is off because the vamos checks
+# (tests/check_*.py) trap library functions by name and LTO inlines some
+# of them into their callers, so `make check` cannot run on an LTO build
+# (docs/lean/README.md, "Toward the core"). Class files and modules are
+# linked without LTO (small links of their own).
 LTO ?= 0
 ifneq ($(LTO),0)
 ifneq ($(LTO),1)
 $(error LTO must be 0 or 1)
 endif
-LTO_CFLAGS = -flto
-LTO_LDFLAGS = -flto $(LIB_CFLAGS) -Wl,-u,_RomTag
+LTO_CFLAGS = -flto -fno-inline-functions-called-once
+LTO_LDFLAGS =
 endif
 # bebbo's GCC 6.5 (m68k-amigaos-gcc with -fbbb): its "i" pass turns
 # (a2) into (a2)+ and leaves the later offsets from a2 as they were, so
@@ -57,8 +64,10 @@ endif
 # changes no instruction in this library (docs/lean/compiler.md).
 BBB_CFLAGS := $(shell $(CC) -fbbb=abcefhlmnprsz0 -S -o /dev/null -x c /dev/null \
   2>/dev/null && echo -fbbb=abcefhlmnprsz0)
+# -fipa-pta: whole-unit points-to analysis; -324 bytes of library code, no
+# code shape changes (docs/lean/README.md, "Toward the core")
 LIB_CFLAGS = $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) $(BBB_CFLAGS) $(LTO_CFLAGS) \
-  -fno-common -fno-builtin -fno-strict-aliasing
+  -fno-common -fno-builtin -fno-strict-aliasing -fipa-pta
 # Class files and modules are compiled without LTO (small links of their own)
 CF_CFLAGS = $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS))
 # LTO objects only show their symbols to the nm with the LTO plugin
@@ -336,8 +345,9 @@ $(BUILD)/gates.c: $(BUILD)/muimaster.sfd
 $(BUILD)/gates.h: $(BUILD)/muimaster.sfd
 	$(SFDC) --quiet --target=m68k-amigaos --mode=gateproto --gateprefix=Gate_ --output=$@ $<
 
+# The gates stay a plain object: they are linked after the LTO step
 $(BUILD)/gates.o: $(BUILD)/gates.c $(GENERATED)
-	$(CC) $(CPPFLAGS) $(LIB_CFLAGS) -MMD -MP -c $< -o $@
+	$(CC) $(CPPFLAGS) $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS)) -MMD -MP -c $< -o $@
 
 $(BUILD)/%.o: %.c $(GENERATED)
 	@mkdir -p $(@D)
@@ -348,15 +358,25 @@ $(BUILD)/start.o: gcc/start.S
 	$(CC) $(CPUFLAGS) -c $< -o $@
 
 $(BUILD)/muimaster_lib.o: zunemaster_lib.c $(GENERATED)
-	$(CC) $(CPPFLAGS) $(LIB_CFLAGS) -I$(BUILD) -DMUIMASTER_DROPIN -MMD -MP -c $< -o $@
+	$(CC) $(CPPFLAGS) $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS)) -I$(BUILD) -DMUIMASTER_DROPIN -MMD -MP -c $< -o $@
 
 $(BUILD)/zunemaster_lib.o: zunemaster_lib.c $(GENERATED)
-	$(CC) $(CPPFLAGS) $(LIB_CFLAGS) -I$(BUILD) -MMD -MP -c $< -o $@
+	$(CC) $(CPPFLAGS) $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS)) -I$(BUILD) -MMD -MP -c $< -o $@
 
 # Keep start.o first regardless of the compiler's function ordering.
-$(BUILD)/%.library: $(BUILD)/start.o $(BUILD)/%_lib.o $(BUILD)/gates.o $(OBJECTS) \
-  $(BUILD)/cf/classtable.o
-	$(CC) $(CPUFLAGS) $(CRTFLAGS) -nostdlib $(LDFLAGS) $(LTO_LDFLAGS) \
+ifneq ($(LTO),0)
+# One relocatable link optimizes the library's objects together; only
+# objects compiled with -flto go in (with a plain object among them the
+# plugin merges the GIMPLE instead of compiling it). The gates and the
+# class table are compiled without LTO and linked after it.
+$(BUILD)/core-lto.o: $(OBJECTS)
+	$(CC) $(CPUFLAGS) $(CRTFLAGS) -nostdlib -r -flinker-output=rel $(LIB_CFLAGS) -o $@ $^
+LINK_OBJECTS = $(BUILD)/gates.o $(BUILD)/core-lto.o $(BUILD)/cf/classtable.o
+else
+LINK_OBJECTS = $(BUILD)/gates.o $(OBJECTS) $(BUILD)/cf/classtable.o
+endif
+$(BUILD)/%.library: $(BUILD)/start.o $(BUILD)/%_lib.o $(LINK_OBJECTS)
+	$(CC) $(CPUFLAGS) $(CRTFLAGS) -nostdlib $(LDFLAGS) \
 	  -Wl,-Map,$@.map -o $@ $^ $(LDLIBS)
 
 # Class files (classfile.h): which class is in which file, the class code
