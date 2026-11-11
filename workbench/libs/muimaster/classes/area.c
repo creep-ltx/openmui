@@ -1334,9 +1334,10 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 MADF2_KNOWSDISABLED);
             break;
 
-        case MUIA_FrameVisible:     /* MUI 4/5: in the module */
-        case MUIA_FrameDynamic:
-            zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
+        case MUIA_FrameVisible:     /* MUI 4/5: in the module; MUI 3.8 */
+        case MUIA_FrameDynamic:     /* does not know them */
+            if (!ZUNE_MUI38())
+                zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
             break;
 
         case MUIA_Draggable:
@@ -1657,9 +1658,10 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 MADF2_KNOWSDISABLED);
             break;
 
-        case MUIA_FrameVisible:     /* MUI 4/5: in the module */
-        case MUIA_FrameDynamic:
-            zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
+        case MUIA_FrameVisible:     /* MUI 4/5: in the module; MUI 3.8 */
+        case MUIA_FrameDynamic:     /* does not know them */
+            if (!ZUNE_MUI38())
+                zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
             break;
 
         case MUIA_Frame:
@@ -2051,8 +2053,10 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         STORE = !!(data->mad_Flags2 & MADF2_KNOWSDISABLED);
         return TRUE;
 
-    case MUIA_FrameVisible:     /* MUI 4/5: in the module */
-    case MUIA_FrameDynamic:
+    case MUIA_FrameVisible:     /* MUI 4/5: in the module; MUI 3.8 */
+    case MUIA_FrameDynamic:     /* does not know them */
+        if (ZUNE_MUI38())
+            break;
         return zune_area_mui45(obj, msg->opg_AttrID, 0, msg->opg_Storage);
 
     case MUIA_Draggable:
