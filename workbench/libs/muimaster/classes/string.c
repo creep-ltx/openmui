@@ -2602,6 +2602,15 @@ static ULONG String_KeyToTextinput(Object *obj, struct MUI_StringData *data,
     return Ti_Call(obj, data, method, 0);
 }
 
+/* The String's event handler with other events */
+static __attribute__((noinline)) void String_SetEvents(Object *obj,
+    struct MUI_StringData *data, ULONG events)
+{
+    DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR) &data->ehn);
+    data->ehn.ehn_Events = events;
+    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) &data->ehn);
+}
+
 /* An edit hook (MUIA_String_EditHook) sees the key or click as with
  * Intuition's SGWork: previous is the buffer before, oldpos/oldflags/
  * oldmark the state before. Frees previous; returns whether the contents
@@ -2908,11 +2917,8 @@ IPTR String__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
                     if (!(data->ehn.ehn_Events & IDCMP_MOUSEMOVE))
                     {
-                        DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                            (IPTR) & data->ehn);
-                        data->ehn.ehn_Events |= IDCMP_MOUSEMOVE;
-                        DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                            (IPTR) & data->ehn);
+                        String_SetEvents(obj, data,
+                            data->ehn.ehn_Events | IDCMP_MOUSEMOVE);
                     }
 
                     PrepareVisualBuffer(data);
@@ -3008,11 +3014,8 @@ IPTR String__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             {
                 if (data->ehn.ehn_Events & IDCMP_MOUSEMOVE)
                 {
-                    DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                        (IPTR) & data->ehn);
-                    data->ehn.ehn_Events &= ~IDCMP_MOUSEMOVE;
-                    DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                        (IPTR) & data->ehn);
+                    String_SetEvents(obj, data,
+                        data->ehn.ehn_Events & ~IDCMP_MOUSEMOVE);
                 }
             }
             break;
@@ -3254,9 +3257,7 @@ IPTR String__MUIM_GoActive(struct IClass *cl, Object *obj, Msg msg)
         (struct MUI_StringData *)INST_DATA(cl, obj);
 
     //D(bug("String_GoActive %p\n", obj));
-    DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR) & data->ehn);
-    data->ehn.ehn_Events = IDCMP_MOUSEBUTTONS | IDCMP_RAWKEY;
-    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) & data->ehn);
+    String_SetEvents(obj, data, IDCMP_MOUSEBUTTONS | IDCMP_RAWKEY);
     data->is_active = TRUE;
     data->msd_Flags &= ~MSDF_KEYMARKING;
     data->msd_RedrawReason = WENT_ACTIVE;
@@ -3277,9 +3278,7 @@ IPTR String__MUIM_GoInactive(struct IClass *cl, Object *obj, Msg msg)
 
     //D(bug("String_GoInactive %p\n", obj));
 
-    DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR) & data->ehn);
-    data->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;
-    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) & data->ehn);
+    String_SetEvents(obj, data, IDCMP_MOUSEBUTTONS);
     data->is_active = FALSE;
     data->msd_RedrawReason = WENT_INACTIVE;
     data->MultiClick = 0;
