@@ -113,7 +113,7 @@ CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   popscreen scale scrollgroup volumelist \
   fontpanel filepanel selectorpanel keyadjust title datamap textdata \
   selectgroup process dtpic register bitmap bodychunk chunkyimage \
-  settingsgroup settings \
+  settingsgroup settings aboutmui crawling \
   zmenu zpicture zdragdrop zrequest zgradient zwintitle zframes \
   zlist zmui45 zprefs
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
