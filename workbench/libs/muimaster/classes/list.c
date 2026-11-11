@@ -82,7 +82,7 @@ void zune_list_layout_columns(struct MUI_ListData *data)
     }
 }
 
-static LONG ParseColumnWidth(CONST_STRPTR value, BOOL *pixels)
+static LONG ParseColumnWidth(CONST_STRPTR value, UBYTE *pixels)
 {
     char *end;
     LONG width = strtol((const char *)value, &end, 10);
@@ -2632,6 +2632,40 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
 }
 
 
+/* The column bars from y to bottom, in the title (title TRUE) or beside
+ * the entries: MUI 3.9 draws shadow, then shine (tests/native/barfmt.c) */
+static void List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
+    LONG bottom, struct ListClip *clip, BOOL title)
+{
+    struct RastPort *rp = _rp(obj);
+    LONG x1 = _mleft(data->area) - data->horiz_first;
+
+    for (ULONG col = 0; col < data->columns; col++)
+    {
+        ULONG halfdelta = data->ci[col].delta / 2;
+        if (ColumnHidden(data, col)) continue;
+        x1 += ColumnWidth(data, col) + halfdelta;
+
+        if (x1 + (data->ci[col].bar ? BAR_WIDTH : 0) > _mright(data->area))
+            break;
+
+        if (data->ci[col].bar)
+        {
+            if (x1 < _mleft(data->area) || (!title && y > bottom))
+                List_NeedClip(obj, data, clip);
+            SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
+            Move(rp, x1, y);
+            Draw(rp, x1, bottom);
+            SetAPen(rp, _pens(obj)[MPEN_SHINE]);
+            Move(rp, x1 + 1, y);
+            Draw(rp, x1 + 1, bottom);
+
+            x1 += BAR_WIDTH;
+        }
+        x1 += data->ci[col].delta - halfdelta;
+    }
+}
+
 /**************************************************************************
  MUIM_Draw
 **************************************************************************/
@@ -2887,69 +2921,15 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         }
     }
 
-    LONG x1 = _mleft(data->area) - data->horiz_first;
-    ULONG col;
     y = _mtop(data->area);
 
     if (data->title_height && data->title)
     {
-        for (col = 0; col < data->columns; col++)
-        {
-            ULONG halfdelta = data->ci[col].delta / 2;
-            if (ColumnHidden(data, col)) continue;
-            x1 += ColumnWidth(data, col) + halfdelta;
-
-            if (x1 + (data->ci[col].bar ? BAR_WIDTH : 0) > _mright(data->area))
-                break;
-
-            if (data->ci[col].bar)
-            {
-                if (x1 < _mleft(data->area))
-                    List_NeedClip(obj, data, &clip);
-                /* MUI 3.9: shadow, then shine (tests/native/barfmt.c) */
-                SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-                Move(_rp(obj), x1, y);
-                Draw(_rp(obj), x1,
-                    y + data->entries[ENTRY_TITLE]->height - 1);
-                SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-                Move(_rp(obj), x1 + 1, y);
-                Draw(_rp(obj), x1 + 1,
-                    y + data->entries[ENTRY_TITLE]->height - 1);
-
-                x1 += BAR_WIDTH;
-            }
-            x1 += data->ci[col].delta - halfdelta;
-        }
+        List_DrawBars(obj, data, y,
+            y + data->entries[ENTRY_TITLE]->height - 1, &clip, TRUE);
         y += data->entries[ENTRY_TITLE]->height + 1;
     }
-
-    x1 = _mleft(data->area) - data->horiz_first;
-
-    for (col = 0; col < data->columns; col++)
-    {
-        ULONG halfdelta = data->ci[col].delta / 2;
-        if (ColumnHidden(data, col)) continue;
-        x1 += ColumnWidth(data, col) + halfdelta;
-
-        if (x1 + (data->ci[col].bar ? BAR_WIDTH : 0) > _mright(data->area))
-            break;
-
-        if (data->ci[col].bar)
-        {
-            if (x1 < _mleft(data->area) || y > entries_bottom)
-                List_NeedClip(obj, data, &clip);
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-            Move(_rp(obj), x1, y);
-            Draw(_rp(obj), x1, entries_bottom);
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-            Move(_rp(obj), x1 + 1, y);
-            Draw(_rp(obj), x1 + 1, entries_bottom);
-
-            x1 += BAR_WIDTH;
-        }
-
-        x1 += data->ci[col].delta - halfdelta;
-    }
+    List_DrawBars(obj, data, y, entries_bottom, &clip, FALSE);
 
     if (clip.done)
         MUI_RemoveClipping(muiRenderInfo(obj), clip.handle);
@@ -5072,6 +5052,8 @@ static IPTR ListSortEntries(struct IClass *cl, Object *obj, APTR *entries)
 
 BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
 {
+    IPTR (*method)(struct IClass *, Object *, APTR);
+
     switch (msg->MethodID)
     {
     case MUIM_FindAreaObject:
@@ -5089,86 +5071,48 @@ BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
         return ListEndEdit(cl, obj, ((struct MUIP_List_EndEdit *)msg)->mode, FALSE);
     case MUIM_List_CreateEditObject: return 0;
     case MUIM_List_EditDone: return TRUE;
-    case OM_NEW:
-        return List__OM_NEW(cl, obj, (struct opSet *)msg);
-    case OM_DISPOSE:
-        return List__OM_DISPOSE(cl, obj, msg);
-    case OM_SET:
-        return List__OM_SET(cl, obj, (struct opSet *)msg);
-    case OM_GET:
-        return List__OM_GET(cl, obj, (struct opGet *)msg);
-
-    case MUIM_Setup:
-        return List__MUIM_Setup(cl, obj, (struct MUIP_Setup *)msg);
-    case MUIM_Cleanup:
-        return List__MUIM_Cleanup(cl, obj, (struct MUIP_Cleanup *)msg);
-    case MUIM_HandleEvent:
-        return List__MUIM_HandleEvent(cl, obj, (struct MUIP_HandleEvent *)msg);
-    case MUIM_AskMinMax:
-        return List__MUIM_AskMinMax(cl, obj, (struct MUIP_AskMinMax *)msg);
-    case MUIM_Show:
-        return List__MUIM_Show(cl, obj, (struct MUIP_Show *)msg);
-    case MUIM_Hide:
-        return List__MUIM_Hide(cl, obj, (struct MUIP_Hide *)msg);
-    case MUIM_Draw:
-        return List__MUIM_Draw(cl, obj, (struct MUIP_Draw *)msg);
-    case MUIM_Zune_Layout:
-        return List__MUIM_Layout(cl, obj, (struct MUIP_Zune_Layout *)msg);
-    case MUIM_List_Clear:
-        return List__MUIM_Clear(cl, obj, (struct MUIP_List_Clear *)msg);
-    case MUIM_List_Sort:
-        return List__MUIM_Sort(cl, obj, (struct MUIP_List_Sort *)msg);
-    case MUIM_List_Exchange:
-        return List__MUIM_Exchange(cl, obj,
-            (struct MUIP_List_Exchange *)msg);
-    case MUIM_List_Insert:
-        return List__MUIM_Insert(cl, obj, (APTR) msg);
-    case MUIM_List_InsertSingle:
-        return List__MUIM_InsertSingle(cl, obj, (APTR) msg);
-    case MUIM_List_GetEntry:
-        return List__MUIM_GetEntry(cl, obj, (APTR) msg);
-    case MUIM_List_Redraw:
-        return List__MUIM_Redraw(cl, obj, (APTR) msg);
-    case MUIM_List_Remove:
-        return List__MUIM_Remove(cl, obj, (APTR) msg);
-    case MUIM_List_Select:
-        return List__MUIM_Select(cl, obj, (APTR) msg);
-    case MUIM_List_Construct:
-        return List__MUIM_Construct(cl, obj, (APTR) msg);
-    case MUIM_List_Destruct:
-        return List__MUIM_Destruct(cl, obj, (APTR) msg);
-    case MUIM_List_Compare:
-        return List__MUIM_Compare(cl, obj, (APTR) msg);
-    case MUIM_List_Display:
-        return List__MUIM_Display(cl, obj, (APTR) msg);
-    case MUIM_List_SelectChange:
-        return List__MUIM_SelectChange(cl, obj, (APTR) msg);
-    case MUIM_List_CreateImage:
-        return List__MUIM_CreateImage(cl, obj, (APTR) msg);
-    case MUIM_List_DeleteImage:
-        return List__MUIM_DeleteImage(cl, obj, (APTR) msg);
-    case MUIM_List_Jump:
-        return List__MUIM_Jump(cl, obj, (APTR) msg);
-    case MUIM_List_Move:
-        return List__MUIM_Move(cl, obj, (struct MUIP_List_Move *)msg);
-    case MUIM_List_NextSelected:
-        return List__MUIM_NextSelected(cl, obj,
-           (struct MUIP_List_NextSelected *)msg);
-    case MUIM_List_TestPos:
-        return List__MUIM_TestPos(cl, obj, (APTR) msg);
-    case MUIM_DragQuery:
-        return List__MUIM_DragQuery(cl, obj, (APTR) msg);
-    case MUIM_DragFinish:
-        return List__MUIM_DragFinish(cl, obj, (APTR) msg);
-    case MUIM_DragReport:
-        return zune_list_drag_report(cl, obj, (APTR) msg);
-    case MUIM_DragDrop:
-        return zune_list_drag_drop(cl, obj, (APTR) msg);
-    case MUIM_CreateDragImage:
-        return zune_list_create_drag_image(cl, obj, (APTR) msg);
+    case OM_NEW: method = (APTR)List__OM_NEW; break;
+    case OM_DISPOSE: method = (APTR)List__OM_DISPOSE; break;
+    case OM_SET: method = (APTR)List__OM_SET; break;
+    case OM_GET: method = (APTR)List__OM_GET; break;
+    case MUIM_Setup: method = (APTR)List__MUIM_Setup; break;
+    case MUIM_Cleanup: method = (APTR)List__MUIM_Cleanup; break;
+    case MUIM_HandleEvent: method = (APTR)List__MUIM_HandleEvent; break;
+    case MUIM_AskMinMax: method = (APTR)List__MUIM_AskMinMax; break;
+    case MUIM_Show: method = (APTR)List__MUIM_Show; break;
+    case MUIM_Hide: method = (APTR)List__MUIM_Hide; break;
+    case MUIM_Draw: method = (APTR)List__MUIM_Draw; break;
+    case MUIM_Zune_Layout: method = (APTR)List__MUIM_Layout; break;
+    case MUIM_List_Clear: method = (APTR)List__MUIM_Clear; break;
+    case MUIM_List_Sort: method = (APTR)List__MUIM_Sort; break;
+    case MUIM_List_Exchange: method = (APTR)List__MUIM_Exchange; break;
+    case MUIM_List_Insert: method = (APTR)List__MUIM_Insert; break;
+    case MUIM_List_InsertSingle: method = (APTR)List__MUIM_InsertSingle; break;
+    case MUIM_List_GetEntry: method = (APTR)List__MUIM_GetEntry; break;
+    case MUIM_List_Redraw: method = (APTR)List__MUIM_Redraw; break;
+    case MUIM_List_Remove: method = (APTR)List__MUIM_Remove; break;
+    case MUIM_List_Select: method = (APTR)List__MUIM_Select; break;
+    case MUIM_List_Construct: method = (APTR)List__MUIM_Construct; break;
+    case MUIM_List_Destruct: method = (APTR)List__MUIM_Destruct; break;
+    case MUIM_List_Compare: method = (APTR)List__MUIM_Compare; break;
+    case MUIM_List_Display: method = (APTR)List__MUIM_Display; break;
+    case MUIM_List_SelectChange: method = (APTR)List__MUIM_SelectChange; break;
+    case MUIM_List_CreateImage: method = (APTR)List__MUIM_CreateImage; break;
+    case MUIM_List_DeleteImage: method = (APTR)List__MUIM_DeleteImage; break;
+    case MUIM_List_Jump: method = (APTR)List__MUIM_Jump; break;
+    case MUIM_List_Move: method = (APTR)List__MUIM_Move; break;
+    case MUIM_List_NextSelected: method = (APTR)List__MUIM_NextSelected; break;
+    case MUIM_List_TestPos: method = (APTR)List__MUIM_TestPos; break;
+    case MUIM_DragQuery: method = (APTR)List__MUIM_DragQuery; break;
+    case MUIM_DragFinish: method = (APTR)List__MUIM_DragFinish; break;
+    case MUIM_DragReport: method = (APTR)zune_list_drag_report; break;
+    case MUIM_DragDrop: method = (APTR)zune_list_drag_drop; break;
+    case MUIM_CreateDragImage: method = (APTR)zune_list_create_drag_image; break;
+    default:
+        return DoSuperMethodA(cl, obj, (Msg)msg);
     }
-
-    return DoSuperMethodA(cl, obj, (Msg)msg);
+    /* one call for all: each case only picks its function */
+    return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 

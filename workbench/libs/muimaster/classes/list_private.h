@@ -67,11 +67,15 @@ struct ColumnInfo
     int bar;
     STRPTR preparse;
     int entries_width; /* width of the entries (maximum of all widths) */
-    BOOL hidden, sortable, descending;
+    UBYTE hidden, sortable, descending;
     int order_id;
-    BOOL min_pixels, max_pixels, is_object, layout_hidden;
+    UBYTE min_pixels, max_pixels, is_object, layout_hidden;
     LONG elide, layout_width, layout_max;
+    UBYTE pad[4];
 };
+/* 64 bytes: data->ci[col] is a shift (it was 66 bytes: a shift, an add
+ * and a doubling at each of the ~110 places that index it) */
+_Static_assert(sizeof(struct ColumnInfo) == 64, "ColumnInfo is 64 bytes");
 
 struct MUI_ImageSpec_intern;
 
