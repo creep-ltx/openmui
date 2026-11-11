@@ -41,6 +41,7 @@ extern struct Library *MUIMasterBase;
 #include "support.h"
 #include "textengine.h"
 #include "support_classes.h"
+#include "modules.h"
 
 //  #define MYDEBUG 1
 #include "debug.h"
@@ -1333,14 +1334,9 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 MADF2_KNOWSDISABLED);
             break;
 
-        case MUIA_FrameVisible:
-            _handle_bool_tag(data->mad_Flags2, !tag->ti_Data,
-                MADF2_FRAMEHIDDEN);
-            break;
-
+        case MUIA_FrameVisible:     /* MUI 4/5: in the module */
         case MUIA_FrameDynamic:
-            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
-                MADF2_FRAMEDYNAMIC);
+            zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
             break;
 
         case MUIA_Draggable:
@@ -1661,16 +1657,9 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 MADF2_KNOWSDISABLED);
             break;
 
-        case MUIA_FrameVisible:
-            _handle_bool_tag(data->mad_Flags2, !tag->ti_Data,
-                MADF2_FRAMEHIDDEN);
-            if (_flags(obj) & MADF_CANDRAW)
-                MUI_Redraw(obj, MADF_DRAWOBJECT | MADF_DRAWFRAME);
-            break;
-
+        case MUIA_FrameVisible:     /* MUI 4/5: in the module */
         case MUIA_FrameDynamic:
-            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
-                MADF2_FRAMEDYNAMIC);
+            zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
             break;
 
         case MUIA_Frame:
@@ -2062,13 +2051,9 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         STORE = !!(data->mad_Flags2 & MADF2_KNOWSDISABLED);
         return TRUE;
 
-    case MUIA_FrameVisible:
-        STORE = !(data->mad_Flags2 & MADF2_FRAMEHIDDEN);
-        return TRUE;
-
+    case MUIA_FrameVisible:     /* MUI 4/5: in the module */
     case MUIA_FrameDynamic:
-        STORE = !!(data->mad_Flags2 & MADF2_FRAMEDYNAMIC);
-        return TRUE;
+        return zune_area_mui45(obj, msg->opg_AttrID, 0, msg->opg_Storage);
 
     case MUIA_Draggable:
         STORE = !!(data->mad_Flags & MADF_DRAGGABLE);

@@ -28,13 +28,20 @@
 #define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
 #define MUIC_Zframes    "Zframes.zmod"      /* Zframes.mui: frame_round.c */
 #define MUIC_Zlist      "Zlist.zmod"        /* Zlist.mui: listx.c */
+#define MUIC_Zmui45     "Zmui45.zmod"       /* Zmui45.mui: mui45.c */
 
-enum
-{
-    ZMOD_MENU, ZMOD_PICTURE, ZMOD_DRAGDROP, ZMOD_REQUEST, ZMOD_GRADIENT,
-    ZMOD_WINTITLE, ZMOD_FRAMES, ZMOD_LIST,
-    ZMOD_COUNT
-};
+/* Numbers, not an enum: modules.c's call stubs give them to the
+ * assembler */
+#define ZMOD_MENU 0
+#define ZMOD_PICTURE 1
+#define ZMOD_DRAGDROP 2
+#define ZMOD_REQUEST 3
+#define ZMOD_GRADIENT 4
+#define ZMOD_WINTITLE 5
+#define ZMOD_FRAMES 6
+#define ZMOD_LIST 7
+#define ZMOD_MUI45 8
+#define ZMOD_COUNT 9
 
 /* The only method of a module class; answered with no object */
 #define MUIM_ZuneModule_Get 0xDA4D0001
@@ -196,6 +203,15 @@ struct ZuneListModule
         struct MUIP_CreateDragImage *);
     void (*draw_sort_mark)(Object *, struct MUI_ListData *, LONG, LONG, LONG);
 };
+
+/* MUI 4/5 attributes of the core classes that MUI 3 programs never use
+ * (mui45.c). area: Area's MUIA_FrameVisible and MUIA_FrameDynamic; with
+ * store set, OM_GET (TRUE when answered), else OM_NEW/OM_SET of value. */
+struct ZuneMui45Module
+{
+    IPTR (*area)(Object *, ULONG, IPTR, IPTR *);
+};
+IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
 
 /* In a module built as a file: take the library bases over again before
  * code that reads CyberGfxBase, which the library opens at the first
