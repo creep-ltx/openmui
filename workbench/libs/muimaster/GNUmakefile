@@ -176,7 +176,7 @@ include ../../../tools/flags.mk
 # Programs compiled and linked in one step write their header dependencies here.
 PROGRAM_DEPS = -MMD -MP -MF $@.d -MT $@
 all: core $(BUILD)/compatcheck
-core: $(BUILD)/muimaster.library $(BUILD)/zunemaster.library $(BUILD)/opentest \
+core: $(BUILD)/muimaster.library $(BUILD)/opentest \
   $(CF_FILES)
 
 release: all
@@ -242,76 +242,76 @@ check-core:
 	$(MAKE) check-core CLASSFILES= BUILD=$(BUILD)/check-builtin
 else
 check-core: $(BUILD)/list-repaint-probe $(BUILD)/config-init-probe $(MUI5_PROBE_BINS) $(BUILD)/mui5-version_gate-probe core $(BUILD)/compatcheck $(BUILD)/mui5-layout-probe $(BUILD)/mui5-pointer-probe
-	$(PYTHON) ../../../tests/check_native_init.py $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	$(PYTHON) ../../../tests/check_native_init.py $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_gcc_library.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_class_lifetime.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_window_disposal.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_window_pens.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_window_lifecycle.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_window_handlers.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_coloradjust.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_colorfield.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_penspec.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_disabled_paint.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_floattext.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_ztext_compact.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	ZUNE68_TEST_MUI5=$(MUI5_TEST) $(PYTHON) ../../../tests/check_notifications.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_config_items.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_mui38_import.py
 	$(PYTHON) ../../../tests/check_custom_backfill.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_application_services.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_application_disposal.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_application_reopen.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_inputhandler.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_group_parent.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_dynamic_layout.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_pointer.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_layout_vectors.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_virtual_notify.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_area_live.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_virtual_scroll.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_resources.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_clipping.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_textengine.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_textdata.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_numeric.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_string_selection.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_list_sort.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_trace.py \
-	  $(BUILD)/zunemaster.library $(BUILD)/muimaster.library
+	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_release.py
 	$(PYTHON) ../../../tests/check_opentest_stack.py $(BUILD)/opentest $(BUILD)/compatcheck
 endif
@@ -343,7 +343,7 @@ $(BUILD)/include/libraries/mui.h: $(BUILD)/buildincludes $(wildcard *.h classes/
 	mv $@.tmp $@
 
 # Old SFD typedef hints are names, not complete C typedef declarations.
-$(BUILD)/muimaster.sfd: zunemaster_lib.sfd
+$(BUILD)/muimaster.sfd: muimaster_lib.sfd
 	@mkdir -p $(@D)
 	sed '/^==typedef /d' $< > $@
 
@@ -389,10 +389,7 @@ $(BUILD)/start.o: gcc/start.S
 	@mkdir -p $(@D)
 	$(CC) $(CPUFLAGS) -c $< -o $@
 
-$(BUILD)/muimaster_lib.o: zunemaster_lib.c $(GENERATED)
-	$(CC) $(CPPFLAGS) $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS)) -I$(BUILD) -DMUIMASTER_DROPIN -MMD -MP -c $< -o $@
-
-$(BUILD)/zunemaster_lib.o: zunemaster_lib.c $(GENERATED)
+$(BUILD)/muimaster_lib.o: muimaster_lib.c $(GENERATED)
 	$(CC) $(CPPFLAGS) $(filter-out $(LTO_CFLAGS),$(LIB_CFLAGS)) -I$(BUILD) -MMD -MP -c $< -o $@
 
 # Keep start.o first regardless of the compiler's function ordering.
@@ -456,13 +453,13 @@ PROGRAMS = $(BUILD)/opentest $(BUILD)/compatcheck $(BUILD)/mui5-layout-probe \
   $(BUILD)/mui5-pointer-probe $(MUI5_PROBE_BINS) $(BUILD)/mui5-version_gate-probe \
   $(BUILD)/list-repaint-probe $(BUILD)/config-init-probe
 $(OBJECTS) $(BUILD)/start.o $(BUILD)/gates.o $(BUILD)/muimaster_lib.o \
-  $(BUILD)/zunemaster_lib.o $(PROGRAMS): GNUmakefile $(BUILD)/cflags
+  $(PROGRAMS): GNUmakefile $(BUILD)/cflags
 
 clean:
 	rm -rf $(BUILD)
 
 -include $(OBJECTS:.o=.d) $(CF_OBJECTS:.o=.d) $(BUILD)/gates.d \
-  $(BUILD)/muimaster_lib.d $(BUILD)/zunemaster_lib.d $(PROGRAMS:=.d)
+  $(BUILD)/muimaster_lib.d $(PROGRAMS:=.d)
 
 include ../../../tools/components.mk
 

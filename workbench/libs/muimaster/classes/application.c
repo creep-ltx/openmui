@@ -4736,7 +4736,7 @@ IPTR zune_deep_call(Object *app, ZuneDeepFunc fn, struct IClass *cl,
 #endif
 
 /**************************************************************************
- MUI's application list object (private LVO -264, zunemaster_lib.c)
+ MUI's application list object (private LVO -264, muimaster_lib.c)
 
  MUI 3.8 and MUI 5 return from their private library function at LVO -264
  one global object: a subclass of Semaphore.mui (MUI 5 names it

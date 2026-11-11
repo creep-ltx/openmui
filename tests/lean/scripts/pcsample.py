@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pcsample.py SAMPLEFILE PROGRAM LIBRARY CLASSDIR [top]: report a tests/lean/pcsample.c run.
 
-PROGRAM, LIBRARY: the unstripped files that were run (zunemaster/muimaster.library with
+PROGRAM, LIBRARY: the unstripped files that were run (muimaster.library with
 symbols); CLASSDIR: the build's Zune/ class files (cfNN in the sample file = the NNth
 name in classfiles.h, which must sit next to LIBRARY). Prints a flat profile (where the
 PC was) and an inclusive one (functions of the program/library/class files found on the
@@ -28,7 +28,7 @@ def main():
     symcache = {}
     def symfile(seg):
         if seg == "program": return prog
-        if seg in ("muimaster.library", "zunemaster.library"): return lib
+        if seg == "muimaster.library": return lib
         mcc = os.path.join(os.path.dirname(lib), "Libs", "MUI", seg)
         if os.path.exists(mcc): return mcc
         if seg.startswith("cf"): return os.path.join(cdir, names[int(seg[2:])])
@@ -65,7 +65,7 @@ def main():
             j = bisect.bisect_right([x[0] for x in s], off) - 1
             nm = s[j][1] if j >= 0 else "?"
             label = seg if not seg.startswith("cf") else names[int(seg[2:])]
-            return "%s:%s" % (label if seg != "zunemaster.library" else "lib", nm)
+            return "%s:%s" % (label, nm)
         if strict: return None
         if 0xF80000 <= a < 0x1000000: return "ROM:%05x" % ((a - 0xF80000) & ~0xff)
         best = None

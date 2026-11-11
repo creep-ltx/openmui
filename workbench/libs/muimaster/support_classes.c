@@ -621,16 +621,16 @@ static classfile_queryfn classfile_find_query(BPTR seglist)
     return (classfile_queryfn)funcs[5];
 }
 
-/* Called under ZuneSemaphore. Each library base loads its own copy of a
- * class file with LoadSeg, not OpenLibrary: the class code keeps the
- * library bases and the jump table of the library it serves in its own
- * globals, so muimaster.library and zunemaster.library (or two builds)
- * in memory at once each need their copy. With one library in memory
- * this is the same single copy OpenLibrary would load, without its
- * library base; nothing is ever shared by name in the library list, so
- * a real MUI .mui of the same name can never be taken for it. The copy
- * stays until the library's expunge has freed its classes
- * (ZUNE_CloseClassFiles). */
+/* Called under ZuneSemaphore. The library loads its own copy of a class
+ * file with LoadSeg, not OpenLibrary: the class code keeps the library
+ * bases and the jump table of the library it serves in its own globals,
+ * so a copy belongs to one library (once needed because muimaster.library
+ * and zunemaster.library could be in memory at once; still so for a test
+ * build beside the installed one). It is the same single copy
+ * OpenLibrary would load, without a library base of its own; nothing is
+ * ever shared by name in the library list, so a real MUI .mui of the
+ * same name can never be taken for it. The copy stays until the
+ * library's expunge has freed its classes (ZUNE_CloseClassFiles). */
 const struct __MUIBuiltinClass *ZUNE_LoadClassFile(CONST_STRPTR classid,
     struct Library *MUIMasterBase)
 {

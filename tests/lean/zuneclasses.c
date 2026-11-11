@@ -21,7 +21,7 @@ struct ExternalClass        /* as in support_classes.c */
 
 int main(int argc, char **argv)
 {
-    CONST_STRPTR name = argc > 1 ? argv[1] : "zunemaster.library";
+    CONST_STRPTR name = argc > 1 ? argv[1] : "muimaster.library";
     struct MUIMasterBase_intern *base;
     struct Node *n;
     struct ExternalClass *ec;

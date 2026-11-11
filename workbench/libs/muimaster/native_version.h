@@ -35,8 +35,9 @@
  * It must contain "OpenMUI": OpenMUI prefs, OpenMUISwitch and the tests
  * look for it in the library's id string to tell it from a real MUI
  * (earlier editions said "Zune68k lean"; OpenMUISwitch knows those too).
- * The file names muimaster.library and zunemaster.library, the version
- * numbers above and LIBS:Zune, ENV:Zune, ENVARC:Zune stay as they are. */
+ * The file name muimaster.library (the one library: zunemaster.library,
+ * the same library under a second name, is gone), the version numbers
+ * above and LIBS:Zune, ENV:Zune, ENVARC:Zune stay as they are. */
 #define ZUNE68_EDITION_NUMBER "0.1b1"
 #define ZUNE68_EDITION "OpenMUI " ZUNE68_EDITION_NUMBER
 #define ZUNE68_STRINGIFY_(x) #x

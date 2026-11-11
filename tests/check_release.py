@@ -40,18 +40,6 @@ class ReleaseTests(unittest.TestCase):
         (self.build / name).write_bytes(header + code + symbols +
                                        struct.pack('>3I', 0, 0, 1010))
 
-    def test_mismatched_versions(self):
-        self.library('muimaster.library', '35.4')
-        with self.assertRaisesRegex(ValueError, 'versions differ'):
-            release.release(self.build, self.output, 'lha', full=False)
-        self.assertEqual(list(self.output.iterdir()), [])
-
-    def test_mismatched_dates(self):
-        self.library('muimaster.library', '35.6', date='11.10.2026')
-        with self.assertRaisesRegex(ValueError, 'versions differ'):
-            release.release(self.build, self.output, 'lha', full=False)
-        self.assertEqual(list(self.output.iterdir()), [])
-
     def test_missing_date(self):
         self.library('muimaster.library', '35.6', date='test')
         with self.assertRaisesRegex(ValueError, 'matching'):
@@ -114,10 +102,22 @@ class ReleaseTests(unittest.TestCase):
             release.release(self.build, self.output, 'lha', full=False)
 
     def test_wrong_library_name(self):
-        shutil.copyfile(self.build / 'muimaster.library',
-                        self.build / 'zunemaster.library')
+        self.library('muimaster.library', '35.6')
+        (self.build / 'muimaster.library').write_bytes(
+            (self.build / 'muimaster.library').read_bytes().replace(
+                b'$VER: muimaster.library', b'$VER: zunemaster.library'))
         with self.assertRaisesRegex(ValueError, 'matching'):
             release.release(self.build, self.output, 'lha', full=False)
+
+    def test_one_library(self):
+        """OpenMUI ships muimaster.library only (zunemaster.library is gone),
+        even when an old build directory still has a zunemaster.library."""
+        shutil.copyfile(self.build / 'muimaster.library',
+                        self.build / 'zunemaster.library')
+        archive = release.release(self.build, self.output, 'lha', full=False)
+        listing = subprocess.check_output(['lha', 'l', str(archive)]).decode('latin1')
+        self.assertIn('OpenMUI/Libs/muimaster.library', listing)
+        self.assertNotIn('zunemaster', listing)
 
     def test_missing_tool(self):
         with self.assertRaisesRegex(ValueError, 'archiver not found'):

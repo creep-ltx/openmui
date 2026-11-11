@@ -6,10 +6,11 @@
  * Vector 5 (-30) is the usual MCC_Query and returns NULL: this is not a
  * custom class. Vector 6 (-36) gives muimaster.library a class description
  * by name, once the library's interface has been checked.
- * The library does not OpenLibrary the file: each library base LoadSegs a
- * private copy and calls vector 6 through the Resident tag's function
- * table (support_classes.c), because the globals below (bases, jump
- * table) belong to one library. The library vectors stay so that the file
+ * The library does not OpenLibrary the file: it LoadSegs a private copy
+ * and calls vector 6 through the Resident tag's function table
+ * (support_classes.c), because the globals below (bases, jump table)
+ * belong to one library, and so that no .mui of the same name in the
+ * library list (a real MUI's) is ever taken for it. The library vectors stay so that the file
  * is still a well-formed library (version, the id string).
  */
 #include <exec/resident.h>

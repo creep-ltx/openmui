@@ -80,16 +80,11 @@ int main(int argc, char **argv)
     }
     printf("exited; deepest %lu bytes\n", worst);
     {
-        static const char *names[] = { "muimaster.library", "zunemaster.library" };
-        int k;
-        for (k = 0; k < 2; k++)
-        {
-            Forbid();
-            lb = (struct Library *)FindName(&SysBase->LibList, (STRPTR)names[k]);
-            if (lb) printf("%s base %08lx lvo30 %08lx\n", names[k], (ULONG)lb,
-                *(UWORD *)((char *)lb - 30) == 0x4EF9 ? *(ULONG *)((char *)lb - 28) : 0);
-            Permit();
-        }
+        Forbid();
+        lb = (struct Library *)FindName(&SysBase->LibList, (STRPTR)"muimaster.library");
+        if (lb) printf("muimaster.library base %08lx lvo30 %08lx\n", (ULONG)lb,
+            *(UWORD *)((char *)lb - 30) == 0x4EF9 ? *(ULONG *)((char *)lb - 28) : 0);
+        Permit();
     }
     for (i = 0; i < 12000; i++)
         if (dump[i] >= 0x1000 && dump[i] < 0x1000000 && !(dump[i] & 1))

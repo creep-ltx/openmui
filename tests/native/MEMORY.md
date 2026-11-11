@@ -9,8 +9,8 @@ Bytes at `bfce5ee1`, GCC 16.2, `-Os`, `TRACE=0`:
 | Default (21.227) | 413,252 | 386,816 | 676 | 3,160 |
 | `MUI5_TEST=0` (19.81) | 413,208 | 386,772 | 676 | 3,160 |
 
-`muimaster.library` and `zunemaster.library` are complete libraries, so
-loading both names does not share code. Strip a copy for the file size and
+(Builds before 2026-11-11 also made `zunemaster.library`, the same library
+under a second name; loading both names shared no code.) Strip a copy for the file size and
 read the segment lengths from the Hunk image.
 
 ## Object and window cost

@@ -35,7 +35,7 @@
  * name, or the task name of a program started from Workbench), without
  * its path, compared without case. Read when the library is loaded and
  * when Zune prefs saves or uses its settings (the library's reserved
- * vector, LibReserved in zunemaster_lib.c): Open runs under Forbid and
+ * vector, LibReserved in muimaster_lib.c): Open runs under Forbid and
  * must not use DOS. */
 #include <proto/exec.h>
 #include <proto/dos.h>

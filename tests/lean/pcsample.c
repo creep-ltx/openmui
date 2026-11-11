@@ -5,7 +5,7 @@
  * 68020 without FPU: the first long at tc_SPReg) and the next 48 stack longs
  * are kept. At the end (task gone, Ctrl-C or SECONDS) FILE gets:
  *   SEG <name> <hunk> <start> <bytes>   hunks of the task's program,
- *                                       muimaster/zunemaster and their class files
+ *                                       muimaster.library and its class files
  *   LIB <name> <lowest> <highest>       jump-table targets of every library
  *   S <pc> <tick> <stack longs...>      one line per sample (tick: 20 ms each)
  * tests/lean/scripts/pcsample.py maps it to functions with the link maps.
@@ -137,7 +137,7 @@ int main(void)
             struct Library *l = (struct Library *)n;
             UWORD *v;
             ULONG lo = ~0UL, hi = 0;
-            if (!strcmp(n->ln_Name, "muimaster.library") || !strcmp(n->ln_Name, "zunemaster.library"))
+            if (!strcmp(n->ln_Name, "muimaster.library"))
             {
                 BPTR *cf = (BPTR *)((UBYTE *)l + OFF_CLASSFILES);
                 segs(n->ln_Name, *(BPTR *)((UBYTE *)l + OFF_SEGLIST));
@@ -160,7 +160,7 @@ int main(void)
             /* a class library's seglist: right after struct Library in
              * mccinit.c (offset 36) or nearby; taken if its first hunk
              * holds the jump table's targets */
-            if (hi && strcmp(n->ln_Name, "muimaster.library") && strcmp(n->ln_Name, "zunemaster.library")
+            if (hi && strcmp(n->ln_Name, "muimaster.library")
                 && (ULONG)l->lib_PosSize >= 44 && TypeOfMem(l))
             {
                 WORD o;
