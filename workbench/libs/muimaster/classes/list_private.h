@@ -259,5 +259,19 @@ IPTR zune_list_create_drag_image(struct IClass *cl, Object *obj,
     struct MUIP_CreateDragImage *msg);
 void zune_list_draw_sort_mark(Object *obj, struct MUI_ListData *data,
     LONG x1, LONG y, LONG h);
+/* listx.c too: what only lists of programs that get MUI 4/5 use. The
+ * horizontal scroller and the title buttons (MUI 3.9) are made or shown
+ * only for those; ISOBJECT cells and MUIA_List_ColumnOrder are MUI 5's. */
+BOOL zune_list_column_order(struct MUI_ListData *data, const UBYTE *order);
+LONG zune_list_cell_dims(Object *obj, struct MUI_ListData *data,
+    struct ListEntry *entry, LONG j);
+void zune_list_draw_cell(Object *list, Object *cell, LONG left, LONG top,
+    LONG width, LONG height);
+void zune_list_layout_horiz(Object *obj, struct MUI_ListData *data,
+    LONG left, LONG top, LONG width, LONG height);
+void zune_list_check_horiz(Object *obj, struct MUI_ListData *data);
+APTR zune_list_draw_title_strip(Object *obj, struct MUI_ListData *data);
+/* list.c, for the module: the columns' widths for the area's width */
+void zune_list_layout_columns(struct MUI_ListData *data);
 
 #endif

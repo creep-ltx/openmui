@@ -247,6 +247,18 @@ ZMC_CHECK(ZuneWintitleModule, scrollwrap, 8);
 #define ZMC_OFS_ZuneListModule_drag_drop 16
 #define ZMC_OFS_ZuneListModule_create_drag_image 20
 #define ZMC_OFS_ZuneListModule_draw_sort_mark 24
+#define ZMC_OFS_ZuneListModule_column_order 28
+#define ZMC_OFS_ZuneListModule_cell_dims 32
+#define ZMC_OFS_ZuneListModule_draw_cell 36
+#define ZMC_OFS_ZuneListModule_layout_horiz 40
+#define ZMC_OFS_ZuneListModule_check_horiz 44
+#define ZMC_OFS_ZuneListModule_draw_title_strip 48
+ZMC_CHECK(ZuneListModule, column_order, 28);
+ZMC_CHECK(ZuneListModule, cell_dims, 32);
+ZMC_CHECK(ZuneListModule, draw_cell, 36);
+ZMC_CHECK(ZuneListModule, layout_horiz, 40);
+ZMC_CHECK(ZuneListModule, check_horiz, 44);
+ZMC_CHECK(ZuneListModule, draw_title_strip, 48);
 ZMC_CHECK(ZuneListModule, edit, 0);
 ZMC_CHECK(ZuneListModule, end_edit, 4);
 ZMC_CHECK(ZuneListModule, layout_editor, 8);
@@ -472,6 +484,17 @@ ZMC(zune_list_create_drag_image, ZMOD_LIST, ZuneListModule,
     create_drag_image, 3, 0);
 ZMC(zune_list_draw_sort_mark, ZMOD_LIST, ZuneListModule, draw_sort_mark, 5,
     0);
+/* What only lists of programs that get MUI 4/5 use (classes/list_private.h).
+ * Without the module: no column order, ISOBJECT cells take no room and
+ * are not drawn, no horizontal scroller is shown, the title strip is not
+ * drawn (its row is, without a clip). */
+ZMC(zune_list_column_order, ZMOD_LIST, ZuneListModule, column_order, 2, 0);
+ZMC(zune_list_cell_dims, ZMOD_LIST, ZuneListModule, cell_dims, 4, 0);
+ZMC(zune_list_draw_cell, ZMOD_LIST, ZuneListModule, draw_cell, 6, 0);
+ZMC(zune_list_layout_horiz, ZMOD_LIST, ZuneListModule, layout_horiz, 6, 0);
+ZMC(zune_list_check_horiz, ZMOD_LIST, ZuneListModule, check_horiz, 2, 0);
+ZMC(zune_list_draw_title_strip, ZMOD_LIST, ZuneListModule,
+    draw_title_strip, 2, -1);
 
 /* MUI 4/5 attributes of the core classes (mui45.c): only programs that
  * use them call these */

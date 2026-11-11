@@ -36,7 +36,7 @@ extern struct Library *MUIMasterBase;
 
 /* Keep natural text widths separate from the current allocation. Resizing
  * can shrink and grow columns without measuring every entry again. */
-static void LayoutColumns(struct MUI_ListData *data)
+void zune_list_layout_columns(struct MUI_ListData *data)
 {
     LONG available, used = 0, last = -1, extra;
     if (!data->format_layout || !data->area) return;
@@ -827,41 +827,6 @@ static void MapColumns(struct MUI_ListData *data)
     memcpy(data->strings, data->mapped_strings, data->columns * sizeof(STRPTR));
     memcpy(data->preparses, data->mapped_strings + data->columns, data->columns * sizeof(STRPTR));
 }
-static BOOL SetColumnOrder(struct MUI_ListData *data, const UBYTE *order)
-{
-    struct ColumnInfo *columns;
-    if (!order || data->columns > 256) return FALSE;
-    for (LONG i = 0; i < data->columns; i++)
-    {
-        if (order[i] >= data->columns) return FALSE;
-        for (LONG j = 0; j < i; j++)
-            if (order[i] == order[j]) return FALSE;
-    }
-    columns = AllocVec(data->columns * sizeof(*columns), MEMF_ANY);
-    if (!columns) return FALSE;
-    if (!data->mapped_strings)
-        data->mapped_strings = AllocVec(2 * data->columns * sizeof(STRPTR), MEMF_ANY);
-    if (!data->mapped_strings) { FreeVec(columns); return FALSE; }
-    memcpy(columns, data->ci, data->columns * sizeof(*columns));
-    for (LONG i = 0; i < data->columns; i++)
-        for (LONG j = 0; j < data->columns; j++)
-            if (columns[j].order_id == order[i])
-            {
-                /* The format describes physical column widths. Reorder
-                 * the logical contents and their display properties. */
-                data->ci[i].colno = columns[j].colno;
-                data->ci[i].order_id = columns[j].order_id;
-                data->ci[i].preparse = columns[j].preparse;
-                data->ci[i].hidden = columns[j].hidden;
-                data->ci[i].is_object = columns[j].is_object;
-                data->ci[i].sortable = columns[j].sortable;
-                data->ci[i].descending = columns[j].descending;
-                data->ci[i].elide = columns[j].elide;
-                break;
-            }
-    FreeVec(columns);
-    return TRUE;
-}
 
 /**************************************************************************
  Call the MUIM_List_Display for the given entry. It fills out
@@ -912,56 +877,6 @@ static void DisplayEntry(struct IClass *cl, Object *obj, int entry_pos)
     MapColumns(data);
 }
 
-/* ISOBJECT cells borrow application objects. Balance temporary setup and
- * parent connections before the entry's destructor can release them. This
- * also permits an object to be reused in several rows without duplicate
- * cleanup/disposal ownership. */
-static ULONG BeginCellObject(Object *list, Object *cell, struct MUI_MinMax *mm)
-{
-    ULONG state = 4;
-    if (!cell) return 0;
-    if (_parent(cell) && _parent(cell) != list) return 0;
-    if (!_parent(cell))
-    { DoMethod(cell, MUIM_ConnectParent, list); state |= 1; }
-    if (!(_flags(cell) & MADF_SETUP))
-    {
-        if (!DoSetupMethod(cell, muiRenderInfo(list)))
-        { if (state & 1) DoMethod(cell, MUIM_DisconnectParent); return 0; }
-        state |= 2;
-    }
-    struct MUIP_AskMinMax ask = {MUIM_AskMinMax, mm};
-    DoMethodA(cell, (Msg)&ask);
-    if (ask.MinMaxInfo)
-    {
-        __area_finish_minmax(cell, ask.MinMaxInfo);
-        *mm = *ask.MinMaxInfo;
-    }
-    return state;
-}
-static void EndCellObject(Object *cell, ULONG state)
-{
-    if (state & 2) DoMethod(cell, MUIM_Cleanup);
-    if (state & 1) DoMethod(cell, MUIM_DisconnectParent);
-}
-static void DrawCellObject(Object *list, Object *cell, LONG left, LONG top,
-    LONG width, LONG height)
-{
-    struct MUI_MinMax mm = {0};
-    ULONG state = BeginCellObject(list, cell, &mm);
-    if (!state) return;
-    BOOL shown = !!(_flags(cell) & MADF_CANDRAW);
-    LONG w = MIN(width, mm.MaxWidth), h = MIN(height, mm.MaxHeight);
-    if (w > 0 && h > 0)
-    {
-        APTR clip = MUI_AddClipping(muiRenderInfo(list), left, top, width, height);
-        MUI_LayoutObj(cell, left, top + (height - h) / 2, w, h, 0);
-        if (!shown) DoShowMethod(cell);
-        MUI_Redraw(cell, MADF_DRAWOBJECT | MADF_DRAWFRAME);
-        if (!shown) DoHideMethod(cell);
-        if (clip != (APTR)-1) MUI_RemoveClipping(muiRenderInfo(list), clip);
-    }
-    EndCellObject(cell, state);
-}
 
 /**************************************************************************
  Determine the dims of a single entry and adapt the columninfo according
@@ -991,18 +906,7 @@ static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
     {
         if (data->ci[j].is_object && pos != ENTRY_TITLE)
         {
-            Object *cell = (Object *)data->strings[j];
-            struct MUI_MinMax mm = {0};
-            ULONG state = BeginCellObject(obj, cell, &mm);
-            if (state)
-            {
-                LONG height = mm.DefHeight + data->prefs_linespacing;
-                if (height > entry->height) { entry->height = height; ret = 1; }
-                entry->widths[j] = mm.DefWidth;
-                if (mm.DefWidth > data->ci[j].entries_width)
-                { data->ci[j].entries_width = mm.DefWidth; ret = 1; }
-                EndCellObject(cell, state);
-            }
+            ret |= zune_list_cell_dims(obj, data, entry, j);
             continue;
         }
         /* Plain strings without an allocation, as List_DrawEntry does:
@@ -1264,7 +1168,14 @@ static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
 
 static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
     struct MUI_LayoutMsg *lm);
-static void List_CheckHoriz(struct IClass *cl, Object *obj);
+/* The horizontal scroller is the module's: a list has one only in a
+ * program that gets MUI 4/5 or asks for it (MUIM_Setup) */
+static inline void List_CheckHoriz(struct IClass *cl, Object *obj)
+{
+    struct MUI_ListData *data = INST_DATA(cl, obj);
+    if (data->horiz)
+        zune_list_check_horiz(obj, data);
+}
 
 /* At entry to this function, data->area is always set, but data->vert may
  * or may not be set */
@@ -1742,6 +1653,7 @@ IPTR List__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 **************************************************************************/
 /* These tags describe the list itself, not its internal scrollbar/area.
  * Keep mixed inherited tag lists and explicit forwarding requests intact. */
+static void List_DragEvents(Object *obj, struct MUI_ListData *data, BOOL drag);
 static IPTR List_SuperSet(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct TagItem *state = msg->ops_AttrList, *tag;
@@ -1883,7 +1795,7 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_List_ColumnOrder:
             ListEndEdit(cl, obj, MUIV_List_EndEdit_Abort, TRUE);
-            if (SetColumnOrder(data, (APTR)tag->ti_Data))
+            if (zune_list_column_order(data, (APTR)tag->ti_Data))
                 DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
             break;
         case MUIA_List_TitleArray:
@@ -2118,12 +2030,7 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 /* Stop listening for events we only listen to when mouse
                    button is down: we will not be informed of the button
                    being released */
-                DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                    (IPTR) &data->ehn);
-                data->ehn.ehn_Events &= ~(IDCMP_MOUSEMOVE | IDCMP_INTUITICKS
-                    | IDCMP_INACTIVEWINDOW);
-                DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                    (IPTR) &data->ehn);
+                List_DragEvents(obj, data, FALSE);
             }
             break;
 
@@ -2374,109 +2281,6 @@ static WORD List_TitleStrip(Object *obj, struct MUI_ListData *data)
     return _font(obj)->tf_YSize + 6;
 }
 
-/* The columns' total width, which the entries need: the last column
- * ends with its text, so its spacing does not count (the scroller's knob
- * matches MUI 3.9 on xSysInfo's register pages) */
-static LONG List_ContentWidth(struct MUI_ListData *data)
-{
-    LayoutColumns(data);
-    LONG width = 0, last = -1;
-    for (LONG j = 0; j < data->columns; j++)
-        if (!ColumnHidden(data, j))
-        {
-            width += ColumnWidth(data, j) + data->ci[j].delta +
-                (data->ci[j].bar ? BAR_WIDTH : 0);
-            last = j;
-        }
-    if (last >= 0) width -= data->ci[last].delta;
-    return width;
-}
-
-/* Whether the entry area, laid out at its full height, needs the
- * horizontal scroller: MUI 3.9 then takes the scroller's height off the
- * framed area and puts the scroller below it, as wide as the frame */
-static BOOL List_NeedHoriz(struct MUI_ListData *data)
-{
-    if (!data->horiz || !(_flags(data->area) & MADF_SETUP))
-        return FALSE;
-    if (data->hscroll_visibility == MUIV_List_HScrollerVisibility_Never) return FALSE;
-    return (data->hscroll_visibility == MUIV_List_HScrollerVisibility_Always ||
-            List_ContentWidth(data) > _mwidth(data->area))
-        && _minheight(data->horiz) > 0
-        && _height(data->area) > 2 * _minheight(data->horiz);
-}
-
-/* Give the scroller its range; the first pixel stays within it */
-static void List_SetHorizRange(struct MUI_ListData *data)
-{
-    LONG content = List_ContentWidth(data), visible = _mwidth(data->area);
-
-    if (data->horiz_first > content - visible)
-        data->horiz_first = content - visible;
-    if (data->horiz_first < 0)
-        data->horiz_first = 0;
-    SetAttrs(data->horiz, MUIA_NoNotify, TRUE,
-        MUIA_Prop_Entries, content,
-        MUIA_Prop_Visible, visible,
-        MUIA_Prop_First, data->horiz_first, TAG_DONE);
-}
-
-/* The entry area was laid out at (left, top, width, height) in the
- * group; shorten it for the scroller below when the columns need one,
- * or take the scroller out of the layout. Runs inside a layout pass,
- * where the list is hidden, so the shown flag can change hands directly. */
-static void List_LayoutHoriz(Object *obj, struct MUI_ListData *data,
-    LONG left, LONG top, LONG width, LONG height)
-{
-    BOOL need = List_NeedHoriz(data);
-
-    if (!data->horiz)
-        return;
-    if (need)
-    {
-        LONG hh = _minheight(data->horiz);
-
-        MUI_Layout(data->area, left, top, width, height - hh, 0);
-        _flags(data->horiz) |= MADF_SHOWME;
-        MUI_Layout(data->horiz, left, top + height - hh, width, hh, 0);
-        data->horiz_shown = TRUE;
-        List_SetHorizRange(data);
-    }
-    else
-    {
-        if (_flags(data->horiz) & MADF_CANDRAW)
-            DoHideMethod(data->horiz);
-        _flags(data->horiz) &= ~MADF_SHOWME;
-        data->horiz_shown = FALSE;
-        data->horiz_first = 0;
-    }
-}
-
-/* After the columns changed width: show or hide the scroller through a
- * relayout, or just update its range */
-static void List_CheckHoriz(struct IClass *cl, Object *obj)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-
-    if (!data->horiz || !(_flags(obj) & MADF_SETUP))
-        return;
-    if (data->flags & LIST_QUIET)
-    {
-        data->flags |= LIST_HORIZCHECK;
-        return;
-    }
-    data->flags &= ~LIST_HORIZCHECK;
-    if (List_NeedHoriz(data) != data->horiz_shown)
-    {
-        if (_flags(obj) & MADF_CANDRAW)
-        {
-            DoMethod(obj, MUIM_Group_InitChange);
-            DoMethod(obj, MUIM_Group_ExitChange);
-        }
-    }
-    else if (data->horiz_shown)
-        List_SetHorizRange(data);
-}
 
 /* The list group's layout: the entry area, beside the vertical scroller
  * and below the title buttons, with the horizontal scroller inside it */
@@ -2541,8 +2345,9 @@ static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
                 strip = 0;
             MUI_Layout(data->area, left, strip, width - vw, height - strip,
                 0);
-            List_LayoutHoriz(obj, data, left, strip, width - vw,
-                height - strip);
+            if (data->horiz)
+                zune_list_layout_horiz(obj, data, left, strip, width - vw,
+                    height - strip);
             return TRUE;
         }
     }
@@ -2630,7 +2435,7 @@ IPTR List__MUIM_Layout(struct IClass *cl, Object *obj,
     ULONG rc = DoSuperMethodA(cl, obj, (Msg) msg);
     LONG new_entries_first = data->entries_first;
 
-    LayoutColumns(data);
+    zune_list_layout_columns(data);
     /* Calc the numbers of entries visible */
     CalcVertVisible(cl, obj);
 
@@ -2757,7 +2562,7 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
         {
             /* the cell clips only to its own rectangle */
             List_NeedClip(obj, data, lc);
-            DrawCellObject(obj, (Object *)data->strings[col], x1, y,
+            zune_list_draw_cell(obj, (Object *)data->strings[col], x1, y,
                 ColumnWidth(data, col), row_height);
             x1 = x2 + data->ci[col].delta + (data->ci[col].bar ? BAR_WIDTH : 0);
             continue;
@@ -2826,64 +2631,6 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
     }
 }
 
-/* The title buttons: each column, with its share of the spacing and its
- * bar, gets a bevel of shine above and left, shadow below and right,
- * with background corners where shine and shadow meet, as in MUI 3.9. */
-static void List_DrawTitleStrip(struct IClass *cl, Object *obj)
-{
-    struct MUI_ListData *data = INST_DATA(cl, obj);
-    struct RastPort *rp = _rp(obj);
-    WORD strip = List_TitleStrip(obj, data);
-    LONG top = _top(data->area) - strip, bottom = _top(data->area) - 1;
-    LONG left = _left(data->area), right = _right(data->area);
-    LONG x0 = left - data->horiz_first;
-    LONG x1 = _mleft(data->area) - data->horiz_first;
-    ULONG col;
-    APTR clip;
-
-    SetAPen(rp, _pens(obj)[MPEN_BACKGROUND]);
-    RectFill(rp, left, top, right, bottom);
-    /* scrolled buttons start left of the strip */
-    clip = MUI_AddClipping(muiRenderInfo(obj), left, top, right - left + 1,
-        strip);
-    for (col = 0; col < data->columns && x0 <= right; col++)
-    {
-        ULONG halfdelta = data->ci[col].delta / 2;
-        if (ColumnHidden(data, col)) continue;
-        LONG end;
-
-        x1 += ColumnWidth(data, col) + halfdelta;
-        /* a column ends where its bar is or would be; an empty button
-         * fills the row after the last column */
-        end = x1;
-        if (end > right || (col + 1 == data->columns && end + 2 > right))
-            end = right;
-        SetAPen(rp, _pens(obj)[MPEN_SHINE]);
-        Move(rp, x0, bottom - 1);
-        Draw(rp, x0, top);
-        Draw(rp, end - 1, top);
-        SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
-        Move(rp, x0 + 1, bottom);
-        Draw(rp, end, bottom);
-        Draw(rp, end, top + 1);
-        x0 = end + 1;
-        x1 += (data->ci[col].bar ? BAR_WIDTH : 0)
-            + data->ci[col].delta - halfdelta;
-    }
-    if (x0 + 1 < right)
-    {
-        SetAPen(rp, _pens(obj)[MPEN_SHINE]);
-        Move(rp, x0, bottom - 1);
-        Draw(rp, x0, top);
-        Draw(rp, right - 1, top);
-        SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
-        Move(rp, x0 + 1, bottom);
-        Draw(rp, right, bottom);
-        Draw(rp, right, top + 1);
-    }
-    List_DrawEntry(cl, obj, ENTRY_TITLE, top + 2, NULL);
-    MUI_RemoveClipping(muiRenderInfo(obj), clip);
-}
 
 /**************************************************************************
  MUIM_Draw
@@ -2915,7 +2662,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     if (data->area_replaced)
         return ret;
 
-    LayoutColumns(data);
+    zune_list_layout_columns(data);
 
     /* Calculate the title height */
     if (List_TitleStrip(obj, data))
@@ -2923,7 +2670,14 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         data->title_height = 0;
         if ((msg->flags & MADF_DRAWUPDATE) == 0
             || data->update == UPDATEMODE_ALL)
-            List_DrawTitleStrip(cl, obj);
+        {
+            /* the module draws the buttons and leaves its clip for the
+             * title row */
+            APTR clip = zune_list_draw_title_strip(obj, data);
+            List_DrawEntry(cl, obj, ENTRY_TITLE, _top(data->area)
+                - List_TitleStrip(obj, data) + 2, NULL);
+            MUI_RemoveClipping(muiRenderInfo(obj), clip);
+        }
     }
     else if (data->title)
     {
@@ -2937,7 +2691,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         data->title_height = 0;
     }
 
-    LayoutColumns(data);
+    zune_list_layout_columns(data);
     /* Calc the numbers of entries visible */
     CalcVertVisible(cl, obj);
 
@@ -4904,6 +4658,19 @@ IPTR List__MUIM_DragFinish(struct IClass *cl, Object *obj,
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
+/* Listen for mouse moves, ticks and an inactive window while the button
+ * is down (drag TRUE), or stop (FALSE) */
+static void List_DragEvents(Object *obj, struct MUI_ListData *data, BOOL drag)
+{
+    const ULONG extra = IDCMP_MOUSEMOVE | IDCMP_INTUITICKS
+        | IDCMP_INACTIVEWINDOW;
+
+    DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR) &data->ehn);
+    data->ehn.ehn_Events = drag ? data->ehn.ehn_Events | extra
+        : data->ehn.ehn_Events & ~extra;
+    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) &data->ehn);
+}
+
 static void DoWheelMove(struct IClass *cl, Object *obj, LONG wheely)
 {
     LONG new, first, entries, visible;
@@ -5128,9 +4895,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                             data->last_mics = msg->imsg->Micros;
 
                             /* Look out for mouse movement, timer and inactive-window events while mouse button is down */
-                            DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR) &data->ehn);
-                            data->ehn.ehn_Events |= (IDCMP_MOUSEMOVE | IDCMP_INTUITICKS |IDCMP_INACTIVEWINDOW);
-                            DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) &data->ehn);
+                            List_DragEvents(obj, data, TRUE);
                         }
                     }
                     result = MUI_EventHandlerRC_Eat;
@@ -5152,12 +4917,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                 }
 
                 /* Restore normal event mask */
-                DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                    (IPTR) &data->ehn);
-                data->ehn.ehn_Events &= ~(IDCMP_MOUSEMOVE | IDCMP_INTUITICKS
-                    | IDCMP_INACTIVEWINDOW);
-                DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                    (IPTR) &data->ehn);
+                List_DragEvents(obj, data, FALSE);
             }
             break;
 
@@ -5183,12 +4943,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
         case IDCMP_INACTIVEWINDOW:
             /* Stop listening for events we only listen to when mouse button is
                down: we will not be informed of the button being released */
-            DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                (IPTR) &data->ehn);
-            data->ehn.ehn_Events &=
-                ~(IDCMP_MOUSEMOVE | IDCMP_INTUITICKS | IDCMP_INACTIVEWINDOW);
-            DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                (IPTR) &data->ehn);
+            List_DragEvents(obj, data, FALSE);
             break;
 
         case IDCMP_RAWKEY:
