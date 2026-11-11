@@ -81,8 +81,7 @@ struct Library *MUIMasterBase, *LocaleBase, *MUIScreenBase;
 APTR *appaddr;
 static int open_libs(void)
 {
-    MUIMasterBase = OpenLibrary("zunemaster.library", 19);
-    if (!MUIMasterBase) MUIMasterBase = OpenLibrary("muimaster.library", 19);
+    MUIMasterBase = OpenLibrary("muimaster.library", 19);
     if (!MUIMasterBase) return 0;
     LocaleBase = OpenLibrary("locale.library", 38);
     MUIScreenBase = OpenLibrary("muiscreen.library", 0);
@@ -935,36 +934,24 @@ void main_import_menu(void)
 /* Set by the System page: which MUI programs get (see systemp.c) */
 char zune_behave_as[ZUNE_BEHAVE_AS_SIZE];
 
-/* Have muimaster.library and zunemaster.library, if they are in memory
- * and Zune68's, read ENV:Zune/BehaveAs again: their reserved vector with
- * 'ZnID' in D0 (muimaster zunemaster_lib.c LibReserved). Called from
- * this process, outside Forbid: they read the variable with DOS. */
+/* Have the library read ENV:Zune/BehaveAs again, when it is OpenMUI: its
+ * reserved vector with 'ZnID' in D0 (muimaster_lib.c LibReserved). The
+ * base this program opened serves: a base handed out for a "Behave as"
+ * identity is a copy of the jump table, and its call reaches the one
+ * library. Called from this process, outside Forbid: the library reads
+ * the variable with DOS. */
 static void reload_behave_as(void)
 {
-    static CONST_STRPTR const names[] = {
-        "muimaster.library", "zunemaster.library" };
-    struct Library *lib;
-    int i;
+    struct Library *lib = MUIMasterBase;
 
-    for (i = 0; i < 2; i++)
+    if (lib && lib->lib_IdString
+        && strstr((const char *)lib->lib_IdString, "OpenMUI"))
     {
-        Forbid();
-        lib = (struct Library *)FindName(&SysBase->LibList, names[i]);
-        if (lib && (!lib->lib_IdString
-            || !strstr((const char *)lib->lib_IdString, "OpenMUI")))
-            lib = NULL;
-        if (lib)
-            lib = OpenLibrary(names[i], 0); /* in memory: no loading */
-        Permit();
-        if (lib)
-        {
-            register struct Library *a6 __asm("a6") = lib;
-            register ULONG d0 __asm("d0") = 0x5A6E4944;
+        register struct Library *a6 __asm("a6") = lib;
+        register ULONG d0 __asm("d0") = 0x5A6E4944;
 
-            __asm__ volatile ("jsr -24(a6)" : "+r"(d0) : "r"(a6)
-                : "d1", "a0", "a1", "cc", "memory");
-            CloseLibrary(lib);
-        }
+        __asm__ volatile ("jsr -24(a6)" : "+r"(d0) : "r"(a6)
+            : "d1", "a0", "a1", "cc", "memory");
     }
 }
 
