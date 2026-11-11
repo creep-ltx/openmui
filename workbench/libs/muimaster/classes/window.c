@@ -5304,22 +5304,8 @@ static void InstallBackbuffer(struct IClass *cl, Object *obj)
     }
 }
 
-/* If an owned buffer bitmap exists, deinitialize its RastPort, free the
- * bitmap and clear its pointer. Call only after drawing has stopped. No
- * result or new ownership is produced.
- */
-static void DeinstallBackbuffer(struct IClass *cl, Object *obj)
-{
-    struct MUI_WindowData *data = INST_DATA(cl, obj);
-
-    if (data->wd_RenderInfo.mri_BufferBM)
-    {
-        DeinitRastPort(&data->wd_RenderInfo.mri_Tail->BufferRP);
-        FreeBitMap(data->wd_RenderInfo.mri_BufferBM);
-        data->wd_RenderInfo.mri_BufferBM = NULL;
-    }
-}
-
+/* (DeinstallBackbuffer is gone: no buffer bitmap is ever allocated, see
+ * InstallBackbuffer above, so there was never one to free at closing) */
 /*
  * Called after window is opened or resized.
  * An expose event is already queued, it will trigger
@@ -5555,7 +5541,6 @@ static ULONG WindowClose(struct IClass *cl, Object *obj)
     if (data->wd_RootObject) DoHideMethod(data->wd_RootObject);
     zune_imspec_hide(data->wd_Background);
 
-    DeinstallBackbuffer(cl, obj);
 
     HideRenderInfo(&data->wd_RenderInfo);
 
