@@ -380,6 +380,27 @@ run_prog() {
     else a1=$(avail); lost=$((a0-a1)); fi
     tally_end
   fi
+  # --loops K: K more start/quit cycles on the same machine (rare quit crashes, memory drift)
+  if [ "${LOOPS:-0}" -gt 0 ] && [ "$status" = ok ] && [ "$left" = 0 ] && alive; then
+    local k lk=0 lfail=0 l0 l1 lw
+    l0=$(avail)
+    for k in $(seq 1 "$LOOPS"); do
+      hook pre; start_prog "$dir"
+      if ! wait_window "$P_WAIT"; then
+        lfail=$((lfail + 1)); alive || break
+        running && { wasabi kill "$P_TASK" >/dev/null 2>&1; sleep 3; }
+        continue
+      fi
+      settle 5; hook dismiss
+      quit_prog || lfail=$((lfail + 1))
+      alive || break
+      lk=$k
+    done
+    if alive; then l1=$(avail); lw=$((l0 - l1))
+    else why=$(gone_why); lw="?($why in loop $k)"; log "$id: $why in loop $k of $LOOPS"; reboot_instance; al0=$(alerts); fi
+    printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$LOOPS" "$lk" "$lfail" "$lw" >> "$OUT/loops.tsv"
+    status="$status,loops=$lk/$LOOPS,fail=$lfail,kept=$lw"
+  fi
   alive || { status="$status,$(gone_why)"; reboot_instance; al0=$(alerts); }
   al1=$(alerts)
   [ "${al1:-0}" -gt "${al0:-0}" ] && status="$status,alert"

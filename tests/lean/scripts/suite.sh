@@ -22,6 +22,11 @@
 #                  to TAG/<id>.mt (read with tools/lean/mtlib.py); its in-use figure then
 #                  includes memtally's own table. TALLY_RUN=1: the first run instead (from a
 #                  fresh boot, the class files loaded by ramlib) to TAG/<id>-1.mt
+#   --loops K      after the second run, K more start/quit cycles of each program on the same
+#                  booted machine (the quit crashes that only show now and then: LumiZip's):
+#                  the status gets ",loops=done/K,fail=N,kept=BYTES" (in use before the loops
+#                  minus after them; negative: memory kept over K runs), and TAG/loops.tsv a
+#                  line per program (id, K, done, failed, kept)
 #   --keep         leave the instance running at the end (default: stopped)
 #   --reuse        do not make a fresh copy of the machine (files from the last run stay)
 #   --update       keep the other programs' lines in results.tsv (run some programs again)
@@ -41,13 +46,13 @@ S=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$S/../../.." && pwd)
 
 TARGET=${1:?usage: suite.sh zune|mui38|mui5 [options] [ID...]}; shift
-LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; BEHAVE=; KEEP=0; REUSE=0; UPDATE=0; TALLY=; ONLY=()
+LIB=/tmp/suite/build/muimaster.library; PORT=; NAME=; PGROUPS=; TAG=; LEAK=1; BEHAVE=; KEEP=0; REUSE=0; UPDATE=0; TALLY=; LOOPS=0; ONLY=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib) LIB=$2; shift ;; --port) PORT=$2; shift ;; --name) NAME=$2; shift ;;
     --groups) PGROUPS=$2; shift ;; --tag) TAG=$2; shift ;; --no-leak) LEAK=0 ;;
     --behave-as) BEHAVE=$2; shift ;; --tally) TALLY=$2; shift ;;
-    --keep) KEEP=1 ;; --reuse) REUSE=1 ;; --update) UPDATE=1 ;; -*) echo "suite.sh: unknown option $1" >&2; exit 2 ;;
+    --keep) KEEP=1 ;; --reuse) REUSE=1 ;; --update) UPDATE=1 ;; --loops) LOOPS=$2; shift ;; -*) echo "suite.sh: unknown option $1" >&2; exit 2 ;;
     *) ONLY+=("$1") ;;
   esac; shift
 done
