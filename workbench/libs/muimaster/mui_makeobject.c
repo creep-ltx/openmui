@@ -20,6 +20,7 @@
 
 #include "muimaster_intern.h"
 #include "mui.h"
+#include "modules.h"
 
 /* #define MYDEBUG 1 */
 #include "debug.h"
@@ -133,69 +134,6 @@ STATIC Object *CreateMenuString(struct NewMenu * newmenu, ULONG flags,
     return menustrip;
 }
 
-
-/* Build an image-and-text button using a borrowed label and readable image
- * path, or a text button when the path cannot be locked. The caller owns
- * the returned tree. textFont must remain valid while the image uses it.
- * The 512-byte image-specification buffer can truncate a long path.
- */
-Object *INTERNAL_ImageButton(CONST_STRPTR label, CONST_STRPTR imagePath,
-    struct TextFont * textFont)
-{
-#   define BUFFERSIZE 512
-
-    BPTR lock = Lock(imagePath, ACCESS_READ);
-
-    D(bug("[ImageButton] Font 0x%p\n", textFont));
-    if (lock != BNULL)
-    {
-
-        TEXT imageSpec[BUFFERSIZE];
-        TEXT controlChar = get_control_char(label);
-
-        imageSpec[0] = '\0';
-        strlcat(imageSpec, "3:", BUFFERSIZE);
-        strlcat(imageSpec, imagePath, BUFFERSIZE);
-
-        UnLock(lock);
-
-        return (Object *) HGroup,
-            ButtonFrame,
-            MUIA_Background, MUII_ButtonBack,
-            MUIA_CycleChain, 1,
-            MUIA_InputMode, MUIV_InputMode_RelVerify,
-            MUIA_Group_Spacing, 0,
-            //MUIA_Group_SameHeight, TRUE,
-            controlChar ? MUIA_ControlChar : TAG_IGNORE, (IPTR) controlChar,
-            
-            Child, (IPTR)HVSpace,
-            Child, (IPTR)ImageObject,
-                MUIA_Image_Spec, (IPTR) imageSpec,
-                MUIA_Image_FreeVert,    FALSE,
-                MUIA_Image_FreeHoriz,   FALSE,
-                MUIA_Image_FontMatch,   TRUE,
-                MUIA_Font,       (IPTR) textFont,
-                MUIA_Weight,            0,
-            End,
-            Child, (IPTR)HSpace(4),
-            Child, (IPTR)TextObject,
-                MUIA_Font,           (IPTR) MUIV_Font_Button,
-                MUIA_Text_HiCharIdx, (IPTR) '_',
-                MUIA_Text_Contents,  (IPTR) label,
-                MUIA_Text_PreParse,  (IPTR) "\33c",
-                MUIA_Weight,                0,
-            End,
-            Child, (IPTR)HVSpace,
-        End;
-
-    }
-    else
-    {
-        return SimpleButton(label);
-    }
-
-#   undef BUFFERSIZE
-}
 
 /*****************************************************************************
 
@@ -479,8 +417,8 @@ Object *INTERNAL_ImageButton(CONST_STRPTR label, CONST_STRPTR imagePath,
                 MUIA_CycleChain,    1,
                 TAG_DONE);
         }
-    case MUIO_ImageButton:
-        return INTERNAL_ImageButton
+    case MUIO_ImageButton: /* AROS's; in the module Zmui45 (makeobj45.c) */
+        return zune_image_button
         (
             (CONST_STRPTR) params[0],
             (CONST_STRPTR) params[1],

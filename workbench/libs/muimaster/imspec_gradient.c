@@ -18,7 +18,9 @@
 #include "mui.h"
 #include "imspec_intern.h"
 #include "support.h"
-#define MYDEBUG 1
+/* No MYDEBUG here: the two _to_string functions below are only for
+ * imspec.c's zune_imspec_to_string, a debugging aid under its own
+ * MYDEBUG (define it in both files to have them) */
 #include "debug.h"
 
 extern struct Library *MUIMasterBase;

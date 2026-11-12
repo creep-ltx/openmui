@@ -51,6 +51,9 @@ typedef struct ZTextChunk {
 typedef struct ZTextLine {
     struct MinNode node;       /* embedded node */
     UBYTE  align;              /* ZTL_CENTER, ZTL_RIGHT, ZTL_LEFT */
+#define ZTL_LEFT    1
+#define ZTL_CENTER  2
+#define ZTL_RIGHT   3
     BYTE   lshift;             /* MUI 3.8: pixels an italic start moves right */
     struct MinList chunklist;
     WORD   lwidth;
@@ -103,6 +106,10 @@ void zune_text_draw (ZText *text, Object *obj, WORD left, WORD right,
 void zune_text_draw_shortened(ZText *text, Object *obj, WORD left,
     WORD right, WORD top, LONG mode);
 
+/* In the module Zmui45 (textmark45.c, modules.h); without it nothing is
+ * drawn or marked and the copy is NULL */
+void zune_text_shortened45(ZText *text, Object *obj, WORD left,
+    WORD right, WORD top, LONG mode);
 LONG zune_text_mark(ZText *, Object *, LONG, LONG, LONG, LONG, LONG, BOOL);
 STRPTR zune_text_copy(ZText *, LONG, LONG);
 

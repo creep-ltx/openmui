@@ -36,6 +36,7 @@
 #include "datatypescache.h"
 #include "support_classes.h"
 #include "dtpic_private.h"
+#include "modules.h"
 
 extern struct Library *MUIMasterBase;
 
@@ -209,6 +210,38 @@ static void update_alpha(struct Dtpic_DATA *data)
     }
     D(bug("[Dtpic/update_alpha] alpha %d delta %d current %d\n",
         data->alpha, data->deltaalpha, data->currentalpha));
+}
+
+/* Darken or brighten a true-colour rastport's pixels (MorphOS's
+ * ProcessPixelArray, which classic CyberGraphX lacks); only Dtpic's
+ * MUIA_Dtpic_DarkenSelState/LightenOnMouse use it */
+static void ZuneProcessPixelArray(struct RastPort *rp, LONG x, LONG y,
+    LONG width, LONG height, ULONG operation, ULONG value, struct TagItem *tags)
+{
+    if (!CyberGfxBase)
+        ZUNE_MODULE_REFRESH(); /* opened after this file was loaded */
+    if (!CyberGfxBase || !rp || !rp->BitMap || width <= 0 || height <= 0 || width > 16383 ||
+        !GetCyberMapAttr(rp->BitMap, CYBRMATTR_ISCYBERGFX)) return;
+    ULONG *row = AllocVec(width * 4, MEMF_ANY);
+    if (!row) return;
+    value = MIN(value, 255);
+    for (LONG iy = 0; iy < height; iy++)
+    {
+        if (!ReadPixelArray(row, 0, 0, width * 4, rp, x, y + iy, width, 1, RECTFMT_ARGB)) continue;
+        for (LONG ix = 0; ix < width; ix++)
+        {
+            ULONG pixel = row[ix] & 0xff000000;
+            for (ULONG shift = 0; shift <= 16; shift += 8)
+            {
+                LONG channel = (row[ix] >> shift) & 255;
+                channel += operation == POP_DARKEN ? -(LONG)value : (LONG)value;
+                pixel |= (ULONG)MAX(0, MIN(255, channel)) << shift;
+            }
+            row[ix] = pixel;
+        }
+        WritePixelArray(row, 0, 0, width * 4, rp, x, y + iy, width, 1, RECTFMT_ARGB);
+    }
+    FreeVec(row);
 }
 
 static struct BitMap *clone_bitmap(struct BitMap *from_bm, ULONG operation,

@@ -284,12 +284,22 @@ ZMC_CHECK(ZuneListModule, draw_sort_mark, 24);
 #define ZMC_OFS_ZuneMui45Module_string_pos_at 12
 #define ZMC_OFS_ZuneMui45Module_string_textinput 16
 #define ZMC_OFS_ZuneMui45Module_pointer_image 20
+#define ZMC_OFS_ZuneMui45Module_text_shortened 24
+#define ZMC_OFS_ZuneMui45Module_text_mark 28
+#define ZMC_OFS_ZuneMui45Module_text_copy 32
+#define ZMC_OFS_ZuneMui45Module_text_argb 36
+#define ZMC_OFS_ZuneMui45Module_image_button 40
 ZMC_CHECK(ZuneMui45Module, area, 0);
 ZMC_CHECK(ZuneMui45Module, string, 4);
 ZMC_CHECK(ZuneMui45Module, string_draw, 8);
 ZMC_CHECK(ZuneMui45Module, string_pos_at, 12);
 ZMC_CHECK(ZuneMui45Module, string_textinput, 16);
 ZMC_CHECK(ZuneMui45Module, pointer_image, 20);
+ZMC_CHECK(ZuneMui45Module, text_shortened, 24);
+ZMC_CHECK(ZuneMui45Module, text_mark, 28);
+ZMC_CHECK(ZuneMui45Module, text_copy, 32);
+ZMC_CHECK(ZuneMui45Module, text_argb, 36);
+ZMC_CHECK(ZuneMui45Module, image_button, 40);
 
 #define ZMC_OFS_ZunePrefsModule_configdata_set 0
 ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
@@ -528,6 +538,17 @@ ZMC(zune_string_textinput, ZMOD_MUI45, ZuneMui45Module, string_textinput,
     4, 0);
 /* MUIA_PointerType's drawn shapes (pointer45.c, V20) */
 ZMC(zune_pointer_image, ZMOD_MUI45, ZuneMui45Module, pointer_image, 3, 0);
+/* MUIA_Text_Shorten's elision of a text that does not fit and
+ * MUIA_Text_Marking (textmark45.c, V20) */
+ZMC(zune_text_shortened45, ZMOD_MUI45, ZuneMui45Module, text_shortened, 6,
+    0);
+ZMC(zune_text_mark, ZMOD_MUI45, ZuneMui45Module, text_mark, 8, 0);
+ZMC(zune_text_copy, ZMOD_MUI45, ZuneMui45Module, text_copy, 3, 0);
+/* MUI 5's RGB/alpha text pens on a true-colour screen (rtgtext45.c):
+ * FALSE without the module, and the text is drawn with its pen */
+ZMC(ZuneTextARGB, ZMOD_MUI45, ZuneMui45Module, text_argb, 5, 0);
+/* MUI_MakeObject(MUIO_ImageButton), AROS's (makeobj45.c) */
+ZMC(zune_image_button, ZMOD_MUI45, ZuneMui45Module, image_button, 3, 0);
 
 /* Configdata's setters (configset.c): the prefs program's; without the
  * module a setting is not changed */

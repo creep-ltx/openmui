@@ -28,7 +28,8 @@
 #define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
 #define MUIC_Zframes    "Zframes.zmod"      /* Zframes.mui: frame_round.c */
 #define MUIC_Zlist      "Zlist.zmod"        /* Zlist.mui: listx.c */
-#define MUIC_Zmui45     "Zmui45.zmod"       /* Zmui45.mui: mui45.c, pointer45.c */
+/* Zmui45.mui: mui45.c, pointer45.c, textmark45.c, rtgtext45.c, makeobj45.c */
+#define MUIC_Zmui45     "Zmui45.zmod"
 #define MUIC_Zprefs     "Zprefs.zmod"       /* Zprefs.mui: configset.c */
 
 /* Numbers, not an enum: modules.c's call stubs give them to the
@@ -236,6 +237,8 @@ struct MUI_StringData;
 struct ZuneStringOps;
 struct TagItem;
 struct ZunePointer;
+struct ZText;
+struct TextFont;
 struct ZuneMui45Module
 {
     IPTR (*area)(Object *, ULONG, IPTR, IPTR *);
@@ -247,6 +250,12 @@ struct ZuneMui45Module
     IPTR (*string_textinput)(struct IClass *, Object *, Msg,
         const struct ZuneStringOps *);
     Object *(*pointer_image)(struct Window *, ULONG, struct ZunePointer **);
+    void (*text_shortened)(struct ZText *, Object *, WORD, WORD, WORD, LONG);
+    LONG (*text_mark)(struct ZText *, Object *, LONG, LONG, LONG, LONG, LONG,
+        BOOL);
+    STRPTR (*text_copy)(struct ZText *, LONG, LONG);
+    BOOL (*text_argb)(struct RastPort *, CONST_STRPTR, ULONG, ULONG, ULONG);
+    Object *(*image_button)(CONST_STRPTR, CONST_STRPTR, struct TextFont *);
 };
 IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
 /* string: String's kept Textinput attributes and MUIA_String_Integer64
@@ -277,6 +286,9 @@ IPTR zune_string_textinput(struct IClass *cl, Object *obj, Msg msg,
  * (pointer.h), or NULL (no module, no memory: the normal pointer) */
 Object *zune_pointer_image(struct Window *window, ULONG type,
     struct ZunePointer **storage);
+/* image_button: MUI_MakeObject(MUIO_ImageButton) (AROS's, makeobj45.c) */
+Object *zune_image_button(CONST_STRPTR label, CONST_STRPTR imagePath,
+    struct TextFont *textFont);
 
 /* Configdata's setters (configset.c): MUIM_Configdata_SetULong,
  * SetImspec, SetFramespec, SetPenspec, SetFont, with the defaults to

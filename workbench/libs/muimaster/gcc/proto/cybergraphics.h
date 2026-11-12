@@ -7,8 +7,7 @@ BOOL ZuneOpenCyberGfx(void);
 BOOL ZuneTextARGB(struct RastPort *, CONST_STRPTR, ULONG, ULONG, ULONG);
 void ZuneWritePixelArrayAlpha(APTR, LONG, LONG, ULONG, struct RastPort *,
     LONG, LONG, LONG, LONG, ULONG);
-void ZuneProcessPixelArray(struct RastPort *, LONG, LONG, LONG, LONG,
-    ULONG, ULONG, struct TagItem *);
+/* ZuneProcessPixelArray: classes/dtpic.c's own (its only user) */
 #define WritePixelArrayAlpha ZuneWritePixelArrayAlpha
 #define ProcessPixelArray ZuneProcessPixelArray
 #define POP_DARKEN 1
