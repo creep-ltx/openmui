@@ -50,7 +50,31 @@ static ULONG plo[16], phi[16]; static int np;
 static ULONG mlo[16], mhi[16]; static int nm;
 static ULONG counts[20], total, failat;
 static ULONG failed_idx = ~0UL, failed_ret, failed_a[3];
-static char failed_name[32];
+static char failed_name[32], failed_lib[32];
+static ULONG failed_vec, failed_delta;
+
+/* the library whose code holds ADDR: the one with the nearest jump table target at or below it
+   (a disk-loaded library's or class's functions sit in its code hunk, which its vectors point
+   into); its name, the vector's number and the distance from that vector's function */
+static void whois(ULONG addr)
+{
+    struct Node *n; ULONG best = 0x10000, k;
+    failed_lib[0] = 0; failed_vec = failed_delta = 0;
+    Forbid();
+    for (n = SysBase->LibList.lh_Head; n->ln_Succ; n = n->ln_Succ) {
+        struct Library *l = (struct Library *)n;
+        for (k = 1; k <= l->lib_NegSize / 6U && k < 400; k++) {
+            UBYTE *v = (UBYTE *)l - 6 * k; ULONG t;
+            if (*(UWORD *)v != 0x4EF9) continue;
+            t = *(ULONG *)(v + 2);
+            if (t <= addr && addr - t < best) {
+                best = addr - t; failed_vec = k; failed_delta = best;
+                if (n->ln_Name) { strncpy(failed_lib, n->ln_Name, 31); failed_lib[31] = 0; }
+            }
+        }
+    }
+    Permit();
+}
 static int done;
 
 #define REC ((ULONG *)0x1B8000)
@@ -129,6 +153,7 @@ LONG fn_hook(ULONG idx, ULONG *saved)
     for (i = 0; sp + i < up && i < 1024 && k < 3; i++)
         if (inram(sp[i]) && !inr(sp[i], plo, phi, np) && isret(sp[i]) && sp[i] != a[0]) a[k++] = sp[i];
     failed_idx = idx; failed_ret = ret; failed_a[0] = a[0]; failed_a[1] = a[1]; failed_a[2] = a[2];
+    whois(a[0]);
     /* the name asked for: OpenLibrary's (a1), OpenFont's (a0 = TextAttr, its ta_Name) */
     failed_name[0] = 0;
     {
@@ -141,6 +166,7 @@ LONG fn_hook(ULONG idx, ULONG *saved)
         REC[1] = failat; REC[2] = idx; REC[3] = ret; REC[4] = a[0]; REC[5] = a[1]; REC[6] = a[2];
         REC[7] = nm ? mlo[0] : 0; REC[8] = nm ? mhi[0] : 0; REC[9] = nm > 1 ? mlo[1] : 0; REC[10] = nm > 1 ? mhi[1] : 0;
         CopyMem(failed_name, &REC[11], 32);
+        CopyMem(failed_lib, &REC[19], 32); REC[27] = failed_vec; REC[28] = failed_delta;
         REC[0] = RECMAGIC;
     }
     return 1;
@@ -151,6 +177,7 @@ static void report_rec(ULONG *r)
     Printf("failn: failed N=%ld %s ret=%08lx callers %08lx %08lx %08lx muimaster %08lx-%08lx %08lx-%08lx",
            r[1], r[2] < NHOOK ? (ULONG)hooks[r[2]].name : (ULONG)"?", r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10]);
     if (((char *)&r[11])[0]) Printf(" name=%s", (ULONG)&r[11]);
+    if (((char *)&r[19])[0]) Printf(" in=%s vec=%ld+%lx", (ULONG)&r[19], r[27], r[28]);
     PutStr("\n");
 }
 
@@ -212,9 +239,10 @@ int main(int argc, char **argv)
         for (j = 0; j < (int)NHOOK; j++) if (counts[j]) Printf(" %s=%ld", (ULONG)hooks[j].name, counts[j]);
         PutStr("\n");
         if (failed_idx != ~0UL) {
-            ULONG r[19] = { RECMAGIC, failat, failed_idx, failed_ret, failed_a[0], failed_a[1], failed_a[2],
+            ULONG r[29] = { RECMAGIC, failat, failed_idx, failed_ret, failed_a[0], failed_a[1], failed_a[2],
                             nm ? mlo[0] : 0, nm ? mhi[0] : 0, nm > 1 ? mlo[1] : 0, nm > 1 ? mhi[1] : 0 };
             CopyMem(failed_name, &r[11], 32);
+            CopyMem(failed_lib, &r[19], 32); r[27] = failed_vec; r[28] = failed_delta;
             report_rec(r);
         } else if (failat) Printf("failn: N=%ld never reached\n", failat);
         if (rec_ok) { REC[0] = 0; FreeMem(REC, 128); }
