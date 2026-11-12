@@ -102,6 +102,11 @@ IPTR Listview__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
      * (tests/native/listact.c) */
     muiAreaData(obj)->mad_Flags &= ~(MADF_INNERLEFT | MADF_INNERRIGHT);
 
+    /* the list gets its scroller here (a list on its own has none, as on
+     * MUI 3.8): the position asked for, else the default (right) */
+    set(list, MUIA_Listview_ScrollerPos, GetTagData(MUIA_Listview_ScrollerPos,
+        MUIV_Listview_ScrollerPos_Default, msg->ops_AttrList));
+
     /* parse initial taglist, forward to list */
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
     {
@@ -111,7 +116,6 @@ IPTR Listview__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             case MUIA_Listview_DragType:
             case MUIA_Listview_Input:
             case MUIA_Listview_MultiSelect:
-            case MUIA_Listview_ScrollerPos:
                 set(list, tag->ti_Tag, tag->ti_Data);
                 break;
         }
