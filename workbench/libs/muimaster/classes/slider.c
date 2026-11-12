@@ -796,7 +796,7 @@ IPTR Slider__MUIM_HandleEvent(struct IClass *cl, Object *obj,
         }
         else
         {
-            if (XGET(obj, MUIA_Pressed))
+            if (_flags(obj) & MADF_PRESSED)    /* Area's, no GetAttr */
             {
                 DoMethod(_win(obj), MUIM_Window_RemEventHandler,
                     (IPTR) & data->ehn);

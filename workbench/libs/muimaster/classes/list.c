@@ -4744,7 +4744,8 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 #define LIST_NO_JUMP 0x7fffffff
     LONG jump = LIST_NO_JUMP;   /* MUIM_List_Jump's position for a key */
 
-    new_active = old_active = XGET(obj, MUIA_List_Active);
+    /* the list's own value (its getter's answer), no GetAttr per event */
+    new_active = old_active = data->entries_active;
     visible = data->entries_visible;
 
     if (muikey != MUIKEY_NONE)
