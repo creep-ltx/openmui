@@ -3770,7 +3770,7 @@ OpenMUI counterpart in the library build, so no operation of it is on both.
 ### What the counts show (step 2)
 
 OS calls per operation at top level (`opbench count`, 3 samples; the library's own `count`
-lines in `/tmp/speed3/res/`, not kept), summed over all patched functions:
+lines, kept outside the repository), summed over all patched functions:
 
 | operation | MUI 3.8 | OpenMUI lean | OpenMUI speed3 | MUI 5 | speed3 as 21 |
 |---|---:|---:|---:|---:|---:|
