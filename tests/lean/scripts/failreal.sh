@@ -81,8 +81,11 @@ startn() { # N: the program under failn, from its folder
 stack 65536
 run >NIL: <NIL: RAM:failn run \"$P_TASK\" $1 ${MASK:-} >RAM:fn.txt" >/dev/null 2>&1
 }
+# a program that does not end even when killed would stay for every later N (NListtree-Demo
+# hung at N=5 and the rest of its sweep ran nothing): reboot then; the next figure starts fresh
 stop_hard() { local a; a=$(pid); [ -n "$a" ] || return 0
-  wasabi kill "$a" >/dev/null 2>&1; sleep 3; a=$(pid); [ -n "$a" ] && { wasabi kill --force "$a" >/dev/null 2>&1; sleep 3; }; }
+  wasabi kill "$a" >/dev/null 2>&1; sleep 3; a=$(pid); [ -n "$a" ] && { wasabi kill --force "$a" >/dev/null 2>&1; sleep 3; }
+  if [ -n "$(pid)" ]; then log "still running after kill: rebooting"; amiga-test $MACH stop --as $NAME >/dev/null 2>&1; boot; putfailn; warm; REBOOTED=1; fi; }
 
 # a run that fails nothing: the count, and after every boot the first run's own loads (a program's
 # first run from boot keeps what it loads for good: AmIRC 353 KB) out of the next figure
@@ -102,7 +105,7 @@ fi
 log "sweep $N0..$N1 step $STEP of $P_ID -> $OUT"
 N=$N0
 while [ "$N" -le "$N1" ]; do
-  status=ok; wl=; rep=
+  status=ok; wl=; rep=; REBOOTED=0
   A0=$(memfree)
   hook pre; startn "$N"
   if ! alive; then status=reset
@@ -130,7 +133,7 @@ while [ "$N" -le "$N1" ]; do
     A1=$A0
   else
     rep=$(wasabi run "type RAM:fn.txt" 2>/dev/null | tr -d '\r' | grep 'failn:' | tr '\n' ' ')
-    A1=$(memfree)
+    if [ "$REBOOTED" = 1 ]; then A1=$A0; status="$status,rebooted"; else A1=$(memfree); fi
   fi
   lost=$(( ${A0:-0} - ${A1:-0} ))
   printf '%s\t%s\t%s\t%s\t%s\n' "$N" "$status" "$wl" "$lost" "$rep" | tee -a "$OUT"
