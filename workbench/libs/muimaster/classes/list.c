@@ -2136,9 +2136,6 @@ IPTR List__MUIM_Setup(struct IClass *cl, Object *obj,
         return 0;
 
     data->prefs_refresh = muiGlobalInfo(obj)->mgi_Prefs->list_refresh;
-    if (data->prefs_linespacing !=
-        muiGlobalInfo(obj)->mgi_Prefs->list_linespacing)
-        data->flags &= ~LIST_DIMSVALID;     /* the rows' pitch changed */
     data->prefs_linespacing =
         muiGlobalInfo(obj)->mgi_Prefs->list_linespacing;
     data->prefs_smoothed = muiGlobalInfo(obj)->mgi_Prefs->list_smoothed;
@@ -2291,14 +2288,17 @@ static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
     return 0;
 }
 
-static inline ULONG List_FontSize(struct TextFont *f)
+/* The font's height and width and the line spacing setting, as one key */
+static inline ULONG List_FontSize(struct TextFont *f, struct MUI_ListData *data)
 {
-    return ((ULONG)f->tf_YSize << 16) | f->tf_XSize;
+    return ((ULONG)f->tf_YSize << 16) | ((ULONG)(UBYTE)f->tf_XSize << 8)
+        | (UBYTE)data->prefs_linespacing;
 }
 
 /* Whether the entries' sizes from the last CalcWidths still hold: nothing
- * changed them (LIST_DIMSVALID), the font is the same (a setup after a
- * cleanup, an uniconify, keeps it) and no column holds objects (their
+ * changed them (LIST_DIMSVALID), the font and the line spacing are the
+ * same (a setup after a cleanup, an uniconify, keeps them), no column holds
+ * objects (their
  * sizes come from their own setup), no images (CreateImage: set up again
  * with the window) */
 static BOOL List_DimsValid(Object *obj, struct MUI_ListData *data)
@@ -2306,7 +2306,7 @@ static BOOL List_DimsValid(Object *obj, struct MUI_ListData *data)
     LONG j;
 
     if (!(data->flags & LIST_DIMSVALID) || data->dims_font != _font(obj)
-        || data->dims_fontsize != List_FontSize(_font(obj))
+        || data->dims_fontsize != List_FontSize(_font(obj), data)
         || !IsListEmpty((struct List *)&data->images))  /* set up again */
         return FALSE;
     for (j = 0; j < data->columns; j++)
@@ -2331,7 +2331,7 @@ IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
         CalcWidths(cl, obj);
         data->flags |= LIST_DIMSVALID;
         data->dims_font = _font(obj);
-        data->dims_fontsize = List_FontSize(_font(obj));
+        data->dims_fontsize = List_FontSize(_font(obj), data);
     }
 
     if ((data->flags & LIST_ADJUSTWIDTH) && (data->entries_num > 0))
@@ -3668,8 +3668,15 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
 
     /* Recalculate the number of visible entries */
     if (_flags(obj) & MADF_SETUP)
-        if (CalcVertVisible(cl, obj))
+    {
+        /* its result unused, as everywhere: GCC then drops it (IPA-SRA)
+         * and keeps the function's frame as small as before */
+        LONG visible = data->entries_visible;
+
+        CalcVertVisible(cl, obj);
+        if (visible != data->entries_visible)
             adjusted = TRUE;
+    }
     if (adjusted)
         List_CheckHoriz(cl, obj);
 
@@ -5011,7 +5018,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
  * entries, the format, the title, the hooks and the font. Every method
  * that can change one forgets them ("forget" below): entry changes, events
  * (a title click, a column dragged) and drops; a setup with another font
- * or line spacing (List_DimsValid, List__MUIM_Setup);
+ * or line spacing (List_DimsValid);
  * List__OM_SET forgets them for the hooks and the columns, a format or a
  * title redraws everything (MUIM_List_Redraw). Order (Sort, Exchange, Move)
  * and drawing keep them. The check sits in the cases, not before the

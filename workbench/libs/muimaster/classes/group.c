@@ -2320,20 +2320,49 @@ static struct Region *group_children_clip_region(struct IClass *cl,
  * installs and the background call are skipped (opbench "cycle set",
  * a Cycle being a page group of Texts).
  */
-static __attribute__((noinline)) BOOL group_page_covers(struct IClass *cl,
-    Object *obj)
+static BOOL group_page_covers(struct IClass *cl, Object *obj)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
     Object *child;
 
-    if (!(data->flags & GROUP_PAGEMODE) || data->titlegroup
-        || muiGlobalInfo(obj)->mgi_Prefs->window_redraw
-            != WINDOW_REDRAW_WITHOUT_CLEAR)
+    if (!(data->flags & GROUP_PAGEMODE) || data->titlegroup)
         return FALSE;
     child = (Object *)DoMethod(obj, MUIM_Family_GetChild, data->active_page);
     return child && (_flags(child) & MADF_CANDRAW)
         && _left(child) <= _mleft(obj) && _top(child) <= _mtop(obj)
         && _right(child) >= _mright(obj) && _bottom(child) >= _mbottom(obj);
+}
+
+/* A page switch (Group__MUIM_Draw, update 1): the background of the inner
+ * box, in redraw-without-clear mode only where no child paints. Not
+ * inlined: Group__MUIM_Draw's frame is on the stack once per nesting
+ * level. */
+static __attribute__((noinline)) void group_draw_page_background(
+    struct IClass *cl, Object *obj)
+{
+    struct Region *r = NULL;
+    APTR c = (APTR)-1;
+
+    if (muiGlobalInfo(obj)->mgi_Prefs->window_redraw
+        == WINDOW_REDRAW_WITHOUT_CLEAR)
+    {
+        if (group_page_covers(cl, obj))
+            return;     /* the clip would hide all of it */
+        r = group_children_clip_region(cl, obj);
+    }
+
+    if (r)
+        c = MUI_AddClipRegion(muiRenderInfo(obj), r);
+
+    /*
+     * update is set when changing active page of a page group
+     * need to redraw background ourself
+     */
+    zune_draw_background(obj, _mleft(obj), _mtop(obj), _mwidth(obj), _mheight(obj),
+        _mleft(obj), _mtop(obj), 0);
+
+    if (r)
+        MUI_RemoveClipRegion(muiRenderInfo(obj), c);
 }
 
 #define GROUP_GAP_CHILDREN 32
@@ -2711,31 +2740,8 @@ IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
         zune_draw_background(obj, _mleft(obj), _mtop(obj), _mwidth(obj), _mheight(obj),
             _mleft(obj), _mtop(obj), 0);
 
-    if ((msg->flags & MADF_DRAWUPDATE) && data->update == 1
-        && group_page_covers(cl, obj))
-        ;   /* the clip would hide the whole background: nothing to paint */
-    else if ((msg->flags & MADF_DRAWUPDATE) && data->update == 1)
-    {
-        struct Region *r = NULL;
-        APTR c = (APTR)-1;
-
-        if (muiGlobalInfo(obj)->mgi_Prefs->window_redraw
-            == WINDOW_REDRAW_WITHOUT_CLEAR)
-            r = group_children_clip_region(cl, obj);
-
-        if (r)
-            c = MUI_AddClipRegion(muiRenderInfo(obj), r);
-
-        /*
-         * update is set when changing active page of a page group
-         * need to redraw background ourself
-         */
-        zune_draw_background(obj, _mleft(obj), _mtop(obj), _mwidth(obj), _mheight(obj),
-            _mleft(obj), _mtop(obj), 0);
-
-        if (r)
-            MUI_RemoveClipRegion(muiRenderInfo(obj), c);
-    }
+    if ((msg->flags & MADF_DRAWUPDATE) && data->update == 1)
+        group_draw_page_background(cl, obj);
     else if (!(msg->flags & (MADF_DRAWOBJECT | MADF_DRAWALL)))
         goto finish;
 

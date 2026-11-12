@@ -256,6 +256,19 @@ IPTR Radio__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
  * valid tag list; return superclass result, not a selection-change
  * indication.
  */
+/* The image and the label of row i, not their row group: the group passed
+ * the state on to both (each redrew) and then redrew itself and both again
+ * for its own selected state, which nothing shows (opbench "radio set").
+ * Not inlined: OM_SET's frame stays as it was. */
+static __attribute__((noinline)) void Radio_SelectRow(struct Radio_DATA *data,
+    LONG i, LONG state)
+{
+    DoMethod(data->buttons[data->entries_num + i],
+        MUIM_NoNotifySet, MUIA_Selected, state);
+    DoMethod(data->buttons[2 * data->entries_num + i],
+        MUIM_NoNotifySet, MUIA_Selected, state);
+}
+
 IPTR Radio__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct Radio_DATA *data;
@@ -274,21 +287,8 @@ IPTR Radio__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             if (tag->ti_Data >= 0 && tag->ti_Data < data->entries_num &&
                 tag->ti_Data != data->entries_active)
             {
-                /* The image and the label, not their row: a row group
-                 * passed the state on to both (each redrew) and then
-                 * redrew itself and both again for its own selected
-                 * state, which nothing shows (opbench "radio set") */
-                Object **img = data->buttons + data->entries_num;
-                Object **txt = img + data->entries_num;
-
-                DoMethod(img[data->entries_active],
-                    MUIM_NoNotifySet, MUIA_Selected, FALSE);
-                DoMethod(txt[data->entries_active],
-                    MUIM_NoNotifySet, MUIA_Selected, FALSE);
-                DoMethod(img[tag->ti_Data],
-                    MUIM_NoNotifySet, MUIA_Selected, TRUE);
-                DoMethod(txt[tag->ti_Data],
-                    MUIM_NoNotifySet, MUIA_Selected, TRUE);
+                Radio_SelectRow(data, data->entries_active, FALSE);
+                Radio_SelectRow(data, tag->ti_Data, TRUE);
                 data->entries_active = tag->ti_Data;
             }
             break;
