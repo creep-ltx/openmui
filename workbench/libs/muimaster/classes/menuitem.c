@@ -66,10 +66,23 @@ struct MUI_MenuitemData
 /* The private attribute is queried only while walking menu ancestors. */
 #define MUIA_Menuitem_ChangeDepth (MUIB_Menuitem | 0x00000002)
 
+/* The children of a menu object of class cl (Menuitem, Menu, Menustrip),
+ * whose superclass is Family: Family's instance data starts with the list
+ * MUIA_Family_List answers (family.c). No GetAttr through intuition and the
+ * classes per connect and disconnect (162 per opbench "app+windows
+ * create") */
+#define MENU_FAMILY_LIST(cl, obj) \
+    ((struct MinList *)INST_DATA((cl)->cl_Super, (obj)))
+
 static void Menuitem_Changed(Object *obj)
 {
     Object *parent = obj;
     IPTR depth;
+    /* Not in an application (a menu being built): nothing to update, so
+     * no walk of the ancestors (two GetAttr calls per level, 66 per opbench
+     * "app+windows create") */
+    if (!muiNotifyData(obj)->mnd_GlobalInfo || !_app(obj))
+        return;
     while (parent)
     {
         depth = 0;
@@ -81,8 +94,7 @@ static void Menuitem_Changed(Object *obj)
             parent = next;
         }
     }
-    if (muiNotifyData(obj)->mnd_GlobalInfo && _app(obj))
-        DoMethod(_app(obj), MUIM_Application_UpdateMenus);
+    DoMethod(_app(obj), MUIM_Application_UpdateMenus);
 }
 
 static BOOL Menuitem_SetString(struct MUI_MenuitemData *data,
@@ -1224,7 +1236,7 @@ IPTR Menuitem__MUIM_ConnectParent(struct IClass *cl, Object *obj,
 
     muiNotifyData(obj)->mnd_ParentObject = msg->parent;
 
-    get(obj, MUIA_Family_List, &ChildList);
+    ChildList = MENU_FAMILY_LIST(cl, obj);
     cstate = (Object *) ChildList->mlh_Head;
     while ((child = NextObject(&cstate)))
     {
@@ -1251,7 +1263,7 @@ IPTR Menuitem__MUIM_DisconnectParent(struct IClass *cl, Object *obj,
 
     D(bug("Menuitem_DisconnectParent(%p) %s\n", obj, OCLASS(obj)->cl_ID));
 
-    get(obj, MUIA_Family_List, &ChildList);
+    ChildList = MENU_FAMILY_LIST(cl, obj);
     cstate = (Object *) ChildList->mlh_Head;
     while ((child = NextObject(&cstate)))
     {

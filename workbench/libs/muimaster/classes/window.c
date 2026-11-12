@@ -1956,6 +1956,12 @@ BOOL zune_window_sleeping(Object *win)
     return muiWindowData(win)->wd_SleepCount != 0;
 }
 
+/* The active object as stored, unchecked (area.c's cleanup) */
+Object *ZuneWindowActiveObject(Object *win)
+{
+    return win ? muiWindowData(win)->wd_ActiveObject : NULL;
+}
+
 static void CreateNativeTitleGadgets(Object *obj, struct MUI_WindowData *data,
     struct Window *win)
 {
@@ -3661,7 +3667,9 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
     if ((data->wd_ActiveObject != NULL) && ActiveInTree(data))
     {
         active_object = data->wd_ActiveObject;
-        get(active_object, MUIA_Disabled, &disabled);
+        /* an Area in the tree: its own state, no GetAttr (two per key,
+         * opbench "count") */
+        disabled = muiAreaData(active_object)->mad_DisableCount;
     }
     else
         data->wd_ActiveObject = NULL;
@@ -3856,12 +3864,13 @@ static void HandleInputEvent(Object *win, struct MUI_WindowData *data,
 
         if (ehn->ehn_Events & mask)
         {
-            IPTR disabled = 0;
-
-            get(ehn->ehn_Object, MUIA_Disabled, &disabled);
-            if (!cursor.next)
-                goto finished;
-            if (disabled)
+            /* The object's own state, not an OM_GET through intuition's
+             * GetAttr and every class of the object: 32 calls per button
+             * click (opbench "count"). MUI 3.8 and MUI 5 send no OM_GET
+             * of MUIA_Disabled here (tests/native/disabledget.c); a
+             * handler's object is an Area (InvokeEventHandler reads its
+             * flags too). */
+            if (muiAreaData(ehn->ehn_Object)->mad_DisableCount)
                 continue;
 
             res = InvokeEventHandler(ehn, event, MUIKEY_NONE, &cursor);

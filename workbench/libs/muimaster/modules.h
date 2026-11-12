@@ -185,6 +185,7 @@ int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
 Object *zune_window_scrollwrap(Object *obj, ULONG op);
 /* in classes/window.c: is the window object asleep (MUIA_Window_Sleep) */
 BOOL zune_window_sleeping(Object *win);
+Object *ZuneWindowActiveObject(Object *win);
 
 /* The rounded frame types (frame_round.c): their table, up and down for
  * 5, 7, 8, A, B, or NULL. The module's code stays loaded until the

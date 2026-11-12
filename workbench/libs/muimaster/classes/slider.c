@@ -206,9 +206,10 @@ struct MUI_SliderData
     LONG knob_height;
     LONG knob_click;
     UWORD max_text_width;
-    CONST_STRPTR text_buffer;
+    STRPTR text_buffer;
     UWORD text_width;
     UWORD text_length;
+    UWORD text_room;            /* text_buffer's size */
 };
 
 
@@ -606,6 +607,38 @@ IPTR Slider__MUIM_Hide(struct IClass *cl, Object *obj,
 /**************************************************************************
  MUIM_Draw
 **************************************************************************/
+/* The knob's text for the current value, measured. The copy goes into
+ * the buffer it had when it fits: no AllocVec and FreeVec per value
+ * (opbench "slider set"). Not inlined: MUIM_Draw's frame stays as it was. */
+static __attribute__((noinline)) void Slider_MakeText(Object *obj,
+    struct MUI_SliderData *data)
+{
+    CONST_STRPTR s;
+    ULONG len;
+    LONG val = 0;
+
+    longget(obj, MUIA_Numeric_Value, &val);
+    s = (CONST_STRPTR)DoMethod(obj, MUIM_Numeric_Stringify, val);
+    len = s ? strlen(s) : 0;
+    if (len >= data->text_room)
+    {
+        if (data->text_buffer) FreeVec(data->text_buffer);
+        data->text_room = len < 12 ? 12 : len + 1;
+        if (!(data->text_buffer = AllocVec(data->text_room, MEMF_ANY)))
+            data->text_room = 0;
+    }
+    /* No memory: no text this time, not a crash */
+    data->text_length = 0;
+    if (data->text_buffer)
+    {
+        memcpy(data->text_buffer, s, len);
+        data->text_length = len;
+    }
+    data->text_width =
+        TextLength(_rp(obj), data->text_buffer, data->text_length);
+    data->flags |= SLIDER_VALIDSTRING;
+}
+
 /*
  * Call superclass, return FALSE without full/update flags; otherwise
  * compute travel, cached offset, knob/frame and optional text. Own a StrDup
@@ -619,7 +652,6 @@ IPTR Slider__MUIM_Draw(struct IClass *cl, Object *obj,
     struct MUI_SliderData *data = INST_DATA(cl, obj);
     const struct ZuneFrameGfx *knob_frame;
     UWORD knob_frame_state;
-    LONG val = 0;
 
     D(bug("[slider] %s: obj @ 0x%p\n", __func__, obj);)
 
@@ -661,7 +693,7 @@ IPTR Slider__MUIM_Draw(struct IClass *cl, Object *obj,
 
     knob_frame_state =
         muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Knob].state;
-    if (XGET(obj, MUIA_Pressed))
+    if (_flags(obj) & MADF_PRESSED)   /* Area's answer, without a GetAttr */
         knob_frame_state ^= 1;
     knob_frame = zune_zframe_get_with_state(obj,
         &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Knob],
@@ -677,18 +709,7 @@ IPTR Slider__MUIM_Draw(struct IClass *cl, Object *obj,
         SetABPenDrMd(_rp(obj), _pens(obj)[MPEN_TEXT],
             _pens(obj)[MPEN_BACKGROUND], JAM1);
         if (!(data->flags & SLIDER_VALIDSTRING))
-        {
-            longget(obj, MUIA_Numeric_Value, &val);
-            if (data->text_buffer) FreeVec((APTR)data->text_buffer);
-            data->text_buffer = StrDup((CONST_STRPTR) DoMethod(obj,
-                MUIM_Numeric_Stringify, val));
-            /* No memory: no text this time, not a crash */
-            data->text_length = data->text_buffer
-                ? strlen(data->text_buffer) : 0;
-            data->text_width =
-                TextLength(_rp(obj), data->text_buffer, data->text_length);
-            data->flags |= SLIDER_VALIDSTRING;
-        }
+            Slider_MakeText(obj, data);
 
         Move(_rp(obj),
             data->knob_left + knob_frame->ileft +

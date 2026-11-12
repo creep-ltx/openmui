@@ -975,10 +975,13 @@ static IPTR Group__MUIM_AddObject(struct IClass *cl, Object *obj, Msg msg)
         DoMethod(msgint->obj, MUIM_ConnectParent, (IPTR) obj);
     }
 
-    /* Ensure new children are disabled if their parent is */
-    GET(obj, MUIA_Disabled, &nestedDisableAttrs[2].ti_Data);
-    if (nestedDisableAttrs[2].ti_Data == (IPTR)TRUE)
+    /* Ensure new children are disabled if their parent is. The group's
+     * own state (Area's answer to MUIA_Disabled), not an OM_GET through
+     * intuition and every class: 145 GetAttr calls per opbench "app+windows
+     * create" (MUI 3.8 makes 15 in all) */
+    if (muiAreaData(obj)->mad_DisableCount)
     {
+        nestedDisableAttrs[2].ti_Data = TRUE;
         SetAttrsA(msgint->obj, nestedDisableAttrs);
     }
 
