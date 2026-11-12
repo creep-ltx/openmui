@@ -59,7 +59,7 @@ def main():
             for _, t, o in runs:
                 fns = o.get(op, {})
                 tot = sum(v[0] for k, v in fns.items()
-                          if not only_fn or k in only_fn)
+                          if (not only_fn and not k.startswith('_')) or (only_fn and k in only_fn))
                 cells.append('%s / %.1f' % ('%.2f' % t[op] if op in t else '-', tot))
             print('| %s | %s |' % (op, ' | '.join(cells)))
             continue

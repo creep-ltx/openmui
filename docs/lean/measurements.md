@@ -584,6 +584,44 @@ Memory (MUI-Demo cold, OS 3.1 + 4 MB fast, `m.sh`, FS-UAE, the same session, byt
 Library code 241,848 -> 236,160 bytes (data 376 -> 396, BSS 2,940); Zmui45.mui 7,828 -> 14,836
 bytes, Dtpic.mui 7,820 -> 8,056. What moved and why: [README.md](README.md#speed-round-2-typing-cycle-the-row-scroll-creation-and-the-first-program-2026-11-12-gate-3).
 
+## opbench, speed round 3: MUI 5 and the OS calls (2026-11-12)
+
+FS-UAE cycle-exact, median of 9, two instances then swapped; emulator figures. Against MUI 5
+(a1200-32-mui5, OS 3.2.1, OpenMUI in MUI 5's place opened as version 21), ms per operation:
+
+| operation | MUI 5 | OpenMUI speed3 (21) | ratio |
+|---|---:|---:|---:|
+| app+windows create | 577.9-586.8 | 235.9-249.8 | 0.40-0.43 |
+| window open+close | 1026.6-1040.8 | 481.0-482.1 | 0.46-0.47 |
+| full redraw | 206.3-206.6 | 156.8-156.9 | 0.76 |
+| cycle set | 2.73-2.75 | 2.39-2.40 | 0.87 |
+| radio set | 11.9 | 9.74 | 0.82 |
+| list insert 1000 | 20253-20270 | 477.0-477.7 | 0.02 |
+| button click | 21.2 | 17.7-17.8 | 0.83-0.84 |
+| string type | 15.4 | 7.57-7.59 | 0.49 |
+| uniconify | 1220.8-1236.4 | 422.0-422.4 | 0.34-0.35 |
+| text shorten set (V20) | 4.68-4.69 | 3.40-3.45 | 0.73-0.74 |
+
+All 27 faster (the whole table: README.md "Speed round 3"). Against MUI 3.8 (OS 3.1):
+creation 236.4-241.0 / 233.8-238.3, button click 22.4 / 17.5-17.6, string type 7.82-7.97 /
+7.37-7.38, slider set 4.04 / 2.73, list scroll line 14.6 / 13.3, register page 53.8-53.9 /
+53.9-55.1 (MUI 3.8 / speed3).
+
+OS calls per operation at top level (`opbench count`, tests/native/syscount.h), MUI 3.8 /
+OpenMUI lean / speed3 / MUI 5: creation 2,417 / 4,146 / 1,534 / 8,595; radio set 29 / 146 / 28 /
+329; button click 112 / 162 / 78 / 238; list scroll line 81 / 154 / 91 / 322. GetAttr per click
+1 / 42 / 4 / 4.7; NextTagItem per creation 45 / 2,579 / 0 / (MUI 5 1,493 per redraw).
+
+Memory (MUI-Demo cold, OS 3.1, `m.sh`, FS-UAE, the same session, bytes):
+
+| | first program | each further | library alone |
+|---|---:|---:|---:|
+| MUI 3.8 | 460,296 | 210,632-210,696 / 218,888 | 238,520 |
+| lean | 460,208 | 204,512 | 266,688 |
+| speed3 | 459,992 | 204,512-204,576 | 266,472 |
+
+Library code 236,160 -> 235,944 bytes.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
@@ -603,7 +641,9 @@ bytes, Dtpic.mui 7,820 -> 8,056. What moved and why: [README.md](README.md#speed
   map) and `opbench-compare.py` (runs side by side).
 - `tests/native/alloccount.c`: exec allocations of an application made and disposed, counted
   with SetFunction (black box, any muimaster.library; `alloccount trace` lists the callers);
-  `keyoffers.c`: which key handlers a key is offered to, in which order; `pagepix.c` and
+  `keyoffers.c`: which key handlers a key is offered to, in which order; `disabledget.c`:
+  whether a window asks an event handler's object for MUIA_Disabled; `syscount.h` (in opbench:
+  `count`, `time`, `who=NAME`) with `syscount-compare.py` and `syscount-who.py`; `pagepix.c` and
   `scrollpix.c`: the window's checksums after page switches and list scrolls.
 - `tools/lean/mtreport2.py DUMP LIB cats|files|big|N`, `tools/lean/classsizes.py
   BUILD`, `tools/lean/flexcat-sd.py`.

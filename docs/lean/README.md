@@ -3687,6 +3687,311 @@ declared 150,000 bytes over a 19,200-byte AllocRaster buffer; Spline asks AllocM
 0xFFFFFFB0 bytes on every draw of an empty layer; the two Layer_Infos and the 2 x 150 KB
 bitmaps leak every run.
 
+## Speed round 3: against MUI 5, the OS calls per operation, the GetAttr calls (2026-11-12, gate 3)
+
+Branch `speed3` (from `lean` at a755b3c1). Three steps: OpenMUI timed against real MUI 5, a
+black-box count of the operating-system calls each operation makes on MUI 3.8, MUI 5 and
+OpenMUI, and the biggest wastes the counts showed fixed. All figures are **emulator figures**
+(FS-UAE 3.2.35, cycle-exact; a1200-31-mui38: A1200, 68EC020, OS 3.1, MUI 3.8; a1200-32-mui5:
+A1200, 68EC020, OS 3.2.1, 2 MB chip + 8 MB fast, MUI 5 21.227), not real hardware.
+
+### New and changed tools
+
+| Tool | What it does |
+|---|---|
+| `opbench vN` | opens muimaster.library version N (default 19); `v21` gives OpenMUI's MUI 5 identity |
+| `opbench count` | after each operation a `calls` line: every OS call it made (tests/native/syscount.h) |
+| `opbench time` | the same with the EClock time inside each top-level call (two ReadEClock per call: the operation's own time is then not comparable) |
+| `opbench count who=NAME` | each top-level call of NAME with its return addresses into the library; `syscount-who.py OUT BUILD [OP]` names them from the link map (for RectFill also the pixels each caller fills) |
+| "text shorten set" | a MUI 5 operation (only when opened as version 20 or higher): a Text with MUIA_Text_Shorten (V20) set 100 times |
+| `opbench.sh` | `MACH=a1200-32-mui5` (OpenMUI in place of MUI 5: MUI:Libs moved aside, so no MUI 5 file is found), `ARGS=` opbench's options |
+| `syscount-compare.py` | runs side by side: per operation the top-level calls per function (`-a` all calls, `-t` the time, `-s` one summary line) |
+| `tests/native/disabledget.c` | does a window ask an event handler's object whether it is disabled? (below) |
+
+**How the count works** (black box): about 130 functions of graphics, layers, intuition, exec,
+utility, keymap and commodities are patched with SetFunction; each gets a 12-byte stub
+(`move.l #index,-(sp); jmp sc_common`) made at run time. A call counts when counting is on (only
+inside an operation's timed part) and comes from opbench's task. *Top level* means no other
+counted function is running for the task: what the program and the library ask for themselves,
+not what an OS function calls inside (AllocVec's AllocMem, intuition's gadget drawing). The
+BOOPSI entries (NewObjectA, DisposeObject, SetAttrsA, GetAttr) and CallHookPkt only call back
+into the classes (opbench's own `set()` is a SetAttrsA), so what runs inside them still counts
+as top level. Signal, PutMsg, ReplyMsg and Cause are not patched (an interrupt may call them).
+Traps met: the BOOPSI entries had to be "pass-through" (everything was inside opbench's
+SetAttrsA); SetGadgetAttrsA must not be (intuition's prop gadget drawing then counted as the
+library's); two runs with the same instance name on two machines collide (amiga-test keeps one
+copy per name); with `who=RectFill` the OS 3.1 machine reset once while printing (not seen
+without `who`).
+
+### OpenMUI against MUI 5 (step 1)
+
+ms per operation, median of 9, a1200-32-mui5 on both sides (OS 3.2.1): MUI 5 on its machine,
+OpenMUI in place of MUI 5 opened as version 21 (its MUI 5 identity) and as 19 (MUI 3.8's), two
+instances, then swapped (2026-11-12 22:00-22:15):
+
+| operation | MUI 5 | OpenMUI as 21 | OpenMUI as 19 | as 21 / MUI 5 |
+|---|---:|---:|---:|---:|
+| prefs+app (empty) | 313.9 / 302.0 | 49.0 / 52.2 | 50.2 | 0.16-0.17 |
+| app+windows create | 586.8 / 577.9 | 235.9 / 249.8 | 234.2 | 0.40-0.43 |
+| window open+close | 1040.8 / 1026.6 | 481.0 / 482.1 | 480.2 | 0.46-0.47 |
+| full redraw | 206.3 / 206.6 | 156.8 / 156.9 | 155.2 | 0.76 |
+| relayout | 317.1 / 317.0 | 204.4 / 204.3 | 201.5 | 0.64 |
+| slider set | 6.77 / 6.76 | 3.02 / 3.03 | 2.85 | 0.45 |
+| notify chain | 12.8 | 6.26 / 6.25 | 5.92 | 0.49 |
+| cycle set | 2.75 / 2.73 | 2.40 / 2.39 | 2.39 | 0.87 |
+| radio set | 11.9 | 9.74 | 9.75 | 0.82 |
+| text set | 2.25 | 1.68 | 1.68 | 0.75 |
+| list insert 1 | 22.9 / 22.8 | 9.39 / 9.36 | 8.50 | 0.41 |
+| list insert 100 | 2036.0 / 2036.5 | 87.3 / 87.0 | 85.2 | 0.04 |
+| list insert 1000 | 20253 / 20270 | 477.0 / 477.7 | 475.5 | 0.02 |
+| list active | 39.2 / 39.3 | 19.8 / 19.7 | 19.0 | 0.50 |
+| list scroll line | 21.1 / 21.2 | 15.4 | 13.3 | 0.73 |
+| list scroll page | 56.9 / 57.0 | 41.9 | 40.0 | 0.74 |
+| list sort 1000 | 2307.5 / 2309.2 | 153.9 / 154.5 | 154.5 | 0.07 |
+| button click | 21.2 | 17.7 / 17.8 | 17.6 | 0.83-0.84 |
+| string type | 15.4 | 7.59 / 7.57 | 7.35 | 0.49 |
+| string backspace | 14.8 | 7.46 / 7.47 | 7.25 | 0.50 |
+| menu open+close | 26.3 | 20.0 | 13.8 | 0.76 |
+| iconify | 200.7 / 206.1 | 95.2 / 101.4 | 95.0 | 0.46-0.51 |
+| uniconify | 1236.4 / 1220.8 | 422.4 / 422.0 | 416.7 | 0.34-0.35 |
+| register page | 88.5 / 88.7 | 51.8 / 51.7 | 50.7 | 0.58 |
+| popup open+close | 540.3 / 530.6 | 120.1 / 120.0 | 119.9 | 0.22-0.23 |
+| window resize | 290.1 / 290.2 | 230.1 | 170.0 | 0.79 |
+| text shorten set (MUI 5 only) | 4.68 / 4.69 | 3.40 / 3.45 | - | 0.73-0.74 |
+
+**OpenMUI is faster than MUI 5 in all 27 operations**, from 0.87 (a Cycle set) down to 0.02
+(inserting 1,000 list entries). Before this branch (lean, the same session) the button click was
+the only one slower (22.0 against 20.8 ms); round 3 made it 17.7. The MUI 5 identity costs
+OpenMUI itself a little where MUI 5 does more: the menu (MENUVERIFY, which MUI 4/5's
+Menustrip_WillOpen needs: 20.0 against 13.8 ms), a list row scroll and insert (MUI 5's list
+geometry), a window resize (one frame more). Pixmap.mui (MUI 5's true-colour image class) has no
+OpenMUI counterpart in the library build, so no operation of it is on both.
+
+### What the counts show (step 2)
+
+OS calls per operation at top level (`opbench count`, 3 samples; the library's own `count`
+lines in `/tmp/speed3/res/`, not kept), summed over all patched functions:
+
+| operation | MUI 3.8 | OpenMUI lean | OpenMUI speed3 | MUI 5 | speed3 as 21 |
+|---|---:|---:|---:|---:|---:|
+| app+windows create | 2,417 | 4,146 | 1,534 | 8,595 | 1,527 |
+| window open+close | 2,364 | 2,356 | 1,904 | 6,271 | 2,209 |
+| full redraw | 847 | 622 | 620 | 2,544 | 633 |
+| slider set | 28.8 | 31.9 | 20.9 | 78.7 | 20.9 |
+| cycle set | 15 | 29 | 7 | 78 | 7 |
+| radio set | 29 | 146 | 28 | 329 | 28 |
+| text set | 19 | 22 | 16 | 43 | 16 |
+| list insert 1 | 79 | 221 | 87 | 520 | 95 |
+| list scroll line | 81 | 154 | 91 | 322 | 112 |
+| list active | 129 | 177 | 112 | 609 | 126 |
+| button click | 112 | 162 | 78 | 238 | 78 |
+| string type (a key) | 24 | 51 | 37 | 241 | 39 |
+| iconify | 231 | 223 | 153 | 587 | 217 |
+| register page | 322 | 371 | 247 | 935 | 254 |
+| popup open+close | 575 | 615 | 432 | 1,855 | 454 |
+| window resize | 586 | 653 | 388 | 1,123 | 398 |
+
+What they showed, black box (MUI 3.8 and MUI 5 only counted from outside):
+
+- **utility.library's NextTagItem**: MUI 3.8 never calls it; OpenMUI walked every OM_SET and
+  OM_NEW's tags through it, 118 calls per radio set, 142 per list insert, 2,579 per
+  application creation. MUI 5 calls it even more (1,493 per full redraw).
+- **GetAttr for an object's own state**: MUI 3.8 makes one GetAttr per click, OpenMUI made 42
+  (every input event asked each event handler's object for MUIA_Disabled), 271 per creation
+  (MUI 3.8: 15), 48 per window close. A GetAttr goes through intuition and every class of the
+  object: about 0.1 ms for a button or a slider on the 68020 (the click lost 3.3 ms with 32 of
+  them).
+- **A drawn row twice**: a list's row scroll drew two rows of text and installed the entry
+  clip (2 InstallClipRegion, a region made and freed); MUI 3.8 draws one row and no clip.
+- **MapRawKey**: 4 per key against MUI 3.8's 0 in its task (its string gadget is intuition's,
+  drawn in input.device's task: MUI 3.8's typing work is inside the DoIO of the event, 7.6 ms
+  against OpenMUI's 3.7 ms for two events).
+- **An allocation per slider value**: AllocVec, CopyMem and FreeVec for the knob's text.
+- **Pixels** (`_pixels`, the area of the top-level RectFill calls): OpenMUI fills 3x MUI 3.8's
+  pixels at a window opening (244,554 against 81,174): it paints the whole window interior with
+  the window background before the objects draw. MUI 3.8 paints it too, but through the layer's
+  backfill hook inside OpenWindowTagList (BltPattern 344 and DoHookClipRects 330 calls inside
+  it), so the work is the same; not changed. A resize clears the window on both (decided in an
+  earlier round, `resizeclear.c`). A slider set fills 1,150 pixels against 494 (the whole box,
+  then the knob over it), in fewer calls (4 RectFill against 8); not changed.
+- **Not a waste**: MUI 3.8 draws more calls than OpenMUI in a full redraw (RectFill 268 against
+  190, SetSoftStyle 130 against 6, TextFit 54 against 4); its list sort makes 161 calls against
+  OpenMUI's 999 CallHookPkt (the compare hook per comparison), but OpenMUI sorts 6x faster.
+
+**tests/native/disabledget.c** (black box): three objects with a MOUSEBUTTONS handler: N normal,
+D disabled, L enabled whose OM_GET answers MUIA_Disabled with TRUE; a click over N. MUI 3.8
+and MUI 5: `N=2/0 D=2/0 L=2/0` (every handler gets both events, no OM_GET of MUIA_Disabled
+at all, a disabled object's handler too); OpenMUI lean: `N=2/2 D=0/2 L=0/2`. OpenMUI now reads
+the Area's own state (`N=2/0 D=0/0 L=2/0`); that a disabled object's handler gets no events is
+left as it was (OpenMUI's own classes may rely on it; "Left open").
+
+### The fixes (step 3), before -> after (lean -> speed3, MUI 3.8 in brackets)
+
+| commit | what | calls | ms |
+|---|---|---|---|
+| a541666a List | a row scroll drew the former bottom row again (and clipped for it) whenever the spare pixels below the rows were no multiple of the row height; MUI 3.8's whole rows are never cut off, so only a row that was cut off is drawn again | Text 2 -> 1, InstallClipRegion 2 -> 0 per step (the 2 left are intuition's prop) | list scroll line 14.4 -> 13.3 (14.6) |
+| a541666a support | NextTagItem in the library's own code (`ZuneNextTagItem`, the vector's registers; class files keep utility's): code 152 bytes smaller, no a6 per call | NextTagItem 118 -> 0 per radio set, 2,579 -> 0 per creation | radio set 9.75 -> 9.60, list insert 1 8.55 -> 8.42, creation -2% |
+| a541666a support | ConvertKey: a key release maps to no character (MapRawKey gives 0 for every up code: OS 3.1 and 3.2.1, measured), so no MapRawKey for it | MapRawKey 4 -> 2 per key | (in the next line) |
+| a6cf75b2 Window | the event handlers' disabled check reads the Area's state, no GetAttr (MUI 3.8 and MUI 5 ask nothing, disabledget.c); the active object's check per key too | GetAttr 42 -> 4 per click, 3 -> 1 per key | button click 21.1 -> 17.8 (22.4), string type 7.77 -> 7.38 (7.82-7.97), backspace 7.60 -> 7.26 (7.73-7.87) |
+| a6cf75b2 Group, Menuitem | Group's AddObject asked the group for MUIA_Disabled; a menu not yet in an application walked its ancestors for nothing; connect and disconnect asked for MUIA_Family_List | GetAttr 271 -> 60 per creation | app+windows create 257 -> 231-238 (236-241) |
+| a6cf75b2 Area | a cleanup asks the window for the active object (a search of the whole tree when one is set) only when the window's field says it is this object | GetAttr 48 -> 0 per window close | iconify 80.0 -> 77-78 (85-91) |
+| a6cf75b2 Slider | the knob's text reuses its buffer (`Slider_MakeText`, not inlined: MUIM_Draw's frame 80 -> 76); MUIA_Pressed is Area's flag | AllocVec, FreeVec, CopyMem 1 -> 0, GetAttr 3 -> 1 per set | slider set 2.91 -> 2.73 (4.04), notify chain 6.03 -> 5.66 (7.83) |
+| b1ab3cb9 List, Slider | their event handlers read MUIA_List_Active and MUIA_Pressed from their own state | GetAttr 4 -> 0 per click | button click 18.1 -> 17.6 |
+
+Tried and not taken: the Menuitem fill of a window's menu (Menuitem_FillNewMenu, about 280
+GetAttr per window opening) read from the items directly; a Menuitem subclass may answer
+differently, and the menu objects' classes are shallow (a GetAttr there is far cheaper than a
+button's): left. The window-open clear: equal work to MUI 3.8's backfill (above).
+
+### Every operation: MUI 3.8, lean and this branch (OS 3.1)
+
+ms per operation, median of 9 (2026-11-12 21:28 lean, 22:00-22:15 the others; two instances,
+then swapped):
+
+| operation | MUI 3.8 | OpenMUI lean | OpenMUI speed3 | speed3 / MUI 3.8 |
+|---|---:|---:|---:|---:|
+| prefs+app (empty) | 98.8 / 93.6 | 48.9 | 48.9 / 50.0 | 0.50-0.53 |
+| app+windows create | 241.0 / 236.4 | 253.0 | 233.8 / 238.3 | 0.97-1.01 |
+| window open+close | 536.7 / 520.2 | 441.8 | 440.8 | 0.82-0.85 |
+| full redraw | 150.8 / 150.7 | 149.9 | 150.1 / 150.0 | 1.00 |
+| relayout | 207.3 / 207.1 | 194.3 | 194.4 / 194.5 | 0.94 |
+| slider set | 4.04 | 2.91 | 2.73 | 0.67 |
+| notify chain | 7.83 / 7.82 | 6.03 | 5.66 | 0.72 |
+| cycle set | 2.44 / 2.43 | 2.38 | 2.36 | 0.97 |
+| radio set | 15.6 | 9.74 | 9.61 / 9.60 | 0.62 |
+| text set | 2.50 | 2.42 | 2.41 | 0.96 |
+| list insert 1 | 10.3 | 8.56 | 8.38 / 8.52 | 0.81-0.83 |
+| list insert 100 | 833.2 / 830.5 | 85.9 | 85.7 / 86.2 | 0.10 |
+| list insert 1000 | 6661.5 / 6648.6 | 472.7 | 473.6 / 474.4 | 0.07 |
+| list active | 21.2 / 21.1 | 19.5 | 19.1 / 19.5 | 0.90-0.92 |
+| list scroll line | 14.6 | 14.4 | 13.3 | 0.91 |
+| list scroll page | 44.5 / 44.4 | 40.1 | 40.1 / 40.5 | 0.90-0.91 |
+| list sort 1000 | 658.1 / 659.4 | 110.5 | 110.7 / 110.6 | 0.17 |
+| button click | 22.4 | 21.1 | 17.5 / 17.6 | 0.78 |
+| string type | 7.82 / 7.97 | 7.77 | 7.38 / 7.37 | 0.92-0.94 |
+| string backspace | 7.73 / 7.87 | 7.60 | 7.25 / 7.23 | 0.92-0.94 |
+| menu open+close | 13.1 / 13.2 | 13.2 | 13.2 | 1.00 |
+| iconify | 90.9 / 85.2 | 80.0 | 77.2 / 78.1 | 0.85-0.92 |
+| uniconify | 456.5 / 452.2 | 373.4 | 372.4 | 0.82 |
+| register page | 53.9 / 53.8 | 52.8 | 53.9 / 55.1 | 1.00-1.02 |
+| popup open+close | 120.0 / 120.1 | 120.0 | 120.0 / 120.1 | 1.00 |
+| window resize | 230.1 | 220.1 | 220.1 | 0.96 |
+
+**At least as fast as MUI 3.8 in 24 of 26 operations** (round 2: 23 of 26, creation 1.06-1.08;
+creation is 0.97-1.01 now). Not yet: the full redraw and the register page. In this table both
+MUI 3.8 instances gave 150.8 and 53.8 ms, but in a later session (22:55, the four-library
+comparison below) its instances gave 140.5 / 140.8 ms and 49.6 / 53.8 ms, as round 1 saw once
+(140.9 / 49.5): MUI 3.8 has a faster mode on some boots, OpenMUI is always 150.0 and 52.8-55.1.
+Against that mode OpenMUI is 1.06-1.07 (full redraw) and 1.08-1.09 (register page). Their OS
+calls are lean's call for call apart from NextTagItem (and fewer than MUI 3.8's: 620 against
+847 in a full redraw); most of their samples are OS time (Text, RectFill, the blitter wait,
+`opprof.sh`), so the next step is finding what MUI 3.8's faster boots do differently (not found).
+Faster by more than 5%: 17 of 26. Equal: menu, popup, text set, Cycle set.
+
+### Four libraries on OS 3.1: MUI 3.8, OpenMUI speed3 and Zune68 main (2026-11-12 22:55)
+
+The partner asked for one table with Zune68's unchanged main (upstream origin/main 3b9299d5,
+GCC 16.2, 68000, the build of the 2026-11-05 perfbench in `~/.cache/zune68-other/b/main000`,
+one library with every class built in). opbench (version 19), three instances, rotated, median
+of 9, ms:
+
+| operation | MUI 3.8 | OpenMUI speed3 | Zune68 main |
+|---|---:|---:|---:|
+| prefs+app (empty) | 93.8 / 89.9 | 48.4 | 15.4 / 15.6 |
+| app+windows create | 236.0 / 233.8 | 233.3 / 227.9 | 286.5 / 286.2 |
+| window open+close | 523.9 / 521.2 | 441.0 / 440.8 | 580.9 / 581.3 |
+| full redraw | 140.5 / 140.8 | 150.0 / 149.6 | 147.6 / 147.5 |
+| relayout | 197.9 / 197.5 | 194.4 / 194.0 | 294.7 / 294.6 |
+| slider set | 4.10 / 4.09 | 2.73 | 149.8 / 149.7 |
+| notify chain | 7.93 | 5.67 / 5.66 | 301.4 |
+| cycle set | 2.44 | 2.36 | 4.49 |
+| radio set | 15.6 / 15.5 | 9.61 | 19.7 |
+| text set | 2.50 | 2.41 | 2.40 |
+| list insert 1 | 10.3 | 8.50 / 8.45 | 34.2 |
+| list insert 100 | 830.4 / 831.8 | 85.7 / 85.6 | 104.5 / 103.6 |
+| list insert 1000 | 6662.0 / 6650.4 | 473.9 / 473.5 | 658.8 / 647.9 |
+| list active | 21.2 / 21.1 | 19.4 / 19.3 | 22.3 |
+| list scroll line | 14.6 | 13.3 | 17.0 |
+| list scroll page | 44.4 | 40.7 / 40.0 | 41.8 / 41.7 |
+| list sort 1000 | 659.0 / 658.4 | 110.6 / 110.4 | 113.1 / 113.8 |
+| button click | 22.3 / 22.2 | 17.5 | 22.9 / 23.2 |
+| string type | 7.73 / 7.90 | 7.38 | 10.8 |
+| string backspace | 7.63 / 7.81 | 7.26 | 10.5 / 10.4 |
+| menu open+close | 13.2 / 13.5 | 13.2 / 13.1 | 20.0 / 19.9 |
+| iconify | 84.1 | 78.3 / 77.6 | 82.1 / 82.6 |
+| uniconify | 440.8 / 447.4 | 372.4 / 371.8 | 990.7 / 992.1 |
+| register page | 49.6 / 53.8 | 54.0 / 53.3 | 78.7 / 79.0 |
+| popup open+close | 120.0 | 120.0 / 119.9 | timeout (its popup opens on another screen: the bug round 1 fixed) |
+| window resize | 230.1 | 220.1 | 240.5 / 261.5 |
+
+Zune68 main's slider set and notify chain are 37x MUI 3.8's (150 and 301 ms: every value change
+costs it about 150 ms), its uniconify 2.2x; its empty application is the fastest (no class files
+to load, every class is in its 429 KB library).
+
+### Memory (MUI-Demo cold, OS 3.1, `m.sh`, FS-UAE, the same session, bytes)
+
+| | first program | each further | library alone |
+|---|---:|---:|---:|
+| MUI 3.8 | 460,296 | 210,632-210,696 / 218,888 (it alternates) | 238,520 |
+| lean (speed round 2) | 460,208 | 204,512 | 266,688 |
+| speed3 | **459,992** | 204,512-204,576 | 266,472 |
+
+On OS 3.2.1 (a1200-32-mui5, FS-UAE, 2 MB chip + 8 MB fast; OpenMUI in MUI 5's place, MUI:Libs
+moved aside; `ENVARC:Zune/BehaveAs MUI5` for the version 21 identity, since MUI-Demo asks for
+an old version), bytes:
+
+| | first program | each further | library alone |
+|---|---:|---:|---:|
+| MUI 5 21.227 | 1,293,680-1,293,704 | 427,104-435,480 | 581,024 |
+| OpenMUI speed3, MUI 3.8 identity | 455,336-455,360 | 209,072-209,112 | 270,680 |
+| OpenMUI speed3, MUI 5 identity | 466,648 | 211,440-211,544 | 270,352 |
+
+On disk: MUI 5's muimaster.library 565,488 bytes and 52 class files 1,541,524 (plus 23 .mcc
+402,092 and 5 .mcp 110,296); MUI 3.8's 166,412 (+ muigfx 27,908, muilowlevel 4,172) and 29
+class files 196,140; OpenMUI's 252,388 (stripped) and 52 class files 270,824; Zune68 main's one
+library 429,472.
+
+Library code 236,160 -> 235,944 bytes (-216: no UtilityBase load per tag walk outweighs the new
+code); the margin under MUI 3.8's first program 88 -> 304 bytes. A slider instance is 2 bytes
+larger (the buffer's size). Nothing moved into modules this round: the candidates in "Left
+open" stay for when code must be paid for.
+
+### The rules
+
+- **Frames**: `-fstack-usage` of every library function against lean (1,944 functions): none
+  larger. New: ZuneWindowActiveObject 0, Slider_MakeText 36 (under Slider__MUIM_Draw, which
+  went 80 -> 76; the stringify path is 32 bytes deeper, stackrun does not reach a deeper peak);
+  smaller (the tag walk needs no a6): HandleInputEvent 112 -> 108, Group__MUIM_AddObject 72 ->
+  68, Cycle__OM_NEW 176 -> 172, Scrollbar__OM_SET 100 -> 96 and 14 more by 4 bytes.
+  ZuneNextTagItem is assembly without a frame.
+- **stackrun** (FS-UAE, lean and speed3 side by side): MUI-Demo 5,056 -> 5,048 bytes, Layout
+  2,268, Virtual 2,212, Pages 2,240, Slidorama 2,304 on both.
+- **MUI 3 programs pay nothing new**: no MUI 4/5 code added; every fix is on paths all programs
+  take.
+- **Clean room**: MUI 3.8 and MUI 5 only black box: their timing, their OS calls counted from
+  outside with SetFunction, disabledget's handler calls and OM_GETs.
+
+### Results of the final build (b1ab3cb9)
+
+- `make check`: passes after every library commit (a541666a, a6cf75b2, b1ab3cb9, each commit's
+  tree exported and checked).
+- **opbench**: the tables above (MUI 3.8, MUI 5, lean, speed3, Zune68 main; FS-UAE cycle-exact).
+- **Pixel tests** (FS-UAE, lean and speed3): pagepix (20 checksums), scrollpix (17), radiopix set
+  (two sets) and listclip (4,181 row checksums): byte-identical output.
+- **demopix** (Amiberry, both sides fresh): 27 windows, 18 pixel-identical to MUI 3.8; every
+  OpenMUI shot byte-identical to lean's of the same session except Layout (its random buttons).
+- **disabledget**: MUI 3.8 and MUI 5 `N=2/0 D=2/0 L=2/0`, lean `N=2/2 D=0/2 L=0/2`, speed3
+  `N=2/0 D=0/0 L=2/0`.
+- **fullcheck** (A1200 OS 3.1): MUI-Demo with its eight sub-windows lost 608, every other demo
+  200, AppWindow 264: as rounds 1 and 2.
+- **The suite** (all 184 programs: 100 MUI 3, 24 MUI 4/5, 60 class demos; Amiberry, three
+  instances per library, lean's library and speed3's side by side, 2026-11-12 22:23-23:20):
+  program by program the same status and windows on both (146 ok, 26 exited, 13 no window, 2
+  frozen, 1 reset: the same programs); the memory in use with the windows open 216 bytes lower
+  everywhere (the library's code).
+- **Memory** (`m.sh`, FS-UAE): first program 459,992, each further 204,512-204,576 bytes.
+- **Frames and stackrun**: above.
+
 ## Left open
 
 - **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
@@ -3698,19 +4003,26 @@ bitmaps leak every run.
   subset on the A600; the RTG run through the suite tool on a quiet PC (FS-UAE's 68030 was too
   slow under load). Round 1's "children kept when intuition's own NewObjectA fails" was failn's
   artefact (round 2, "MASK=dfff").
-- **Speed (2026-11-12, after `speed2`)**: creating an application with its windows 1.06-1.08 of
-  MUI 3.8 (opbench, emulator): 150 exec allocations for an application of 37 objects against
-  MUI 3.8's 53 (`tests/native/alloccount.c`, MUI 3.8 pools); an object pool (tried: 150 -> 86
-  allocations, 255 -> 244 ms) costs the first program 3-7 KB in puddles, so more library code
-  has to leave first. Typing and backspace are within MUI 3.8's own instance spread (7.77 ms
-  against 7.46-7.90). Sharing Text's three common preparse strings made window opening 4-5%
-  slower for no known reason (taken back). Real hardware not measured.
-- **First program (2026-11-12, after `speed2`)**: 460,208 against MUI 3.8's 460,296 bytes:
-  within, by 88 bytes, so code added to the library's common paths needs room made first. Next
-  candidates (survey of 2026-11-12, not moved): Menuitem_Copy (MUIA_Menuitem_Menuitem, V20, 388
-  bytes), Area's AROS-private methods (545, nothing sends them), the AROS custom-scrollbar parts
-  of Image and Prop (about 600, reached only through a Zune prefs setting), String's context
-  menu into Zmenu (618, which a right click loads anyway).
+- **Speed (2026-11-12, after `speed3`)**: 24 of 26 opbench operations at least as fast as MUI
+  3.8 and all 27 faster than MUI 5 (emulator). Not yet: the full redraw and the register page,
+  equal on most of MUI 3.8's boots but 1.06-1.09 against the boots where MUI 3.8 gives 140.5
+  and 49.6 ms (OpenMUI always 150 and 53-55): what those boots do differently is not found.
+  Equal and OS-bound: menu, popup, text set, Cycle set. Left from the counts: a window's menu is built with about 280 GetAttr per opening
+  (Menuitem_FillNewMenu; reading the items directly would skip a subclass's getter); creation
+  still makes 159 AllocMem against MUI 3.8's 31 plus pools (the object pool of round 2 costs the
+  first program 3-7 KB; the margin is now 304 bytes); a slider set fills its whole box and then
+  the knob (1,150 pixels against MUI 3.8's 494, in half the calls). **A disabled object's event
+  handler**: MUI 3.8 and MUI 5 call it (tests/native/disabledget.c, the disabled object D gets
+  both events), OpenMUI skips it; matching MUI needs OpenMUI's own classes to check their
+  disabled state themselves first (not done: a behaviour change for all of them). Real hardware
+  not measured.
+- **First program (2026-11-12, after `speed3`)**: 459,992 against MUI 3.8's 460,296 bytes: a
+  margin of 304 bytes (speed2: 88), so code added to the library's common paths still needs room
+  made first. Next candidates (survey of 2026-11-12, not moved): Menuitem_Copy
+  (MUIA_Menuitem_Menuitem, V20, 388 bytes), Area's AROS-private methods (545, nothing sends
+  them), the AROS custom-scrollbar parts of Image and Prop (about 600, reached only through a
+  Zune prefs setting), String's context menu into Zmenu (618, which a right click loads
+  anyway).
 - **AnimMaker's resets (2026-11-12, `animfix`)**: decided as not OpenMUI's (same rate on MUI
   3.8, "AnimMaker's resets" above); the corrupting write in AnimMaker or its classes is not
   named. Its own bugs found on the way (DisposeLayerInfo(NULL) twice a quit, which clears the

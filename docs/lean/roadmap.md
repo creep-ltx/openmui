@@ -289,7 +289,7 @@ is no longer AnimMaker's or its classes', OpenMUI's library life cycle normal in
 (decided: AnimMaker's own). The Register page pixel fixed (pagepix equals MUI 3.8's behaviour).
 Details in [README.md](README.md#animmakers-resets-and-the-register-page-pixel-2026-11-12-branch-animfix).
 
-## Gate 3, memory and speed (docs/production.md; started 2026-11-12, branches `speed1`, `speed2`)
+## Gate 3, memory and speed (docs/production.md; started 2026-11-12, branches `speed1`, `speed2`, `speed3`)
 
 Round 1: `tests/native/opbench.c` times 27 operations on any muimaster.library (the same binary
 on MUI 3.8 and OpenMUI; clicks, typing and the menu as input.device events) in cycle-exact
@@ -313,6 +313,22 @@ shapes, Text shortening and marking, RGB text pens and MUIO_ImageButton into Zmu
 at least as fast as both MUI 3.8 instances. Left: creation 1.06-1.08 (MUI 3.8 pools: 53
 allocations against 150, `alloccount.c`; a pool here cost the first program 3-7 KB). Details in
 [README.md](README.md#speed-round-2-typing-cycle-the-row-scroll-creation-and-the-first-program-2026-11-12-gate-3).
+
+Round 3 (branch `speed3`): opbench against real MUI 5 (`opbench v21` on a1200-32-mui5, OpenMUI
+in its place with the MUI 5 identity): OpenMUI faster in all 27 operations (0.87 to 0.02). The OS
+calls of every operation counted black box (`opbench count`, tests/native/syscount.h: SetFunction
+stubs on about 130 functions; `who=NAME` names the library's callers). Fixed what OpenMUI asked
+for and MUI 3.8 does not: utility's NextTagItem on every tag walk (now in the library), GetAttr
+for an object's own state (the event handlers' disabled check: MUI 3.8 and MUI 5 ask nothing,
+tests/native/disabledget.c; Group's AddObject, Menuitem, Area's cleanup, List and Slider), a list
+row scroll drawing a row twice with a clip, MapRawKey for key releases, an allocation per slider
+value. button click 0.94 -> 0.78 of MUI 3.8, creation 1.06-1.08 -> 0.97-1.01, typing 0.99-1.04 ->
+0.92-0.94; 24 of 26 at least as fast as MUI 3.8 (not yet: full redraw and register page against
+MUI 3.8's faster boots, 1.06-1.09). Zune68 main measured beside them (slider set 37x MUI 3.8). First
+program 459,992 bytes (MUI 3.8 460,296). Left: a window's menu built with about 280 GetAttr per
+opening, creation's allocations (MUI 3.8 pools), a disabled object's event handler (MUI calls
+it). Details in
+[README.md](README.md#speed-round-3-against-mui-5-the-os-calls-per-operation-the-getattr-calls-2026-11-12-gate-3).
 
 ## Later (wanted, not scheduled)
 
