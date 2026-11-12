@@ -1,5 +1,7 @@
 /* Pixels of a three-item radio group (one selected) and a disabled one.
- * Writes radiopix.txt. Compare native and MUI 3.9.
+ * Writes radiopix.txt. Compare native and MUI 3.9. "radiopix set": the
+ * first group's active entry set to 2 and then to 0 after opening (each
+ * set repaints the old and the new entry), dumped after each.
  * Build: m68k-amigaos-gcc -m68000 -noixemul -Os \
  *        -Wl,-u,___stkinit radiopix.c -o radiopix -lamiga
  */
@@ -27,7 +29,7 @@ static void dump(Object *o)
     }
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     static const char *items[] = { "One", "Two", "Three", NULL };
     Object *app, *win, *r1, *r2;
@@ -52,6 +54,15 @@ int main(void)
     {
         dump(r1);
         dump(r2);
+        if (argc > 1)
+        {
+            set(r1, MUIA_Radio_Active, 2);
+            DoMethod(app, MUIM_Application_InputBuffered);
+            dump(r1);
+            set(r1, MUIA_Radio_Active, 0);
+            DoMethod(app, MUIM_Application_InputBuffered);
+            dump(r1);
+        }
     }
     MUI_DisposeObject(app);
     CloseLibrary(MUIMasterBase);

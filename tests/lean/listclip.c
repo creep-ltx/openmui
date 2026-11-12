@@ -182,6 +182,57 @@ int main(void)
     DoMethod(root, MUIM_Group_InitChange);
     DoMethod(root, MUIM_Group_ExitChange);
     dump("relayout");
+    /* Inserts while shown (bottom, inside the view, at the top), scrolls
+     * by a row and by a page, a close and reopen: each dumped as drawn and
+     * again after a full redraw, which must give the same rows */
+    {
+        static const char *one[] = { "Inserted entry", NULL };
+        static const char *wide[] = { "A much wider inserted entry than the list", NULL };
+        ULONG first, visible;
+
+        for (i = 0; i < 6; i++)
+            DoMethod(lists[i], MUIM_List_Insert, one, 1, MUIV_List_Insert_Bottom);
+        dump("ins-bottom");
+        for (i = 0; i < 6; i++)
+            DoMethod(lists[i], MUIM_List_Insert, one, 1, 2);
+        dump("ins-2");
+        for (i = 0; i < 6; i++)
+            DoMethod(lists[i], MUIM_List_Insert, wide, 1, 3);
+        dump("ins-wide");
+        for (i = 0; i < 6; i++)
+            DoMethod(lists[i], MUIM_List_Insert, one, 1, MUIV_List_Insert_Top);
+        dump("ins-top");
+        MUI_Redraw(root, MADF_DRAWOBJECT);
+        dump("ins-full");
+        for (i = 0; i < 6; i++)
+        {
+            first = visible = 0;
+            get(lists[i], MUIA_List_First, &first);
+            get(lists[i], MUIA_List_Visible, &visible);
+            DoMethod(lists[i], MUIM_List_Jump, first + visible);
+        }
+        dump("jump-row");
+        for (i = 0; i < 6; i++)
+        {
+            first = visible = 0;
+            get(lists[i], MUIA_List_First, &first);
+            get(lists[i], MUIA_List_Visible, &visible);
+            DoMethod(lists[i], MUIM_List_Jump, first + 2 * visible - 1);
+        }
+        dump("jump-page");
+        MUI_Redraw(root, MADF_DRAWOBJECT);
+        dump("jump-full");
+        set(win, MUIA_Window_Open, FALSE);
+        set(win, MUIA_Window_Open, TRUE);
+        get(win, MUIA_Window_Window, &window);
+        if (!window)
+            goto app;
+        Delay(10);
+        DoMethod(app, MUIM_Application_InputBuffered);
+        dump("reopen");
+        MUI_Redraw(root, MADF_DRAWOBJECT);
+        dump("reopen-full");
+    }
     rc = 0;
 app:
     MUI_DisposeObject(app);
