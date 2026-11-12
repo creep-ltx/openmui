@@ -17,6 +17,9 @@
 #   FAILN  the failn binary (default $ZWORK/failn, built here from tests/lean/memtally if missing)
 #   MASK   hex mask of the hooked functions (failn.c's table; default all)
 #   WAIT   seconds to wait for a window (default 6)
+#   SUB    MUI-Demo only: a button (Groups Frames Backfill Notify Listviews Cycle Images Strings) pressed
+#          once the main window is open, so that the sub-window's creation and layout are in the
+#          count; status nosub when it did not open
 #   REXXPORT the program's ARexx port, asked to QUIT when its window ignores the close gadget
 #          (default MUIDEMO.1)
 #   FAST   fast RAM in KB (default 8192)
@@ -79,12 +82,21 @@ close_windows() { # close gadgets, then requester buttons; 0 when no window is l
   [ -z "$(wins)" ]
 }
 
+# MUI-Demo's buttons, relative to its bottom left corner (subwin.sh)
+declare -A SUBPOS=( [Groups]="54 111" [Frames]="142 111" [Backfill]="230 111" [Notify]="54 81" [Listviews]="142 81" [Cycle]="230 81" [Images]="54 51" [Strings]="142 51" )
+SUB=${SUB:-}
 boot; [ -n "$LIB" ] && { "$S/putlib.sh" "$LIB" >/dev/null; boot; }; putfiles
 if [ "$N1" = all ] || [ "$N0" = count ]; then
   wasabi run "stack 40000
 run >NIL: RAM:failn run RAM:Prog 0 >RAM:fn.txt" >/dev/null
   for i in $(seq 1 40); do [ -n "$(wins)" ] && break; sleep 0.3; done
-  sleep 2; close_windows
+  sleep 2
+  if [ -n "$SUB" ]; then
+    w=$(wins | grep 'window "MUI-Demo"' | head -1)
+    read mx my mw mh < <(echo "$w" | sed 's/.* at \([0-9]*\),\([0-9]*\)  \([0-9]*\)x\([0-9]*\).*/\1 \2 \3 \4/')
+    set -- ${SUBPOS[$SUB]}; wasabi mouse click $((mx + $1)) $((my + mh - $2)) >/dev/null 2>&1; sleep 3
+  fi
+  close_windows
   for i in $(seq 1 20); do running || break; sleep 1; done
   running && wasabi kill RAM:Prog >/dev/null 2>&1
   sleep 1
@@ -110,7 +122,16 @@ run >NIL: RAM:failn run RAM:Prog $N ${MASK:+$MASK} >RAM:fn.txt" >/dev/null 2>&1
     status=reset
   else
     if [ $haswin = 1 ]; then
-      sleep 1; wl=$(wins | sed 's/^ *window //; s/  task.*//' | tr '\n' ';')
+      sleep 1
+      if [ -n "$SUB" ]; then   # MUI-Demo: open a sub-window too (its creation is in the count)
+        w=$(wins | grep 'window "MUI-Demo"' | head -1)
+        if [ -n "$w" ]; then
+          read mx my mw mh < <(echo "$w" | sed 's/.* at \([0-9]*\),\([0-9]*\)  \([0-9]*\)x\([0-9]*\).*/\1 \2 \3 \4/')
+          set -- ${SUBPOS[$SUB]}; wasabi mouse click $((mx + $1)) $((my + mh - $2)) >/dev/null 2>&1; sleep 3
+          [ "$(wins | wc -l)" -ge 2 ] || status=nosub
+        fi
+      fi
+      wl=$(wins | sed 's/^ *window //; s/  task.*//' | tr '\n' ';')
       close_windows || status=left
     else status=nowindow; fi
     for i in $(seq 1 10); do running || break; sleep 1; done

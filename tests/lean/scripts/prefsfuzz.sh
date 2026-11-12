@@ -9,6 +9,7 @@
 # the undamaged file. One TSV line per seed into OUT (default $ZWORK/prefsfuzz/NAME.tsv): seed,
 # status, windows, lost, the mutation's description. A seed can be run again with
 # tools/lean/prefsmutate.py SEED FILE to look at the file.
+#   FLUSH=1 "avail flush" before each memory figure (libraries a quit program left loaded do not count)
 #   LIB (default /tmp/stab1/build/muimaster.library), WAIT (6 s), FAST (8192), BASE (the
 #   program's ARexx base for its own prefs file, default MUIDEMO), KEEP=1
 set -u
@@ -36,7 +37,7 @@ boot() {
   sleep 2
 }
 putfiles() { wasabi put "$PROG" RAM:Prog >/dev/null; wasabi run "protect RAM:Prog +e" >/dev/null; wasabi run "makedir ENV:Zune" >/dev/null 2>&1; }
-avail() { sleep 1; wasabi run avail 2>/dev/null | awk '/^total/{print $3}'; }
+avail() { [ -n "${FLUSH:-}" ] && { wasabi run "avail flush" >/dev/null; sleep 1; wasabi run "avail flush" >/dev/null; }; sleep 1; wasabi run avail 2>/dev/null | awk '/^total/{print $3}'; }   # FLUSH=1: libraries a quit program left loaded do not count
 wins() { wasabi windows 2>/dev/null | grep '^ *window' | grep -v '"Workbench"'; }
 running() { wasabi ps 2>/dev/null | grep -q 'RAM:Prog'; }
 alive() { wasabi ping >/dev/null 2>&1 || { sleep 2; wasabi ping >/dev/null 2>&1; }; }
