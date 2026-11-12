@@ -283,11 +283,13 @@ ZMC_CHECK(ZuneListModule, draw_sort_mark, 24);
 #define ZMC_OFS_ZuneMui45Module_string_draw 8
 #define ZMC_OFS_ZuneMui45Module_string_pos_at 12
 #define ZMC_OFS_ZuneMui45Module_string_textinput 16
+#define ZMC_OFS_ZuneMui45Module_pointer_image 20
 ZMC_CHECK(ZuneMui45Module, area, 0);
 ZMC_CHECK(ZuneMui45Module, string, 4);
 ZMC_CHECK(ZuneMui45Module, string_draw, 8);
 ZMC_CHECK(ZuneMui45Module, string_pos_at, 12);
 ZMC_CHECK(ZuneMui45Module, string_textinput, 16);
+ZMC_CHECK(ZuneMui45Module, pointer_image, 20);
 
 #define ZMC_OFS_ZunePrefsModule_configdata_set 0
 ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
@@ -524,6 +526,8 @@ ZMC(zune_string_draw45, ZMOD_MUI45, ZuneMui45Module, string_draw, 6, 0);
 ZMC(zune_string_pos_at, ZMOD_MUI45, ZuneMui45Module, string_pos_at, 4, 0);
 ZMC(zune_string_textinput, ZMOD_MUI45, ZuneMui45Module, string_textinput,
     4, 0);
+/* MUIA_PointerType's drawn shapes (pointer45.c, V20) */
+ZMC(zune_pointer_image, ZMOD_MUI45, ZuneMui45Module, pointer_image, 3, 0);
 
 /* Configdata's setters (configset.c): the prefs program's; without the
  * module a setting is not changed */

@@ -28,7 +28,7 @@
 #define MUIC_Zwintitle  "Zwintitle.zmod"    /* Zwintitle.mui: wintitle.c */
 #define MUIC_Zframes    "Zframes.zmod"      /* Zframes.mui: frame_round.c */
 #define MUIC_Zlist      "Zlist.zmod"        /* Zlist.mui: listx.c */
-#define MUIC_Zmui45     "Zmui45.zmod"       /* Zmui45.mui: mui45.c */
+#define MUIC_Zmui45     "Zmui45.zmod"       /* Zmui45.mui: mui45.c, pointer45.c */
 #define MUIC_Zprefs     "Zprefs.zmod"       /* Zprefs.mui: configset.c */
 
 /* Numbers, not an enum: modules.c's call stubs give them to the
@@ -235,6 +235,7 @@ struct ZuneListModule
 struct MUI_StringData;
 struct ZuneStringOps;
 struct TagItem;
+struct ZunePointer;
 struct ZuneMui45Module
 {
     IPTR (*area)(Object *, ULONG, IPTR, IPTR *);
@@ -245,6 +246,7 @@ struct ZuneMui45Module
     LONG (*string_pos_at)(Object *, struct MUI_StringData *, LONG, LONG);
     IPTR (*string_textinput)(struct IClass *, Object *, Msg,
         const struct ZuneStringOps *);
+    Object *(*pointer_image)(struct Window *, ULONG, struct ZunePointer **);
 };
 IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
 /* string: String's kept Textinput attributes and MUIA_String_Integer64
@@ -270,6 +272,11 @@ LONG zune_string_pos_at(Object *obj, struct MUI_StringData *data, LONG x,
  * the module a method does nothing (0). */
 IPTR zune_string_textinput(struct IClass *cl, Object *obj, Msg msg,
     const struct ZuneStringOps *ops);
+/* pointer_image: MUIA_PointerType's drawn shapes (pointer45.c): the
+ * pointerclass image of a shape for the window, kept in *storage
+ * (pointer.h), or NULL (no module, no memory: the normal pointer) */
+Object *zune_pointer_image(struct Window *window, ULONG type,
+    struct ZunePointer **storage);
 
 /* Configdata's setters (configset.c): MUIM_Configdata_SetULong,
  * SetImspec, SetFramespec, SetPenspec, SetFont, with the defaults to

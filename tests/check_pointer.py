@@ -3,21 +3,35 @@
 
 The native probe separately checks real input.device hover dispatch and
 SetWindowPointerA calls against MUI 5. Images here are Zune's own artwork.
+The drawn shapes are in the module Zmui45 (pointer45.c, modules.h): the
+module file next to the library (Zune/Zmui45.mui) is loaded and relocated
+beside it, and the library's module lookup hands out a table with its
+function; a library built with the modules inside (CLASSFILES=) has it
+among its own symbols. Without the module a shape is the normal pointer.
 """
 import struct
 import sys
 from pathlib import Path
-from check_class_lifetime import Harness, INTUITION
+from amitools.binfmt.BinFmt import BinFmt
+from amitools.binfmt.Relocate import Relocate
+from check_class_lifetime import Harness, EXEC, INTUITION
 from check_custom_backfill import BackfillHarness, OBJECT, MESSAGE, TAGS
 
 WINDOW, SLOT, BORROWED = 0x75000, 0x76000, 0x77000
+MODBASE, MODTABLE = 0x1a0000, 0x78000
+POINTER_IMAGE = 20  # ZuneMui45Module.pointer_image
 POINTER, BUSY = 0x80000000 + 99 + 0x34, 0x80000000 + 99 + 0x35
 # AmigaOS 3 intuition.h: WA_Dummy = TAG_USER + 99.
 
 
 class PointerHarness(Harness):
-    def __init__(self, path):
+    def __init__(self, path, module=True):
         super().__init__(path)
+        self.module_loads = 0
+        self.mem.w_block(MODTABLE, bytes(POINTER_IMAGE + 4))
+        if module:
+            self.mem.w32(MODTABLE + POINTER_IMAGE, self.load_module(path))
+        self.trap(self.symbols['_zune_module_get'], self.module_get)
         self.images = set()
         self.active = 0
         self.events = []
@@ -26,6 +40,28 @@ class PointerHarness(Harness):
         self.trap(INTUITION - 636, self.new_pointer)
         self.trap(INTUITION - 642, self.dispose_pointer)
         self.trap(INTUITION - 816, self.set_pointer)
+
+    def load_module(self, path):
+        if '_zmod_pointer_image' in self.symbols:
+            return self.symbols['_zmod_pointer_image']
+        image = BinFmt().load_image(str(Path(path).parent / 'Zune' / 'Zmui45.mui'))
+        reloc = Relocate(image)
+        data = bytes(reloc.relocate_one_block(MODBASE))
+        assert MODBASE + len(data) < 2048 * 1024, 'module exceeds memory'
+        self.mem.w_block(MODBASE, data)
+        names = {s.name.decode(): address + s.offset
+                 for seg, address in zip(image.get_segments(), reloc.get_seq_addrs(MODBASE))
+                 if seg.symtab for s in seg.symtab.symbols}
+        self.mem.w32(names['_SysBase'], EXEC)
+        self.mem.w32(names['_IntuitionBase'], INTUITION)
+        return names['_zmod_pointer_image']
+
+    def module_get(self):
+        self.module_loads += 1
+        clp = self.mem.r32(self.cpu.r_reg(15) + 8)
+        self.mem.w32(clp, 0)
+        table = MODTABLE if self.mem.r32(MODTABLE + POINTER_IMAGE) else 0
+        self.cpu.w_reg(0, table)
 
     def tags(self, address):
         result = {}
@@ -94,6 +130,9 @@ def check(path):
         assert h.set(-1) == 0 and not h.allocations
         assert h.set(0) == 0 and h.events[-1] == ('set', {})
         assert h.set(1) == 1 and h.events[-1] == ('set', {BUSY: 1})
+        # The normal, busy and borrowed pointers need no module
+        assert h.set(BORROWED) == BORROWED and h.module_loads == 0
+        h.free()
         for kind in range(2, 40):
             assert h.set(kind) == kind
             assert h.active in h.images and len(h.images) == 1
@@ -113,6 +152,14 @@ def check(path):
         assert h.set(30) == 30
         h.fail_image = True
         assert h.set(13) == 0 and not h.images and not h.active
+        h.free()
+    finally:
+        h.machine.cleanup()
+    # Without the module a shape is the normal pointer, nothing allocated
+    h = PointerHarness(path, module=False)
+    try:
+        assert h.set(13) == 0 and h.events[-1] == ('set', {})
+        assert not h.allocations and not h.images and h.module_loads == 1
         h.free()
     finally:
         h.machine.cleanup()

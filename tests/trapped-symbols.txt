@@ -292,6 +292,7 @@ _metaDispatcher
 _snprintf
 _zmod_area_mui45
 _zmod_load_custom_frame
+_zmod_pointer_image
 _zmod_put_on_rastport_tiled
 _zmod_string_mui45
 _zune68_strlcat

@@ -1,5 +1,6 @@
 /* The MUI 4/5 module (modules.h): attributes of the core classes that
- * only MUI 4/5 programs use (mui45.c). The library calls them through
+ * only MUI 4/5 programs use (mui45.c) and MUIA_PointerType's drawn shapes
+ * (pointer45.c). The library calls them through
  * modules.c under the names modules.h gives them. */
 
 #define zune_area_mui45 zmod_area_mui45
@@ -7,11 +8,13 @@
 #define zune_string_draw45 zmod_string_draw45
 #define zune_string_pos_at zmod_string_pos_at
 #define zune_string_textinput zmod_string_textinput
+#define zune_pointer_image zmod_pointer_image
 #include "../mui45.c"
+#include "../pointer45.c"
 
 static const struct ZuneMui45Module mui45_module = {
     zmod_area_mui45, zmod_string_mui45, zmod_string_draw45,
-    zmod_string_pos_at, zmod_string_textinput
+    zmod_string_pos_at, zmod_string_textinput, zmod_pointer_image
 };
 
 BOOPSI_DISPATCHER(IPTR, Zmui45_Dispatcher, cl, obj, msg)
