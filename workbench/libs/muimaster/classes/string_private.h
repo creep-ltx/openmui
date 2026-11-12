@@ -61,6 +61,7 @@ struct MUI_StringData
     UBYTE TiFont;
     LONG MlTopLine;             /* Multiline: first visible line */
     LONG MlLeftCol;             /* Multiline: first visible column */
+    struct ZuneStringGadget *msd_Gadget; /* MUIA_Gadget_Gadget (string.c) */
 };
 
 #define MSDF_ADVANCEONCR    (1<<0)
@@ -81,6 +82,7 @@ struct MUI_StringData
 #define MSDF_SETVMIN        (1<<15)
 #define MSDF_SETVMAX        (1<<16)
 
+#define MSDF_OWNBACK        (1<<18) /* MUIA_Background given at creation */
 #define MSDF_DIRECTKEYS     (1<<17) /* MUI 3.8: keys edit directly, not
                                      * through the Textinput methods */
 
