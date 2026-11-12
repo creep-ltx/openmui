@@ -274,9 +274,20 @@ IPTR Radio__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             if (tag->ti_Data >= 0 && tag->ti_Data < data->entries_num &&
                 tag->ti_Data != data->entries_active)
             {
-                DoMethod(data->buttons[data->entries_active],
+                /* The image and the label, not their row: a row group
+                 * passed the state on to both (each redrew) and then
+                 * redrew itself and both again for its own selected
+                 * state, which nothing shows (opbench "radio set") */
+                Object **img = data->buttons + data->entries_num;
+                Object **txt = img + data->entries_num;
+
+                DoMethod(img[data->entries_active],
                     MUIM_NoNotifySet, MUIA_Selected, FALSE);
-                DoMethod(data->buttons[tag->ti_Data],
+                DoMethod(txt[data->entries_active],
+                    MUIM_NoNotifySet, MUIA_Selected, FALSE);
+                DoMethod(img[tag->ti_Data],
+                    MUIM_NoNotifySet, MUIA_Selected, TRUE);
+                DoMethod(txt[tag->ti_Data],
                     MUIM_NoNotifySet, MUIA_Selected, TRUE);
                 data->entries_active = tag->ti_Data;
             }

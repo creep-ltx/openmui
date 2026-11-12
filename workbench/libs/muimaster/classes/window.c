@@ -3539,7 +3539,13 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
 
         for (muikey = MUIKEY_COUNT - 1; muikey >= MUIKEY_PRESS; muikey--)
         {
+            /* A code that differs in the bits the expression compares
+             * cannot match: skip the library call (every key event asked
+             * commodities for all 23 keys) */
             if (muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix_well != 0
+                && !((ie.ie_Code
+                    ^ muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix.ix_Code)
+                    & muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix.ix_CodeMask)
                 && MatchIX(&ie,
                     &muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix))
             {
