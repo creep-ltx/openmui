@@ -25,6 +25,7 @@ PROGS=()
 declare -A TITLE QUITMENU RAMRUN
 
 # ---- MCC demos ----
+P up-demo        mcc upmcc/x/UP-MCC/Demo                       UP-Demo                   30 -
 P nlist-demo      mui3 nlist/x/MCC_NList/Demos/AmigaOS3        NList-Demo                30 -
 P nlisttree-demo  mui3 nlist/x/MCC_NList/Demos/AmigaOS3        NListtree-Demo            30 -
 P texteditor-demo mui3 texteditor/x/MCC_TextEditor/Demos       TextEditor-Demo-AmigaOS3  30 -
@@ -339,6 +340,8 @@ dismiss_htmlview_demo() {
 # Toolbar.mcc is the original 15.6 (NewsCoaster's copy): TheBar's Toolbar.mcc 26.2 left
 # NewsCoaster's main window empty and its task waiting on MUI 3.8.
 CLASSES=(
+  # Spot's UP-MCC 1.0 (github.com/spotUP/selecta, 2026-11-12)
+  upmcc/x/UP-MCC/Libs/mui/UP-Balance.mcc upmcc/x/UP-MCC/Libs/mui/UP-Button.mcc upmcc/x/UP-MCC/Libs/mui/UP-Cycle.mcc upmcc/x/UP-MCC/Libs/mui/UP-Field.mcc upmcc/x/UP-MCC/Libs/mui/UP-List.mcc upmcc/x/UP-MCC/Libs/mui/UP-Panel.mcc upmcc/x/UP-MCC/Libs/mui/UP-Progress.mcc upmcc/x/UP-MCC/Libs/mui/UP-Scroller.mcc upmcc/x/UP-MCC/Libs/mui/UP-Slider.mcc upmcc/x/UP-MCC/Libs/mui/UP-Tabs.mcc upmcc/x/UP-MCC/Libs/mui/UP-Text.mcc upmcc/x/UP-MCC/Libs/mui/UP-MCC.mcp
   nlist/x/MCC_NList/Libs/MUI/AmigaOS3/NBalance.mcc nlist/x/MCC_NList/Libs/MUI/AmigaOS3/NBitmap.mcc
   nlist/x/MCC_NList/Libs/MUI/AmigaOS3/NFloattext.mcc nlist/x/MCC_NList/Libs/MUI/AmigaOS3/NList.mcc
   nlist/x/MCC_NList/Libs/MUI/AmigaOS3/NListtree.mcc nlist/x/MCC_NList/Libs/MUI/AmigaOS3/NListtree.mcp
@@ -407,6 +410,7 @@ CLASSES=(
 )
 # Libraries into SYS:Libs (left alone where the machine has the library already)
 LIBRARIES=(
+  upmcc/x/UP-MCC/Libs/up-mcc.library
   codesets/x/codesets/Libs/AmigaOS3/codesets.library
   textinput/x/MCC_Textinput/Libs/vapor_toolkit.library
   amtelnet/x/AmTelnet-II-24/Libs/vapor_update.library amtelnet/x/AmTelnet-II-24/Libs/vapor_registration.library
