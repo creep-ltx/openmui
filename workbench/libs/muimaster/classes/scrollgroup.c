@@ -682,9 +682,7 @@ IPTR Scrollgroup__OM_NEW(struct IClass *cl, Object *obj,
 {
     struct Scrollgroup_DATA *data;
     //struct TagItem *tags,*tag;
-    Object *contents =
-        (Object *) GetTagData(MUIA_Scrollgroup_Contents, 0,
-        msg->ops_AttrList);
+    Object *contents;
     Object *vert = NULL, *horiz = NULL, *button = NULL, *group;
     BOOL usewinborder;
     /* MUI 3.8 (V9): an axis that may not move gets no scroller, and a
@@ -698,7 +696,19 @@ IPTR Scrollgroup__OM_NEW(struct IClass *cl, Object *obj,
 
     struct Hook *layout_hook = mui_alloc_struct(struct Hook);
     if (!layout_hook)
+    {
+        /* MUI's rule: a failed call leaves no created object behind (a class
+         * file: the register-argument helper is not callable from here).
+         * The contents are read after this test: read before, the pointer
+         * kept across the allocation cost the frame a register. */
+        contents = (Object *) GetTagData(MUIA_Scrollgroup_Contents, 0,
+            msg->ops_AttrList);
+        if (contents)
+            MUI_DisposeObject(contents);
         return 0;
+    }
+    contents = (Object *) GetTagData(MUIA_Scrollgroup_Contents, 0,
+        msg->ops_AttrList);
 
     layout_hook->h_Entry = (HOOKFUNC) Scrollgroup_Layout_Function;
 

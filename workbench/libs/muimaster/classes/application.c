@@ -1527,7 +1527,10 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
 
     obj = (Object *) DoSuperMethodA(cl, obj, (Msg) msg);
     if (!obj)
+    {
+        zune_dispose_children(msg->ops_AttrList);
         return FALSE;
+    }
 
     /* Initial local instance data */
     data = INST_DATA(cl, obj);
@@ -1546,8 +1549,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
     data->app_WindowFamily = MUI_NewObjectA(MUIC_Family, NULL);
     if (!data->app_WindowFamily)
     {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
+        goto fail;
     }
 
     data->app_GlobalInfo.mgi_ApplicationObject = obj;
@@ -1555,8 +1557,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
     MGI_IDENTITY(&data->app_GlobalInfo) = zune_task_identity();
     if (!(data->app_GlobalInfo.mgi_WindowsPort = CreateMsgPort()))
     {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
+        goto fail;
     }
 
     data->app_Task = FindTask(NULL);
@@ -1571,16 +1572,13 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
     if (!data->app_Base || strpbrk(data->app_Base, ":/()#?*,"))
     {
         data->app_Base = NULL;  /* don't remove */
-        CoerceMethod(cl, obj, OM_DISPOSE);
-
-        return 0;
+        goto fail;
     }
 
     app_make_base(cl, obj, data);
     if (!data->app_Base)
     {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
+        goto fail;
     }
 
     data->app_GlobalInfo.mgi_Configdata =
@@ -1589,8 +1587,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         TAG_DONE);
     if (!data->app_GlobalInfo.mgi_Configdata)
     {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
+        goto fail;
     }
     get(data->app_GlobalInfo.mgi_Configdata, MUIA_Configdata_ZunePrefs,
         &data->app_GlobalInfo.mgi_Prefs);
@@ -1606,23 +1603,20 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
     if (!(data->app_TimerPort =
             ZuneCreateSharedPort(data->app_GlobalInfo.mgi_WindowsPort)))
     {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
+        goto fail;
     }
 
     if (!(data->app_TimerReq =
             (struct timerequest *)CreateIORequest(data->app_TimerPort,
                 sizeof(struct timerequest))))
     {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
+        goto fail;
     }
 
     if (OpenDevice(TIMERNAME, UNIT_VBLANK,
             (struct IORequest *)data->app_TimerReq, 0))
     {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
+        goto fail;
     }
 
     InitSemaphore(&data->app_MethodSemaphore);
@@ -1886,6 +1880,14 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
         app_iconify_at_start(cl, obj);
 
     return (IPTR) obj;
+
+fail:
+    /* A failure before the tag list is read: the windows and the menustrip
+     * it carries are not the application's yet, and no one else would
+     * dispose them (MUI's rule: a failed call leaves nothing behind). */
+    zune_dispose_children(msg->ops_AttrList);
+    CoerceMethod(cl, obj, OM_DISPOSE);
+    return 0;
 }
 
 

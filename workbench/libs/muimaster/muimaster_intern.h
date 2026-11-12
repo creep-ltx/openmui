@@ -174,6 +174,8 @@ void zune_identity_load(void);     /* read ENV:Zune/BehaveAs (a process) */
  * arguments: the callers' frames stay as they were */
 void zune_identity_nest(register LONG delta __asm("d0"));
 void zune_identity_release(void);  /* LibClose's release of the classes */
+/* mui_newobject.c: the child objects of a tag list nothing has read yet */
+void zune_dispose_children(struct TagItem *tags __asm("a0"));
 void zune_module_close(register struct Library *lib __asm("a1"));
 void zune_module_remove(register struct Library *lib __asm("a1"));
 void zune_identity_free(void);     /* at expunge */

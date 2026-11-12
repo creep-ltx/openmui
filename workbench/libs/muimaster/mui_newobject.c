@@ -4,6 +4,7 @@
 
 #include <proto/exec.h>
 #include <proto/intuition.h>
+#include <proto/utility.h>
 #include <proto/muimaster.h>
 
 #include "mui.h"
@@ -11,6 +12,43 @@
 
 /* #define MYDEBUG 1 */
 #include "debug.h"
+
+/* The objects a tag list hands over to the object being made (a group's
+ * children, a window's root object and menustrip, an application's windows
+ * and menustrip, a listview's list, a scrollgroup's contents, a popup's
+ * string and button), disposed when the object cannot be made and nothing
+ * has read the list yet. MUI's rule (Group.mui autodoc, MUIA_Group_Child):
+ * a failed MUI_NewObject() call leaves no previously created object
+ * behind, however deep the failure. A class whose OM_NEW fails before it
+ * reads its tags calls this; one that fails after reading them disposes
+ * the children it took in its OM_DISPOSE. Register argument and noinline:
+ * the callers' frames stay as they were (docs/lean/README.md, the stack
+ * rule). */
+void __attribute__((noinline)) zune_dispose_children(struct TagItem *tags __asm("a0"))
+{
+    struct TagItem *tag;
+
+    while ((tag = NextTagItem(&tags)))
+    {
+        switch (tag->ti_Tag)
+        {
+        case MUIA_Group_Child:
+        case MUIA_Family_Child:
+        case MUIA_Window_RootObject:
+        case MUIA_Window_Menustrip:
+        case MUIA_Application_Window:
+        case MUIA_Application_Menustrip:
+        case MUIA_Listview_List:
+        case MUIA_Scrollgroup_Contents:
+        case MUIA_Popstring_String:
+        case MUIA_Popstring_Button:
+        case MUIA_Popobject_Object:
+            if (tag->ti_Data)
+                MUI_DisposeObject((Object *)tag->ti_Data);
+            break;
+        }
+    }
+}
 
 /*****************************************************************************
 
@@ -58,7 +96,9 @@
     Class  *cl;
 
     cl = MUI_GetClass(classid);
-    if (cl)
+    if (!cl)
+        zune_dispose_children(tags);   /* no class: nothing read the tag list */
+    else
     {
         Object *obj = NewObjectA(cl, NULL, tags);
 
