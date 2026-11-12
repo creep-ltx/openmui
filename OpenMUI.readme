@@ -1,15 +1,15 @@
-Short:        MUI-compatible GUI system, OS 3 (test)
+Short:        Free alternative to MUI, OS 3 (test)
 Author:       The AROS Development Team, Stefan Reinauer (Zune68), OpenMUI contributors
 Type:         util/libs
 Version:      [RELEASE] - [STAGE]
 Architecture: m68k-amigaos >= 3.1
 Requires:     AmigaOS 3.1+, 68000+, Installer 43+
 
-OpenMUI is a MUI-compatible GUI system for AmigaOS 3.x, an alternative
-to MUI: muimaster.library, its classes and the add-on classes programs
-use, and its own preferences program. It runs programs written for MUI 3,
-4 and 5. It is the lean edition of Zune: it aims at the look and the
-memory use of MUI 3.8 and runs on a stock 68000 with OS 3.1.
+OpenMUI is a free, open-source alternative to MUI for AmigaOS 3.x.
+Install it instead of MUI, and programs made for MUI 3, 4 and 5 work
+with it. It comes with everything MUI programs need: muimaster.library,
+the classes, and a preferences program. It runs on a stock 68000 with
+OS 3.1, and looks and uses memory like MUI 3.8.
 
 OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was
 created by Stefan Stuntz; MUI 4 and 5 come from the MUI team. MUI 3.8 was
