@@ -695,6 +695,25 @@ void ZUNE_CloseClassFiles(struct Library *MUIMasterBase)
 }
 #endif
 
+/* intuition.library/MakeClass. On OS 3.1 a MakeClass whose own memory
+ * allocation fails has already counted the new subclass in its superclass
+ * and leaves the count raised (tests/lean/probe/mcfail.c, black box): a
+ * built-in class with a subclass count can never be freed, and so this
+ * library could not be expunged again after one class failed for lack of
+ * memory (about 260 KB kept until a reboot; the fault sweeps of stability
+ * round 2). Register arguments and noinline: the callers' frames stay. */
+struct IClass * __attribute__((noinline)) zune_make_class(
+    CONST_STRPTR id __asm("a0"), CONST_STRPTR superid __asm("a1"),
+    struct IClass *super __asm("d1"), ULONG size __asm("d0"))
+{
+    ULONG n = super ? super->cl_SubclassCount : 0;
+    struct IClass *cl = MakeClass(id, superid, super, size, 0);
+
+    if (!cl && super && super->cl_SubclassCount > n)
+        super->cl_SubclassCount--;
+    return cl;
+}
+
 static Class *ZUNE_MakeBuiltinClass(CONST_STRPTR classid,
     struct Library *MUIMasterBase)
 {
@@ -737,7 +756,7 @@ static Class *ZUNE_MakeBuiltinClass(CONST_STRPTR classid,
                 return NULL;
         }
 
-        cl = MakeClass(desc->name, superclid, supercl, desc->datasize, 0);
+        cl = zune_make_class(desc->name, superclid, supercl, desc->datasize);
         /* MakeClass owns the subclass link on success. The temporary
            lookup reference is no longer needed, including on failure. */
         if (supercl)

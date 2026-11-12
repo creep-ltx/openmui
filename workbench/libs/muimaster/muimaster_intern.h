@@ -176,6 +176,11 @@ void zune_identity_nest(register LONG delta __asm("d0"));
 void zune_identity_release(void);  /* LibClose's release of the classes */
 /* mui_newobject.c: the child objects of a tag list nothing has read yet */
 void zune_dispose_children(struct TagItem *tags __asm("a0"));
+/* support_classes.c: MakeClass(id, superid, super, size, 0) with OS 3.1's
+ * raised subclass count put right when MakeClass's own allocation failed */
+struct IClass *zune_make_class(CONST_STRPTR id __asm("a0"),
+    CONST_STRPTR superid __asm("a1"), struct IClass *super __asm("d1"),
+    ULONG size __asm("d0"));
 void zune_module_close(register struct Library *lib __asm("a1"));
 void zune_module_remove(register struct Library *lib __asm("a1"));
 void zune_identity_free(void);     /* at expunge */
