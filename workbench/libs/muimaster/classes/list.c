@@ -1097,6 +1097,7 @@ AROS_UFH3S(int, default_compare_func,
 #define PROP_VERT_FIRST   1
 #define PROP_HORIZ_FIRST  2
 #define PROP_VERT_SYNC    3
+#define PROP_VERT_SYNCFIRST 4
 
 /* The units the scrollbar counts in: MUI 3.8 gives its Prop pixels
  * (entries times the row height), which Intuition's prop gadget rounds
@@ -1120,6 +1121,15 @@ static void List_SyncVertProp(Object *obj, struct MUI_ListData *data)
             MUIA_Prop_First, data->vertprop_first * scale, TAG_DONE);
 }
 
+/* Not inlined: its tag list stays off List_Function's frame */
+static __attribute__((noinline)) void List_SyncVertFirst(Object *obj,
+    struct MUI_ListData *data)
+{
+    if (data->vert)
+        SetAttrs(data->vert, MUIA_NoNotify, TRUE, MUIA_Prop_First,
+            data->vertprop_first * List_PropScale(obj, data), TAG_DONE);
+}
+
 static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
 {
     struct MUI_ListData *data = (struct MUI_ListData *)hook->h_Data;
@@ -1140,6 +1150,15 @@ static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
         break;
     case PROP_VERT_SYNC:
         List_SyncVertProp(obj, data);
+        break;
+    case PROP_VERT_SYNCFIRST:
+        /* A scroll: only the position changed. The units, the entries
+         * and the visible rows were given with the layout (the units
+         * change only there) or by their own notifications; the
+         * scrollbar's Prop compared them and passed them over (opbench
+         * "list scroll line": four tags through Scrollbar, Group, Area,
+         * Notify and Prop on every step) */
+        List_SyncVertFirst(obj, data);
         break;
     case PROP_HORIZ_FIRST:
         get(data->horiz, MUIA_Prop_First, &val);
@@ -1180,7 +1199,7 @@ static void List_CheckHoriz(struct IClass *cl, Object *obj)
 /* The list's notifications on its three VertProp attributes, which keep
  * the scrollbar in step (on), or their removal. Pass prop object as
  * DestObj (based on code in NList); the hook gives the scrollbar all
- * three in its units */
+ * three in its units, the position alone when only it changed */
 static __attribute__((noinline)) void List_VertNotify(Object *obj,
     struct MUI_ListData *data, BOOL on)
 {
@@ -1191,7 +1210,7 @@ static __attribute__((noinline)) void List_VertNotify(Object *obj,
         if (on)
             DoMethod(obj, MUIM_Notify, vertprop[i], MUIV_EveryTime,
                 (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
-                PROP_VERT_SYNC);
+                i ? PROP_VERT_SYNC : PROP_VERT_SYNCFIRST);
         else
             DoMethod(obj, MUIM_KillNotifyObj, vertprop[i], (IPTR) obj);
 }
@@ -2754,8 +2773,13 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             scroll_caused_damage =
                 (_rp(obj)->Layer->Flags & LAYERREFRESH) ? FALSE : TRUE;
 
-            /* the last row may be cut off by the area */
-            ScrollRaster(_rp(obj), 0, diffy * data->entry_maxheight,
+            /* the last row may be cut off by the area. ScrollRasterBF:
+             * the rows the scroll uncovers get the layer's backfill (none
+             * in "redraw without clear", the default), not a fill with the
+             * background pen: they are painted below in any case (their
+             * background, then the rows), so the fill was one blit for
+             * nothing (opbench "list scroll line" -0.6 ms) */
+            ScrollRasterBF(_rp(obj), 0, diffy * data->entry_maxheight,
                 _mleft(area), y,
                 _mright(area),
                 MIN(y + data->entry_maxheight * data->entries_visible,

@@ -267,6 +267,7 @@ static BOOL Scrollbar_PropOnly(struct TagItem *tags)
         case MUIA_Prop_First:
         case MUIA_Prop_Entries:
         case MUIA_Prop_Visible:
+        case MUIA_Prop_DeltaFactor:   /* List's sync sends it every time */
             break;
         default:
             return FALSE;
