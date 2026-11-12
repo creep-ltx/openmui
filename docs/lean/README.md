@@ -3049,10 +3049,11 @@ the PC; MUI 3.8 black-box. Figures are emulator figures.
   -9,696: MUI-Demo's window contents when the Window cannot be made) and 1-7 KB cases of its own; so
   MUI 3.8 does not follow its documented rule there, and OpenMUI now does, except for intuition's
   own failure.
-- **Soak** (70 minutes, 52+ cycles of eight sub-windows, page switches, scrolling, typing, HIDE/SHOW
-  over ARexx, resizes): the windows stayed five all along; the memory in use crept from 1,923,576 to
-  1,929,712 bytes (about 120 bytes a cycle); what is given back at the end is in the soak's last line
-  (see "Results" below).
+- **Soak** (70 minutes, 127 cycles of eight sub-windows opened and worked in, page switches,
+  scrolling, typing, HIDE/SHOW over ARexx every third cycle, a resize every second): the windows
+  stayed five all along; the memory in use rose from 1,900,320 to 1,930,688 bytes in the first
+  hour (most of it in the first ten cycles, flat from cycle 60 on) and **after the four programs
+  quit, lost 0 bytes** (avail flush before and after): working memory, not a leak.
 - **The 68000**: every fullcheck demo and MUI-Demo with its eight sub-windows run and quit on the
   A600 (OS 3.1, 1 MB chip) with 0, 1 and 2 MB fast RAM, the same "lost" figures as the A1200
   (608 / 200 / AppWindow 264); MUI-Demo needs about 620 KB.
@@ -3069,7 +3070,20 @@ the PC; MUI 3.8 black-box. Figures are emulator figures.
 
 ### Results of the final build
 
-(filled at the end of the round: fullcheck, demopix, the suite, stackrun, the soak's last line)
+- `make check`: passes (with the two new checks).
+- **demopix** against MUI 3.8 (Amiberry, both sides fresh): 27 windows, 17 pixel-identical, 25
+  comparable, the known differences with round 4's figures exactly (Balancing 1,085, Subtask 450,
+  Slidorama 6,921, Images 2,321, Listviews 1,132, Virtual 432, InputHandler 791, Popup 30, ShowHide
+  20, Layout random): no OpenMUI window changed.
+- **Frames**: `-fstack-usage` of all 3,778 functions against lean, none grew; one new function
+  (zune_dispose_children, 16 bytes).
+- **fullcheck** (A1200 OS 3.1, Amiberry): MUI-Demo with its eight sub-windows lost 608, every other
+  demo 200, AppWindow 264: lean's figures.
+- **Settings-file fuzz** with the right wait: seeds 0-89 and on, every file either starts MUI-Demo
+  or is refused, no reset, no hang.
+- **stackrun** (FS-UAE, lean's library and this one in turn): MUI-Demo 5,196, Layout 2,268, Virtual
+  2,212, Pages 2,240, Slidorama 2,304 bytes, both the same: not deeper.
+FINALRESULTS3
 
 ## Left open
 
