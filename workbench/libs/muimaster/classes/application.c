@@ -1501,6 +1501,23 @@ static __attribute__((noinline)) void app_save_positions(
  * cleanup assumes preferences exist whenever Base is non-NULL; see the
  * class BUGS contract.
  */
+static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
+    struct opSet *msg);
+
+/* The "iconify at startup" setting, applied by this class's own OM_SET:
+ * MUI 3.8's subclass sees no OM_SET during OM_NEW with the setting on
+ * (tests/lean/probe/newset.c), and a subclass's instance data is not set
+ * up yet. Its own frame: OM_NEW's stays as it was. */
+static __attribute__((noinline)) void app_iconify_at_start(
+    register struct IClass *cl __asm("a0"), register Object *obj __asm("a1"))
+{
+    static const struct TagItem tags[] =
+        { { MUIA_Application_Iconified, TRUE }, { TAG_DONE, 0 } };
+    struct opSet m = { OM_SET, (struct TagItem *)tags, NULL };
+
+    Application__OM_SET(cl, obj, &m);
+}
+
 static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
     struct opSet *msg)
 {
@@ -1866,7 +1883,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
 
     /* The settings may start every program iconified (System page) */
     if (data->app_GlobalInfo.mgi_Prefs->iconification_on_startup)
-        set(obj, MUIA_Application_Iconified, TRUE);
+        app_iconify_at_start(cl, obj);
 
     return (IPTR) obj;
 }
