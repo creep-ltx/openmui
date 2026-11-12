@@ -34,6 +34,19 @@ IMAGE_CLASSES = ('Rawimage.mcc', 'Pixmap.mui', 'Listtree.mcc', 'Listtree.mcp', '
                  'Lamp.mcc', 'LoginWindow.mcc', 'PrefsEditor.mcc', 'PrefsWindow.mcc',
                  'QRCode.mcc', 'SystemPrefsWindow.mcc')
 CLASS_FILES = (*PLUGINS.values(), *IMAGE_CLASSES)
+# Spot's UP-MCC 1.0 (MIT; github.com/spotUP/selecta), shipped as released:
+# vendor/upmcc (ORIGIN). Staged by sdk() into UP-MCC/ of the build; the
+# package puts the classes into Libs/MUI with the others, up-mcc.library
+# into Libs, the Inter font into Fonts and the themes into Themes/UP-MCC
+# (release.py package_path); the installer gives each the same care as the
+# bundled classes (dist/Install).
+UPMCC = ROOT / 'vendor/upmcc'
+UPMCC_CLASSES = ('UP-Balance.mcc', 'UP-Button.mcc', 'UP-Cycle.mcc', 'UP-Field.mcc',
+                 'UP-List.mcc', 'UP-Panel.mcc', 'UP-Progress.mcc', 'UP-Scroller.mcc',
+                 'UP-Slider.mcc', 'UP-Tabs.mcc', 'UP-Text.mcc', 'UP-MCC.mcp')
+UPMCC_FILES = (*('UP-MCC/Libs/mui/' + n for n in UPMCC_CLASSES),
+               'UP-MCC/Libs/up-mcc.library', 'UP-MCC/Fonts/Inter-Regular.ttf',
+               'UP-MCC/Themes/Dark.theme', 'UP-MCC/Themes/Light.theme')
 EXAMPLES = ['HelloZune', 'HGroup', 'VGroup', 'VHGroup', 'VHGroup2', 'HVGroup', 'Notify', 'TheBarDemo']
 
 
@@ -153,10 +166,24 @@ def sdk(build):
                 if source.is_file():
                     copy(source, build / 'Docs' / family / source.name)
     copy(ROOT / 'tools/thebar/Native', build / 'Docs/thebar/Native')
+    upmcc(build)
     copy(ROOT / 'tests/native/thebar_demo.c', build / 'SDK/examples/TheBarDemo.c')
     for source in (master / 'tutorial/examples').glob('*'):
         if source.suffix in ('.c', '.h'):
             copy(source, build / 'SDK/examples' / source.name)
+
+
+def upmcc(build):
+    """UP-MCC's files (UPMCC_FILES), its documents and licences in Docs/UP-MCC,
+    its headers in SDK/include"""
+    for name in UPMCC_FILES:
+        copy(UPMCC / name[len('UP-MCC/'):], build / name)
+    for source in (UPMCC / 'Docs').glob('*'):
+        copy(source, build / 'Docs/UP-MCC' / source.name)
+    for name in ('README', 'ORIGIN'):
+        copy(UPMCC / name, build / 'Docs/UP-MCC' / name)
+    for source in (UPMCC / 'Include').rglob('*.h'):
+        copy(source, build / 'SDK/include' / source.relative_to(UPMCC / 'Include'))
 
 
 if __name__ == '__main__':

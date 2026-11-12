@@ -1,4 +1,4 @@
-; $VER: Install-OpenMUI 2.3 (12.11.2026) OpenMUI 0.1b1
+; $VER: Install-OpenMUI 2.4 (13.11.2026) OpenMUI 0.1b1
 ; Amiga Installer script, Installer 43 or newer (OS 3.1: Installer 43.3
 ; from Aminet; OS 3.2: SYS:System/Installer). tools/release.py fills in the
 ; lines marked COMPONENT_... when it builds the archive.
@@ -16,7 +16,10 @@
 ;   (Tools/OpenMUISwitch);
 ; - installs a bundled MUI class only when the user has no newer one of
 ;   their own (in any LIBS:MUI drawer but MUI's own; classes of a real MUI
-;   are written for that MUI and are not used by OpenMUI);
+;   are written for that MUI and are not used by OpenMUI); Spot's UP-MCC
+;   comes with them: its up-mcc.library into LIBS: unless the user has the
+;   same or a newer one, its font (FONTS:) and themes (ENVARC:UP-MCC,
+;   ENV:UP-MCC) only where the user has none of that name;
 ; - an earlier OpenMUI installation is removed first (its backups put
 ;   back), so that an update starts from the user's own files; the
 ;   settings (ENVARC:OpenMUI, ENV:OpenMUI) are kept;
@@ -238,6 +241,37 @@
             )
             (P_Put #src #libsmui #name)
         )
+    )
+)
+
+; A bundled library beside muimaster.library (Spot's up-mcc.library, which
+; the UP- classes open): into the first LIBS: directory unless the user has
+; the same or a newer one in a LIBS: directory; an older one in the first
+; is kept in the backup.
+(procedure P_Library #src #name
+    (set #bv (getversion #src))
+    (set #best (P_ClassVersion #libsdir #name))
+    (if (<> #other1 "")
+        (if (> (P_ClassVersion #other1 #name) #best) (set #best (P_ClassVersion #other1 #name))))
+    (if (<> #other2 "")
+        (if (> (P_ClassVersion #other2 #name) #best) (set #best (P_ClassVersion #other2 #name))))
+    (if (<> #other3 "")
+        (if (> (P_ClassVersion #other3 #name) #best) (set #best (P_ClassVersion #other3 #name))))
+    (if (>= #best #bv)
+        (set #report (cat #report #name " " (P_Version #best) ": yours, kept "
+            "(OpenMUI's: " (P_Version #bv) ").\n"))
+        (P_Put #src #libsdir #name)
+    )
+)
+
+; A bundled file with no version (UP-MCC's font and themes): installed
+; only where the user has no file of that name
+(procedure P_Keep #src #dir #name
+    (if (= (exists (tackon #dir #name) (noreq)) 0)
+        (P_Put #src #dir #name)
+        ; OS 3.2's ENV: shows ENVARC:'s files: no report for those
+        (if (<> (substr #dir 0 4) "ENV:")
+            (set #report (cat #report (tackon #dir #name) ": yours, kept.\n")))
     )
 )
 
@@ -512,6 +546,24 @@
 (foreach (tackon #package "Libs/MUI") "#?.mc(c|p)"
     (P_Class @each-name)
 )
+(P_SaveRecord)
+
+; ---- Spot's UP-MCC (its classes came with the MUI classes above): its
+; library, the Inter font (anti-aliased text with ttengine.library) and the
+; themes where UP-MCC's own installer puts them. No "theme" (the one in
+; use) is written: without one the classes use their built-in Dark, the
+; same as Dark.theme, and a theme the user saves later is not the
+; installer's to remove ----
+(working "Installing UP-MCC...")
+(P_Library (tackon #package "Libs/up-mcc.library") "up-mcc.library")
+(P_Keep (tackon #package "Fonts/Inter-Regular.ttf") (expandpath "FONTS:")
+    "Inter-Regular.ttf")
+(P_MakeDir "ENVARC:UP-MCC")
+(P_MakeDir "ENV:UP-MCC")
+(P_Keep (tackon #package "Themes/UP-MCC/Dark.theme") "ENVARC:UP-MCC" "Dark.theme")
+(P_Keep (tackon #package "Themes/UP-MCC/Light.theme") "ENVARC:UP-MCC" "Light.theme")
+(P_Keep (tackon #package "Themes/UP-MCC/Dark.theme") "ENV:UP-MCC" "Dark.theme")
+(P_Keep (tackon #package "Themes/UP-MCC/Light.theme") "ENV:UP-MCC" "Light.theme")
 (P_SaveRecord)
 (complete 80)
 

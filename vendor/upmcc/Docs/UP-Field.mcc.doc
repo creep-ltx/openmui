@@ -1,0 +1,102 @@
+TABLE OF CONTENTS
+
+UP-Field.mcc/UPM_Field_Redraw
+UP-Field.mcc/UPA_Field_Tokens
+UP-Field.mcc/UPA_Field_String
+UP-Field.mcc/UPA_Field_Placeholder
+UP-Field.mcc/UPA_Field_MaxWidth
+
+/****** UP-Field.mcc/UPM_Field_Redraw ******
+*
+*   NAME
+*       UPM_Field_Redraw -- method of UP-Field.mcc
+*
+*   FUNCTION
+*       Method: the window's active object changed, repaint the outline
+*
+*   INPUTS
+*       UPM_Field_Redraw - method id. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Send with DoMethod; see FUNCTION for the return value.
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Field.mcc
+*
+******/
+
+/****** UP-Field.mcc/UPA_Field_Tokens ******
+*
+*   NAME
+*       UPA_Field_Tokens -- attribute of UP-Field.mcc
+*
+*   FUNCTION
+*       Const uint32_t*: theme token array
+*
+*   INPUTS
+*       UPA_Field_Tokens - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Field.mcc
+*
+******/
+
+/****** UP-Field.mcc/UPA_Field_String ******
+*
+*   NAME
+*       UPA_Field_String -- attribute of UP-Field.mcc
+*
+*   FUNCTION
+*       Object*: the inner string gadget (for MUIA_String_Acknowledge notifies)
+*
+*   INPUTS
+*       UPA_Field_String - access G. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Field.mcc
+*
+******/
+
+/****** UP-Field.mcc/UPA_Field_Placeholder ******
+*
+*   NAME
+*       UPA_Field_Placeholder -- attribute of UP-Field.mcc
+*
+*   FUNCTION
+*       STRPTR hint while empty and not active; must outlive the field
+*
+*   INPUTS
+*       UPA_Field_Placeholder - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Field.mcc
+*
+******/
+
+/****** UP-Field.mcc/UPA_Field_MaxWidth ******
+*
+*   NAME
+*       UPA_Field_MaxWidth -- attribute of UP-Field.mcc
+*
+*   FUNCTION
+*       LONG cap of the field's MaxWidth in px, 0 = unbounded
+*
+*   INPUTS
+*       UPA_Field_MaxWidth - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Field.mcc
+*
+******/

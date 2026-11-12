@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from components import CLASS_FILES, EXAMPLES, LANGUAGES, catalog_paths
+from components import CLASS_FILES, EXAMPLES, LANGUAGES, UPMCC_FILES, catalog_paths
 
 LIBRARIES = ('muimaster.library',)
 
@@ -77,6 +77,7 @@ def component_files(build_dir):
     files = ['Prefs/OpenMUI', 'Prefs/OpenMUI.info']
     files += ['Libs/MUI/' + name for name in CLASS_FILES]
     files += ['Examples/' + name for name in EXAMPLES]
+    files += list(UPMCC_FILES)
     files += catalog_paths(build_dir)
     for directory in ['SDK', 'Docs']:
         entries = [p.relative_to(build_dir).as_posix()
@@ -87,7 +88,8 @@ def component_files(build_dir):
     for name in files:
         if not (build_dir / name).is_file():
             raise ValueError(f'{build_dir}: missing {name}')
-    for name in ['Prefs/OpenMUI', *['Libs/MUI/' + n for n in CLASS_FILES]]:
+    for name in ['Prefs/OpenMUI', *['Libs/MUI/' + n for n in CLASS_FILES],
+                 *[n for n in UPMCC_FILES if n.startswith('UP-MCC/Libs/')]]:
         component_version(build_dir / name)
     return files
 
@@ -104,6 +106,12 @@ def package_path(name):
     shadow (or replace) real MUI's own Pixmap.mui."""
     if name.startswith('Libs/MUI/') and name.endswith('.mui'):
         return 'Libs/OpenMUI/' + name[len('Libs/MUI/'):]
+    # UP-MCC (components.py): classes with the bundled ones, its library
+    # beside muimaster.library, the font, the themes
+    for staged, packaged in (('UP-MCC/Libs/mui/', 'Libs/MUI/'), ('UP-MCC/Libs/', 'Libs/'),
+                             ('UP-MCC/Fonts/', 'Fonts/'), ('UP-MCC/Themes/', 'Themes/UP-MCC/')):
+        if name.startswith(staged):
+            return packaged + name[len(staged):]
     return name
 
 
@@ -219,9 +227,11 @@ def stage_home(package):
 
 
 def strip_binaries(package, strip):
-    """Strip only staged Hunk executables, including libraries and plugins."""
+    """Strip only staged Hunk executables, including libraries and plugins.
+    UP-MCC's files are shipped as Spot released them (vendor/upmcc/ORIGIN)."""
+    keep = {package / package_path(name) for name in UPMCC_FILES}
     for path in sorted(package.rglob('*')):
-        if not path.is_file():
+        if not path.is_file() or path in keep:
             continue
         with path.open('rb') as source:
             is_hunk = source.read(4) == struct.pack('>I', 1011)
@@ -288,7 +298,8 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
             target = package / package_path(name)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(build_dir / name, target)
-            if name.startswith(('Libs/', 'Prefs/', 'Examples/')) and not name.endswith('.info'):
+            if (name.startswith(('Libs/', 'Prefs/', 'Examples/', 'UP-MCC/Libs/'))
+                    and not name.endswith('.info')):
                 target.chmod(0o755)
         drawers = ['Libs', 'Tests']
         if full:

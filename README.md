@@ -76,7 +76,9 @@ classes keep their own licences and notices (`LEGAL`, `ACKNOWLEDGEMENTS`).
 - **OpenMUI preferences** (`SYS:Prefs/OpenMUI`), with an import of MUI 3.8's
   settings.
 - **Bundled MUI classes** with their preference pages: NList, NListtree,
-  TextEditor, BetterString, TheBar, Busy, Listtree and others.
+  TextEditor, BetterString, TheBar, Busy, Listtree and others, and Spot's
+  [UP-MCC](https://github.com/spotUP/selecta) 1.0 (eleven flat-look classes,
+  up-mcc.library, the Inter font, Dark and Light themes; MIT).
 - **Installer** that leaves a real MUI alone, keeps what it replaces,
   and has *Use real MUI*, *Use OpenMUI* and *Uninstall* in `SYS:OpenMUI`.
 - Translations, an SDK with examples, and the full source.

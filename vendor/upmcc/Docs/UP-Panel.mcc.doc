@@ -1,0 +1,104 @@
+TABLE OF CONTENTS
+
+UP-Panel.mcc/UPA_Panel_Tokens
+UP-Panel.mcc/UPA_Panel_Role
+UP-Panel.mcc/UPA_Panel_Self
+UP-Panel.mcc/UPA_Panel_FixedWidth
+UP-Panel.mcc/UPA_Panel_FixedHeight
+
+/****** UP-Panel.mcc/UPA_Panel_Tokens ******
+*
+*   NAME
+*       UPA_Panel_Tokens -- attribute of UP-Panel.mcc
+*
+*   FUNCTION
+*       Const uint32_t*: theme token array
+*
+*   INPUTS
+*       UPA_Panel_Tokens - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Panel.mcc
+*
+******/
+
+/****** UP-Panel.mcc/UPA_Panel_Role ******
+*
+*   NAME
+*       UPA_Panel_Role -- attribute of UP-Panel.mcc
+*
+*   FUNCTION
+*       UPV_Panel_Role_*
+*
+*   INPUTS
+*       UPA_Panel_Role - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Panel.mcc
+*
+******/
+
+/****** UP-Panel.mcc/UPA_Panel_Self ******
+*
+*   NAME
+*       UPA_Panel_Self -- attribute of UP-Panel.mcc
+*
+*   FUNCTION
+*       Object*: the panel itself. A MUI Group passes an unknown OM_GET on
+*       to its children, so a UPA_Panel_Role answer counts only when
+*       UPA_Panel_Self names the object that was asked.
+*
+*   INPUTS
+*       UPA_Panel_Self - access G. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Panel.mcc, UPA_Panel_Role
+*
+******/
+
+/****** UP-Panel.mcc/UPA_Panel_FixedWidth ******
+*
+*   NAME
+*       UPA_Panel_FixedWidth -- attribute of UP-Panel.mcc
+*
+*   FUNCTION
+*       LONG > 0: fixed width and height, no inner padding
+*
+*   INPUTS
+*       UPA_Panel_FixedWidth - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Panel.mcc
+*
+******/
+
+/****** UP-Panel.mcc/UPA_Panel_FixedHeight ******
+*
+*   NAME
+*       UPA_Panel_FixedHeight -- attribute of UP-Panel.mcc
+*
+*   FUNCTION
+*       LONG > 0 with FixedWidth: the fixed height when it differs
+*
+*   INPUTS
+*       UPA_Panel_FixedHeight - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Panel.mcc
+*
+******/

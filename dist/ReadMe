@@ -49,7 +49,8 @@ added to S:Startup-Sequence or S:User-Startup.
 Every file the installer replaces is kept in SYS:OpenMUI/Data/Backup, and
 every file it installs is written down in SYS:OpenMUI/Data/Manifest.
 
-The bundled MUI classes (NList, TextEditor, TheBar, ...): one is installed
+The bundled MUI classes (NList, TextEditor, TheBar, Spot's UP-MCC, ...):
+one is installed
 only when you have no same or newer version of it in a LIBS:MUI drawer; an
 older one of yours is kept in the backup. The classes that come with a
 real MUI (in MUI:Libs/mui) belong to that MUI and are not used by OpenMUI:
@@ -130,3 +131,6 @@ Zune68: https://github.com/reinauer/zune68
 AROS:   https://github.com/aros-development-team/AROS
 LICENSE has the AROS Public License; the bundled classes keep their own
 licences and copyright notices, with their sources and under Docs.
+UP-MCC 1.0 is Spot's (spotUP), https://github.com/spotUP/selecta: MIT
+(Docs/UP-MCC/LICENSE), its Lucide icons ISC (LICENSE.Lucide), the Inter
+font SIL Open Font License 1.1 (LICENSE.Inter).

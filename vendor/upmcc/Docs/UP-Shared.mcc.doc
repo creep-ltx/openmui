@@ -1,0 +1,62 @@
+TABLE OF CONTENTS
+
+UP-Shared.mcc/UPM_Shared_Fire
+UP-Shared.mcc/UPA_Shared_Side
+UP-Shared.mcc/UPA_Shared_Origin
+
+/****** UP-Shared.mcc/UPM_Shared_Fire ******
+*
+*   NAME
+*       UPM_Shared_Fire -- method of UP-Shared.mcc
+*
+*   FUNCTION
+*       Private method the timer node sends to the owner
+*
+*   INPUTS
+*       UPM_Shared_Fire - method id. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Send with DoMethod; see FUNCTION for the return value.
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Shared.mcc
+*
+******/
+
+/****** UP-Shared.mcc/UPA_Shared_Side ******
+*
+*   NAME
+*       UPA_Shared_Side -- attribute of UP-Shared.mcc
+*
+*   FUNCTION
+*       I/S: preferred side, MUI_AA_TIP_*
+*
+*   INPUTS
+*       UPA_Shared_Side - method id. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Shared.mcc
+*
+******/
+
+/****** UP-Shared.mcc/UPA_Shared_Origin ******
+*
+*   NAME
+*       UPA_Shared_Origin -- attribute of UP-Shared.mcc
+*
+*   FUNCTION
+*       ---- Constructors: the tag list is the whole interface. Defaults a caller does not give (no frame, cycle chain) are the class's. ----
+*
+*   INPUTS
+*       UPA_Shared_Origin - method id. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Shared.mcc
+*
+******/

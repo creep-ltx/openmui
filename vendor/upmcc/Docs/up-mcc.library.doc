@@ -1,0 +1,182 @@
+TABLE OF CONTENTS
+
+up-mcc.library/UP_ThemeLoad
+up-mcc.library/UP_ThemeReload
+up-mcc.library/UP_ThemeSetTokens
+up-mcc.library/UP_ThemeTokens
+up-mcc.library/UP_ThemeAttach
+up-mcc.library/UP_ThemeDetach
+up-mcc.library/UP_ThemeObjects
+up-mcc.library/UP_IconFind
+up-mcc.library/UP_SetFontFile
+
+/****** up-mcc.library/UP_ThemeLoad ******
+*
+*   NAME
+*       UP_ThemeLoad -- up-mcc.library function
+*
+*   FUNCTION
+*       Validate the theme file at path (empty or NULL: ENV:UP-MCC/theme) and apply it to every UP- object.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       0, or -1 with the tokens untouched when the file is missing or malformed.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_ThemeReload ******
+*
+*   NAME
+*       UP_ThemeReload -- up-mcc.library function
+*
+*   FUNCTION
+*       Resolve the theme again (built-in, ENV file, last accepted path) and apply it.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       0.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_ThemeSetTokens ******
+*
+*   NAME
+*       UP_ThemeSetTokens -- up-mcc.library function
+*
+*   FUNCTION
+*       Store count 0xRRGGBB tokens (UPTOK_ order) over the front of the token array, then recolour every UP- object. Extra entries are ignored.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       0, or -1 for a NULL array or zero count.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_ThemeTokens ******
+*
+*   NAME
+*       UP_ThemeTokens -- up-mcc.library function
+*
+*   FUNCTION
+*       The token array in force, UPTOK_END_ entries; valid until the next set or reload.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       Pointer to the token array.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_ThemeAttach ******
+*
+*   NAME
+*       UP_ThemeAttach -- up-mcc.library function
+*
+*   FUNCTION
+*       Register an object for recolours from any process. key identifies the entry, app is the object MUI application, hook runs on the application task.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       0, or -1.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_ThemeDetach ******
+*
+*   NAME
+*       UP_ThemeDetach -- up-mcc.library function
+*
+*   FUNCTION
+*       Remove the registry entry for key.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       0, or -1 when unknown.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_ThemeObjects ******
+*
+*   NAME
+*       UP_ThemeObjects -- up-mcc.library function
+*
+*   FUNCTION
+*       Count the registered entries.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       Number of entries.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_IconFind ******
+*
+*   NAME
+*       UP_IconFind -- up-mcc.library function
+*
+*   FUNCTION
+*       Index of the baked Lucide icon by name ("play"), usable with UPA_Button_Icon.
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       Index, or -1 when unknown.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/
+
+/****** up-mcc.library/UP_SetFontFile ******
+*
+*   NAME
+*       UP_SetFontFile -- up-mcc.library function
+*
+*   FUNCTION
+*       Append a TrueType file to the font search list (up to 4, duplicates ignored).
+*
+*   INPUTS
+*       See the prototype in <mcc/up_lib.h>.
+*
+*   RESULT
+*       0, or -1.
+*
+*   SEE ALSO
+*       <mcc/up_lib.h>, dist/sfd/up-mcc_lib.sfd
+*
+******/

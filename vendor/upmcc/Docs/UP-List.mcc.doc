@@ -1,0 +1,262 @@
+TABLE OF CONTENTS
+
+UP-List.mcc/UPA_List_Count
+UP-List.mcc/UPA_List_Active
+UP-List.mcc/UPA_List_First
+UP-List.mcc/UPA_List_Picked
+UP-List.mcc/UPA_List_Columns
+UP-List.mcc/UPA_List_Playing
+UP-List.mcc/UPA_List_RowHook
+UP-List.mcc/UPA_List_CellHook
+UP-List.mcc/UPA_List_MaxRows
+UP-List.mcc/UPA_List_Title
+UP-List.mcc/UPA_List_DoublePick
+UP-List.mcc/UPA_List_NoSelect
+UP-List.mcc/UPM_List_GetRow
+
+/****** UP-List.mcc/UPA_List_Count ******
+*
+*   NAME
+*       UPA_List_Count -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       LONG: rows (notifies)
+*
+*   INPUTS
+*       UPA_List_Count - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_Active ******
+*
+*   NAME
+*       UPA_List_Active -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       LONG: selected row, -1 none (notifies)
+*
+*   INPUTS
+*       UPA_List_Active - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_First ******
+*
+*   NAME
+*       UPA_List_First -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       LONG: first visible row (notifies)
+*
+*   INPUTS
+*       UPA_List_First - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_Picked ******
+*
+*   NAME
+*       UPA_List_Picked -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       LONG: row chosen by click or Return (notifies every time)
+*
+*   INPUTS
+*       UPA_List_Picked - access G. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_Columns ******
+*
+*   NAME
+*       UPA_List_Columns -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       Struct UP_ListColumns*, copied: the shown columns, may change while live
+*
+*   INPUTS
+*       UPA_List_Columns - access IS. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_Playing ******
+*
+*   NAME
+*       UPA_List_Playing -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       LONG: row whose first column is drawn in ACCENT, -1 none
+*
+*   INPUTS
+*       UPA_List_Playing - access IS. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_RowHook ******
+*
+*   NAME
+*       UPA_List_RowHook -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       Struct Hook*: single column text; msg struct UP_ListCell (col 0), returns const char*
+*
+*   INPUTS
+*       UPA_List_RowHook - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_CellHook ******
+*
+*   NAME
+*       UPA_List_CellHook -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       Struct Hook*: multi column text; row -1 asks the column title; same msg
+*
+*   INPUTS
+*       UPA_List_CellHook - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_MaxRows ******
+*
+*   NAME
+*       UPA_List_MaxRows -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       LONG: default height in rows (absent or 0 = 8)
+*
+*   INPUTS
+*       UPA_List_MaxRows - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_Title ******
+*
+*   NAME
+*       UPA_List_Title -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       BOOL: a title row above the rows (the cell hook is asked for row -1)
+*
+*   INPUTS
+*       UPA_List_Title - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_DoublePick ******
+*
+*   NAME
+*       UPA_List_DoublePick -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       BOOL: UPA_List_Picked only on a double click or Return
+*
+*   INPUTS
+*       UPA_List_DoublePick - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPA_List_NoSelect ******
+*
+*   NAME
+*       UPA_List_NoSelect -- attribute of UP-List.mcc
+*
+*   FUNCTION
+*       BOOL: no hover, no selection, wheel only
+*
+*   INPUTS
+*       UPA_List_NoSelect - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/
+
+/****** UP-List.mcc/UPM_List_GetRow ******
+*
+*   NAME
+*       UPM_List_GetRow -- method of UP-List.mcc
+*
+*   FUNCTION
+*       Method: read one row back for tools that drive the window from outside. The caller fills row and text capacity; the method returns TRUE when the row exists, with the cell texts joined by two spaces, the row box in window coordinates and the selected flag.
+*
+*   INPUTS
+*       UPM_List_GetRow - method id. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Send with DoMethod; see FUNCTION for the return value.
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-List.mcc
+*
+******/

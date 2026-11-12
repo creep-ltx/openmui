@@ -1,0 +1,12 @@
+UP-MCC 1.0 by Spot (spotUP), released 2026-11-12
+https://github.com/spotUP/selecta (source; the classes are in plugins/shared/mcc)
+Release assets: UP-MCC.lha
+SHA256 db07096b288d7371cb771030ac7c8cf1e5658d133d53261991f5ad8df4ff154d
+and UP-MCC-Dark.theme / UP-MCC-Light.theme (identical to Themes/Dark.theme
+and Themes/Light.theme in the archive).
+The archive's Libs, Fonts, Themes, Docs, Include and README are kept here
+unchanged; Docs/updemo.c is the archive's Demo/updemo.c. The binaries are
+shipped as released (not rebuilt, not stripped).
+Licences: Docs/LICENSE (MIT, the package code), Docs/LICENSE.Lucide (ISC,
+the Lucide icons baked into up-mcc.library), Docs/LICENSE.Inter (SIL Open
+Font License 1.1, Fonts/Inter-Regular.ttf).

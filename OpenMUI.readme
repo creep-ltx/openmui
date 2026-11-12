@@ -35,6 +35,11 @@ What is in it
 - The OpenMUI preferences program (SYS:Prefs/OpenMUI).
 - [PLUGINS] MUI classes: NList, NListtree, TextEditor, BetterString,
   TheBar, Busy, Listtree and others, with their preference pages.
+- Spot's UP-MCC 1.0 (spotUP, MIT, https://github.com/spotUP/selecta):
+  eleven flat-look classes (UP-Button, UP-Text, UP-Panel, UP-Tabs,
+  UP-Balance, UP-Slider, UP-Progress, UP-Cycle, UP-Field, UP-Scroller,
+  UP-List), their preferences class UP-MCC.mcp, up-mcc.library, the Inter
+  font and the Dark and Light themes, as Spot released them.
 - Translations, an SDK with examples, and the full source.
 
 The library file keeps the name muimaster.library and the library version
@@ -98,4 +103,6 @@ Source.tar.gz in the archive has the complete source.
 Zune68: https://github.com/reinauer/zune68
 AROS:   https://github.com/aros-development-team/AROS
 The core is under the AROS Public License (LICENSE). The bundled classes
-keep their own licences and copyright notices, included with the source.
+keep their own licences and copyright notices, included with the source;
+UP-MCC's (MIT; the Lucide icons ISC, the Inter font SIL OFL 1.1) are in
+Docs/UP-MCC.

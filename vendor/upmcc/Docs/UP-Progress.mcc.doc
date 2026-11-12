@@ -1,0 +1,42 @@
+TABLE OF CONTENTS
+
+UP-Progress.mcc/UPA_Progress_Value
+UP-Progress.mcc/UPA_Progress_Max
+
+/****** UP-Progress.mcc/UPA_Progress_Value ******
+*
+*   NAME
+*       UPA_Progress_Value -- attribute of UP-Progress.mcc
+*
+*   FUNCTION
+*       LONG: filled part
+*
+*   INPUTS
+*       UPA_Progress_Value - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Progress.mcc
+*
+******/
+
+/****** UP-Progress.mcc/UPA_Progress_Max ******
+*
+*   NAME
+*       UPA_Progress_Max -- attribute of UP-Progress.mcc
+*
+*   FUNCTION
+*       LONG: value that fills the bar
+*
+*   INPUTS
+*       UPA_Progress_Max - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Progress.mcc
+*
+******/

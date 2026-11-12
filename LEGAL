@@ -65,3 +65,18 @@ components' sources.
 + C/OpenURL Prefs/OpenURL Libs/OpenURL [workbench/libs/openurllib]
 + Libs/lcms2#?.library [workbench/libs/lcms2]
 + Prefs/Presets/Colortables/ICC [workbench/prefs/Presets/Colortables/ICC]
+
+
+The following components are distributed under the terms of the MIT License,
+as specified in the file "vendor/upmcc/Docs/LICENSE" (Docs/UP-MCC/LICENSE in
+the package); they are UP-MCC 1.0 by Spot (spotUP), shipped as released
+(https://github.com/spotUP/selecta, vendor/upmcc/ORIGIN):
+
++ Libs/MUI/UP-#?.mc? Libs/up-mcc.library [vendor/upmcc]
+
+The Lucide icons baked into up-mcc.library are distributed under the terms of
+the ISC License ("vendor/upmcc/Docs/LICENSE.Lucide"). The Inter font is
+distributed under the terms of the SIL Open Font License 1.1
+("vendor/upmcc/Docs/LICENSE.Inter"):
+
++ Fonts/Inter-Regular.ttf [vendor/upmcc/Fonts]
