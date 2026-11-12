@@ -229,6 +229,21 @@ struct Popobject_DATA
  * rejection, otherwise one without checking actual window open. Requires
  * live parent/application and stable popup contents.
  */
+/* Open the popup's window below obj, as wide, on obj's screen as MUI 3.8's
+ * popups (opbench: a window given MUIA_Window_Screen had its popup open on
+ * the default public screen, under it). Not inlined: the open hook's frame
+ * does not hold the tag list. */
+static __attribute__((noinline)) ULONG Popobject_OpenWindow(Object *wnd,
+    Object *obj)
+{
+    SetAttrs(wnd,
+        MUIA_Window_Screen, _screen(obj),
+        MUIA_Window_LeftEdge, _left(obj) + _window(obj)->LeftEdge,
+        MUIA_Window_TopEdge, _bottom(obj) + 1 + _window(obj)->TopEdge,
+        MUIA_Window_Width, _width(obj), MUIA_Window_Open, TRUE, TAG_DONE);
+    return 1;
+}
+
 AROS_UFH3(ULONG, Popobject_Open_Function,
     AROS_UFHA(struct Hook *, hook, A0),
     AROS_UFHA(Object *, obj, A2),
@@ -275,13 +290,9 @@ AROS_UFH3(ULONG, Popobject_Open_Function,
         CallHookPkt(data->window_hook, data->object, data->wnd);
     }
 
-    SetAttrs(data->wnd,
-        MUIA_Window_LeftEdge, _left(obj) + _window(obj)->LeftEdge,
-        MUIA_Window_TopEdge, _bottom(obj) + 1 + _window(obj)->TopEdge,
-        MUIA_Window_Width, _width(obj), MUIA_Window_Open, TRUE, TAG_DONE);
     data->popped = TRUE;
-
-    return 1;
+    /* a tail call: its frame replaces this one */
+    return Popobject_OpenWindow(data->wnd, obj);
 
     AROS_USERFUNC_EXIT
 }

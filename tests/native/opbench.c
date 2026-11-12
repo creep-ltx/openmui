@@ -405,6 +405,16 @@ static int cond_width(void)
     get(root2, MUIA_Width, &w);
     return (LONG)w == want_w;
 }
+static LONG screen_windows(void)
+{
+    struct Window *w;
+    LONG n = 0;
+
+    for (w = scr->FirstWindow; w; w = w->NextWindow)
+        n++;
+    return n;
+}
+static int cond_windows(void) { return screen_windows() == want; }
 static int cond_nowindow(void)
 {
     struct Window *w = NULL;
@@ -704,10 +714,29 @@ int main(int argc, char **argv)
             for (j = 0; j < 30; j++) set(reg, MUIA_Group_ActivePage, (j + 1) % 3); });
         set(reg, MUIA_Group_ActivePage, 0);
         settle();
+        /* the popup's window as the toolkit opens it: flags, size, IDCMP */
+        DoMethod(pop, MUIM_Popstring_Open);
+        DoMethod(app, MUIM_Application_InputBuffered);
+        {
+            struct Window *w;
+
+            for (w = scr->FirstWindow; w; w = w->NextWindow)
+                printf("open window flags=%08lx idcmp=%08lx size=%dx%d\n",
+                    (unsigned long)w->Flags, (unsigned long)w->IDCMPFlags,
+                    w->Width, w->Height);
+        }
+        DoMethod(pop, MUIM_Popstring_Close, TRUE);
+        settle();
+        /* open: until the popup's window is on the screen and drawn;
+         * close: until it is gone (a toolkit may open it from its loop) */
         TIMED("popup open+close", 1, {
+            want = screen_windows() + 1;
             DoMethod(pop, MUIM_Popstring_Open);
+            run_until(cond_windows);
             DoMethod(app, MUIM_Application_InputBuffered);
+            want--;
             DoMethod(pop, MUIM_Popstring_Close, TRUE);
+            run_until(cond_windows);
             DoMethod(app, MUIM_Application_InputBuffered); });
         settle();
         get(win2, MUIA_Window_Window, &nw);
