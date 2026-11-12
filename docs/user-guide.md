@@ -4,8 +4,8 @@ OpenMUI is a `muimaster.library` for AmigaOS 3.x. Programs written for MUI
 (the Magic User Interface) open their windows through it. It runs programs
 written for MUI 3, 4 and 5, and aims at the look and the memory use of MUI 3.8.
 
-> OpenMUI is not MUI and is not affiliated with MUI's authors. MUI is the
-> product of Stefan Stuntz. OpenMUI is a separate library that is compatible
+> OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was created by Stefan Stuntz;
+> MUI 4 and 5 come from the MUI team. OpenMUI is a separate library that is compatible
 > with MUI's programming interface. It is built on Zune, the MUI-compatible
 > toolkit of AROS (The AROS Development Team), as ported to AmigaOS 3 by
 > Stefan Reinauer (Zune68).

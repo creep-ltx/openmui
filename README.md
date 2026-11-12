@@ -8,8 +8,8 @@ and the memory use of MUI 3.8.
 daily use for a while. Every figure in these pages was measured in an emulator
 (FS-UAE), not on a real Amiga.
 
-> **OpenMUI is not MUI and is not affiliated with MUI's authors.** MUI is the
-> product of Stefan Stuntz. OpenMUI is a separate library that is compatible
+> **OpenMUI is not MUI and is not affiliated with MUI's authors.** MUI was created by Stefan Stuntz;
+> MUI 4 and 5 come from the MUI team. OpenMUI is a separate library that is compatible
 > with MUI's programming interface. MUI 3.8 was studied clean-room: its
 > behaviour, never its code.
 
