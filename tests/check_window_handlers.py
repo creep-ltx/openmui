@@ -2,7 +2,10 @@
 """Execute linked Window dispatch while client callbacks remove/free handlers.
 
 GUI services are modeled. Removal methods and all dispatch passes run as real
-68000 code, including nested dispatch and the focus-changing parent walk.
+68000 code, including nested dispatch and a focus change in the active
+object's handler. A key nobody eats goes to the active object once, then to
+the other handlers in the list's order, as on MUI 3.8 and MUI 5
+(tests/native/keyoffers.c): its parents are not walked first.
 """
 import struct
 import sys
@@ -169,8 +172,6 @@ def check(path):
             h.actions[0] = lambda h=h, removed=removed: (
                 h.script(remove=removed) if h.events.count('A') == 1 else h.ret)
             h.dispatch()
-            if mode == 'active' and removed == 1:
-                expected = 'AAC'
             assert ''.join(h.events) == expected, (mode, removed, h.events)
             h.finish()
     for mode in ('normal', 'other', 'control'):
@@ -207,11 +208,13 @@ def check(path):
         assert h.events == ['A', 'A'], (mode, 'nested disposal', h.events)
         assert h.window_freed
         h.finish()
+    # The active object removes its handler and is freed after giving the
+    # focus to B: the others are offered the key, B (now active) not
     h = HandlerHarness(path, 'parent')
-    h.actions[0] = lambda: h.script(remove=0, focus=True) if h.events.count('A') == 2 else h.ret
+    h.actions[0] = lambda: h.script(remove=0, focus=True)
     h.dispatch()
-    assert ''.join(h.events) == 'AAC', h.events
-    assert not h.parent_reads, 'old parent traversed after focus change'
+    assert ''.join(h.events) == 'AC', h.events
+    assert not h.parent_reads, 'parent traversed for a key'
     h.finish()
     print(f'{path.name}: handler removal, nested cursors, Eat and focus lifetime passed')
 

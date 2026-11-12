@@ -3496,50 +3496,27 @@ static __attribute__((noinline)) LONG MatchMuiKey(struct ZunePrefsNew *prefs,
     return MUIKEY_NONE;
 }
 
-/* Whether a key handler (IDCMP_RAWKEY or MUI_EHF_ALWAYSKEYS) belongs to a
- * parent of the active object, up to the application (HandleRawkey's
- * parent walk). */
-static __attribute__((noinline)) BOOL KeyHandlerAbove(
-    struct MUI_WindowData *data, Object *active)
-{
-    struct MinNode *mn;
+extern const struct __MUIBuiltinClass _MUI_Window_desc;
+IPTR Notify__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg);
 
-    for (mn = data->wd_EHList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
-    {
-        struct MUI_EventHandlerNode *ehn = (struct MUI_EventHandlerNode *)mn;
-        Object *o;
-
-        if (ehn->ehn_Object == active
-            || !((ehn->ehn_Events & IDCMP_RAWKEY)
-                || (ehn->ehn_Flags & MUI_EHF_ALWAYSKEYS)))
-            continue;
-        for (o = _parent(active); o; o = _parent(o))
-            if (o == ehn->ehn_Object)
-                return TRUE;
-    }
-    return FALSE;
-}
-
-static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_WindowData *data,
+/* HandleRawkey's input event for a raw key message: MUIA_Window_InputEvent
+ * set to it (its notifications), then the MUI key it is (MatchMuiKey, which
+ * has no side effects; MatchIX compares class, code and qualifier only, so
+ * the event serves without its dead keys). Window's OM_SET passes
+ * MUIA_Window_InputEvent on to Notify's: for the Window class itself (no
+ * subclass that may want the set) Notify's is called directly, without
+ * intuition's SetAttrs and Window's tag switch. Its own frame holds the
+ * event, so HandleRawkey's, which every key handler runs under, does not. */
+static __attribute__((noinline)) LONG WindowInputEvent(Object *win,
     struct IntuiMessage *event)
 {
-    struct MinNode *mn;
-    struct WindowEventCursor cursor;
-    struct MUI_EventHandlerNode *ehn;
-    struct IntuiMessage imsg_copy;
+    struct IClass *cl = OCLASS(win);
     struct InputEvent ie = { 0 };
-    ULONG res;
-    LONG muikey = MUIKEY_NONE;
-    Object *active_object = NULL;
-    IPTR disabled = 0;
-    ULONG key;
-    ULONG deadkey;
+    struct TagItem tags[] = {{MUIA_Window_InputEvent, (IPTR)&ie},
+        {TAG_DONE, 0}};
+    struct opSet msg = {OM_SET, tags, NULL};
 
-    KillHelpBubble(data, win, BUBBLEHELP_TICKER_FIRST);
-
-    ie.ie_NextEvent = NULL;
     ie.ie_Class = IECLASS_RAWKEY;
-    ie.ie_SubClass = 0;
     ie.ie_Code = event->Code;
     ie.ie_Qualifier = event->Qualifier;
     ie.ie_EventAddress = event->IAddress ? *(APTR *)event->IAddress : NULL;
@@ -3550,8 +3527,48 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
     ie.ie_TimeStamp.tv_secs = event->Seconds;
     ie.ie_TimeStamp.tv_micro = event->Micros;
 #endif
+    if (cl->cl_Dispatcher.h_SubEntry == (HOOKFUNC)_MUI_Window_desc.dispatcher)
+        Notify__OM_SET(cl->cl_Super, win, &msg);
+    else
+        SetAttrsA(win, tags);
+    ie.ie_EventAddress = NULL;
+    return MatchMuiKey(muiGlobalInfo(win)->mgi_Prefs, &ie);
+}
 
-    set(win, MUIA_Window_InputEvent, (IPTR) & ie);
+static __attribute__((noinline)) BOOL ActiveInTree(struct MUI_WindowData *data)
+{
+    Object *o = data->wd_ActiveObject;
+    int depth;
+
+    for (depth = 0; o && !((IPTR)o & 1) && depth < 64; depth++)
+    {
+        if (o == data->wd_RootObject)
+            return TRUE;
+        o = _parent(o);
+    }
+    return DoMethod(data->wd_RootObject, MUIM_FindAreaObject,
+        (IPTR) data->wd_ActiveObject) != (IPTR) NULL;
+}
+
+static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_WindowData *data,
+    struct IntuiMessage *event)
+{
+    struct MinNode *mn;
+    struct WindowEventCursor cursor;
+    struct MUI_EventHandlerNode *ehn;
+    struct IntuiMessage imsg_copy;
+    ULONG res;
+    LONG muikey;
+    Object *active_object = NULL;
+    IPTR disabled = 0;
+    ULONG key;
+    ULONG deadkey;
+
+    KillHelpBubble(data, win, BUBBLEHELP_TICKER_FIRST);
+
+    /* MUIA_Window_InputEvent's notifications, and the MUI key the event
+     * is (computed here, used below unless a menu shortcut takes it) */
+    muikey = WindowInputEvent(win, event);
 
     /* get the vanilla key for control char */
     {
@@ -3576,12 +3593,7 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
         return;
     //bug("rawkey: code=%lx, qual=%lx\n", event->Code, event->Qualifier);
 
-    /* check if imsg translates to predefined keystroke. MatchIX compares
-     * class, code and qualifier only: the event made for
-     * MUIA_Window_InputEvent above serves (it has this message's code and
-     * qualifier); no second one on HandleRawkey's frame */
-    ie.ie_EventAddress = NULL;
-    muikey = MatchMuiKey(muiGlobalInfo(win)->mgi_Prefs, &ie);
+    /* the predefined keystroke the message is: muikey, above */
 
     if ((muikey != MUIKEY_NONE) && !(data->wd_DisabledKeys & (1 << muikey)))
     {
@@ -3646,9 +3658,7 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
     }
 
     active_object = NULL;
-    if ((data->wd_ActiveObject != NULL)
-        && (DoMethod(data->wd_RootObject, MUIM_FindAreaObject,
-                (IPTR) data->wd_ActiveObject) != (IPTR) NULL))
+    if ((data->wd_ActiveObject != NULL) && ActiveInTree(data))
     {
         active_object = data->wd_ActiveObject;
         get(active_object, MUIA_Disabled, &disabled);
@@ -3684,33 +3694,12 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
                 active_object, TRUE))
             goto finished;
 
-        // event not eaten by active object, try its parents
-        // this is to implement popup key in Popstring
-        if (active_object == data->wd_ActiveObject)
-        {
-            Object *current_obj = active_object;
-
-            D(bug("HandleRawkey: try active object parents handlers\n"));
-            while (current_obj != NULL)
-            {
-                /* No key handler on any parent (the usual case): the
-                 * walk below would only call the active object's handlers
-                 * once more, then look through the whole handler list
-                 * and get MUIA_Parent at every level for nothing */
-                if (current_obj != active_object
-                    && !KeyHandlerAbove(data, active_object))
-                    break;
-                if (KeyToObject(data, current_obj, event, muikey, &cursor,
-                        active_object, TRUE))
-                    goto finished;
-                /* A focus-changing callback may also remove its object. */
-                if (active_object != data->wd_ActiveObject)
-                    break;
-                current_obj = (Object *) XGET(current_obj, MUIA_Parent);
-                if (!cursor.next)
-                    goto finished;
-            }
-        }
+        /* Not eaten: MUI 3.8 and MUI 5 offer the key to the other
+         * handlers in the list's order next (tests/native/keyoffers.c:
+         * the active object once, then an object with a higher priority
+         * before the active object's parent group). The parents are not
+         * walked first: that offered the key to the active object a
+         * second time and to a parent twice. */
     }
 
     D(bug("HandleRawkey: try default object handlers\n"));

@@ -4697,6 +4697,13 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
             MUIM_List_EndEdit, MUIV_List_EndEdit_Abort);
         return MUI_EventHandlerRC_Eat;
     }
+    /* A key that is no MUI key reaches every list with a key handler
+     * when the active object does not eat it (a key release in a string
+     * gadget): only the mouse wheel does anything here then */
+    if (msg->muikey == MUIKEY_NONE && imsg && imsg->Class == IDCMP_RAWKEY
+        && imsg->Code != RAWKEY_NM_WHEEL_UP
+        && imsg->Code != RAWKEY_NM_WHEEL_DOWN)
+        return 0;
 
     struct MUI_List_TestPos_Result pos;
     LONG seltype = MUIV_List_Select_On, old_active, new_active, visible,

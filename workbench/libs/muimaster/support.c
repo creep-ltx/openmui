@@ -38,16 +38,62 @@ int isRegionWithinBounds(struct Region *r, int left, int top, int width,
 /**************************************************************************
  Converts a Rawkey to a vanillakey
 **************************************************************************/
-ULONG ConvertKey(struct IntuiMessage *message)
+static __attribute__((noinline)) ULONG MapKey(struct IntuiMessage *message,
+    APTR address)
 {
     struct InputEvent event = { 0 };
     UBYTE character = 0;
     event.ie_Class = IECLASS_RAWKEY;
     event.ie_Code = message->Code;
     event.ie_Qualifier = message->Qualifier;
-    event.ie_EventAddress = message->IAddress ? *(APTR *)message->IAddress : NULL;
+    event.ie_EventAddress = address;
     if (MapRawKey(&event, (STRPTR)&character, 1, NULL) <= 0) return 0;
     return character;
+}
+
+/* The last key converted: one key event is converted three to five times
+ * (the window's control character check, Area's, String's, its edit hook,
+ * every object a key nobody ate is offered to), and MapRawKey is a good
+ * share of a key's time on a 68020. The answer depends only on the code,
+ * the qualifiers, the dead keys before it and the keymap; the entry is
+ * only for the same event (its time stamp), so a keymap changed between
+ * two events is seen. Read and written in Forbid: programs share it.
+ * The code no raw key has (0xffff) until the first conversion. */
+static struct
+{
+    ULONG secs, micros;
+    APTR address;
+    UWORD code, qualifier;
+    ULONG result;
+} key_cache = { 0, 0, NULL, 0xffff, 0, 0 };
+
+ULONG ConvertKey(struct IntuiMessage *message)
+{
+    APTR address = message->IAddress ? *(APTR *)message->IAddress : NULL;
+    ULONG result;
+
+    Forbid();
+    if (key_cache.micros == message->Micros
+        && key_cache.secs == message->Seconds
+        && key_cache.code == message->Code
+        && key_cache.qualifier == message->Qualifier
+        && key_cache.address == address)
+    {
+        result = key_cache.result;
+        Permit();
+        return result;
+    }
+    Permit();
+    result = MapKey(message, address);
+    Forbid();
+    key_cache.secs = message->Seconds;
+    key_cache.micros = message->Micros;
+    key_cache.code = message->Code;
+    key_cache.qualifier = message->Qualifier;
+    key_cache.address = address;
+    key_cache.result = result;
+    Permit();
+    return result;
 }
 
 /**************************************************************************
