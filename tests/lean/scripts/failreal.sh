@@ -15,6 +15,10 @@
 #   WAIT   cap on the window wait in seconds (default: the table's)
 #   SAMPLES=K with N1 = all: about K N's spread evenly over the count (a sampled sweep: a real
 #          program makes 2,000-8,000 counted calls at 15 s each)
+#   MASK   hex mask of the hooked functions (failn.c's table), as failsweep.sh; dfff leaves out
+#          NewObjectA: intuition's NewObjectA with a class pointer cannot fail before the
+#          class's OM_NEW runs (the instance is allocated in rootclass's OM_NEW, which the
+#          AllocMem hook fails), so failing the call itself is a failure that never happens
 #   REUSE=1 boot the instance's copy as it is (no fresh install)
 #   KEEP=1 leave the instance running
 # Status: ok, nowindow (ended without a window: a clean refusal), hung (did not end: killed),
@@ -67,7 +71,7 @@ pid() { wasabi ps 2>/dev/null | grep -F "${P_TASK:0:30}" | awk '{print $1}' | he
 startn() { # N: the program under failn, from its folder
   wasabi run "cd \"$dir\"
 stack 65536
-run >NIL: <NIL: RAM:failn run \"$P_TASK\" $1 >RAM:fn.txt" >/dev/null 2>&1
+run >NIL: <NIL: RAM:failn run \"$P_TASK\" $1 ${MASK:-} >RAM:fn.txt" >/dev/null 2>&1
 }
 stop_hard() { local a; a=$(pid); [ -n "$a" ] || return 0
   wasabi kill "$a" >/dev/null 2>&1; sleep 3; a=$(pid); [ -n "$a" ] && { wasabi kill --force "$a" >/dev/null 2>&1; sleep 3; }; }

@@ -2567,6 +2567,8 @@ static __attribute__((noinline)) void area_draw_title(Object *obj,
         case GROUP_TITLE_COLOR_HILITE:
             pen = MPEN_SHINE;
             break;
+        case GROUP_TITLE_COLOR_STANDARD:
+            break;
         }
         SetDrMd(_rp(obj), JAM1);
         if (n) {
