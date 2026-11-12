@@ -58,6 +58,9 @@ rows 2026-11-04; mui45 2026-11-10, branch `mui45`,
 
 perfbench (68EC020, same session): lean is faster than MUI 3.8 in seven of
 eight batches; "list active" is 4% slower (Zune68 main 7%).
+opbench (27 operations one at a time, cycle-exact FS-UAE, 2026-11-12, branch `speed1`): 19 at
+least as fast as MUI 3.8, typing, a Cycle set, a list scroll by a row and creating an
+application slower ([below](#speed-round-1-every-common-operation-timed-against-mui-38-2026-11-12-gate-3)).
 
 Details: [measurements.md](measurements.md), the class split:
 [class-split.md](class-split.md), GCC 16.2 against GCC 6.5 (16.2 is 6 KB
@@ -3271,6 +3274,173 @@ against 640x256, Annotate 640x640 against 640x240); CManager asked for its datab
 - **stackrun** (FS-UAE): MUI-Demo 5,196, Layout 2,268, Virtual 2,212, Pages 2,240, Slidorama
   2,304 bytes, lean's library and the final one the same: not deeper.
 
+## Speed round 1: every common operation timed against MUI 3.8 (2026-11-12, gate 3)
+
+Branch `speed1` (from `lean` at 146a3269). Gate 3 asks that every common operation be at least
+as fast as on MUI 3.8, measured per operation on a cycle-exact emulated A1200, and that the
+first program fit MUI 3.8's figure. All figures are **emulator figures** (FS-UAE 3.2.35,
+a1200-31-mui38: A1200, 68EC020, OS 3.1, 2 MB chip + 4 MB fast, cycle-exact), not real hardware.
+
+### The benchmark: tests/native/opbench.c
+
+One binary for any muimaster.library: it asks for version 19 and uses only MUI 3.8's classes,
+attributes and methods, so the same file runs on MUI 3.8 and on OpenMUI. 27 operations, each
+REPS samples (9 here) of a batch, the median time per operation from the EClock. What a user
+does (a button click, typing, backspace, the menu) is written into input.device
+(IND_WRITEEVENT: the pointer as IECLASS_NEWPOINTERPOS/IESUBCLASS_PIXEL, buttons and keys as
+RAWMOUSE/RAWKEY) and the program's own MUI loop runs until the result shows (the button's
+notification fired, the string has its length, the window is on the screen and gone again),
+with a 3-second guard; both toolkits take the same path from the event to the result. The
+second window holds a Register group, a Popobject and is resized with ChangeWindowBox.
+`opbench prof NAME N` repeats one operation for the profiler (below). It prints the main
+window's IDCMP and window flags and the screen's windows while a popup is open.
+
+| Script | What it does |
+|---|---|
+| `opbench.sh NAME PORT OUT [LIBDIR] [REPS]` | cold boot of a1200-31-mui38 with `uae_cpu_cycle_exact`, `uae_blitter_cycle_exact`, `uae_cycle_exact` and warp mode (the EClock counts emulated time: warp mode and the PC's load do not change it), MUI 3.8 or LIBDIR's OpenMUI, opbench, output to OUT |
+| `opprof.sh NAME PORT LIBDIR OP N SECONDS` | one operation profiled: opbench waits (not running) at OP until pcsample runs, then repeats it N times; no warp, so pcsample's 20 ms ticks are emulated time |
+| `pcsample-full.py SAMPLES PROGRAM LIBDIR` | pcsample.py's report with the static functions: the library's hunk symbols hold only globals, so a static function was counted under the global before it ("List__OM_SET 37%" was CalcWidths) |
+| `opbench-compare.py A B ...` | outputs side by side, ratios to the first |
+
+**Repeatability**: the same library gives the same medians to 0.1% at a PC load of 14 to 24, in
+warp mode or not. Two instances of MUI 3.8 in the same session do differ for some operations
+(full redraw 150.7 / 140.5 ms, create 235.2 / 239.4, register page 53.8 / 49.5, resize 220.1 /
+230.1); OpenMUI's do not (149.8 / 150.0). So every figure below is from two instances at once
+and then swapped (MUI 3.8 on sp-a, OpenMUI on sp-b, then the other way round); both are given
+where they differ by more than 1%.
+
+### Every operation: MUI 3.8, lean and this branch
+
+ms per operation, median of 9 (2026-11-12 10:55-11:00, PC load 14-19; the same figures to
+0.2% under load 24 and in earlier runs at load 17):
+
+| operation (ms per operation) | MUI 3.8 | OpenMUI lean | OpenMUI speed1 | speed1 / MUI 3.8 |
+|---|---:|---:|---:|---:|
+| prefs+app (empty) | 89.7 / 93.7 | 47.4 | 47.2 / 48.5 | 0.50-0.54 |
+| app+windows create | 235.2 / 239.4 | 254.4 | 248.2 / 257.7 | 1.04-1.10 |
+| window open+close | 520.3 | 521.0 | 440.9 | 0.84 |
+| full redraw | 150.7 / 140.5 | 149.8 | 149.8 | 0.99-1.07 |
+| relayout | 207.3 / 197.7 | 260.1 | 195.2 | 0.94-0.99 |
+| slider set | 4.04 / 4.09 | 2.91 | 2.92 | 0.71 |
+| notify chain | 7.82 / 7.93 | 6.03 | 6.03 | 0.76 |
+| cycle set | 2.44 | 4.58 / 4.43 | 2.79 | 1.14 |
+| radio set | 15.6 | 19.6 | 9.74 | 0.62 |
+| text set | 2.51 | 2.41 | 2.41 | 0.96 |
+| list insert 1 | 10.3 | 33.7 | 9.11 | 0.88 |
+| list insert 100 | 832.4 | 86.4 | 87.0 | 0.10 |
+| list insert 1000 | 6654.4 | 475.7 | 475.9 | 0.07 |
+| list active | 21.2 | 22.5 | 21.0 | 0.99 |
+| list scroll line | 14.6 | 17.6 | 15.7 | 1.07 |
+| list scroll page | 44.4 | 43.1 | 41.6 | 0.94 |
+| list sort 1000 | 659.2 | 110.9 | 109.2 | 0.17 |
+| button click | 22.3 / 22.6 | 21.0 | 21.0 | 0.93 |
+| string type | 7.75 / 7.90 | 10.2 | 9.34 | 1.18-1.20 |
+| string backspace | 7.66 / 7.79 | 9.99 | 9.13 | 1.17-1.19 |
+| menu open+close | 13.2 | 20.0 | 13.1 | 1.00 |
+| iconify | 83.6 | 79.9 | 79.5 / 81.0 | 0.94-0.97 |
+| uniconify | 446.0 | 795.3 | 371.5 | 0.83 |
+| register page | 53.8 / 49.5 | 59.0 / 57.7 | 53.4 / 54.8 | 0.99-1.11 |
+| popup open+close | 120.0 | (popup on another screen) | 120.0 | 1.00 |
+| window resize | 220.1 / 230.1 | 220.5 | 220.1 | 0.96-1.00 |
+
+At least as fast as both MUI 3.8 instances now: 19 of the 26 operations (lean: 12); as fast as
+one of them: a full redraw and a register page (MUI 3.8's other instance is 7-8% faster there).
+Slower: typing and backspace (1.17-1.20), a Cycle set (1.14), a list scroll by one row (1.07),
+creating the application with both windows (1.04-1.10). Before this branch: list insert 1 3.26, uniconify 1.78, menu 1.52, cycle 1.88, string
+1.32, relayout 1.26, radio 1.26, list scroll line 1.20, register 1.10.
+
+### What was slow, and the fixes (in the order found, biggest ratio first)
+
+| commit | operation | cause | before -> after (MUI 3.8) |
+|---|---|---|---|
+| a6280e3b List | list insert 1 (list shown) | `CalcDimsOfEntry` reported every new entry as a height change (its own height grows from 0 as it is measured), so every insert repainted the whole list. Only a new maximum row height counts now; an insert that changes no height, column width or visible count repaints only the rows from it to the bottom of the view, none below the view, all of them (one background) from the first visible row | 33.6 -> 9.1 ms (10.3) |
+| 917501f6 List | relayout (200 entries) | List's AskMinMax measured every entry's text at every relayout. `LIST_DIMSVALID` keeps CalcWidths' results until a method that can change them (entry changes, events, drops, a hook or column set; format and title redraw everything); the clear sits in the dispatcher's cases, not before the switch (a call per method cost sort 1000 +14%, a tag scan per OM_SET list active +2%) | 260 -> 195 ms (207 / 198) |
+| 917501f6 Window | menu open+close | IDCMP_MENUVERIFY (there for MUI 4/5's `MUIM_Menustrip_WillOpen`) made intuition wait for the program's task at every menu opening. MUI 3.8's windows do not ask for it (their IDCMPFlags: `0x034c076e`), so MUI 3 programs' windows do not (`Window_EventsMask`) | 20.0 -> 13.1 ms (13.2) |
+| 158dd434 List | uniconify, window open | a setup measured every entry again although nothing changed: the font (pointer, size) and the line spacing are kept with the sizes (in the pool-size fields only OM_NEW uses: no memory) and compared; lists with object columns or images measure again | uniconify 790 -> 372 ms (446), open+close 521 -> 441 (520) |
+| e077ef5c Radio | radio set | MUIA_Selected went to each entry's row group, which passed it to the image and the label (each redrew) and then redrew itself and both again for its own selected state, which nothing shows; the image and the label are set directly (`Radio_SelectRow`). radiopix: MUI 3.8, lean and this branch give the same pixels after two sets | 19.6 -> 9.7 ms (15.6) |
+| e077ef5c, 92c80d3b Group | cycle set, register page | a page switch in redraw-without-clear mode built a region of the group minus its children and installed it to paint a background the new page covers entirely (`group_page_covers`: skipped then, the same pixels); and Group__OM_SET sent every page an OM_SET of tags it had turned into TAG_IGNORE (`group_forward_filter`: not passed on when nothing is left) | cycle 4.6 -> 2.8 ms (2.4); register 59.0 -> 53.4 (53.8 / 49.5) |
+| 38e32d2b List | list scroll line, list active | a scroll installed the entry clip at once (two InstallClipRegion, about 1.5 ms on OS 3.1) for the cut-off last row MUI 3.9 shows; MUI 3.8 shows whole rows, so a scroll whose rows all end inside the area clips like a cursor move, only for a row that needs it | scroll line 17.6 -> 15.7 ms (14.6), list active 22.5 -> 21.0 (21.2) |
+| e077ef5c, 38e32d2b, e0bcc2dd Window | typing, backspace | every key event asked commodities' MatchIX for all 23 MUI keys (now only those whose code can match, `MatchMuiKey`); a released key nobody eats was offered to every parent up to the application, a walk of the handler list and a get of MUIA_Parent per level (`KeyHandlerAbove` first: none of them has a key handler) | 10.2 -> 9.3 ms (7.8) |
+| b0a29b88 Popobject | popup open+close | not a speed problem: **the popup opened on the default public screen** when its window had MUIA_Window_Screen (a program on its own screen), behind the program; MUI 3.8 opens it on the parent's screen (opbench lists the screen's windows: MUI 3.8's 344x76 borderless popup is there, lean's is not). Fixed (`Popobject_OpenWindow`); lean's 140 ms were a window opened elsewhere | (popup elsewhere) -> 120.0 ms (120.0) |
+
+**Assembly**: none. The profiles of what is left show OS time (graphics, layers, exec's allocator:
+ROM:07200, ROM:3d500, ROM:00c00 are 30-60% of every sample set) and MUI's method dispatch spread
+thinly over many functions; no loop of ours where hand-written 68000 code would pay clearly.
+
+**What is still slower** (profiles in `opprof.sh`, not changed): typing (+1.5 ms a key: the key
+event path, String's own handling and the window's other key handlers, which MUI's rules give
+every key nobody eats; HandleRawkey's FindAreaObject walk of the whole tree per key), the Cycle
+(Hide, a layout of the page group and Show for a text change), the row scroll (ScrollRaster and
+the scroller's own clip), creating objects (one AllocMem per object where MUI 3.8 allocates from
+pools: a memory trade-off).
+
+### Memory (MUI-Demo cold, OS 3.1 + 4 MB fast, FS-UAE, the same session, bytes)
+
+| | first program | each further | library alone |
+|---|---:|---:|---:|
+| MUI 3.8 | 460,296 | 210,632 / 218,888 (it alternates) | 238,520 |
+| lean | 465,024 | 204,576 | 271,504 |
+| speed1 | 465,872 | 204,512-204,576 | 272,352 |
+
+- The gate's "474 KB" was an older build; lean is 4.7 KB above MUI 3.8 in this session, this
+  branch 5.6 KB (its code is 848 bytes larger: the helpers that keep the frames as lean's, the
+  size cache, the filters). Each further program stays 6-14 KB below MUI 3.8.
+- **The gap is library code, all of it.** The library's 3 hunks take 244,948 bytes in memory
+  (code 241.7 KB; data 376 bytes and BSS 2,940); MUI 3.8's three libraries 204.5 KB plus 9 KB
+  it allocates in the opener's Open ("Memory per program" above). On top of the library a
+  first MUI-Demo costs OpenMUI 193.5 KB and MUI 3.8 221.8 KB.
+- **Class files at start**: MUI-Demo loads Dirlist, Floattext, Gauge, Scale and Volumelist
+  (17.8 KB, seen with pcsample's SEG list one second after start); it creates objects of all
+  five at start (its sub-windows are built with the main window), so none can wait.
+- **Per-open allocations**: 1.3 KB (the base); nothing else at OpenLibrary.
+- **Next candidates** (not done this round): pointer.c (2.5 KB of code: MUI 4/5's pointer
+  shapes, MUIA_PointerType is V20; normal and busy pointers are intuition's) into the Zmui45
+  module, with check_pointer.py taught to load it as check_string_selection.py does; more of
+  List and Window's MUI 4/5 parts. Together not yet 5.6 KB.
+
+### The rules
+
+- **Frames**: `-fstack-usage` of every function against lean (every `.su` line of both builds compared): none
+  larger. Seven new noinline helpers keep them so: group_draw_page_background 60,
+  group_forward_filter 20, Radio_SelectRow 48, MatchMuiKey 20, KeyHandlerAbove 0,
+  Popobject_OpenWindow 60 (the tag list that was in the open hook), the line spacing in the
+  stored font key instead of a compare in List's Setup. Smaller: List__MUIM_AskMinMax 48 -> 44,
+  List__MUIM_Insert 84 -> 80, Radio__OM_SET 60 -> 52. Traps met: GCC's IPA-SRA drops an
+  unused return value (CalcVertVisible.isra 76: using its result made it 80, always_inline
+  made its callers 20-32 larger), a check added to a recursive method costs 4 bytes per level.
+- **stackrun** (FS-UAE, lean's library and the final one in turn): MUI-Demo 5,196, Layout 2,268,
+  Virtual 2,212, Pages 2,240, Slidorama 2,304 bytes on both: not deeper. One path is deeper by a
+  helper: a Popobject's opening (Popobject_OpenWindow's 60 bytes under the open hook, which
+  kept its 88); stackrun opens no popup.
+- **MUI 3 programs pay nothing new**: no MUI 4/5 feature added; MUI 3 programs lose a MUI 4/5
+  cost (MENUVERIFY).
+- **Clean room**: MUI 3.8 only black box: its timing, its windows' IDCMP and window flags, the
+  windows on the screen while its popup is open.
+
+### Results of the final build
+
+- `make check`: passes (after every commit too).
+- **demopix** against MUI 3.8 (both sides fresh, Amiberry): 27 windows, 18 pixel-identical, 25
+  comparable, every count as `stab2`'s final run (Layout 3,338 -> 3,335: its random buttons).
+- **listclip** (extended: inserts while shown at the bottom, inside the view, a wide one, at the
+  top; a scroll by a row and by a page; a close and reopen; each also after a full redraw):
+  lean and this branch give the same 4,181 row checksums, and every incremental phase equals
+  its full redraw. **radiopix set** (two sets after opening): MUI 3.8, lean and this branch the
+  same pixels.
+- **fullcheck** (A1200 OS 3.1): MUI-Demo with its eight sub-windows lost 608, every other demo
+  200, AppWindow 264: lean's figures.
+- **The 181 suite programs** on six instances (2026-11-12 10:47-11:21, Amiberry), program by
+  program against `stab2`'s final run (lean): 175 the same status and windows. The six others
+  run again alone on lean's library and this branch's: the same on
+  both: TheBar demo8 "frozen" in this run under load, "ok" alone; CompactWin-Demo "exited" alone
+  on both (lean's run: "frozen"); AmIRC and TheBar demo4 "ok" where lean's run had "frozen" (load,
+  as `stab2` found); SimpleMail frozen at quit on both; HTMLtext-Demo 85x71 on both (the 85x256
+  of this run is the flip `stab2` described: the demo measures its own text). Second-run
+  "lost": NList-Demo -2,000 against lean's -1,736 (NList-Demo 1.0.2: -2,000 / -1,472), and in
+  five start/quit loops (`--loops 5`) both libraries keep the same -8,680: no growth per run.
+- **Memory** (`m.sh`, FS-UAE, above): first program 465,872, each further 204,512-204,576,
+  library alone 272,352 bytes.
+
 ## Left open
 
 - **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
@@ -3282,6 +3452,15 @@ against 640x256, Annotate 640x640 against 640x240); CManager asked for its datab
   subset on the A600; the RTG run through the suite tool on a quiet PC (FS-UAE's 68030 was too
   slow under load). Round 1's "children kept when intuition's own NewObjectA fails" was failn's
   artefact (round 2, "MASK=dfff").
+- **Speed (2026-11-12, after `speed1`)**: slower than MUI 3.8 per operation (opbench,
+  emulator): typing and backspace 1.17-1.20 (the key path per event: HandleRawkey's tree walk
+  for the active object, every other key handler for a key nobody eats), a Cycle set 1.14 (Hide,
+  page layout, Show for a text change), a list scroll by a row 1.07 (ScrollRaster, the scroller's
+  clip), creating an application 1.04-1.10 (an AllocMem per object, MUI 3.8 uses pools); full
+  redraw and register page as one of MUI 3.8's two instances. Real hardware not measured.
+- **First program (2026-11-12, after `speed1`)**: 465.9 against 460.3 KB (lean 465.0, the
+  same session): library code; pointer.c (2.5 KB, MUI 4/5's pointer shapes) and further MUI 4/5
+  parts of List and Window as modules are the next candidates.
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
   measurements of what the compiler and the link can still give, "Toward the core" above;
   LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined

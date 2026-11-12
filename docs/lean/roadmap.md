@@ -283,6 +283,21 @@ Next: the Popup reset seen once, the prefs fuzz over more seeds, the soak's cree
 memtally, the suite subset on the A600, the RTG run through the suite tool on a quiet PC.
 Details in [README.md](README.md#stability-round-2-fault-sweeps-over-real-programs-the-startquit-loops-the-code-audit-2026-11-12-gates-2-and-5).
 
+## Gate 3, memory and speed (docs/production.md; started 2026-11-12, branch `speed1`)
+
+Round 1: `tests/native/opbench.c` times 27 operations on any muimaster.library (the same binary
+on MUI 3.8 and OpenMUI; clicks, typing and the menu as input.device events) in cycle-exact
+FS-UAE, `opbench.sh`, `opprof.sh` and `pcsample-full.py` profile one of them. Fixed, biggest
+ratio first: List inserts repainting everything (3.26 -> 0.88 of MUI 3.8), a relayout and a
+reopen measuring every entry (1.26 -> 0.94, 1.78 -> 0.83), MENUVERIFY in MUI 3 programs' windows
+(1.52 -> 1.00), Radio's triple redraw (1.26 -> 0.62), page switches (Cycle 1.88 -> 1.14, Register
+1.10 -> 0.99), the scroll clip (1.20 -> 1.07), key matching (1.32 -> 1.20); and a bug: a popup
+opened on the default public screen instead of its parent's. 19 of 26 at least as fast as MUI 3.8.
+Memory: first program 465.9 against 460.3 KB, the gap is library code. Next: typing (the key
+path per event), the Cycle's Hide/layout/Show, the row scroll, object creation (pools?),
+pointer.c and further MUI 4/5 code into modules for the first program. Details in
+[README.md](README.md#speed-round-1-every-common-operation-timed-against-mui-38-2026-11-12-gate-3).
+
 ## Later (wanted, not scheduled)
 
 1. Hand-written 68000 assembly in the hottest drawing and layout loops.

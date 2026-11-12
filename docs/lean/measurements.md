@@ -489,6 +489,48 @@ list pools), lean's 166 KB. Own instance data, bytes:
 - Checks: `make check`, fullcheck, real.sh, listclip pixels and
   list_repaint_probe as on lean.
 
+## opbench: every common operation against MUI 3.8 (2026-11-12, speed round 1)
+
+`tests/native/opbench.c` (one binary for MUI 3.8 and OpenMUI, MUI 3.8's API only; clicks,
+typing and the menu go through input.device and the program's own MUI loop) on a1200-31-mui38
+in cycle-exact FS-UAE (`tests/lean/scripts/opbench.sh`: `uae_cpu_cycle_exact`,
+`uae_blitter_cycle_exact`, `uae_cycle_exact`, warp mode; the EClock counts emulated time, so
+the PC's load does not move the figures). 9 repetitions, median ms per operation, two instances
+at once and then swapped; where the two differ by more than 1% both are given (MUI 3.8's
+instances differ in a few operations, OpenMUI's do not). Emulator figures.
+
+| operation (ms per operation) | MUI 3.8 | OpenMUI lean | OpenMUI speed1 | speed1 / MUI 3.8 |
+|---|---:|---:|---:|---:|
+| prefs+app (empty) | 89.7 / 93.7 | 47.4 | 47.2 / 48.5 | 0.50-0.54 |
+| app+windows create | 235.2 / 239.4 | 254.4 | 248.2 / 257.7 | 1.04-1.10 |
+| window open+close | 520.3 | 521.0 | 440.9 | 0.84 |
+| full redraw | 150.7 / 140.5 | 149.8 | 149.8 | 0.99-1.07 |
+| relayout | 207.3 / 197.7 | 260.1 | 195.2 | 0.94-0.99 |
+| slider set | 4.04 / 4.09 | 2.91 | 2.92 | 0.71 |
+| notify chain | 7.82 / 7.93 | 6.03 | 6.03 | 0.76 |
+| cycle set | 2.44 | 4.58 / 4.43 | 2.79 | 1.14 |
+| radio set | 15.6 | 19.6 | 9.74 | 0.62 |
+| text set | 2.51 | 2.41 | 2.41 | 0.96 |
+| list insert 1 | 10.3 | 33.7 | 9.11 | 0.88 |
+| list insert 100 | 832.4 | 86.4 | 87.0 | 0.10 |
+| list insert 1000 | 6654.4 | 475.7 | 475.9 | 0.07 |
+| list active | 21.2 | 22.5 | 21.0 | 0.99 |
+| list scroll line | 14.6 | 17.6 | 15.7 | 1.07 |
+| list scroll page | 44.4 | 43.1 | 41.6 | 0.94 |
+| list sort 1000 | 659.2 | 110.9 | 109.2 | 0.17 |
+| button click | 22.3 / 22.6 | 21.0 | 21.0 | 0.93 |
+| string type | 7.75 / 7.90 | 10.2 | 9.34 | 1.18-1.20 |
+| string backspace | 7.66 / 7.79 | 9.99 | 9.13 | 1.17-1.19 |
+| menu open+close | 13.2 | 20.0 | 13.1 | 1.00 |
+| iconify | 83.6 | 79.9 | 79.5 / 81.0 | 0.94-0.97 |
+| uniconify | 446.0 | 795.3 | 371.5 | 0.83 |
+| register page | 53.8 / 49.5 | 59.0 / 57.7 | 53.4 / 54.8 | 0.99-1.11 |
+| popup open+close | 120.0 | (popup on another screen) | 120.0 | 1.00 |
+| window resize | 220.1 / 230.1 | 220.5 | 220.1 | 0.96-1.00 |
+
+lean is `lean` at 146a3269, speed1 the branch's final build. What each fix did:
+[README.md](README.md#speed-round-1-every-common-operation-timed-against-mui-38-2026-11-12-gate-3).
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
@@ -503,5 +545,8 @@ list pools), lean's 166 KB. Own instance data, bytes:
   built from `tests/lean/libs.c` and `holdlib.c`. Pass FS-UAE options as
   `EXTRA="--config fast_memory=4096"` (no spaces inside a setting).
 - `tests/lean/memtally/`: the allocation tally (`run`, `dump`, `guard`).
+- `tests/native/opbench.c` with `opbench.sh` (a run), `opprof.sh` (one operation under
+  `tests/lean/pcsample.c`), `pcsample-full.py` (the profile with static functions, from the link
+  map) and `opbench-compare.py` (runs side by side).
 - `tools/lean/mtreport2.py DUMP LIB cats|files|big|N`, `tools/lean/classsizes.py
   BUILD`, `tools/lean/flexcat-sd.py`.
