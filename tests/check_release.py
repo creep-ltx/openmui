@@ -40,6 +40,20 @@ class ReleaseTests(unittest.TestCase):
         (self.build / name).write_bytes(header + code + symbols +
                                        struct.pack('>3I', 0, 0, 1010))
 
+    def test_swedish_catalogs_are_in_the_package(self):
+        # Swedish is the first translation: every catalog of OpenMUI's own
+        # texts must have a swedish job (installed as Catalogs/svenska).
+        spec = importlib.util.spec_from_file_location('components', ROOT / 'tools/components.py')
+        components = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(components)
+        names = set(components.catalog_paths(Path('b')))
+        for name in ('System/Libs/muimaster.catalog', 'System/Prefs/Zune.catalog',
+                     'System/Classes/Zune/PrefsWindow.catalog',
+                     'System/Classes/Zune/AboutWindow.catalog',
+                     'System/Classes/Zune/SystemPrefsWindow.catalog'):
+            self.assertIn('Locale/Catalogs/swedish/' + name, names)
+        self.assertEqual(components.LANGUAGES['swedish'], 'svenska')
+
     def test_missing_date(self):
         self.library('muimaster.library', '35.6', date='test')
         with self.assertRaisesRegex(ValueError, 'matching'):

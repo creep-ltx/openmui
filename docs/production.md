@@ -58,7 +58,7 @@ into gates that can be checked. OpenMUI 1.0 ships when every gate is green; unti
 | A user guide: install, switch, settings, "Behave as", uninstall, troubleshooting | docs/ | `docs/user-guide.md` written 2026-11-12 (install, switch, uninstall, prefs, "Behave as" and its file, LIBS:Zune, troubleshooting, reporting); to be checked on a real install |
 | A developer guide: what OpenMUI supports, differences from MUI, the SDK | docs/ | `docs/developer-guide.md` written 2026-11-12 (support, identity, known differences, build, tests, clean room, contributing); the SDK reference is not written |
 | A changelog per release | CHANGELOG.md | `CHANGELOG.md` has the 0.1b1 entry and an empty Unreleased section (2026-11-12) |
-| Translations of OpenMUI's own texts (Swedish first) | catalogs | English only |
+| Translations of OpenMUI's own texts (Swedish first) | catalogs | Swedish was already in the package, from the AROS translation team (2026-11-12 audit): the library 57 of 57 ids, prefs program 220 of 220, PrefsWindow 5/5, AboutWindow 5/5, SystemPrefsWindow 12/12, plus 5 bundled-class `.po` files; installed as `Catalogs/svenska`. A release check now guards it. Left to do: a Swede's proofread (a few strings are still English or odd, listed in the audit), hard-coded English strings, and a real-Amiga test of the Swedish locale |
 | A release process: version, archive, Aminet readme within limits, tag | tools/release.py, CI | archive yes; the CI and Aminet workflows name OpenMUI (2026-11-12, `aminet-release.yml` untested until a tag is pushed); no tag yet |
 
 ## Order of work

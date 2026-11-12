@@ -8,8 +8,16 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
-Nothing since 0.1b1 yet. (No 0.1b1 archive or tag has been published at the
-time of writing; everything below is in the first beta.)
+### Added
+
+- Release check that the five catalogs of OpenMUI's own texts (library,
+  prefs program, PrefsWindow, AboutWindow, SystemPrefsWindow) each have a
+  Swedish (`svenska`) catalog in the package. The Swedish translations
+  themselves were already built into the package (from the AROS translation
+  team's catalogs); they are now audited: complete, ISO-8859-1.
+
+(No 0.1b1 archive or tag has been published at the time of writing;
+everything below is in the first beta.)
 
 ## 0.1b1 (first OpenMUI beta)
 
