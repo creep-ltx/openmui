@@ -58,8 +58,16 @@ if [ "${REUSE:-0}" != 1 ]; then
 fi
 # RAM:failn doubles as the reset marker: Amiberry reboots in 2 s, so a reset can pass between two
 # pings; a missing RAM:failn after a run means the machine rebooted
+# TRAPCAP=FILE (tests/lean/trapcap built for 68020): the trap recorder runs all along; after a
+# reset its record (the CPU exception: registers, code, stack) goes to failreal/NAME-N.trap
 putfailn() { wasabi put "$FAILN" RAM:failn >/dev/null; wasabi run "protect RAM:failn +e
-makedir ENV:MUI" >/dev/null 2>&1; }
+makedir ENV:MUI" >/dev/null 2>&1
+  if [ -n "${TRAPCAP:-}" ]; then
+    wasabi put "$TRAPCAP" RAM:trapcap >/dev/null; wasabi run "protect RAM:trapcap +e" >/dev/null 2>&1
+    [ -n "${1:-}" ] && wasabi run "RAM:trapcap read" > "$ZWORK/failreal/$NAME-$1.trap" 2>/dev/null
+    wasabi run "RAM:trapcap read clear" >/dev/null 2>&1
+    wasabi run "run >NIL: RAM:trapcap" >/dev/null 2>&1; sleep 1
+  fi; }
 rebooted() { ! wasabi run "list RAM:failn QUICK" 2>/dev/null | grep -q failn; }
 boot || { log "instance did not come up"; exit 1; }
 putfailn
@@ -113,7 +121,7 @@ while [ "$N" -le "$N1" ]; do
   if ! alive || rebooted; then
     if alive; then why=reset; else why=$(gone_why); fi
     if [ "$why" = reset ]; then
-      status=reset; sleep 3; putfailn
+      status=reset; sleep 3; putfailn "$N"
       rep=$(wasabi run "RAM:failn read" 2>/dev/null | tr -d '\r' | grep 'failn: ' | tr '\n' ' ')
       log "N=$N: the machine reset ($rep)"; warm
     else

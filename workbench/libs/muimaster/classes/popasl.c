@@ -265,10 +265,6 @@ static ULONG Popasl_Open_Function(struct Hook *hook, Object *obj,
             char *path_end;
 
             get(string, MUIA_String_Contents, &str);
-            /* a Popstring whose string object gives no contents (not a
-             * String: PathPart(NULL) read address 0) */
-            if (!str)
-                str = (char *)"";
 
             path_end = PathPart(str);
             buf = (char *)AllocVec(path_end - str + 10, MEMF_PUBLIC);
@@ -290,7 +286,7 @@ static ULONG Popasl_Open_Function(struct Hook *hook, Object *obj,
         {
             char *str = NULL;
             char *name_end;
-            LONG size = 8;   /* a name with no size (StrToLong fails) */
+            LONG size;
 
             get(string, MUIA_String_Contents, &str);
 

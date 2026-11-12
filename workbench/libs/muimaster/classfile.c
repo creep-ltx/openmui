@@ -135,8 +135,11 @@ static struct Library *cf_init(struct ClassFileBase *b __asm("d0"),
      * external-class path tries it when the private load failed for
      * lack of memory), the bases were never copied in: cf_expunge's
      * Remove() and FreeMem() at the next flush went through a NULL
-     * SysBase and reset the machine (fault sweep, stability round 2). */
-    SysBase = sys;
+     * SysBase and reset the machine (fault sweep, stability round 2).
+     * From address 4, not from a6: reading the a6 argument makes GCC
+     * save a6 (a frame of 4 bytes where there was none). */
+    (void)sys;
+    SysBase = *(struct ExecBase **)4;
     b->seglist = seglist;
     b->lib.lib_Node.ln_Type = NT_LIBRARY;
     b->lib.lib_Node.ln_Name = (char *)libname;
