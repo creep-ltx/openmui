@@ -75,6 +75,39 @@ static void whois(ULONG addr)
     }
     Permit();
 }
+
+/* OpenMUI's own class files (LIBS:Zune/X.mui) are LoadSeg'ed privately, not in the library
+   list: their seglists sit in the base at CFOFF (MUIMasterBase_intern.ClassFiles, CFN of them;
+   offsetof from a build of muimaster_intern.h, 2026-11-12: 334 and 52). The first of the three
+   callers inside one: the file's number (classfiles.h order), its hunk, the offset in it. */
+#define CFOFF 334
+#define CFN 52
+static struct Library *omui;
+static int inram(ULONG v);
+static ULONG failed_cf;   /* (file + 1) << 24 | caller << 16 | hunk, 0 = none; the offset in failed_cfoff */
+static ULONG failed_cfoff;
+static void whichcf(void)
+{
+    ULONG i, k, h;
+    failed_cf = failed_cfoff = 0;
+    if (!omui) return;
+    for (k = 0; k < 3; k++) {
+        ULONG a = failed_a[k];
+        if (!a) continue;
+        for (i = 0; i < CFN; i++) {
+            BPTR seg = *(BPTR *)((UBYTE *)omui + CFOFF + 4 * i);
+            for (h = 0; seg && h < 8; h++) {
+                ULONG *s = (ULONG *)BADDR(seg);
+                if (!inram((ULONG)s)) break;
+                if (a >= (ULONG)s + 4 && a < (ULONG)s - 4 + s[-1]) {
+                    failed_cf = ((i + 1) << 24) | (k << 16) | h; failed_cfoff = a - ((ULONG)s + 4);
+                    return;
+                }
+                seg = (BPTR)s[0];
+            }
+        }
+    }
+}
 static int done;
 
 #define REC ((ULONG *)0x1B8000)
@@ -154,6 +187,7 @@ LONG fn_hook(ULONG idx, ULONG *saved)
         if (inram(sp[i]) && !inr(sp[i], plo, phi, np) && isret(sp[i]) && sp[i] != a[0]) a[k++] = sp[i];
     failed_idx = idx; failed_ret = ret; failed_a[0] = a[0]; failed_a[1] = a[1]; failed_a[2] = a[2];
     whois(a[0]);
+    whichcf();
     /* the name asked for: OpenLibrary's (a1), OpenFont's (a0 = TextAttr, its ta_Name) */
     failed_name[0] = 0;
     {
@@ -167,6 +201,7 @@ LONG fn_hook(ULONG idx, ULONG *saved)
         REC[7] = nm ? mlo[0] : 0; REC[8] = nm ? mhi[0] : 0; REC[9] = nm > 1 ? mlo[1] : 0; REC[10] = nm > 1 ? mhi[1] : 0;
         CopyMem(failed_name, &REC[11], 32);
         CopyMem(failed_lib, &REC[19], 32); REC[27] = failed_vec; REC[28] = failed_delta;
+        REC[29] = failed_cf; REC[30] = failed_cfoff;
         REC[0] = RECMAGIC;
     }
     return 1;
@@ -178,6 +213,7 @@ static void report_rec(ULONG *r)
            r[1], r[2] < NHOOK ? (ULONG)hooks[r[2]].name : (ULONG)"?", r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10]);
     if (((char *)&r[11])[0]) Printf(" name=%s", (ULONG)&r[11]);
     if (((char *)&r[19])[0]) Printf(" in=%s vec=%ld+%lx", (ULONG)&r[19], r[27], r[28]);
+    if (r[29]) Printf(" cf=%ld caller=%ld hunk=%ld off=%lx", (r[29] >> 24) - 1, (r[29] >> 16) & 0xFF, r[29] & 0xFFFF, r[30]);
     PutStr("\n");
 }
 
@@ -200,7 +236,10 @@ int main(int argc, char **argv)
             lb = (struct Library *)FindName(&SysBase->LibList, "muimaster.library");
             Permit(); if (lb) mb = lb; }
         if (mb && (strstr((char *)mb->lib_IdString, "OpenMUI") || strstr((char *)mb->lib_IdString, "Zune68")))
+        {
             ranges(*(BPTR *)((UBYTE *)mb + 38), mlo, mhi, &nm);   /* MUI 3.8: no ranges, a black box */
+            omui = mb;
+        }
         {
             struct Process *pr = (struct Process *)FindTask(NULL);
             char dir[256]; BPTR l;
@@ -239,10 +278,11 @@ int main(int argc, char **argv)
         for (j = 0; j < (int)NHOOK; j++) if (counts[j]) Printf(" %s=%ld", (ULONG)hooks[j].name, counts[j]);
         PutStr("\n");
         if (failed_idx != ~0UL) {
-            ULONG r[29] = { RECMAGIC, failat, failed_idx, failed_ret, failed_a[0], failed_a[1], failed_a[2],
+            ULONG r[31] = { RECMAGIC, failat, failed_idx, failed_ret, failed_a[0], failed_a[1], failed_a[2],
                             nm ? mlo[0] : 0, nm ? mhi[0] : 0, nm > 1 ? mlo[1] : 0, nm > 1 ? mhi[1] : 0 };
             CopyMem(failed_name, &r[11], 32);
             CopyMem(failed_lib, &r[19], 32); r[27] = failed_vec; r[28] = failed_delta;
+            r[29] = failed_cf; r[30] = failed_cfoff;
             report_rec(r);
         } else if (failat) Printf("failn: N=%ld never reached\n", failat);
         if (rec_ok) { REC[0] = 0; FreeMem(REC, 128); }

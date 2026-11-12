@@ -461,6 +461,24 @@ static ULONG Popasl_Close_Function(struct Hook *hook, Object *obj,
  * failure. Superclass failure leaks already allocated requester. Borrow
  * hooks and retain requester until disposal; no getter for Type/hooks.
  */
+/* No asl.library or no requester: nothing has read the tag list yet, so
+ * its string and button go too (MUI's rule, Group.mui/MUIA_Group_Child: a
+ * failed call leaves no previously created object). They were kept: four
+ * String and four Image objects in MUI's Popup demo, and with them the
+ * library, which cannot be expunged while objects of its classes live (the
+ * fault sweep, stability round 2). A class file cannot call the library's
+ * zune_dispose_children (register arguments); noinline, so that OM_NEW's
+ * frame stays as it was. */
+static void __attribute__((noinline)) popasl_dispose_parts(struct TagItem *tags)
+{
+    Object *o;
+
+    if ((o = (Object *)GetTagData(MUIA_Popstring_String, 0, tags)))
+        MUI_DisposeObject(o);
+    if ((o = (Object *)GetTagData(MUIA_Popstring_Button, 0, tags)))
+        MUI_DisposeObject(o);
+}
+
 IPTR Popasl__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct Popasl_DATA *data;
@@ -472,7 +490,10 @@ IPTR Popasl__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     if (!ZUNE_ASL()
         || !(asl_req = AllocAslRequest(asl_type, msg->ops_AttrList)))
+    {
+        popasl_dispose_parts(msg->ops_AttrList);
         return 0;
+    }
 
     obj = (Object *) DoSuperNewTags(cl, obj, NULL,
         MUIA_Popstring_Toggle, FALSE, TAG_MORE, (IPTR) msg->ops_AttrList);

@@ -24,6 +24,44 @@
  * the children it took in its OM_DISPOSE. Register argument and noinline:
  * the callers' frames stay as they were (docs/lean/README.md, the stack
  * rule). */
+static inline BOOL zune_child_tag(Tag t)
+{
+    switch (t)
+    {
+    case MUIA_Group_Child:
+    case MUIA_Family_Child:
+    case MUIA_Window_RootObject:
+    case MUIA_Window_Menustrip:
+    case MUIA_Application_Window:
+    case MUIA_Application_Menustrip:
+    case MUIA_Listview_List:
+    case MUIA_Scrollgroup_Contents:
+    case MUIA_Popstring_String:
+    case MUIA_Popstring_Button:
+    case MUIA_Popobject_Object:
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/* The same object again further down the chain under a child-carrying tag:
+ * Popstring passes its string and button to Group as children with its own
+ * tag list after them (TAG_MORE), Listview its list, so a Group whose
+ * superclass failed met each of them twice and disposed them twice (the
+ * fault sweep, stability round 2: Popup's resets). The last one disposes.
+ * The check and the disposal here, given the current item (its rest starts
+ * right after it), as MUI_DisposeObject was called: done in
+ * zune_dispose_children itself, its frame grew 16 -> 24 (the stack rule). */
+static void __attribute__((noinline)) zune_dispose_if_last(struct TagItem *tag)
+{
+    struct TagItem *rest = tag + 1, *t;
+
+    while ((t = NextTagItem(&rest)))
+        if (t->ti_Data == tag->ti_Data && zune_child_tag(t->ti_Tag))
+            return;
+    MUI_DisposeObject((Object *)tag->ti_Data);
+}
+
 void __attribute__((noinline)) zune_dispose_children(struct TagItem *tags __asm("a0"))
 {
     struct TagItem *tag;
@@ -44,7 +82,7 @@ void __attribute__((noinline)) zune_dispose_children(struct TagItem *tags __asm(
         case MUIA_Popstring_Button:
         case MUIA_Popobject_Object:
             if (tag->ti_Data)
-                MUI_DisposeObject((Object *)tag->ti_Data);
+                zune_dispose_if_last(tag);
             break;
         }
     }

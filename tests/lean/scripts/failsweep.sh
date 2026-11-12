@@ -63,6 +63,12 @@ boot() {
 putfiles() {
   wasabi put "$FAILN" RAM:failn >/dev/null; wasabi run "protect RAM:failn +e" >/dev/null
   wasabi put "$PROG" RAM:Prog >/dev/null; wasabi run "protect RAM:Prog +e" >/dev/null
+  # TRAPCAP=FILE: the trap recorder runs all along; after a reset its record goes to OUT.N.trap
+  if [ -n "${TRAPCAP:-}" ]; then
+    wasabi put "$TRAPCAP" RAM:trapcap >/dev/null; wasabi run "protect RAM:trapcap +e" >/dev/null 2>&1
+    [ -n "${1:-}" ] && wasabi run "RAM:trapcap read" > "$OUT.$1.trap" 2>/dev/null
+    wasabi run "RAM:trapcap read clear" >/dev/null 2>&1; wasabi run "run >NIL: RAM:trapcap" >/dev/null 2>&1; sleep 1
+  fi
 }
 avail() { [ -n "${FLUSH:-}" ] && { wasabi run "avail flush" >/dev/null; sleep 1; wasabi run "avail flush" >/dev/null; }; sleep 1; wasabi run avail 2>/dev/null | awk '/^total/{print $3}'; }
 wins() { wasabi windows 2>/dev/null | grep '^ *window' | grep -v '"Workbench"'; }
@@ -142,7 +148,7 @@ run >NIL: RAM:failn run RAM:Prog $N ${MASK:+$MASK} >RAM:fn.txt" >/dev/null 2>&1
   if ! alive || ! wasabi run "list RAM:failn QUICK" >/dev/null 2>&1; then
     for i in $(seq 1 30); do sleep 2; wasabi ping >/dev/null 2>&1 && break; done
     if wasabi ping >/dev/null 2>&1; then
-      status=reset; sleep 3; putfiles   # RAM: is empty after the reset; the record is in chip RAM
+      status=reset; sleep 3; putfiles "$N"   # RAM: is empty after the reset; the record is in chip RAM
       rep=$(wasabi run "RAM:failn read" 2>/dev/null | tr -d '\r' | grep 'failn: ')
       log "N=$N: the machine reset ($rep)"
       A1=$A0
