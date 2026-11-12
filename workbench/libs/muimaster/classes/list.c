@@ -2136,6 +2136,9 @@ IPTR List__MUIM_Setup(struct IClass *cl, Object *obj,
         return 0;
 
     data->prefs_refresh = muiGlobalInfo(obj)->mgi_Prefs->list_refresh;
+    if (data->prefs_linespacing !=
+        muiGlobalInfo(obj)->mgi_Prefs->list_linespacing)
+        data->flags &= ~LIST_DIMSVALID;     /* the rows' pitch changed */
     data->prefs_linespacing =
         muiGlobalInfo(obj)->mgi_Prefs->list_linespacing;
     data->prefs_smoothed = muiGlobalInfo(obj)->mgi_Prefs->list_smoothed;
@@ -2288,6 +2291,30 @@ static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
     return 0;
 }
 
+static inline ULONG List_FontSize(struct TextFont *f)
+{
+    return ((ULONG)f->tf_YSize << 16) | f->tf_XSize;
+}
+
+/* Whether the entries' sizes from the last CalcWidths still hold: nothing
+ * changed them (LIST_DIMSVALID), the font is the same (a setup after a
+ * cleanup, an uniconify, keeps it) and no column holds objects (their
+ * sizes come from their own setup), no images (CreateImage: set up again
+ * with the window) */
+static BOOL List_DimsValid(Object *obj, struct MUI_ListData *data)
+{
+    LONG j;
+
+    if (!(data->flags & LIST_DIMSVALID) || data->dims_font != _font(obj)
+        || data->dims_fontsize != List_FontSize(_font(obj))
+        || !IsListEmpty((struct List *)&data->images))  /* set up again */
+        return FALSE;
+    for (j = 0; j < data->columns; j++)
+        if (data->ci[j].is_object)
+            return FALSE;
+    return TRUE;
+}
+
 IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
@@ -2299,10 +2326,12 @@ IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     /* Every entry is measured again only when something that changes the
      * sizes came since the last time (List_Dispatcher clears the flag): a
      * relayout of an unchanged list measured all its entries */
-    if (!(data->flags & LIST_DIMSVALID))
+    if (!List_DimsValid(obj, data))
     {
         CalcWidths(cl, obj);
         data->flags |= LIST_DIMSVALID;
+        data->dims_font = _font(obj);
+        data->dims_fontsize = List_FontSize(_font(obj));
     }
 
     if ((data->flags & LIST_ADJUSTWIDTH) && (data->entries_num > 0))
@@ -4980,8 +5009,9 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
 /* The sizes CalcWidths measures (List__MUIM_AskMinMax) depend on the
  * entries, the format, the title, the hooks and the font. Every method
- * that can change one forgets them ("forget" below): setup and cleanup (the
- * font), entry changes, events (a title click, a column dragged) and drops;
+ * that can change one forgets them ("forget" below): entry changes, events
+ * (a title click, a column dragged) and drops; a setup with another font
+ * or line spacing (List_DimsValid, List__MUIM_Setup);
  * List__OM_SET forgets them for the hooks and the columns, a format or a
  * title redraws everything (MUIM_List_Redraw). Order (Sort, Exchange, Move)
  * and drawing keep them. The check sits in the cases, not before the
@@ -5013,8 +5043,8 @@ BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
     case OM_DISPOSE: method = (APTR)List__OM_DISPOSE; break;
     case OM_SET: method = (APTR)List__OM_SET; break;
     case OM_GET: method = (APTR)List__OM_GET; break;
-    case MUIM_Setup: method = (APTR)List__MUIM_Setup; goto forget;
-    case MUIM_Cleanup: method = (APTR)List__MUIM_Cleanup; goto forget;
+    case MUIM_Setup: method = (APTR)List__MUIM_Setup; break;
+    case MUIM_Cleanup: method = (APTR)List__MUIM_Cleanup; break;
     case MUIM_HandleEvent: method = (APTR)List__MUIM_HandleEvent; goto forget;
     case MUIM_AskMinMax: method = (APTR)List__MUIM_AskMinMax; break;
     case MUIM_Show: method = (APTR)List__MUIM_Show; break;

@@ -85,8 +85,11 @@ struct MUI_ListData
     ULONG flags;
 
     APTR intern_pool;    /* The internal pool which the class has allocated */
-    LONG intern_puddle_size;
-    LONG intern_thresh_size;
+    /* The pool's sizes are needed in OM_NEW only; after it the fields
+     * hold the font and its size CalcWidths last measured with (List__
+     * MUIM_AskMinMax) */
+    union { LONG intern_puddle_size; ULONG dims_fontsize; };
+    union { LONG intern_thresh_size; struct TextFont *dims_font; };
     APTR pool;           /* the pool which is used to allocate list entries */
 
     struct Hook *construct_hook;
