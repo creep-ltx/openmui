@@ -116,9 +116,12 @@ struct MUIMasterBase_intern
     struct ZuneOpener {
         struct Task *task;
         APTR splower;   /* another task at the same address: not this */
+        ULONG name;     /* the program's name hashed: nor a later one */
         UWORD count;
         UBYTE identity;
-        UBYTE pad;
+        UBYTE nested;   /* inside this library's own open/close/remove
+                         * of a class module: its opens of this library
+                         * on the program's task are not the program's */
     }                           IdOpeners[ZUNE_ID_OPENERS];
     /* The last three stay last: the checks in tests/ find them from the
      * end of the base (class list at -28, default pens at -4) */
@@ -161,6 +164,7 @@ UBYTE zune_task_identity(void);
 struct Library *zune_identity_open(ULONG version);
 void zune_identity_close(struct Library *base);
 void zune_identity_load(void);     /* read ENV:Zune/BehaveAs (a process) */
+void zune_identity_nest(LONG delta); /* around a class module's open/close */
 void zune_identity_free(void);     /* at expunge */
 BOOL zune_is_master(struct Library *lib); /* this base or one of its copies */
 extern struct Library *MUIScreenBase;

@@ -267,16 +267,33 @@ static UBYTE decide(struct MUIMasterBase_intern *base, struct Task *task,
         : ZUNE_ID_MUI5;
 }
 
+/* The program's name hashed (0 with no name): a record of an ended
+ * program is not the next program's at the same address with the same
+ * stack (a Shell's "run" gives every command the same) */
+static ULONG name_hash(struct Task *task)
+{
+    ULONG len, h = 0;
+    const char *name = program_name(task, &len);
+
+    if (name)
+        while (len--)
+            h = h * 33 + lower(*name++);
+    return h;
+}
+
 /* The record of a task; a record of a task that closed the library from
  * another task (and has ended) does not match a new task at its address:
- * the stack differs */
+ * the stack differs; nor does another program at its address with the
+ * same stack: the name differs */
 static struct ZuneOpener *find_opener(struct MUIMasterBase_intern *base,
     struct Task *task)
 {
     struct ZuneOpener *o;
+    ULONG name = name_hash(task);
 
     for (o = base->IdOpeners; o < base->IdOpeners + ZUNE_ID_OPENERS; o++)
-        if (o->task == task && o->splower == task->tc_SPLower)
+        if (o->task == task && o->splower == task->tc_SPLower
+            && o->name == name)
             return o;
     return NULL;
 }
@@ -343,7 +360,11 @@ struct Library *zune_identity_open(ULONG version)
 
     if ((o = find_opener(base, me)))
     {
-        o->count++;
+        /* a class module's LibOpen opening this library on the program's
+         * task (mccinit.c does, in every MCC) while this library loads
+         * the module: the program's identity, not counted as its open */
+        if (!o->nested)
+            o->count++;
         id = o->identity;
     }
     else if (me->tc_Node.ln_Name && !strcmp(me->tc_Node.ln_Name, "ramlib"))
@@ -358,8 +379,10 @@ struct Library *zune_identity_open(ULONG version)
         {
             o->task = me;
             o->splower = me->tc_SPLower;
+            o->name = name_hash(me);
             o->count = 1;
             o->identity = id;
+            o->nested = 0;
         }
     }
     lib = identity_base(base, id);
@@ -376,8 +399,25 @@ void zune_identity_close(struct Library *lib)
 
     if (lib != MUIMasterBase && lib->lib_OpenCnt)
         lib->lib_OpenCnt--;
-    if ((o = find_opener(base, FindTask(NULL))) && !--o->count)
+    if ((o = find_opener(base, FindTask(NULL))) && !o->nested && !--o->count)
         o->task = NULL;
+}
+
+/* Around this library's own OpenLibrary, CloseLibrary or RemLibrary of a
+ * class module (support_classes.c, mui_freeclass.c): the module's
+ * LibOpen, LibClose and LibExpunge open and close this library on the
+ * calling task, which is a program's; those are not the program's opens
+ * (before: a module dropped for another identity closed the program's
+ * last count, and its reload opened a new record with the module's
+ * version, MUI 3.8 for a program that asked for MUI 5) */
+void zune_identity_nest(LONG delta)
+{
+    struct ZuneOpener *o;
+
+    Forbid();
+    if ((o = find_opener(MUIMB(MUIMasterBase), FindTask(NULL))))
+        o->nested += delta;
+    Permit();
 }
 
 /* The identity of the calling task: its record, else what the settings
