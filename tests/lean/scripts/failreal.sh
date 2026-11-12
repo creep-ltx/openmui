@@ -68,7 +68,7 @@ makedir ENV:MUI" >/dev/null 2>&1
     wasabi run "RAM:trapcap read clear" >/dev/null 2>&1
     wasabi run "run >NIL: RAM:trapcap" >/dev/null 2>&1; sleep 1
   fi; }
-rebooted() { ! wasabi run "list RAM:failn QUICK" 2>/dev/null | grep -q failn; }
+rebooted() { ! wasabi run "list RAM:failn QUICK" >/dev/null 2>&1; }   # its exit code: the "not found" message names the file too
 boot || { log "instance did not come up"; exit 1; }
 putfailn
 RD="$(sysvol)Real"; dir="$RD/$P_ID"; exe=${P_EXE%% *}

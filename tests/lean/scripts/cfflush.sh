@@ -18,6 +18,6 @@ run >NIL: RAM:failn run RAM:Prog 1 8000 >RAM:fn.txt" >/dev/null; sleep 6
 wasabi arexx --timeout 5 PAGESDEMO.1 QUIT >/dev/null 2>&1; sleep 2
 rep=$(wasabi run "type RAM:fn.txt" 2>/dev/null | tr -d "\r" | grep "failn: failed"); echo "${rep:-note: no call was failed (the class files stayed loaded), the test proves nothing this time}"
 wasabi run "avail flush" >/dev/null 2>&1; sleep 4
-if wasabi run "list RAM:failn QUICK" 2>/dev/null | grep -q failn; then echo "ok: no reset"; r=0; else echo "FAIL: reset"; r=1; fi
+if wasabi ping >/dev/null 2>&1 && wasabi run "list RAM:failn QUICK" >/dev/null 2>&1; then echo "ok: no reset"; r=0; else echo "FAIL: reset"; r=1; fi
 amiga-test a1200-31 stop --as "$NAME" >/dev/null 2>&1
 exit $r

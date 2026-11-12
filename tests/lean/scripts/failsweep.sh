@@ -139,7 +139,7 @@ run >NIL: RAM:failn run RAM:Prog $N ${MASK:+$MASK} >RAM:fn.txt" >/dev/null 2>&1
     [ -n "$(wins)" ] && { close_windows; status="$status,left"; }
   fi
   # RAM:failn is the reset marker too: Amiberry reboots in 2 s, a reset can pass between two pings
-  if ! alive || ! wasabi run "list RAM:failn QUICK" 2>/dev/null | grep -q failn; then
+  if ! alive || ! wasabi run "list RAM:failn QUICK" >/dev/null 2>&1; then
     for i in $(seq 1 30); do sleep 2; wasabi ping >/dev/null 2>&1 && break; done
     if wasabi ping >/dev/null 2>&1; then
       status=reset; sleep 3; putfiles   # RAM: is empty after the reset; the record is in chip RAM
