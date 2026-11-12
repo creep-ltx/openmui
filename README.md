@@ -6,6 +6,41 @@ with everything MUI programs need: `muimaster.library`, the classes, and a
 preferences program. It runs on a stock 68000 with OS 3.1, and looks and
 uses memory like MUI 3.8.
 
+## OpenMUI in numbers
+
+Measured in an emulated Amiga 1200 (68EC020, FS-UAE, cycle-exact; MUI 5 on OS 3.2.1, the others on
+OS 3.1), 2026-11-12. Not yet measured on a real Amiga.
+
+![Headline figures](docs/stats/headline.png)
+
+### Speed against MUI 3.8
+
+![OpenMUI's time as a share of MUI 3.8's, 26 operations](docs/stats/speed-mui38.png)
+
+### Speed against MUI 5
+
+![OpenMUI's time as a share of MUI 5's, 27 operations](docs/stats/speed-mui5.png)
+
+### Memory
+
+![Memory MUI-Demo takes on OpenMUI, MUI 3.8, MUI 5 and Zune68](docs/stats/memory.png)
+
+### Against the original Zune68
+
+![OpenMUI against the original Zune68](docs/stats/zune68.png)
+
+### Progress
+
+![Operations at least as fast as MUI 3.8, round by round](docs/stats/progress.png)
+
+### Compatibility and stability
+
+![Compatibility and stability figures](docs/stats/stability.png)
+
+All figures, with exact values on hover and table views:
+[docs/stats/openmui-stats.html](docs/stats/openmui-stats.html) (download and open it in a browser).
+How each was measured: [docs/lean/measurements.md](docs/lean/measurements.md).
+
 **Version 0.1b1, a test build.** Betas are `X.YbN` until OpenMUI has been in
 daily use for a while. Every figure in these pages was measured in an emulator
 (FS-UAE), not on a real Amiga.
