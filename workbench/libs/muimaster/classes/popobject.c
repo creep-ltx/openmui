@@ -343,6 +343,12 @@ IPTR Popobject__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data->close_hook.h_Entry = (HOOKFUNC) Popobject_Close_Function;
     data->close_hook.h_Data = data;
 
+    /* Popstring's attributes set in OM_NEW go to Popstring, not through a
+     * subclass's OM_SET (MUI 3.8 measured with tests/lean/probe/newset.c:
+     * a Popobject subclass sees no OM_SET during OM_NEW); before the tag
+     * loop, where cl is still live, and in Popstring's frame (the stack rule) */
+    Popstring_SetHooks(cl, obj, &data->open_hook, &data->close_hook, TRUE);
+
     /* parse initial taglist */
 
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
@@ -378,15 +384,6 @@ IPTR Popobject__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
         }
     }
-
-    /* Popstring's attributes set in OM_NEW go to Popstring, not through a
-     * subclass's OM_SET (MUI 3.8 measured with tests/lean/probe/newset.c:
-     * a Popobject subclass sees no OM_SET during OM_NEW) */
-    SetSuperAttrs(cl, obj,
-        MUIA_Popstring_OpenHook, (IPTR) & data->open_hook,
-        MUIA_Popstring_CloseHook, (IPTR) & data->close_hook,
-        MUIA_Popstring_Toggle, TRUE,
-        TAG_DONE);
 
     return (IPTR) obj;
 }

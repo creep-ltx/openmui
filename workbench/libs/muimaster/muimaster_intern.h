@@ -175,6 +175,10 @@ void zune_applist_free(void);
  * when little stack is left (68k native builds) */
 IPTR zune_deep_call(Object *app, IPTR (*fn)(struct IClass *, Object *, Msg),
     struct IClass *cl, Object *obj, Msg msg);
+/* classes/popstring.c: a Popstring subclass's OM_NEW sets Popstring's hooks
+ * through the superclass, in Popstring's frame */
+void Popstring_SetHooks(struct IClass *cl, Object *obj, struct Hook *open,
+    struct Hook *close, IPTR toggle);
 #endif
 
 #endif /* MUIMASTER_INTERN_H */

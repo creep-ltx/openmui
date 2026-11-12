@@ -484,6 +484,18 @@ IPTR Popasl__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     data = INST_DATA(cl, obj);
 
+    data->open_hook.h_Entry = HookEntry;
+    data->open_hook.h_SubEntry = (HOOKFUNC) Popasl_Open_Function;
+    data->open_hook.h_Data = data;
+    data->close_hook.h_Entry = HookEntry;
+    data->close_hook.h_SubEntry = (HOOKFUNC) Popasl_Close_Function;
+    data->close_hook.h_Data = data;
+    data->asl_req = asl_req;
+    data->type = asl_type;
+    /* Popstring's hooks through the superclass, not a subclass's OM_SET
+     * (newset.c); before the tag loop and in Popstring's frame (the stack rule) */
+    Popstring_SetHooks(cl, obj, &data->open_hook, &data->close_hook, FALSE);
+
     /* parse initial taglist */
 
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
@@ -500,19 +512,6 @@ IPTR Popasl__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         }
     }
 
-    data->open_hook.h_Entry = HookEntry;
-    data->open_hook.h_SubEntry = (HOOKFUNC) Popasl_Open_Function;
-    data->open_hook.h_Data = data;
-    data->close_hook.h_Entry = HookEntry;
-    data->close_hook.h_SubEntry = (HOOKFUNC) Popasl_Close_Function;
-    data->close_hook.h_Data = data;
-    data->asl_req = asl_req;
-    data->type = asl_type;
-
-    SetSuperAttrs(cl, obj,   /* not through a subclass's OM_SET (newset.c) */
-        MUIA_Popstring_OpenHook, (IPTR) & data->open_hook,
-        MUIA_Popstring_CloseHook, (IPTR) & data->close_hook,
-        MUIA_Popstring_Toggle, FALSE, TAG_DONE);
 
     return (IPTR) obj;
 }

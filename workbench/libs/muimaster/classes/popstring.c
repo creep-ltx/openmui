@@ -287,6 +287,29 @@ IPTR Popstring__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 }
 
 /*
+ * Popobject's and Popasl's OM_NEW give Popstring their open and close hooks
+ * and the toggle through the superclass (MUI 3.8 measured with
+ * tests/lean/probe/newset.c: a subclass's OM_SET sees nothing while OM_NEW
+ * runs). The message is built here, in its own frame, so the callers' frames
+ * stay what they were with SetAttrs (the stack rule of the lean edition).
+ */
+void Popstring_SetHooks(struct IClass *cl, Object *obj, struct Hook *open,
+    struct Hook *close, IPTR toggle)
+{
+    struct TagItem tags[4];
+    struct opSet msg;
+
+    tags[0].ti_Tag = MUIA_Popstring_OpenHook;  tags[0].ti_Data = (IPTR) open;
+    tags[1].ti_Tag = MUIA_Popstring_CloseHook; tags[1].ti_Data = (IPTR) close;
+    tags[2].ti_Tag = MUIA_Popstring_Toggle;    tags[2].ti_Data = toggle;
+    tags[3].ti_Tag = TAG_DONE;                 tags[3].ti_Data = 0;
+    msg.MethodID = OM_SET;
+    msg.ops_AttrList = tags;
+    msg.ops_GInfo = NULL;
+    DoSuperMethodA(cl, obj, (Msg) &msg);
+}
+
+/*
  * Replace borrowed hooks and Toggle in tag order, then return Group setter
  * result. Does not cancel queued callbacks, change existing queue payloads
  * or immediately synchronize button state. Caller maintains hook/data

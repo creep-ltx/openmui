@@ -108,6 +108,17 @@ IPTR Scale__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     if (!obj)
         return FALSE;
 
+    /* MUI 3.9 labels a scale in the tiny font unless told otherwise */
+    if (!FindTagItem(MUIA_Font, msg->ops_AttrList))
+    {
+        /* through the superclass, not a subclass's OM_SET (newset.c);
+         * a constant message, sent before data is live, keeps the frame as it was */
+        static const struct TagItem tiny[] =
+            { { MUIA_Font, MUIV_Font_Tiny }, { TAG_DONE, 0 } };
+        static const struct opSet tinyset = { OM_SET, (struct TagItem *)tiny, NULL };
+        DoSuperMethodA(cl, obj, (Msg) &tinyset);
+    }
+
     data = INST_DATA(cl, obj);
 
     data->horiz = TRUE;
@@ -122,17 +133,6 @@ IPTR Scale__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->horiz = tag->ti_Data;
             break;
         }
-    }
-
-    /* MUI 3.9 labels a scale in the tiny font unless told otherwise */
-    if (!FindTagItem(MUIA_Font, msg->ops_AttrList))
-    {
-        /* through the superclass, not a subclass's OM_SET (newset.c);
-         * a constant message keeps the frame as it was */
-        static const struct TagItem tiny[] =
-            { { MUIA_Font, MUIV_Font_Tiny }, { TAG_DONE, 0 } };
-        static const struct opSet tinyset = { OM_SET, (struct TagItem *)tiny, NULL };
-        DoSuperMethodA(cl, obj, (Msg) &tinyset);
     }
 
     D(bug("muimaster.library/scale.c: Scale Object created at 0x%p\n",
