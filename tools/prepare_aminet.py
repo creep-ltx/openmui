@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Prepare fixed-name Aminet files from a dated release, without uploading."""
+"""Prepare the Aminet pair, OpenMUI.lha and OpenMUI.readme (decided
+2026-11-12: one fixed name on Aminet for every release), from a dated
+release, without uploading."""
 import argparse
 import re
 import shutil
 from pathlib import Path
+
+AMINET_NAME = 'OpenMUI'
 
 
 def prepare(release_dir, output_dir, tag):
@@ -28,9 +32,8 @@ def prepare(release_dir, output_dir, tag):
     if not archive.is_file() or not archive.stat().st_size:
         raise ValueError(f'missing or empty release archive: {archive}')
     output_dir.mkdir(parents=True, exist_ok=True)
-    name = archive.name[:-len(f'-{version}-amigaos3-m68k.lha')]
-    shutil.copyfile(archive, output_dir / (name + '.lha'))
-    shutil.copyfile(readme, output_dir / (name + '.readme'))
+    shutil.copyfile(archive, output_dir / (AMINET_NAME + '.lha'))
+    shutil.copyfile(readme, output_dir / (AMINET_NAME + '.readme'))
 
 
 def main():

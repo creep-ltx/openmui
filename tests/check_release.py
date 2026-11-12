@@ -87,8 +87,12 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('2026.11.11', readme)
         destination = self.root / 'aminet'
         prepare(self.output, destination, 'v2026.11.11')
-        self.assertEqual((destination / 'OpenMUI-0.1b1.lha').read_bytes(),
+        self.assertEqual((destination / 'OpenMUI.lha').read_bytes(),
                          archive.read_bytes())
+        self.assertEqual((destination / 'OpenMUI.readme').read_bytes(),
+                         archive.with_suffix('.readme').read_bytes())
+        self.assertEqual(sorted(p.name for p in destination.iterdir()),
+                         ['OpenMUI.lha', 'OpenMUI.readme'])
 
     def test_switch_tool_and_home_icons(self):
         archive = release.release(self.build, self.output, 'lha', full=False)
@@ -203,8 +207,8 @@ class ReleaseTests(unittest.TestCase):
         archive = release.release(self.build, self.output, 'lha', full=False)
         destination = self.root / 'aminet'
         prepare(self.output, destination, 'v2026.10.12')
-        self.assertEqual((destination / 'Zune68.lha').read_bytes(), archive.read_bytes())
-        self.assertEqual((destination / 'Zune68.readme').read_bytes(),
+        self.assertEqual((destination / 'OpenMUI.lha').read_bytes(), archive.read_bytes())
+        self.assertEqual((destination / 'OpenMUI.readme').read_bytes(),
                          archive.with_suffix('.readme').read_bytes())
 
     def test_aminet_pair_and_version_guard(self):
@@ -214,16 +218,16 @@ class ReleaseTests(unittest.TestCase):
         readme.write_text('Short: Zune68\nType: util/libs\nVersion: 2026.10.12\n\nBody\n')
         destination = self.root / 'aminet'
         prepare(self.output, destination, 'v2026.10.12')
-        self.assertEqual((destination / 'Zune68.lha').read_bytes(), archive.read_bytes())
-        self.assertEqual((destination / 'Zune68.readme').read_bytes(), readme.read_bytes())
-        original = (destination / 'Zune68.readme').read_bytes()
+        self.assertEqual((destination / 'OpenMUI.lha').read_bytes(), archive.read_bytes())
+        self.assertEqual((destination / 'OpenMUI.readme').read_bytes(), readme.read_bytes())
+        original = (destination / 'OpenMUI.readme').read_bytes()
         for version in ['2026.10.11', '2026.10.11 - Beta 1', '19.81 - Beta 1',
                         '2026.10.12garbage', '2026.10.12 - ']:
             with self.subTest(version=version):
                 readme.write_text(f'Type: util/libs\nVersion: {version}\n')
                 with self.assertRaisesRegex(ValueError, 'version differ'):
                     prepare(self.output, destination, 'v2026.10.12')
-                self.assertEqual((destination / 'Zune68.readme').read_bytes(), original)
+                self.assertEqual((destination / 'OpenMUI.readme').read_bytes(), original)
         for tag in ['../v2026.10.12', 'v19.81', 'v2026.10.12.1']:
             with self.assertRaisesRegex(ValueError, 'date tag'):
                 prepare(self.output, destination, tag)

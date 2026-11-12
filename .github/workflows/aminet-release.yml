@@ -46,9 +46,11 @@ jobs:
       - name: Name the Aminet pair
         id: pair
         run: |
-          # tools/prepare_aminet.py names the pair after the archive (OpenMUI-0.1b1.lha)
-          echo "lha=$(ls build/aminet/*.lha)" >> "$GITHUB_OUTPUT"
-          echo "readme=$(ls build/aminet/*.readme)" >> "$GITHUB_OUTPUT"
+          # tools/prepare_aminet.py makes the pair OpenMUI.lha and OpenMUI.readme
+          # (one name on Aminet for every release, decided 2026-11-12)
+          test -s build/aminet/OpenMUI.lha && test -s build/aminet/OpenMUI.readme
+          echo "lha=build/aminet/OpenMUI.lha" >> "$GITHUB_OUTPUT"
+          echo "readme=build/aminet/OpenMUI.readme" >> "$GITHUB_OUTPUT"
 
       - name: Upload to Aminet
         uses: sidick/aminet-release-action@v1
