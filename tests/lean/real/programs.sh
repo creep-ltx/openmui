@@ -136,6 +136,38 @@ P aminetuploader mui3 aminetuploader/x/Aminet-Uploader     Aminet-Uploader-MUI  
 P jmri         mui3 jmri/x/JMRIController                  JMRIController       40 -
 P amidrop      mui3 amidrop/x/AmiDrop_MUI                  Setup/AmiDrop_MUI    40 -
 
+# ---- programs added 2026-11-12 (branch compat3): Aminet's most downloaded 68k archives whose readme
+# names MUI, not yet in the suite (tests/lean/real-programs.md has what each is) ----
+P netsurf      mui3 netsurf/x/NetSurf                      NetSurf              120 -
+P haracz       mui3 haracz/x/Haracz                        Haracz               40 -
+P amifish      mui3 amifish/x/amifish                      amifish              40 -
+P albin        mui3 albin/x                                AlbIn_MUI            40 -
+P amichess     mui3 amichess/x/AmiChess                    AmiChess68k          90 -
+P aminetchess  mui3 aminetchess/x/aminetchess              AmiNetChess          60 -
+P animmaker    mui3 animmaker/x/AnimMaker                  AnimMaker            40 -
+P dpoker       mui3 dpoker/x/DPoker                        DPoker               40 -
+P monkeyclock  mui3 monkeyclock/x/MonkeyClockV1.1          MonkeyClock          40 -
+P scaleicon    mui3 scaleicon/x/scaleicon                  ScaleIcon            40 -
+P voodoox      mui3 voodoox/x/Voodoo-X                     Voodoo-X             60 -
+P amiplexamp   mui3 amiplexamp/x/AmiPlexAmp                AmiPlexAmp           60 -
+P amifleet     mui3 amifleet/x/amifleet68                  amifleet68           60 -
+P ilona        mui3 ilona/x/Ilona/Ilona                    Ilona                40 -
+P amimdc800    mui3 amimdc800/x                            AmiMDC800            40 -
+P pvtree       mui3 pvtree/x/pvtree                        PVTreeMUI            40 -
+
+# ---- add-on class demos added 2026-11-12 (branch compat3): dev/mui by downloads ----
+P datestring-demo mcc datestring/x/MCC_DateString/Demos      DateString-Demo      30 -
+P datetext-demo   mcc datetext/x/MCC_DateText/Demos          DateText-Demo        30 -
+P envelope-demo   mcc envelope/x/MCC_Envelope/Demos          Envelope-Demo        30 -
+P hotkeystr-demo  mcc hotkeystr/x/MCC_HotkeyString/AmigaOS-68k/Demos HotkeyStringTest 30 -
+P mimeeditor-demo mcc mimeeditor/x/MCC_MimeEditor1_4/Demos   MimeEditor-demo      30 -
+P readargs-demo   mcc readargsgroup/x/Readargsgroup/demos    ReadArgsGUI          30 -
+P setwin-demo     mcc settingswindow/x/MCC_SettingsWindow/Demos SettingsWindow-Demo 30 -
+P timetext-demo   mcc timetext/x/MCC_TimeText/Demos          TimeText-Demo        30 -
+P tron-demo       mcc tron/x/MCC_Tron/Demos                  Tron-Demo            30 -
+P imagebutton-demo mcc imagebutton/x/inner/MCC_ImageButton/Demos ImageButton-Demo  30 -
+P bbalance-demo   mcc betterbalance/x/inner/MCC_BetterBalance/Demos BetterBalance-Demo 30 -
+
 # ---- add-on class (MCC) demos, group mcc (2026-11-11): each class's own demo program ----
 # Run on every target with the same class files (CLASSES below); the classes that the suite
 # already installs (NList, TextEditor, BetterString, TheBar, Toolbar 15.6, Textinput, Popph,
@@ -364,6 +396,14 @@ CLASSES=(
   envelope/x/MCC_Envelope/Libs/MUI/Envelope.mcc envelope/x/MCC_Envelope/Libs/MUI/Envelope.mcp
   pkb/x/MCC_Pkb/Libs/MUI/Pkb.mcc pkb/x/MCC_Pkb/Libs/MUI/Pkb.mcp
   wheel/x/MCC_Wheel/Libs/mui/Wheel.mcc wheel/x/MCC_Wheel/Libs/mui/Wheel.mcp
+  # round 3 (2026-11-12)
+  "datestring/x/MCC_DateString/Libs/mui/DateString.mcc" "datetext/x/MCC_DateText/Libs/mui/DateText.mcc"
+  "envelope/x/MCC_Envelope/Libs/MUI/Envelope.mcc" "envelope/x/MCC_Envelope/Libs/MUI/Envelope.mcp"
+  "mimeeditor/x/MCC_MimeEditor1_4/Libs/mui/MimeEditor.mcc" "readargsgroup/x/Readargsgroup/libs/Readargsgroup.mcc"
+  "settingswindow/x/MCC_SettingsWindow/Libs/MUI/SettingsWindow.mcc" "timetext/x/MCC_TimeText/Libs/mui/TimeText.mcc"
+  "tron/x/MCC_Tron/Libs/MUI/Tron.mcc" "tron/x/MCC_Tron/Libs/MUI/Tron.mcp"
+  "imagebutton/x/inner/MCC_ImageButton/Libs/MUI/ImageButton.mcc" "betterbalance/x/inner/MCC_BetterBalance/Libs/MUI/BetterBalance.mcc"
+  "amimdc800/x/libs/mui/InfoText.mcc" "imagedb/x/MCC_ImageDB/Libs/ImageDB.mcc"
 )
 # Libraries into SYS:Libs (left alone where the machine has the library already)
 LIBRARIES=(
@@ -517,4 +557,37 @@ FETCH=(
   "aminetuploader https://aminet.net/util/misc/AminetUploader.lha"
   "jmri https://aminet.net/misc/misc/JMRIController.lha"
   "amidrop https://aminet.net/comm/net/AmiDrop_MUI.lha"
+  # ---- round 3 (2026-11-12): by Aminet downloads (readme "MUI"/"muimaster", 68k) and dev/mui ----
+  "netsurf https://aminet.net/comm/www/netsurf-m68k.lha"
+  "haracz https://aminet.net/comm/misc/2b_Haracz.lha"
+  "amifish https://aminet.net/comm/tcp/amifish.lha"
+  "albin https://aminet.net/biz/dbase/Albin_free.lha"
+  "amichess https://aminet.net/game/board/AmiChess.lha"
+  "aminetchess https://aminet.net/game/2play/AmiNetChess.lha"
+  "animmaker https://aminet.net/gfx/edit/BF_AnimMaker.lha"
+  "dpoker https://aminet.net/game/wb/DPoker_v1.0b.lha"
+  "monkeyclock https://aminet.net/util/time/MonkeyClock.lha"
+  "showiconmui https://aminet.net/util/cli/ShowIconMUI13.lha"
+  "scaleicon https://aminet.net/gfx/misc/ScaleIcon.lha"
+  "voodoox https://aminet.net/util/arc/Voodoo-X.lha"
+  "amiplexamp https://aminet.net/mus/play/AmiPlexAmp.lha"
+  "magicmenu https://aminet.net/util/wb/MagicMenu_3.1.lha"
+  "amifleet https://aminet.net/comm/net/amifleet68-0.5.0.lha"
+  "ilona https://aminet.net/comm/irc/Ilona.lha"
+  "amimdc800 https://aminet.net/gfx/misc/amimdc800.lha"
+  "pvtree https://aminet.net/util/wb/PVTree1_2.lha"
+  "betterbalance https://aminet.net/dev/mui/MCC_BetterBala.lha"
+  "bbalance https://aminet.net/dev/mui/MCC_BBalance.lha"
+  "date https://aminet.net/dev/mui/MCC_Date.lha"
+  "datestring https://aminet.net/dev/mui/MCC_DateString.lha"
+  "datetext https://aminet.net/dev/mui/MCC_DateText.lha"
+  "envelope https://aminet.net/dev/mui/MCC_Envelope.lha"
+  "hotkeystr https://aminet.net/dev/mui/MCC_HotkeyStr.lha"
+  "imagebutton https://aminet.net/dev/mui/MCC_ImageButto.lha"
+  "imagedb https://aminet.net/dev/mui/MCC_ImageDB.lha"
+  "mimeeditor https://aminet.net/dev/mui/MCC_MimeEditor.lha"
+  "readargsgroup https://aminet.net/dev/mui/MCC_Readargsgr.lha"
+  "settingswindow https://aminet.net/dev/mui/MCC_SetWin1_00.lzh"
+  "timetext https://aminet.net/dev/mui/MCC_TimeText.lha"
+  "tron https://aminet.net/dev/mui/MCC_Tron0_8.lha"
 )
