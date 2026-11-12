@@ -23,6 +23,11 @@
 #include "Busy_mcc.h"
 #include "busy_private.h"
 
+/* The MUI the library behaves as for this program (muimaster_intern.h's
+ * MGI_IDENTITY: the lowest byte of the global info's first private field;
+ * 1 = MUI 3.8) */
+#define BUSY_APP_MUI38(obj) (((UBYTE *)&muiGlobalInfo(obj)->priv0)[0] == 1)
+
 /*** Settings ***************************************************************/
 /* MUI 3.8's Busy settings (Busy.mcp) are in the configuration under 0x8002....:
    numbers as 4 bytes, the two colours as pen specs. Missing = MUI 3.8's defaults. */
@@ -298,10 +303,20 @@ IPTR Busy__MUIM_AskMinMax(Class *cl, Object *obj, struct MUIP_AskMinMax *msg)
 {
     DoSuperMethodA(cl, obj, (Msg)msg);
     
-    msg->MinMaxInfo->MinWidth  += 8 + 4;   /* Busy 2.4 on MUI 3.8 (its demo dumped): a bar of 8x4 at least, 24x8 by default, in a thin recessed frame with a pixel beside it */
-    msg->MinMaxInfo->MinHeight += 4 + 2;
-    msg->MinMaxInfo->DefWidth  += 24 + 4;
-    msg->MinMaxInfo->DefHeight += 8 + 2;
+    if (BUSY_APP_MUI38(obj))
+    {
+        msg->MinMaxInfo->MinWidth  += 8 + 4;   /* Busy 2.4 on MUI 3.8 (its demo dumped): a bar of 8x4 at least, 24x8 by default, in a thin recessed frame with a pixel beside it */
+        msg->MinMaxInfo->MinHeight += 4 + 2;
+        msg->MinMaxInfo->DefWidth  += 24 + 4;
+        msg->MinMaxInfo->DefHeight += 8 + 2;
+    }
+    else
+    {
+        msg->MinMaxInfo->MinWidth  += 18;      /* MUI 5's own Busy.mcc (tests/lean/probe/bars.c dumped on MUI 5): 18x11 minimum and default */
+        msg->MinMaxInfo->MinHeight += 11;
+        msg->MinMaxInfo->DefWidth  += 18;
+        msg->MinMaxInfo->DefHeight += 11;
+    }
     msg->MinMaxInfo->MaxWidth   = MUI_MAXMAX;
     msg->MinMaxInfo->MaxHeight  = MUI_MAXMAX;
 

@@ -65,6 +65,34 @@ static struct TextFont *zune_open_font(struct TextAttr *ta)
     return tf;
 }
 
+/* MUI 5's default for a preset left unset (measured with a topaz 8 screen
+ * font, tests/lean/probe/bars.c): Tiny and Title two sizes smaller than the
+ * screen font, Big two larger, Knob one smaller; the others the screen
+ * font. The derived size comes from diskfont (a scaled bitmap font); NULL
+ * when it cannot be opened, and the caller falls back to Normal. A helper
+ * with register arguments: zune_font_get's frame stays as it was. */
+static __attribute__((noinline)) struct TextFont *zune_font_derived(
+    register Object *obj __asm("a0"), register SIPTR preset __asm("d0"))
+{
+    struct TextAttr ta;
+    WORD delta;
+
+    if (preset == (SIPTR) MUIV_Font_Tiny || preset == (SIPTR) MUIV_Font_Title)
+        delta = -2;
+    else if (preset == (SIPTR) MUIV_Font_Big)
+        delta = 2;
+    else if (preset == (SIPTR) MUIV_Font_Knob)
+        delta = -1;
+    else
+        return NULL;
+    ta = *(_screen(obj)->Font);
+    ta.ta_Flags = 0;
+    if (ta.ta_YSize + delta < 4)
+        return NULL;
+    ta.ta_YSize += delta;
+    return zune_open_font(&ta);
+}
+
 struct TextFont *zune_font_get(Object *obj, IPTR font)
 {
     struct MUI_GlobalInfo *mgi;
@@ -126,6 +154,11 @@ struct TextFont *zune_font_get(Object *obj, IPTR font)
             if (preset != (SIPTR) MUIV_Font_Normal && preset
                 != (SIPTR) MUIV_Font_Fixed)
             {
+                /* MUI 5 derives an unset Tiny, Title, Big and Knob font
+                 * from the screen font's size; MUI 3.8 uses the screen font */
+                if (!ZUNE_APP_MUI38(obj)
+                    && (mri->mri_Fonts[-preset] = zune_font_derived(obj, preset)))
+                    return mri->mri_Fonts[-preset];
                 /* Normal owns the fallback; do not cache and close it twice. */
                 return zune_font_get(obj, MUIV_Font_Normal);
             }

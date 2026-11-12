@@ -1359,9 +1359,12 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data = INST_DATA(cl, obj);
 
     data->columns = 1;
-    /* no scroller on its own: Listview sets one (MUI 3.8 measured: a bare
-     * Floattext in the TipOfDay demo has none; tests/lean/real-programs.md) */
-    data->scroller_pos = MUIV_Listview_ScrollerPos_None;
+    /* no scroller on its own for a MUI 3 program: Listview sets one (MUI
+     * 3.8 measured: a bare Floattext in the TipOfDay demo has none;
+     * tests/lean/real-programs.md). MUI 5's List has its own scrollbar
+     * (a bare Floattext 56x46 with a Scrollbar child, probe/bars.c) */
+    data->scroller_pos = ZUNE_MUI38() ? MUIV_Listview_ScrollerPos_None
+        : MUIV_Listview_ScrollerPos_Default;
     data->max_columns = GetTagData(MUIA_List_MaxColumns, 64, msg->ops_AttrList);
     data->max_columns_explicit = FindTagItem(MUIA_List_MaxColumns, msg->ops_AttrList) != NULL;
     if (data->max_columns < 1 || data->max_columns > 256)
