@@ -257,6 +257,21 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   the candidate). Left: RegisterGadget's popup menu, FrameDynamic's hover. Details in
   [README.md](README.md#lumizips-reset-found-mui-45-calls-programs-use-2026-11-11-phase-6).
 
+## Gate 2, stability (docs/production.md; started 2026-11-12, branch `stab1`)
+
+Tests built as tools and run once each: fault injection (`tests/lean/memtally/failn`,
+`failsweep.sh`: every one of MUI-Demo's 2,175 resource calls failed once; no crash of
+ours, the children of a failed Window/Application were kept and are disposed now,
+`zune_dispose_children`; MUI 3.8 keeps them), the soak (`soak.sh`, 70 min, windows
+constant, a creep of about 120 bytes a cycle to attribute), the 68000 (`smallcheck.sh`:
+the A600 with 0/1/2 MB fast runs every demo), the parsers (`check_fuzz_parsers.py`,
+`check_mui38_fuzz.py`, `prefsfuzz.sh`, `rexxfuzz.sh`: nothing found), `suite.sh --loops K`.
+Next in order: the fault sweep over a set of real programs and over MUI-Demo's sub-window
+opening (start the count after the main window), the start/quit loops over the 181, the
+soak's creep with memtally, the prefs fuzz over more seeds and the per-program files, the
+RTG machine, the code audit. Details in
+[README.md](README.md#stability-round-1-fault-injection-soak-the-68000-the-parsers-2026-11-12-gate-2).
+
 ## Later (wanted, not scheduled)
 
 1. Hand-written 68000 assembly in the hottest drawing and layout loops.

@@ -3005,8 +3005,78 @@ and Virtual, byte-identical to round 3's; Menus had moved under the group change
 out for that). fullcheck lost 608 / 200 / AppWindow 264 as every round. AmigaGPT 590x255 as round 3
 (a version-19 opener).
 
+## Stability round 1: fault injection, soak, the 68000, the parsers (2026-11-12, gate 2)
+
+Branch `stab1`. Gate 2 of [production.md](../production.md) starts here: a test for each of
+its rows, built as a tool in the repository, run, and what it found fixed. Everything measured
+on Amiberry 8.5 headless (A1200 OS 3.1, A600 OS 3.1, MUI 3.8 beside) or in the vamos harness on
+the PC; MUI 3.8 black-box. Figures are emulator figures.
+
+### The tests and how to run them
+
+| Test | Tool | Run |
+|---|---|---|
+| Out of memory: the Nth resource call from library code fails | `tests/lean/memtally/failn` (C + asm stubs on 16 functions: exec AllocMem/AllocVec/AllocPooled/CreatePool/CreateMsgPort/AllocSignal/OpenLibrary, graphics AllocBitMap/AllocRaster/OpenFont/NewRegion, intuition OpenWindow(TagList)/NewObjectA/MakeClass, dos LoadSeg) | `failsweep.sh NAME PORT PROG N0 N1` (one instance; `count all` prints the count; `FLUSH=1`, `MASK=hex`, `MACH=a1200-31-mui38 LIB=` for real MUI 3.8), `failsweep-par.sh NAME PORT0 PROG K N0 N1` (K instances, interleaved), `failsym.py LIB TSV` names the callers of the abnormal lines |
+| Soak: hours of open/close/scroll/type/iconify/resize | `soak.sh NAME PORT MINUTES` | MUI-Demo (eight sub-windows worked in), Pages, Virtual, Slidorama; a memory sample per cycle into `$ZWORK/soak/NAME.tsv`, "lost" after everything quit and `avail flush` |
+| Start/quit loops of every suite program | `suite.sh ... --loops K` | K more start/quit cycles per program; `TAG/loops.tsv` (id, K, done, failed, kept) and `,loops=done/K,fail=N,kept=BYTES` in the status |
+| A stock 68000 | `smallcheck.sh NAME PORT FASTKB` | fullcheck's 19 demos + MUI-Demo's sub-windows on `a600-31` with 0, 1024 or 2048 KB fast RAM |
+| Settings files | `prefsfuzz.sh NAME PORT N0 N1 [PROG]` with `tools/lean/prefsmutate.py SEED FILE` | every setting the library reads, from the sources, damaged twelve ways; `WAIT=20` (a full settings file makes a start take seconds) |
+| ARexx commands | `rexxfuzz.sh NAME PORT CASES` | built-ins with wrong/missing/too many/1000-character/binary arguments, unknown commands, over `wasabi arexx` |
+| The string parsers (PC) | `tests/check_fuzz_parsers.py LIB` (in `make check`) | pen, frame and gradient specs and the text engine, inputs at the end of emulated RAM so an overread stops the machine; `FUZZ_CASES`, `FUZZ_SEED` |
+| The MUI 3.8 settings importer (PC) | `tests/check_mui38_fuzz.py` (in `make check`) | the converter under ASAN/UBSAN on mutated files |
+
+### What was found
+
+- **Fault injection, MUI-Demo's start and quit (2,175 calls, every one failed once).** No crash of
+  OpenMUI's: the two resets of the sweep were dos.library's own OpenLibrary inside `Open()` (ROM
+  code dereferencing the NULL; failn no longer counts OpenLibrary calls made from ROM). 839 N's
+  still opened the window (a class made later, a notification lost), 1,138 refused cleanly
+  (MUI-Demo's own "no window"), 26 left a window that ignored its close gadget: a failed 28-byte
+  AllocVec in the program's own `MUIM_Notify` of `MUIA_Window_CloseRequest`; MUI gives MUIM_Notify no
+  result, ARexx QUIT still works (recorded, not a bug of ours). **Memory kept on failure**: 8-27 KB
+  when the Window object could not be made (its pool, its superclass), 102 KB when the Application
+  could not (its message port, signal, Dataspace, the base name's StrDup, the timer) — the children
+  the program had passed in the tag list, never disposed. MUI's rule (Group.mui autodoc): a failed
+  call leaves no previously created object behind. Fixed: `zune_dispose_children()` (mui_newobject.c)
+  disposes the objects of the child-carrying tags where nothing has read the list yet (MUI_NewObjectA
+  with no class; Group, Family, Window, Application whose superclass failed; Window's pool;
+  Application's nine early failures; Scrollgroup's layout hook). The same N's keep 0 after the fix
+  (`/tmp/stab1/verify-*.tsv`). Left: when intuition's own NewObjectA fails (the instance's AllocMem)
+  the class's OM_NEW never ran and MUI_NewObjectA cannot tell that from an OM_NEW that ran and
+  disposed them (a double free otherwise): those N's keep the children (8-27 KB in MUI-Demo). **MUI 3.8
+  under the same sweep** (`MACH=a1200-31-mui38 LIB=`, its first 691 calls): no crash, and 33 N's kept
+  more than 1 KB, among them the very figures OpenMUI kept before the fix (-26,720, -26,504, -23,352,
+  -9,696: MUI-Demo's window contents when the Window cannot be made) and 1-7 KB cases of its own; so
+  MUI 3.8 does not follow its documented rule there, and OpenMUI now does, except for intuition's
+  own failure.
+- **Soak** (70 minutes, 52+ cycles of eight sub-windows, page switches, scrolling, typing, HIDE/SHOW
+  over ARexx, resizes): the windows stayed five all along; the memory in use crept from 1,923,576 to
+  1,929,712 bytes (about 120 bytes a cycle); what is given back at the end is in the soak's last line
+  (see "Results" below).
+- **The 68000**: every fullcheck demo and MUI-Demo with its eight sub-windows run and quit on the
+  A600 (OS 3.1, 1 MB chip) with 0, 1 and 2 MB fast RAM, the same "lost" figures as the A1200
+  (608 / 200 / AppWindow 264); MUI-Demo needs about 620 KB.
+- **Settings files**: a run with a 6 s window wait reported hangs that were a slow start under load
+  (a full settings file opens eight fonts and sixteen custom frames); with 20 s every mutated file so
+  far starts MUI-Demo or is rejected, no reset. **ARexx**: 314 commands answered, no crash, 1,128
+  bytes kept after QUIT and flush (not chased). **Parsers**: 6,000 inputs per seed, five seeds, no
+  overread or leak; the importer 5,500 mutated files under the sanitizer, no finding.
+- **The rules**: `-fstack-usage` of all 3,778 functions against lean: none grew (the helper has
+  register arguments and is noinline; Scrollgroup reads its contents after the allocation that can
+  fail, else its frame grew 160 -> 164; a class file cannot call a register-argument helper,
+  gcc/classfiles.py refuses). Library file 279,116 -> 279,404 bytes (the helper, 288 bytes). No hot
+  path touched (error paths only). `make check` passes with the two new checks.
+
+### Results of the final build
+
+(filled at the end of the round: fullcheck, demopix, the suite, stackrun, the soak's last line)
+
 ## Left open
 
+- **Stability (2026-11-12, after `stab1`)**: children kept when intuition's own NewObjectA fails
+  (above); the soak's slow growth, to be attributed with `memtally runall` (TALLY=1 in soak.sh is
+  the hook for it, not written yet); the prefs fuzz and the start/quit loops to run over the whole
+  suite (`--loops` is built, not yet run over the 181); the RTG machine; the code audit.
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
   measurements of what the compiler and the link can still give, "Toward the core" above;
   LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined

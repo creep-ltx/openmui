@@ -52,6 +52,12 @@ as before). A whole run of the 36 MUI 3.x entries takes about 40 minutes per tar
   with `tools/lean/mtlib.py` (by task, caller, size; `SYMLIB=` a Zune build with symbols names
   Zune's functions) and `tools/lean/mtsizes.py`. MUI 3.8 is a black box there: its callers show
   as muimaster.library.
+- `--loops K` (2026-11-12, stability round 1) runs K more start/quit cycles of each program on
+  the same booted machine after the second run, for the quit crashes that only show now and then:
+  `TAG/loops.tsv` gets id, K, cycles done, failed, memory kept over the K runs, and the status
+  `,loops=done/K,fail=N,kept=BYTES`. The other stability tools (fault injection `failsweep.sh`,
+  `soak.sh`, `smallcheck.sh` on the A600, `prefsfuzz.sh`, `rexxfuzz.sh`) are described in
+  docs/lean/README.md "Stability round 1".
 - `suite-compare.py A B` writes `compare-A-B.html` next to them: per program both screenshots
   side by side, the windows and their size differences, status and memory, and prints every
   program that behaves differently.
