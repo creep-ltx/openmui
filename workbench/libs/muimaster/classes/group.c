@@ -787,6 +787,44 @@ IPTR Group__MUIM_Hide(struct IClass *cl, Object *obj,
  */
 static ULONG Group_DispatchMsg(struct IClass *cl, Object *obj, Msg msg);
 
+/* Whether the page a switch shows already has the box the page layout
+ * (group_layout_pagemode) gives it: every layout of a page group lays out
+ * all its pages, and a page whose contents change is laid out again by
+ * the window's RecalcDisplay, so a page switch in a group whose box did
+ * not change has nothing to lay out. MUI 3.8 does not lay out at a switch
+ * either (a Cycle set: 2.4 ms there, 2.8 with the layout, 2.4 without,
+ * opbench). Only for an object of the Group class itself (a subclass may
+ * act on the layout: Register selects its tab there) without a title or a
+ * virtual area; any other, or a box that differs, is laid out as before. */
+extern const struct __MUIBuiltinClass _MUI_Group_desc;
+
+static __attribute__((noinline)) BOOL group_page_laid_out(Object *obj,
+    struct MUI_GroupData *data)
+{
+    APTR cstate = group_children(data)->mlh_Head;
+    Object *child;
+    LONG i = 0, w, h;
+
+    if ((data->flags & GROUP_VIRTUAL) || data->titlegroup
+#if defined(__MAXON__) || defined(__amigaos4__)
+        || OCLASS(obj)->cl_Dispatcher.h_Entry
+#else
+        || OCLASS(obj)->cl_Dispatcher.h_SubEntry
+#endif
+            != (HOOKFUNC)_MUI_Group_desc.dispatcher)
+        return FALSE;
+    while ((child = NextObject(&cstate)) && i++ < data->active_page)
+        continue;
+    if (!child)
+        return FALSE;
+    w = MIN(_mwidth(obj), _maxwidth(child));
+    h = MIN(_mheight(obj), _maxheight(child));
+    return w >= _minwidth(child) && h >= _minheight(child)
+        && _width(child) == w && _height(child) == h
+        && _left(child) == _mleft(obj) + (_mwidth(obj) - w) / 2
+        && _top(child) == _mtop(obj) + (_mheight(obj) - h) / 2;
+}
+
 /*
  * Change the stored page only in PageMode. Requires valid Group state and a
  * nonempty content set for Next/Advance modulo arithmetic.
@@ -842,7 +880,8 @@ static void change_active_page(struct IClass *cl, Object *obj, LONG page)
 
         if (_flags(obj) & MADF_CANDRAW)
         {
-            DoLayoutMethod(obj);
+            if (!group_page_laid_out(obj, data))
+                DoLayoutMethod(obj);
             Group__MUIM_Show(cl, obj, NULL);
             data->update = 1;
             MUI_Redraw(obj, MADF_DRAWUPDATE);
@@ -2649,10 +2688,19 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
     struct Rectangle kids[GROUP_GAP_CHILDREN];
     int nkids = -1;
 
-    /* Custom backfill hooks keep one call for the whole inner box */
+    /* Custom backfill hooks keep one call for the whole inner box. An
+     * update (a page switch) or a frame alone paints no background, so
+     * no gaps either: the children are not collected then */
     if (!virtual && (_flags(obj) & MADF_FILLAREA)
         && !(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
+    {
+        if (!(_flags(obj) & (MADF_DRAWOBJECT | MADF_DRAWALL)))
+        {
+            DoSuperMethodA(cl, obj, (Msg) msg);
+            return;
+        }
         nkids = group_collect_children(cl, obj, kids);
+    }
 
     if (nkids >= 0)
     {
