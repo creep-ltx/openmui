@@ -531,6 +531,59 @@ instances differ in a few operations, OpenMUI's do not). Emulator figures.
 lean is `lean` at 146a3269, speed1 the branch's final build. What each fix did:
 [README.md](README.md#speed-round-1-every-common-operation-timed-against-mui-38-2026-11-12-gate-3).
 
+## opbench, speed round 2 (2026-11-12)
+
+The same benchmark, MUI 3.8 and the branch `speed2` side by side and then swapped (sp-a, sp-b),
+lean (`lean` at 1f1c4408, speed round 1) twice in the same session; 9 repetitions, median ms per
+operation; two figures where the two runs differ by more than 1%. Emulator figures (FS-UAE
+cycle-exact, a1200-31-mui38, OS 3.1, 68EC020).
+
+| operation (ms per operation) | MUI 3.8 | OpenMUI lean | OpenMUI speed2 | speed2 / MUI 3.8 |
+|---|---:|---:|---:|---:|
+| prefs+app (empty) | 93.7 / 90.2 | 48.2 / 47.7 | 48.3 | 0.52-0.54 |
+| app+windows create | 239.0 / 235.5 | 260.1 / 253.9 | 253.5 | 1.06-1.08 |
+| window open+close | 521.2 | 440.0 | 441.0 | 0.85 |
+| full redraw | 150.6 | 150.0 | 149.8 | 0.99 |
+| relayout | 207.1 | 195.5 | 194.3 | 0.94 |
+| slider set | 4.04 | 2.91 | 2.91 | 0.72 |
+| notify chain | 7.82 | 6.03 | 6.02 | 0.77 |
+| cycle set | 2.44 | 2.79 | 2.38 | 0.98 |
+| radio set | 15.6 | 9.74 | 9.73 | 0.63 |
+| text set | 2.50 | 2.41 | 2.42 | 0.97 |
+| list insert 1 | 10.3 | 9.24 / 9.10 | 8.50 | 0.82 |
+| list insert 100 | 831.3 | 86.9 | 85.3 | 0.10 |
+| list insert 1000 | 6654.7 | 477.0 | 472.9 | 0.07 |
+| list active | 21.1 | 21.3 / 21.1 | 19.3 | 0.91 |
+| list scroll line | 14.6 | 15.7 | 14.4 | 0.98 |
+| list scroll page | 44.4 | 41.7 | 40.0 | 0.90 |
+| list sort 1000 | 658.1 | 108.6 / 110.3 | 110.1 | 0.17 |
+| button click | 23.1 / 22.4 | 21.1 | 21.1 / 21.5 | 0.92-0.95 |
+| string type | 7.46 / 7.84 | 9.36 | 7.77 | 0.99-1.04 |
+| string backspace | 7.39 / 7.68 | 9.14 | 7.60 | 0.99-1.03 |
+| menu open+close | 13.2 / 13.4 | 13.2 | 13.2 | 0.98-1.00 |
+| iconify | 87.2 / 83.7 | 80.2 | 79.9 / 78.9 | 0.91-0.95 |
+| uniconify | 448.9 | 376.2 / 372.2 | 373.9 | 0.83-0.84 |
+| register page | 53.7 | 54.5 | 52.8 / 53.4 | 0.99 |
+| popup open+close | 120.0 | 120.0 | 120.0 | 1.00 |
+| window resize | 230.1 | 220.1 | 220.2 | 0.96 |
+
+At least as fast as both MUI 3.8 instances: 23 of 26 (round 1: 19, lean before it: 12). Typing
+and backspace are within MUI 3.8's own spread (its two instances 7.46 / 7.84 ms here, 7.59-7.90
+in other runs of the day; OpenMUI's 7.77 on both); creating the application with both windows
+1.06-1.08. MUI 3.8's full redraw and register page gave 140.9 and 49.5 ms on one instance in
+round 1; this session both instances 150.6 and 53.7.
+
+Memory (MUI-Demo cold, OS 3.1 + 4 MB fast, `m.sh`, FS-UAE, the same session, bytes):
+
+| | first program | each further | library alone |
+|---|---:|---:|---:|
+| MUI 3.8 | 460,296 | 210,632-210,696 / 218,824-218,888 (it alternates) | 238,520 |
+| lean (speed round 1) | 465,872 | 204,512-204,576 | 272,352 |
+| speed2 | 460,208 | 204,512-204,576 | 266,688 |
+
+Library code 241,848 -> 236,160 bytes (data 376 -> 396, BSS 2,940); Zmui45.mui 7,828 -> 14,836
+bytes, Dtpic.mui 7,820 -> 8,056. What moved and why: [README.md](README.md#speed-round-2-typing-cycle-the-row-scroll-creation-and-the-first-program-2026-11-12-gate-3).
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
@@ -548,5 +601,9 @@ lean is `lean` at 146a3269, speed1 the branch's final build. What each fix did:
 - `tests/native/opbench.c` with `opbench.sh` (a run), `opprof.sh` (one operation under
   `tests/lean/pcsample.c`), `pcsample-full.py` (the profile with static functions, from the link
   map) and `opbench-compare.py` (runs side by side).
+- `tests/native/alloccount.c`: exec allocations of an application made and disposed, counted
+  with SetFunction (black box, any muimaster.library; `alloccount trace` lists the callers);
+  `keyoffers.c`: which key handlers a key is offered to, in which order; `pagepix.c` and
+  `scrollpix.c`: the window's checksums after page switches and list scrolls.
 - `tools/lean/mtreport2.py DUMP LIB cats|files|big|N`, `tools/lean/classsizes.py
   BUILD`, `tools/lean/flexcat-sd.py`.

@@ -283,7 +283,7 @@ Next: the Popup reset seen once, the prefs fuzz over more seeds, the soak's cree
 memtally, the suite subset on the A600, the RTG run through the suite tool on a quiet PC.
 Details in [README.md](README.md#stability-round-2-fault-sweeps-over-real-programs-the-startquit-loops-the-code-audit-2026-11-12-gates-2-and-5).
 
-## Gate 3, memory and speed (docs/production.md; started 2026-11-12, branch `speed1`)
+## Gate 3, memory and speed (docs/production.md; started 2026-11-12, branches `speed1`, `speed2`)
 
 Round 1: `tests/native/opbench.c` times 27 operations on any muimaster.library (the same binary
 on MUI 3.8 and OpenMUI; clicks, typing and the menu as input.device events) in cycle-exact
@@ -297,6 +297,16 @@ Memory: first program 465.9 against 460.3 KB, the gap is library code. Next: typ
 path per event), the Cycle's Hide/layout/Show, the row scroll, object creation (pools?),
 pointer.c and further MUI 4/5 code into modules for the first program. Details in
 [README.md](README.md#speed-round-1-every-common-operation-timed-against-mui-38-2026-11-12-gate-3).
+
+Round 2 (branch `speed2`): measured by leaving one part out at a time (`-DZEXP`). A key went to
+the active object twice and to a parent twice (MUI 3.8 and MUI 5: once each, `keyoffers.c`):
+typing 1.19 -> 0.99-1.04 of MUI 3.8 (its own two instances differ by 5%); a page switch laid out
+pages that had their box: Cycle 1.14 -> 0.98; the scrollbar sync sent four tags per row: scroll
+1.07 -> 0.98, list active 0.91. First program 465.9 -> 460.2 KB against MUI 3.8's 460.3: pointer
+shapes, Text shortening and marking, RGB text pens and MUIO_ImageButton into Zmui45. 23 of 26
+at least as fast as both MUI 3.8 instances. Left: creation 1.06-1.08 (MUI 3.8 pools: 53
+allocations against 150, `alloccount.c`; a pool here cost the first program 3-7 KB). Details in
+[README.md](README.md#speed-round-2-typing-cycle-the-row-scroll-creation-and-the-first-program-2026-11-12-gate-3).
 
 ## Later (wanted, not scheduled)
 

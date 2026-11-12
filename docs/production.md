@@ -30,9 +30,9 @@ into gates that can be checked. OpenMUI 1.0 ships when every gate is green; unti
 
 | Gate | Measured by | Today (emulator) |
 |---|---|---|
-| Each further program uses no more memory than on MUI 3.8 | `memtally`, suite memory columns | 204.5 KB vs 210.6-218.9 KB (speed round 1, FS-UAE, same session) |
-| First program within MUI 3.8's figure | MUI-Demo cold | 465.9 KB vs 460.3 KB (same session; lean 465.0): all library code (245 KB in memory against MUI 3.8's 213.5); next: pointer.c (2.5 KB) and other MUI 4/5 parts as modules |
-| Every common operation at least as fast as MUI 3.8 | `opbench` (27 operations, the same binary on both), cycle-exact FS-UAE, two instances each, swapped (built 2026-11-12) | speed round 1: 19 of 26 at least as fast as MUI 3.8 (lean: 12), 2 as fast as one of its two instances; slower: typing 1.17-1.20, Cycle set 1.14, list scroll by a row 1.07, application creation 1.04-1.10 |
+| Each further program uses no more memory than on MUI 3.8 | `memtally`, suite memory columns | 204.5 KB vs 210.6-218.9 KB (speed round 2, FS-UAE, same session) |
+| First program within MUI 3.8's figure | MUI-Demo cold | yes: 460,208 vs 460,296 bytes (speed round 2, same session; before 465,872): MUI 4/5-only and AROS-only code moved into the Zmui45 module (pointer shapes, Text shortening and marking, RGB text pens, MUIO_ImageButton), library code 241.8 -> 236.2 KB; a margin of 88 bytes |
+| Every common operation at least as fast as MUI 3.8 | `opbench` (27 operations, the same binary on both), cycle-exact FS-UAE, two instances each, swapped (built 2026-11-12) | speed round 2: 23 of 26 at least as fast as both MUI 3.8 instances (round 1: 19, lean: 12); typing and backspace within MUI 3.8's own instance spread (0.99-1.04); slower: creating an application 1.06-1.08 (MUI 3.8 pools its objects; a pool here cost the first program 3-7 KB) |
 | Speed confirmed on real hardware | our partner's spare A1200 | waiting for the machine |
 
 ## 4. Real use

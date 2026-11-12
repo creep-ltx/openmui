@@ -3441,6 +3441,183 @@ pools: a memory trade-off).
 - **Memory** (`m.sh`, FS-UAE, above): first program 465,872, each further 204,512-204,576,
   library alone 272,352 bytes.
 
+## Speed round 2: typing, Cycle, the row scroll, creation, and the first program (2026-11-12, gate 3)
+
+Branch `speed2` (from `lean` at 1f1c4408, speed round 1 merged). What round 1 left: four
+operations slower than MUI 3.8 in `opbench` and the first program 5.6 KB above MUI 3.8's. Same
+tools and rules as round 1; all figures are **emulator figures** (FS-UAE 3.2.35,
+a1200-31-mui38, cycle-exact: A1200, 68EC020, OS 3.1, 2 MB chip + 4 MB fast), not real hardware.
+
+### What was slow, found by leaving parts out
+
+The profiles of round 1 spread the time thinly; this round measured by building the library
+with one part left out (`-DZEXP=n`, never committed) and timing it, which names the cost of a
+part exactly:
+
+| part left out (experiment) | operation | ms |
+|---|---|---|
+| the other handlers and control characters after the active object | string type | 9.15 -> 8.57 |
+| MUIA_Window_InputEvent's set | string type | 9.15 -> 8.81 |
+| (after the first fixes:) HandleRawkey's walk of the active object's parents | string type | 8.68 -> 7.77 |
+| the page layout at a page switch | cycle set | 2.79 -> 2.43 |
+| the redraw at a page switch | cycle set | 2.79 -> 1.16 |
+| the ScrollRaster | list scroll line | 15.7 -> 8.9 |
+| its fill of the uncovered rows (ScrollRasterBF) | list scroll line | 15.7 -> 15.1 |
+| the scrollbar update | list scroll line | 15.7 -> 10.4 |
+| the prop gadget's drawing inside it | list scroll line | 15.7 -> 12.4 |
+
+### The fixes (before -> after, MUI 3.8's two instances)
+
+| commit | operation | cause and fix | ms |
+|---|---|---|---|
+| 771c17c7 Window | string type, backspace | **a key went to the active object twice and to a parent group twice**: HandleRawkey walked the active object's parents starting with the active object again, then offered the key to every other handler, a parent included. `tests/native/keyoffers.c` (black box: active object A in a group G with a key handler, another object O with the higher priority, nobody eats): MUI 3.8 and MUI 5 both call A, O, G once each, for the press and the release ("AOG/AOG"); lean called A, A, G, O, G. The walk is gone: after the active object the other handlers in the list's order, as MUI does. Also: MUIA_Window_InputEvent's set calls Notify's OM_SET directly for the Window class itself (a subclass still gets the set); the event and the MUI key are made in a helper (HandleRawkey's frame 160 -> 128); ConvertKey keeps the answer for the same event (a key was converted 3-5 times); the active object's check walks its parents to the root before asking the whole tree (`ActiveInTree`); List's key handler returns at once for a key that is no MUI key and no wheel | type 9.33 -> 7.77 (7.88 / 7.59), backspace 9.07 -> 7.61 (7.79 / 7.51) |
+| 6aab8d1d Group | cycle set | a page switch laid out every page of the group, although every layout of a page group lays out all its pages and a changed page is laid out by RecalcDisplay: `group_page_laid_out` skips the layout when the new page already has the box the layout would give it (only for the Group class itself without title or virtual area: Register selects its tab in its layout); an update-only group draw no longer collects its children for gaps it fills only when it paints its background | 2.79 -> 2.38 (2.44 / 2.44) |
+| 4fdda9d1 List, Scrollbar | list scroll line, list active | the scrollbar sync of a new position sent four tags (units, entries, visible, position) through Scrollbar, Group, Area, Notify and Prop on every step; the position alone now (`List_SyncVertFirst`; the others are given with the layout and by their own notifications); Scrollbar passes MUIA_Prop_DeltaFactor straight to its Prop; ScrollRasterBF: the uncovered rows are painted right after anyway, so their fill was a blit for nothing | scroll line 15.7 -> 14.35 (14.63 / 14.64), list active 21.0 -> 19.3 (21.1) |
+
+Taken back, both measured alone against their parent (c66f3183, then 7cca4b92 and ea375b7d):
+sharing the common Text preparse strings ("\33c", "\33r", "\33l": an AllocVec of four
+bytes per button and label, 13 of an application's 150 allocations) made window open+close 4-5%
+slower (441 -> 457-461 ms), iconify 3%, creation 2-4%, for 120 bytes of the first program. Not understood: nothing reads the preparse pointer; perhaps
+where the small free blocks end up in exec's free list, or the 68020's 256-byte instruction
+cache meeting other code. And an image spec given as a built-in string ("6:17", Cycle's arrow)
+as the table's string instead of a copy: an allocation less per such image, but its 236 bytes of
+code put the first program at 460,400, above MUI 3.8's 460,296.
+
+### Every operation: MUI 3.8, lean and this branch
+
+ms per operation, median of 9 (2026-11-12 14:14-14:16 and lean 14:01-14:05, PC load 17-28; the
+EClock counts emulated time), MUI 3.8 and speed2 on two instances at once, then swapped:
+
+| operation (ms per operation) | MUI 3.8 | OpenMUI lean | OpenMUI speed2 | speed2 / MUI 3.8 |
+|---|---:|---:|---:|---:|
+| prefs+app (empty) | 93.7 / 90.2 | 48.2 / 47.7 | 48.3 | 0.52-0.54 |
+| app+windows create | 239.0 / 235.5 | 260.1 / 253.9 | 253.5 | 1.06-1.08 |
+| window open+close | 521.2 | 440.0 | 441.0 | 0.85 |
+| full redraw | 150.6 | 150.0 | 149.8 | 0.99 |
+| relayout | 207.1 | 195.5 | 194.3 | 0.94 |
+| slider set | 4.04 | 2.91 | 2.91 | 0.72 |
+| notify chain | 7.82 | 6.03 | 6.02 | 0.77 |
+| cycle set | 2.44 | 2.79 | 2.38 | 0.98 |
+| radio set | 15.6 | 9.74 | 9.73 | 0.63 |
+| text set | 2.50 | 2.41 | 2.42 | 0.97 |
+| list insert 1 | 10.3 | 9.24 / 9.10 | 8.50 | 0.82 |
+| list insert 100 | 831.3 | 86.9 | 85.3 | 0.10 |
+| list insert 1000 | 6654.7 | 477.0 | 472.9 | 0.07 |
+| list active | 21.1 | 21.3 / 21.1 | 19.3 | 0.91 |
+| list scroll line | 14.6 | 15.7 | 14.4 | 0.98 |
+| list scroll page | 44.4 | 41.7 | 40.0 | 0.90 |
+| list sort 1000 | 658.1 | 108.6 / 110.3 | 110.1 | 0.17 |
+| button click | 23.1 / 22.4 | 21.1 | 21.1 / 21.5 | 0.92-0.95 |
+| string type | 7.46 / 7.84 | 9.36 | 7.77 | 0.99-1.04 |
+| string backspace | 7.39 / 7.68 | 9.14 | 7.60 | 0.99-1.03 |
+| menu open+close | 13.2 / 13.4 | 13.2 | 13.2 | 0.98-1.00 |
+| iconify | 87.2 / 83.7 | 80.2 | 79.9 / 78.9 | 0.91-0.95 |
+| uniconify | 448.9 | 376.2 / 372.2 | 373.9 | 0.83-0.84 |
+| register page | 53.7 | 54.5 | 52.8 / 53.4 | 0.99 |
+| popup open+close | 120.0 | 120.0 | 120.0 | 1.00 |
+| window resize | 230.1 | 220.1 | 220.2 | 0.96 |
+
+**At least as fast as both MUI 3.8 instances: 23 of 26** (round 1: 19, lean before it: 12). Typing
+and backspace are within MUI 3.8's own spread: its two instances gave 7.46 / 7.84 ms here and
+7.59-7.90 in four other runs of the day, OpenMUI 7.77 on both (0.99-1.04). Slower: creating the
+application with both windows, 1.06-1.08 (below). MUI 3.8's full redraw and register page were
+140.9 / 49.5 ms on one instance in round 1; both instances gave 150.6 / 53.7 here.
+
+### Application creation and object pools
+
+`tests/native/alloccount.c` (black box: exec's AllocMem and FreeMem patched with SetFunction
+while an application of 37 objects is made and disposed; `alloccount trace` lists each
+allocation's size and caller): **MUI 3.8 53 allocations (9.3 KB), OpenMUI 150 (14.2 KB)**. MUI 3.8
+pools its objects. Tried here: Notify taking rootclass's part of OM_NEW and OM_DISPOSE (the
+_Object header and the instance from an exec pool, the class's object count kept), the
+notification nodes and lists from the same pool: 150 -> 86 allocations, app+windows create 255 ->
+244 ms (puddles 8 KB/2 KB; 4 KB/1 KB 245, 2 KB/512 bytes 248, 16 KB/4 KB 247). **Not in**: the
+first program (MUI-Demo cold) grew by 3.1 KB (4 KB puddles) or 6.8 KB (8 KB), which the pooling
+rule forbids (memory per program not worse); each further program shrank 1.9 KB with 8 KB puddles
+and alternated 207.1 / 203.0 KB with 4 KB ones. Text's contents from the pool too was slower
+(250.6 ms). The code is kept in the round's notes (`/tmp/speed2/notify.c.pool`, not in the
+repository); with more library code moved out it could pay for its puddles.
+
+opbench itself: the create operations left a dangling application pointer, so `opbench prof
+"app+windows create" N` disposed it twice at the end and reset the machine (fixed, c66f3183;
+the timings do not change).
+
+### The first program: MUI 4/5-only and AROS-only code into Zmui45
+
+| commit | moved into `Zmui45.mui` (or out of the library) | library code |
+|---|---|---|
+| fcb831d7 | MUIA_PointerType's drawn shapes (V20; `pointer45.c`): the library keeps the normal, busy and borrowed pointers and the freeing; `check_pointer.py` loads `Zune/Zmui45.mui` beside the library into its 68000 harness and also checks the normal pointer without the module | 241,848 -> 239,536 |
+| b1f4cecf | Text's shortening and marking (MUIA_Text_Shorten, a List format's ELIDE, MUIA_Text_Marking; V20; `textmark45.c`: a one-line text that fits is still drawn by the library, so a fitting ELIDE cell never calls the module); MUI 5's RGB/alpha text pens (`rtgtext45.c`); MUI_MakeObject(MUIO_ImageButton), an AROS extension (`makeobj45.c`); ZuneProcessPixelArray into Dtpic.mui (its only user); the gradient to-string debugging functions (a stray MYDEBUG built them) | -> 235,488 |
+
+With the speed fixes the final library's code is **236,160 bytes (lean 241,848, -5,688)**, data
+396 (the key cache), BSS 2,940; the stripped file 252,624 (258,432). Zmui45.mui 7,828 -> 14,836
+bytes; Dtpic.mui +236.
+The MUI 5 probes that use the moved code pass on the final library as on lean (text, marking,
+text_escape, pointer: 89 sets, list_format, image, string, menu; rtg and textinput need parts the
+test machine lacks, on both).
+
+Memory (MUI-Demo cold, OS 3.1 + 4 MB fast, `m.sh`, FS-UAE, the same session, bytes):
+
+| | first program | each further | library alone |
+|---|---:|---:|---:|
+| MUI 3.8 | 460,296 | 210,632-210,696 / 218,824-218,888 (it alternates) | 238,520 |
+| lean (speed round 1) | 465,872 | 204,512-204,576 | 272,352 |
+| speed2 | **460,208** | 204,512-204,576 | 266,688 |
+
+The first program is within MUI 3.8's figure now, by 88 bytes; each further program 6-14 KB
+below it.
+
+### The rules
+
+- **Frames**: `-fstack-usage` of every function against lean: none larger (3,944 functions);
+  smaller: HandleRawkey 160 -> 128, ZuneSetPointer 152 -> 36, zune_text_draw_shortened 32 -> 20,
+  ConvertKey 32 -> 28, Dtpic's clone_bitmap 168 -> 152. New noinline helpers: WindowInputEvent
+  76, ActiveInTree 16, MapKey 32, group_page_laid_out 32, List_SyncVertFirst 32, draw_fitting 28;
+  in Zmui45 the moved functions keep lean's frames (line 28/24, arrow 84, box 64). Traps met:
+  List_Function grew 48 -> 52 with the new case inline (moved into a helper); Notify__OM_SET grew
+  88 -> 92 when the pool's free took two arguments where FreeVec took one; HandleRawkey grew 160 ->
+  168 with a call taking the event's address (the event moved into the helper instead).
+- **stackrun** (FS-UAE, lean's library and the final one in turn): MUI-Demo 5,196 -> 5,056 bytes,
+  Layout 2,268, Virtual 2,212, Pages 2,240, Slidorama 2,304 on both: not deeper. Two paths are
+  deeper by a helper and stackrun does not reach them: a MUI 4/5 program's drawn pointer shape
+  (the module call under ZuneSetPointer, 36 + the stub + 128 against lean's 152) and an elided
+  text drawn by the module (zune_text_draw_shortened 20 + the stub + 32, then text_shortened's
+  228 as lean's).
+- **MUI 3 programs pay nothing new**: the moved code is only reached through V20 attributes,
+  MUI 5 escapes or AROS's MUIO_ImageButton; the LoadSeg trace of fullcheck (MUI-Demo with its
+  eight sub-windows and the 18 other MUI 3.8 demos, `snooplog.sh`) shows no Zmui45.mui, only the
+  class files they use (Balance, Boopsi, Dirlist, Floattext, Gauge, Knob, Levelmeter,
+  Numericbutton, Pendisplay, Popasl, Poppen, Register, Scale, Scrollgroup, Volumelist). MUI 3
+  programs gain the key order of MUI 3.8 (a key no longer offered twice).
+- **Clean room**: MUI 3.8 and MUI 5 only black box: their timing, the order and count of their
+  key handler calls (keyoffers), their allocation count (alloccount).
+
+### Results of the final build (ea375b7d)
+
+- `make check`: passes (after every commit too).
+- **opbench**: the table above (MUI 3.8 and the final build on two instances, swapped).
+- **demopix** against MUI 3.8 (both sides fresh, Amiberry): 27 windows, 25 comparable, every count
+  as round 1's final run except ShowHide, 20 -> 0 differing pixels (pixel-identical to MUI 3.8
+  now; the Group update draw); Layout's random buttons and InputHandler's animation are not
+  comparable, as before.
+- **pagepix** (Cycle, Register and a page group switched through their pages, before and after a
+  resize: 20 checksums), **scrollpix** (a list scrolled by rows and pages, active entries: 17
+  checksums) and **listclip** (4,181 row checksums): lean and this branch the same.
+- **keyoffers**: MUI 3.8, MUI 5 and this branch "AOG/AOG" (lean "AAGOG/AAGOG").
+- **MUI 5 probes** on the final library: text, marking, text_escape, pointer (89 sets),
+  list_format, image, string, menu pass as on lean.
+- **fullcheck** (A1200 OS 3.1): MUI-Demo with its eight sub-windows lost 608, every other demo
+  200, AppWindow 264: as round 1.
+- **The 181 suite programs** (four instances, Amiberry, 14:07-14:53, PC load 17-38; run on the build
+  before the two take-backs, which differ only in Text's preparse copies and the image spec
+  strings), program by program against round 1's final run: 178 the same status and windows.
+  The three others alone on lean's library and the final one (rerun): the same on both (IBrowse
+  2.5 and TheBar demo6 "frozen" in the full run under load, "ok" alone; TheBar demo8 "ok" where
+  round 1's run had "frozen"). AnimMaker resets at its quit now and then on both: lean once in
+  three runs, the builds of this branch two to four times in six (b5 never, b2 and b7 twice):
+  its own or a latent bug that memory layout brings out, not this branch's (left open).
+- **Memory** (`m.sh`, FS-UAE, above): first program 460,208, each further 204,512-204,576 bytes.
+
 ## Left open
 
 - **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
@@ -3452,15 +3629,24 @@ pools: a memory trade-off).
   subset on the A600; the RTG run through the suite tool on a quiet PC (FS-UAE's 68030 was too
   slow under load). Round 1's "children kept when intuition's own NewObjectA fails" was failn's
   artefact (round 2, "MASK=dfff").
-- **Speed (2026-11-12, after `speed1`)**: slower than MUI 3.8 per operation (opbench,
-  emulator): typing and backspace 1.17-1.20 (the key path per event: HandleRawkey's tree walk
-  for the active object, every other key handler for a key nobody eats), a Cycle set 1.14 (Hide,
-  page layout, Show for a text change), a list scroll by a row 1.07 (ScrollRaster, the scroller's
-  clip), creating an application 1.04-1.10 (an AllocMem per object, MUI 3.8 uses pools); full
-  redraw and register page as one of MUI 3.8's two instances. Real hardware not measured.
-- **First program (2026-11-12, after `speed1`)**: 465.9 against 460.3 KB (lean 465.0, the
-  same session): library code; pointer.c (2.5 KB, MUI 4/5's pointer shapes) and further MUI 4/5
-  parts of List and Window as modules are the next candidates.
+- **Speed (2026-11-12, after `speed2`)**: creating an application with its windows 1.06-1.08 of
+  MUI 3.8 (opbench, emulator): 150 exec allocations for an application of 37 objects against
+  MUI 3.8's 53 (`tests/native/alloccount.c`, MUI 3.8 pools); an object pool (tried: 150 -> 86
+  allocations, 255 -> 244 ms) costs the first program 3-7 KB in puddles, so more library code
+  has to leave first. Typing and backspace are within MUI 3.8's own instance spread (7.77 ms
+  against 7.46-7.90). Sharing Text's three common preparse strings made window opening 4-5%
+  slower for no known reason (taken back). Real hardware not measured.
+- **First program (2026-11-12, after `speed2`)**: 460,208 against MUI 3.8's 460,296 bytes:
+  within, by 88 bytes, so code added to the library's common paths needs room made first. Next
+  candidates (survey of 2026-11-12, not moved): Menuitem_Copy (MUIA_Menuitem_Menuitem, V20, 388
+  bytes), Area's AROS-private methods (545, nothing sends them), the AROS custom-scrollbar parts
+  of Image and Prop (about 600, reached only through a Zune prefs setting), String's context
+  menu into Zmenu (618, which a right click loads anyway).
+- **AnimMaker resets at its quit** now and then (2026-11-12, suite reruns): lean once in three
+  runs, the `speed2` builds two to four times in six; not looked into.
+- **Register back to its first page (pagepix, 2026-11-12)**: on lean and `speed2` alike the
+  window's pixels after switching a Register group back to its first page differ from those at
+  opening (MUI 3.8: the same); not visible in a screenshot at a glance, not looked into.
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
   measurements of what the compiler and the link can still give, "Toward the core" above;
   LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined
