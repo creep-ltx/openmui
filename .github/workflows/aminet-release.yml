@@ -31,8 +31,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           gh release download "$RELEASE_TAG" --dir artifacts \
-            --pattern 'Zune68-*-amigaos3-m68k.lha' \
-            --pattern 'Zune68-*-amigaos3-m68k.readme'
+            --pattern 'OpenMUI-*-amigaos3-m68k.lha' \
+            --pattern 'OpenMUI-*-amigaos3-m68k.readme'
           python3 tools/prepare_aminet.py --release-dir artifacts \
             --tag "$RELEASE_TAG"
 
@@ -43,10 +43,17 @@ jobs:
           path: build/aminet/*
           if-no-files-found: error
 
+      - name: Name the Aminet pair
+        id: pair
+        run: |
+          # tools/prepare_aminet.py names the pair after the archive (OpenMUI-0.1b1.lha)
+          echo "lha=$(ls build/aminet/*.lha)" >> "$GITHUB_OUTPUT"
+          echo "readme=$(ls build/aminet/*.readme)" >> "$GITHUB_OUTPUT"
+
       - name: Upload to Aminet
         uses: sidick/aminet-release-action@v1
         with:
-          filename: build/aminet/Zune68.lha
-          readme: build/aminet/Zune68.readme
+          filename: ${{ steps.pair.outputs.lha }}
+          readme: ${{ steps.pair.outputs.readme }}
           category: util/libs
           inject-version: false

@@ -1,4 +1,4 @@
-name: Zune68 CI
+name: OpenMUI CI
 
 on:
   push:
@@ -42,7 +42,7 @@ jobs:
         run: make -j2 check release
 
       - name: Check the diagnostic core
-        run: make -j2 check-core TRACE=1 BUILD="$RUNNER_TEMP/zune68-trace"
+        run: make -j2 check-core TRACE=1 BUILD="$RUNNER_TEMP/openmui-trace"
 
       - name: Check incremental build
         run: make -j2 all
@@ -55,11 +55,11 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: zune68-release
+          name: openmui-release
           path: |
             build/muimaster/release/*.lha
             build/muimaster/release/*.readme
           if-no-files-found: error
 
       - name: Check the version 19 identity
-        run: make -j2 check MUI5_TEST=0 BUILD="$RUNNER_TEMP/zune68-v19"
+        run: make -j2 check MUI5_TEST=0 BUILD="$RUNNER_TEMP/openmui-v19"

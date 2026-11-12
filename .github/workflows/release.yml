@@ -1,4 +1,4 @@
-name: Zune68 Draft Release
+name: OpenMUI Draft Release
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: zune68-release
+          name: openmui-release
           path: artifacts
       - name: Create draft release
         uses: softprops/action-gh-release@v3

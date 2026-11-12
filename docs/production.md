@@ -55,11 +55,11 @@ into gates that can be checked. OpenMUI 1.0 ships when every gate is green; unti
 
 | Gate | Measured by | Today |
 |---|---|---|
-| A user guide: install, switch, settings, "Behave as", uninstall, troubleshooting | docs/ | README and readme only |
-| A developer guide: what OpenMUI supports, differences from MUI, the SDK | docs/ | not written |
-| A changelog per release | CHANGELOG.md | not yet |
+| A user guide: install, switch, settings, "Behave as", uninstall, troubleshooting | docs/ | `docs/user-guide.md` written 2026-11-12 (install, switch, uninstall, prefs, "Behave as" and its file, LIBS:Zune, troubleshooting, reporting); to be checked on a real install |
+| A developer guide: what OpenMUI supports, differences from MUI, the SDK | docs/ | `docs/developer-guide.md` written 2026-11-12 (support, identity, known differences, build, tests, clean room, contributing); the SDK reference is not written |
+| A changelog per release | CHANGELOG.md | `CHANGELOG.md` has the 0.1b1 entry and an empty Unreleased section (2026-11-12) |
 | Translations of OpenMUI's own texts (Swedish first) | catalogs | English only |
-| A release process: version, archive, Aminet readme within limits, tag | tools/release.py, CI | archive yes, tag/CI for Aminet to update |
+| A release process: version, archive, Aminet readme within limits, tag | tools/release.py, CI | archive yes; the CI and Aminet workflows name OpenMUI (2026-11-12, `aminet-release.yml` untested until a tag is pushed); no tag yet |
 
 ## Order of work
 

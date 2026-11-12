@@ -70,6 +70,14 @@ make release   # the archive and its Aminet readme, in build/muimaster/release
 `make check` runs the linked 68000 code with modelled OS calls; it does not
 establish GUI compatibility or speed on Amiga hardware.
 
+## Guides
+
+- [User guide](docs/user-guide.md): install, switch back to a real MUI, uninstall, the preferences,
+  "Behave as", troubleshooting.
+- [Developer guide](docs/developer-guide.md): what is supported, known differences from MUI,
+  building, tests, the clean-room rule, contributing.
+- [Changelog](CHANGELOG.md).
+
 ## More
 
 Details are in [docs/lean/](docs/lean/README.md): what differs from Zune68
