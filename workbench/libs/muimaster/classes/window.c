@@ -3472,6 +3472,30 @@ static __attribute__((noinline)) BOOL KeyToObject(struct MUI_WindowData *data,
     return FALSE;
 }
 
+/* The MUI key (the settings' key page) a raw key event is, or MUIKEY_NONE.
+ * A key whose code differs in the bits an expression compares cannot match
+ * it: the commodities call is skipped then (every key event asked MatchIX
+ * for all 23 keys, the prefs pointer read again for each). */
+static __attribute__((noinline)) LONG MatchMuiKey(struct ZunePrefsNew *prefs,
+    struct InputEvent *ie)
+{
+    LONG muikey;
+
+    for (muikey = MUIKEY_COUNT - 1; muikey >= MUIKEY_PRESS; muikey--)
+    {
+        if (prefs->muikeys[muikey].ix_well != 0
+            && !((ie->ie_Code ^ prefs->muikeys[muikey].ix.ix_Code)
+                & prefs->muikeys[muikey].ix.ix_CodeMask)
+            && MatchIX(ie, &prefs->muikeys[muikey].ix))
+        {
+            if (muikey == MUIKEY_PRESS && (ie->ie_Code & IECODE_UP_PREFIX))
+                muikey = MUIKEY_RELEASE;
+            return muikey;
+        }
+    }
+    return MUIKEY_NONE;
+}
+
 static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_WindowData *data,
     struct IntuiMessage *event)
 {
@@ -3528,42 +3552,12 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
         return;
     //bug("rawkey: code=%lx, qual=%lx\n", event->Code, event->Qualifier);
 
-    /* check if imsg translates to predefined keystroke */
-    {
-        BOOL matched = FALSE;
-
-        /* MatchIX compares class, code and qualifier only: the event made
-         * for MUIA_Window_InputEvent above serves (it has this message's
-         * code and qualifier); no second one on HandleRawkey's frame */
-        ie.ie_EventAddress = NULL;
-
-        for (muikey = MUIKEY_COUNT - 1; muikey >= MUIKEY_PRESS; muikey--)
-        {
-            /* A code that differs in the bits the expression compares
-             * cannot match: skip the library call (every key event asked
-             * commodities for all 23 keys) */
-            if (muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix_well != 0
-                && !((ie.ie_Code
-                    ^ muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix.ix_Code)
-                    & muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix.ix_CodeMask)
-                && MatchIX(&ie,
-                    &muiGlobalInfo(win)->mgi_Prefs->muikeys[muikey].ix))
-            {
-                matched = TRUE;
-                break;
-            }
-        }
-
-        if (matched)
-        {
-            if (muikey == MUIKEY_PRESS && (event->Code & IECODE_UP_PREFIX))
-                muikey = MUIKEY_RELEASE;
-        }
-        else
-        {
-            muikey = MUIKEY_NONE;
-        }
-    }        /* check if imsg translate to predefined keystroke */
+    /* check if imsg translates to predefined keystroke. MatchIX compares
+     * class, code and qualifier only: the event made for
+     * MUIA_Window_InputEvent above serves (it has this message's code and
+     * qualifier); no second one on HandleRawkey's frame */
+    ie.ie_EventAddress = NULL;
+    muikey = MatchMuiKey(muiGlobalInfo(win)->mgi_Prefs, &ie);
 
     if ((muikey != MUIKEY_NONE) && !(data->wd_DisabledKeys & (1 << muikey)))
     {

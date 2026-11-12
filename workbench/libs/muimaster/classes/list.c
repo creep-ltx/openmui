@@ -2710,10 +2710,17 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
      * draws a cut-off last row: a clip installed later would wait for
      * the blitter to finish the rows queued so far. Other updates repaint
      * a few rows and clip only when one needs it (List_NeedClip). An
-     * empty list without a title draws nothing in the entry area. */
+     * empty list without a title draws nothing in the entry area. A
+     * scroll whose rows all end inside the area (MUI 3.8 shows whole rows
+     * only) is such an update too: two InstallClipRegion calls less per
+     * step (opbench "list scroll line"). */
     if (((msg->flags & MADF_DRAWUPDATE) == 0
             || (data->update & UPDATEMODE_ALL))
-        && (data->entries_num != 0 || (data->title_height && data->title)))
+        && (data->entries_num != 0 || (data->title_height && data->title))
+        && !((msg->flags & MADF_DRAWUPDATE)
+            && data->update == (UPDATEMODE_ENTRY | UPDATEMODE_ALL)
+            && data->entries_top_pixel + data->entries_visible
+                * data->entry_maxheight - 1 <= entries_bottom))
         List_NeedClip(obj, data, &clip);
 
     if ((msg->flags & MADF_DRAWUPDATE) == 0 || data->update == UPDATEMODE_ALL)
