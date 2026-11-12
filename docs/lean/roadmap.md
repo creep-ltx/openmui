@@ -257,7 +257,7 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   the candidate). Left: RegisterGadget's popup menu, FrameDynamic's hover. Details in
   [README.md](README.md#lumizips-reset-found-mui-45-calls-programs-use-2026-11-11-phase-6).
 
-## Gate 2, stability (docs/production.md; started 2026-11-12, branch `stab1`)
+## Gate 2, stability (docs/production.md; started 2026-11-12, branches `stab1`, `stab2`)
 
 Tests built as tools and run once each: fault injection (`tests/lean/memtally/failn`,
 `failsweep.sh`: every one of MUI-Demo's 2,175 resource calls failed once; no crash of
@@ -271,6 +271,17 @@ opening (start the count after the main window), the start/quit loops over the 1
 soak's creep with memtally, the prefs fuzz over more seeds and the per-program files, the
 RTG machine, the code audit. Details in
 [README.md](README.md#stability-round-1-fault-injection-soak-the-68000-the-parsers-2026-11-12-gate-2).
+
+Round 2 (branch `stab2`): `failreal.sh` swept ten real programs and demos (about 1,000 N's):
+two resets of ours fixed (the next flush after a class file failed to load: its shared copy
+had no SysBase; a double dispose of a Popstring's or Listview's parts by
+`zune_dispose_children`), the library made expungeable again after OS 3.1's MakeClass fails
+inside (`zune_make_class`) and after Popasl finds no asl.library; the start/quit loops over
+the 181 (705 cycles, no quit crash of ours, growth the same as MUI 3.8's and 0 flushed); the
+code audit (six fixes, -Wall clean); RTG by hand (19 of 20 programs on a Picasso96 screen).
+Next: the Popup reset seen once, the prefs fuzz over more seeds, the soak's creep with
+memtally, the suite subset on the A600, the RTG run through the suite tool on a quiet PC.
+Details in [README.md](README.md#stability-round-2-fault-sweeps-over-real-programs-the-startquit-loops-the-code-audit-2026-11-12-gates-2-and-5).
 
 ## Later (wanted, not scheduled)
 

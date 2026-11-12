@@ -3083,14 +3083,205 @@ the PC; MUI 3.8 black-box. Figures are emulator figures.
   or is refused, no reset, no hang.
 - **stackrun** (FS-UAE, lean's library and this one in turn): MUI-Demo 5,196, Layout 2,268, Virtual
   2,212, Pages 2,240, Slidorama 2,304 bytes, both the same: not deeper.
-FINALRESULTS3
+
+## Stability round 2: fault sweeps over real programs, the start/quit loops, the code audit (2026-11-12, gates 2 and 5)
+
+Branch `stab2` (from `lean` at f4c7c3f8). Round 1's tools run wide, a new one for real
+programs, and an audit of the library's code. Amiberry 8.5 headless (A1200 OS 3.1, MUI 3.8
+beside, black box) unless marked; FS-UAE for the RTG machine and stackrun. Emulator figures.
+
+### New and changed tools
+
+| Tool | What it does |
+|---|---|
+| `failreal.sh NAME PORT ID N0 N1` | failsweep.sh for a suite program: installed as suite.sh does (that program only), quit through the suite's own hooks and menus; `SAMPLES=K` spreads K N's over the count; a warm-up run after every boot (a program's first run from boot keeps what it loads: AmIRC 353 KB); `MASK=dfff` (below); `TRAPCAP=FILE` keeps trapcap running and saves its record after a reset to `NAME-N.trap` |
+| `runkeep.sh NAME PORT ID [RUNS]` | what a program keeps per run, flushed: memtally (`lib` mode) dumps after each start/quit and the blocks each run added |
+| `cfflush.sh NAME PORT LIB` | the regression test for the class-file reset below |
+| `probe.sh SRC MACHINE PORT [LIB]`, `probe/nullchild.c`, `probe/mcfail.c` | a small C probe built, run on a machine and its output printed |
+| failn | names the library whose code made the failed call (`in=NAME vec=K+OFF`, from the jump tables) |
+| failsweep.sh, failreal.sh | **a reset that passed between two pings is seen**: Amiberry reboots in 2 s, and round 1 looked only at `wasabi ping` (a reset then showed as "ok", and every later N ran nothing). The marker is RAM:failn, tested by `list`'s exit code: its "not found" message names the file too, so grepping the output for it (the first cut) saw no reset either |
+| suite.sh | the `--loops` figure flushed on OpenMUI (below); `ZMACH`, `BOOTOPTS`, `NORESET` for another machine copy |
+
+**MASK=dfff (NewObjectA left out)**: intuition's NewObjectA with a class pointer runs the
+class's OM_NEW; the instance is allocated in rootclass's OM_NEW, which the AllocMem hook sees
+(called from DoSuperMethodA in Notify's OM_NEW). Failing the NewObjectA call itself is a
+failure that never happens, and it is what kept the tag list's children in round 1 ("left
+open" there: an artefact of the tool). **A program run under failn loses a constant amount per
+run** that a plain start/quit does not (NList-Demo 1.7 KB, HomeBank 4.2 KB, TheBar demo9 7.3 KB,
+WookieChat 52 KB under failn; runkeep.sh: 0 for each): subtract the baseline before calling a
+figure a leak.
+
+### Fault sweeps (failn, sampled): what they found
+
+Programs: NList-Demo, NListtree-Demo, TheBar demo1, Annotate, AmIRC (IRC), LumiFTP (FTP),
+HomeBank, CManager, MultiRen, MysticView-Demo, MUI's Pages, Popup and Menus demos (YAM 2.5
+and Scout give no count under failn: YAM's quit is too slow for it, Scout starts a process of
+its own). Three rounds: the first on lean's library, the second
+with the class-file fix, the third with the MakeClass fix too; `SAMPLES` 90-170 N's spread over
+each count, `FLUSH=1`, `MASK=dfff` from the second round on. About 1,000 N's gave a report
+(those after an undetected reset or a program that would not end ran nothing and are not
+counted; NListtree-Demo, MultiRen and MysticView-Demo gave no usable runs: the first hung at its
+fifth N and stayed, failreal.sh now reboots then; the others count nothing on their task):
+
+| Program | N's | window | refused cleanly | reset | frozen |
+|---|---|---|---|---|---|
+| Pages (MUI demo) | 258 | 104 | 147 | 5 (round 1: the class-file bug) | 0 |
+| Popup (MUI demo) | 83 | 49 | 34 | 0 (3 in the hand runs below) | 0 |
+| NList-Demo | 171 | 123 | 48 | 0 | 0 |
+| TheBar demo1 | 79 | 51 | 26 | 0 | 2 |
+| HomeBank | 184 | 140 | 38 | 6 (HomeBank's own, 2 without a record) | 0 |
+| CManager | 94 | 23 | 71 | 0 | 0 |
+| AmIRC | 62 | 41 | 18 | 1 (no record) | 2 |
+| LumiFTP | 26 | 26 | 0 | 0 | 0 |
+| Annotate | 20 | 17 | 0 | 3 (its own loader) | 0 |
+| Menus (MUI demo) | 4 | 4 | 0 | 0 | 0 |
+
+- **OpenMUI's, fixed: a reset at the next flush after a class file could not be loaded.** When
+  the private LoadSeg of LIBS:Zune/X.mui fails, MUI_NewObjectA tries the class by name as an
+  external class and OpenLibrary's the same file; ramlib runs its Resident init and the library
+  stays in the list with its bases never copied in (cf_query copies them, for the library's
+  private copy only). The next expunge (`avail flush`, or exec freeing memory for a failing
+  allocation) ran cf_expunge's `Remove()` through a NULL SysBase: guru 8000000B, a reset (Pages,
+  five resets in the first round). Fix: cf_init takes SysBase from address 4 (from the a6
+  argument GCC saved a6: a frame of 4 bytes where there was none). `cfflush.sh`: lean "FAIL:
+  reset", the fix "ok: no reset".
+- **OpenMUI's, fixed: 250-300 KB kept after one failed class.** The most common figure of the
+  sweeps (Pages, Popup, Menus, HomeBank, CManager, LumiFTP): muimaster.library itself staying in
+  memory, open count 0, its delayed expunge refused. OS 3.1's MakeClass counts the new subclass
+  in its superclass before its own AllocMem and leaves the count raised when that allocation
+  fails (`probe/mcfail.c`: count 0 -> 1, the class not made); a built-in class with a subclass
+  count is never freed, so the library stayed until a reboot. `zune_make_class()` (register
+  arguments, noinline) takes the count back down; built-in classes and MUI_CreateCustomClass use
+  it. The same Pages N keeps 0 bytes now (was -269,000).
+- **OpenMUI's, fixed: Popasl kept its string and button, and with them the library.** Its OM_NEW
+  returned before DoSuperNew when asl.library or the requester could not be had: four String and
+  four Image objects stayed alive in the Popup demo (`probe/zclasses.c` lists what keeps the
+  library: built-in classes with references, objects or subclasses), and the library could not
+  be expunged (-270,160 bytes; -2,648 now). A class file cannot call zune_dispose_children
+  (register arguments): popasl_dispose_parts(), noinline.
+- **OpenMUI's, fixed: a double dispose.** Round 1's zune_dispose_children disposed every
+  child-carrying tag of the whole chain; Popstring hands its string and button to Group as
+  children with its own tag list after them (TAG_MORE), Listview its list, so a Group whose
+  superclass failed met each of them twice. The last occurrence in the chain disposes now. Popup
+  reset at two N's in the third round (rootclass's AllocMem failing under Notify's OM_NEW); after
+  the fix one N reset once more with the trap recorder off and none in 16 N's with it on: left
+  open, no record.
+- **The programs' own**: HomeBank resets when a class cannot be made (trapcap's stack: HomeBank's
+  code calling intuition's SetAttrsA on the NULL that MUI_NewObject returned); MUI's Pages and
+  Popup demos wait for ever when the window's Setup fails (they do not check MUIA_Window_Open);
+  Annotate's three resets are in its own loader (only 18 calls counted on its task, none of them
+  OpenMUI's); TheBar.mcc keeps 9-23 KB when its own OpenLibrary/AllocMem fails; AmIRC's
+  vapor_toolkit 353 KB on a first run. OpenMUI's class files are failure points MUI 3.8 does not
+  have (its built-ins are inside the library), and these programs do not check every result.
+- MUI 3.8 and OpenMUI both fail a Group, Window, Application, Listview and Menustrip given a NULL
+  child (`probe/nullchild.c`).
+
+### Start/quit loops (`suite.sh --loops 5`, all 181)
+
+Lean's library, four instances, 181 programs, 5 extra start/quit cycles each after the first
+run (705 cycles of 140 programs that ran; the others end by themselves or need what the test
+machine lacks, as in lean's run). **No quit crash of OpenMUI's**: 139 of 140 programs ran all five
+cycles clean; Voyager reset in its first loop (its own, decided in round 3 of the compatibility
+work); SimpleMail's reset at quit and InstallerNG's freeze are theirs, as in lean's run. Three
+programs "frozen before a window" (NewsCoaster, ViewCSV, ALI) under a load of 20: run again
+alone they started and looped 5/5 (ALI ends by itself, as in lean's run). Statuses otherwise
+the same as lean's last run, program by program (178 of 181).
+
+**The kept figure needed a flush.** Unflushed, TheBar's demos "kept" 15-280 KB over five runs,
+WookieChat 259 KB, CManager 170 KB; **MUI 3.8 shows the same** (TheBar demo1 137,160 bytes on
+both, demo9 278,280 on both, demo3 138,752 against 130,560, WookieChat 305,176 against 259,304,
+HomeBank 20,880 against 21,160, NList-Demo 19,744 against 8,680). Flushed and dumped by memtally
+after each run (`runkeep.sh`), every one of the ten largest keeps 0 by its third run: libraries
+and datatypes loaded again, not leaks. suite.sh now flushes the loops' figure on OpenMUI.
+One steady keeper: ViewCSV, 2,952 bytes a run flushed on OpenMUI (runkeep, runs 2 and 3; memtally: pieces of MUI objects made on its own task, a Text's contents, an Area's rare block, a notification, two pens), and on MUI 3.8 17,488 bytes over five runs unflushed: objects ViewCSV makes each run and does not dispose, as far as the black box shows. Recorded, not chased.
+
+### The code audit (gate 5)
+
+- **Risky calls**: every sprintf/strcpy/strcat/strncpy/memcpy/CopyMem of the library read (about
+  170): the copies are sized from their source (StrDup style) or bounded; the sprintf ones are
+  debug-only (MYDEBUG, 64-byte buffers) or penspec's 28 bytes into 32. Clipboard text (cn_Size a
+  LONG, checked > 0), settings (Dataspace's length check), ARexx (round 1's fuzz) fine.
+- **Allocation results**: a scan for results not tested within three lines (47 sites read).
+  Fixed: Configdata's public-screen list (an AllocVec written through unchecked).
+- **Dispose and set paths**: PanelTitle freed its text and then copied the freed block when a
+  program set the string it had got from it (fixed: the same pointer is left alone); Gauge's
+  InfoText passed NULL to strcmp (fixed); the -Wextra implicit-fallthrough list read: Boopsi's
+  get(MUIA_Boopsi_Object) fell into the default case and get() answered FALSE (fixed).
+- **Integer overflow**: List's growth computed its byte size from a count that wraps for a bogus
+  Insert count and then copied past the small block (fixed: a count over 0x1FFFFFFF fails).
+- **Not changed, by the stack rule**: Popasl's file requester passes the string's contents to
+  PathPart unchecked (a Popstring whose string object answers no contents); every form of the
+  check grew Popasl_Open_Function's frame 56 -> 60/64. A String always answers; left, recorded.
+- **Warnings**: `-Wall`, the library and its class files: 4 -> 0 (Area's title colour switch,
+  a dead counter in the gradient drawers, Window's event cursor: a GCC false -Wdangling-pointer,
+  the cursor is unlinked on every path and OM_DISPOSE clears it). `-Wextra`: about 800, almost
+  all unused parameters (BOOPSI dispatchers and hooks) and sign comparisons; the sign comparisons
+  in String's and List's buffer code read, none wrong. The bundled third-party classes (TextEditor,
+  NList, NListtree, LoginWindow, Graph) keep their 29 `-Wall` warnings (theirs; NListtree's
+  pointer-against-'\0' compares are against a constant 0, harmless).
+
+### RTG
+
+FS-UAE (Amiberry has no RTG modes headless), the a1200-32-mui5 machine with a 68030, the uaegfx
+Zorro III board and Picasso96 3.6.3 put in by `rtg-setup.sh`, MUI 5's classes and library moved
+aside, OpenMUI and the suite's programs and classes installed (`suite.sh` with `ZMACH`,
+`NORESET`, `BOOTOPTS`): a 1024x1024 24-bit Workbench. The suite itself was too slow there
+(FS-UAE's 68030 with the PC at load 20: a program's run took minutes, `wasabi` timed out), so
+20 programs were started by hand (/tmp/stab2/rtgmanual.sh, not kept): **19 of 20 opened their
+windows, drawn right, none crashed**; AmFTP's first start runs AmFTPPrefs, a process of its own
+the script did not follow. The windows' sizes differ from the planar run as the screen does
+(heights to 1024 lines, OS 3.2.1's fonts: NList-Demo 463x282 against 475x256, HomeBank 848x291
+against 640x256, Annotate 640x640 against 640x240); CManager asked for its database folder
+(a first start). Screenshots: /tmp/stab2/z/rtg-manual/.
+
+### The rules
+
+- **Frames**: `-fstack-usage` of all 3,779 functions against lean (`/tmp/stab2/sucmp.sh`): none
+  grew; three new ones (zune_make_class 12, zune_dispose_if_last 16, popasl_dispose_parts 12
+  bytes). Three fixes were reshaped for it: cf_init read SysBase from address 4 (from its a6
+  argument GCC saved a6: 0 -> 4), zune_dispose_children hands the tag item to its helper as it
+  handed the object to MUI_DisposeObject (other shapes: 16 -> 24 or 28), and Popasl's NULL check
+  was left out (56 -> 60/64 in every form).
+- **stackrun** (FS-UAE, lean's library and the final one in turn): MUI-Demo 5,196, Layout 2,268, Virtual
+  2,212, Pages 2,240, Slidorama 2,304 bytes on both: not deeper.
+- **Speed**: no hot path touched: the changes are on error paths (failed allocations, a failed
+  MakeClass, disposal after a failed OM_NEW), in set/get of PanelTitle, Gauge's InfoText and
+  Boopsi's object, and in List's growth after its early return; perfbench not run.
+- **MUI 3 programs pay nothing new**: no MUI 4/5 feature added. Library file 279,404 -> 279,648
+  bytes (+244), class files 333,860 -> 334,648 bytes (+788, Popasl's helper and the 52 cf_init's
+  a few bytes each).
+- **Clean room**: MUI 3.8 only black box (probe/nullchild.c's results, the suite on MUI 3.8);
+  OS 3.1's MakeClass also black box (probe/mcfail.c).
+
+### Results of the final build
+
+- `make check`: passes (45 checks).
+- **demopix** against MUI 3.8 (both sides fresh): 27 windows, 18 pixel-identical, 25 comparable;
+  the known differences with round 4's figures exactly (Balancing 1,085, Subtask 450, Slidorama
+  6,921, Images 2,321, Listviews 1,132, Virtual 432, Popup 30, ShowHide 20; Layout and
+  InputHandler not comparable): no OpenMUI window changed.
+- **fullcheck** (A1200 OS 3.1): MUI-Demo with its eight sub-windows lost 608, every other demo
+  200, AppWindow 264: lean's figures.
+- **The 181 suite programs** on six instances (2026-11-12 08:41-09:11), program by program
+  against lean's last run (stab1's): 177 the same status and windows; AmIRC and TheBar demo4
+  "frozen" under load and CompactWin-Demo "frozen" for lean's "exited": run again alone, all three
+  as lean; HTMLtext-Demo 85x71 where lean's run had 85x256: lean's library gives 85x71 today too
+  (the demo measures its text itself, "Left open"). The second run's lost figures as lean's
+  (NList-Demo -1,736 on both libraries run again; EvenMore and AnimMaker vary run to run).
+- **stackrun** (FS-UAE): MUI-Demo 5,196, Layout 2,268, Virtual 2,212, Pages 2,240, Slidorama
+  2,304 bytes, lean's library and the final one the same: not deeper.
 
 ## Left open
 
-- **Stability (2026-11-12, after `stab1`)**: children kept when intuition's own NewObjectA fails
-  (above); the soak's slow growth, to be attributed with `memtally runall` (TALLY=1 in soak.sh is
-  the hook for it, not written yet); the prefs fuzz and the start/quit loops to run over the whole
-  suite (`--loops` is built, not yet run over the 181); the RTG machine; the code audit.
+- **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
+  with the trap recorder off (AllocMem inside intuition, called through Notify's OM_NEW), not
+  again in 16 N's with it on; three sweep resets with no failn record (HomeBank twice, AmIRC);
+  Popasl's NULL-contents check (the stack rule); NListtree-Demo, MultiRen and MysticView-Demo to
+  sweep again with failreal.sh's reboot on a program that will not end; ViewCSV's 3 KB a run
+  (on MUI 3.8 too); the soak's slow growth (memtally); the prefs fuzz over more seeds; the suite
+  subset on the A600; the RTG run through the suite tool on a quiet PC (FS-UAE's 68030 was too
+  slow under load). Round 1's "children kept when intuition's own NewObjectA fails" was failn's
+  artefact (round 2, "MASK=dfff").
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
   measurements of what the compiler and the link can still give, "Toward the core" above;
   LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined
