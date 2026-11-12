@@ -3496,6 +3496,30 @@ static __attribute__((noinline)) LONG MatchMuiKey(struct ZunePrefsNew *prefs,
     return MUIKEY_NONE;
 }
 
+/* Whether a key handler (IDCMP_RAWKEY or MUI_EHF_ALWAYSKEYS) belongs to a
+ * parent of the active object, up to the application (HandleRawkey's
+ * parent walk). */
+static __attribute__((noinline)) BOOL KeyHandlerAbove(
+    struct MUI_WindowData *data, Object *active)
+{
+    struct MinNode *mn;
+
+    for (mn = data->wd_EHList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
+    {
+        struct MUI_EventHandlerNode *ehn = (struct MUI_EventHandlerNode *)mn;
+        Object *o;
+
+        if (ehn->ehn_Object == active
+            || !((ehn->ehn_Events & IDCMP_RAWKEY)
+                || (ehn->ehn_Flags & MUI_EHF_ALWAYSKEYS)))
+            continue;
+        for (o = _parent(active); o; o = _parent(o))
+            if (o == ehn->ehn_Object)
+                return TRUE;
+    }
+    return FALSE;
+}
+
 static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_WindowData *data,
     struct IntuiMessage *event)
 {
@@ -3669,6 +3693,13 @@ static __attribute__((noinline)) void HandleRawkey(Object *win, struct MUI_Windo
             D(bug("HandleRawkey: try active object parents handlers\n"));
             while (current_obj != NULL)
             {
+                /* No key handler on any parent (the usual case): the
+                 * walk below would only call the active object's handlers
+                 * once more, then look through the whole handler list
+                 * and get MUIA_Parent at every level for nothing */
+                if (current_obj != active_object
+                    && !KeyHandlerAbove(data, active_object))
+                    break;
                 if (KeyToObject(data, current_obj, event, muikey, &cursor,
                         active_object, TRUE))
                     goto finished;
