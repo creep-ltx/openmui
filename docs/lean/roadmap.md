@@ -283,6 +283,12 @@ Next: the Popup reset seen once, the prefs fuzz over more seeds, the soak's cree
 memtally, the suite subset on the A600, the RTG run through the suite tool on a quiet PC.
 Details in [README.md](README.md#stability-round-2-fault-sweeps-over-real-programs-the-startquit-loops-the-code-audit-2026-11-12-gates-2-and-5).
 
+`animfix` (2026-11-12): AnimMaker's resets measured, 25 in 405 boots on lean's library and 9 in
+140 on MUI 3.8 (two start/quit runs a boot, Amiberry): the same rate, a write into memory that
+is no longer AnimMaker's or its classes', OpenMUI's library life cycle normal in every reset
+(decided: AnimMaker's own). The Register page pixel fixed (pagepix equals MUI 3.8's behaviour).
+Details in [README.md](README.md#animmakers-resets-and-the-register-page-pixel-2026-11-12-branch-animfix).
+
 ## Gate 3, memory and speed (docs/production.md; started 2026-11-12, branches `speed1`, `speed2`)
 
 Round 1: `tests/native/opbench.c` times 27 operations on any muimaster.library (the same binary

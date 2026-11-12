@@ -3618,6 +3618,75 @@ below it.
   its own or a latent bug that memory layout brings out, not this branch's (left open).
 - **Memory** (`m.sh`, FS-UAE, above): first program 460,208, each further 204,512-204,576 bytes.
 
+## AnimMaker's resets and the Register page pixel (2026-11-12, branch `animfix`)
+
+Two things speed round 2 left open. Amiberry 8.5 headless unless marked; MUI 3.8 black box only;
+AnimMaker (gfx/edit/BF_AnimMaker.lha, its source is in the archive) read for interoperability.
+
+### The Register page pixel: fixed
+
+`tests/native/pagepix.c` on lean: "register 3" (the Register group back on its first page) gave
+another checksum than "open"; MUI 3.8 gives the opening's. A variant that keeps the opening's
+pixels and lists the ones that differ (`/tmp/animfix/tools/pagediff.c`, not kept) found one:
+the bottom-right corner of the line under the tabs, shadow at opening, shine afterwards. When a
+tab stops being the active one, Register erases it from its left edge minus 2 for its width plus
+5 and then draws the shine line under it to the erased width plus one pixel; for the last tab of
+a row that pixel is the frame's shadow corner. The line now ends where the erase ends (the
+active tab clears the row line up to that same pixel). pagepix: "register 3" and "pagegroup 3"
+now equal "open" in both rounds, as on MUI 3.8; the other 17 checksums as lean's. demopix: every
+OpenMUI shot byte-identical to speed round 2's except Layout (its random buttons); ShowHide 20
+on MUI 3.8's side this run (lean's library gives 20 too, OpenMUI's shot is the same file as
+speed round 2's: MUI 3.8's side varies, as noted in production.md). Frames: none changed
+(`-fstack-usage`, 4,056 functions); no hot path (a page switch draws one line one pixel
+shorter); Register.mui only, the library file unchanged. **The suite's mui3 group** (100
+programs, four instances, 2026-11-12 16:20-17:05) against speed round 2's final run: 95 the
+same status and windows; TheBar demo6 and IBrowse 2.5 "ok" where that run had "frozen" (load, as
+it noted); TheBar demo4, MUIbase and Fiasco "frozen" under load, run again alone on lean's
+library and this build: "ok" with speed round 2's windows on both.
+
+### AnimMaker's resets: AnimMaker's own, on MUI 3.8 as often
+
+**Rate.** `/tmp/animfix/tools/animloop.sh` (not kept: suite.sh's install, then per boot two
+start/quit runs as suite.sh's first and second run, the trap recorder running, RAM:trapcap as the
+reset marker): **lean's library 25 resets in 405 boots (6.2 %), MUI 3.8 9 in 140 (6.4 %)** on
+Amiberry; FS-UAE lean 2 in 30, MUI 3.8 0 in 30 (too few to tell apart). With the missing ghost
+images (`ButtonBankg.bsh` etc., which AnimMaker asks Toolbar.mcc for) copied in: 7 in 105, no
+change. A reset comes **while the windows open or just after** (the memory map taken after the
+first window was often already lost), mostly in the second run of a boot, sometimes in the
+first; the suite saw it "at quit" because it notices the reboot only then.
+
+**What the crashes are.** Different every time (trapcap): PC in data (illegal instruction, line
+A, address error), an NList.mcc Group's layout hook gone (CallHookPkt into nothing), intuition's
+NewObjectA given a class whose memory is free or reused: once OpenMUI's own Application class
+(alive, in OpenMUI's list, its memory in a free chunk), once NListtree's per-object NodeImage
+class (NListtree makes a TreeImage and a NodeImage class in each object's OM_NEW and deletes
+them in its OM_DISPOSE). MUI 3.8's resets look the same (PC in zeroed memory with NList and
+NListtree code on the stack, privilege violations during start-up).
+
+**What was ruled out** (tools in /tmp/animfix/tools, not kept): no double free (memcheck with an
+added check that a FreeMem's block overlaps no free chunk: no hit in 25 boots with 3 resets); no
+FreeMem, FreeVec or FreeClass over a live class before the bad NewObjectA (a watcher patching
+intuition MakeClass/FreeClass/NewObjectA and exec FreeMem/FreeVec); OpenMUI's library life cycle
+normal in every reset (a debug build writing its opens, closes, expunges, class makes and frees,
+external class opens, closes and identity drops, failed object creations and disposed children
+into a ring in chip RAM: no flush, no expunge, no class freed, no failed creation before the
+resets; the event sequence of a reset boot equals that of a clean one up to the crash); MUI's
+own method traffic into AnimMaker's classes the same in kind and order on both libraries
+(mccspy, as for Voyager); the dispose order (FrameBuffer before its NListtree, forward) the same
+on both. So a write into memory that is not AnimMaker's (or its classes') any more, timing
+dependent, on both libraries: not OpenMUI's, and OpenMUI does not make it more frequent.
+
+**AnimMaker's own bugs found on the way** (read in its source and the ROM): FrameBuffer's
+PrepareLayer takes its Layer_Info by value, so the object keeps NULL and its OM_DISPOSE calls
+`DisposeLayerInfo(NULL)` twice per quit; OS 3.1's DisposeLayerInfo then decrements the byte at
+address 0x5A and, when that goes negative (after about eleven calls: byte 0x0A on the A1200
+Kickstart 3.1), frees the long at 0x62 and clears it, which wipes half of the level 1 interrupt
+vector (a reset at the next level 1 interrupt; trapcap's moved VBR hides it). That needs about
+six quits on one boot, so it is not this reset but would hit `--loops 5` runs. The TmpRas is
+declared 150,000 bytes over a 19,200-byte AllocRaster buffer; Spline asks AllocMem for
+0xFFFFFFB0 bytes on every draw of an empty layer; the two Layer_Infos and the 2 x 150 KB
+bitmaps leak every run.
+
 ## Left open
 
 - **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
@@ -3642,11 +3711,11 @@ below it.
   bytes), Area's AROS-private methods (545, nothing sends them), the AROS custom-scrollbar parts
   of Image and Prop (about 600, reached only through a Zune prefs setting), String's context
   menu into Zmenu (618, which a right click loads anyway).
-- **AnimMaker resets at its quit** now and then (2026-11-12, suite reruns): lean once in three
-  runs, the `speed2` builds two to four times in six; not looked into.
-- **Register back to its first page (pagepix, 2026-11-12)**: on lean and `speed2` alike the
-  window's pixels after switching a Register group back to its first page differ from those at
-  opening (MUI 3.8: the same); not visible in a screenshot at a glance, not looked into.
+- **AnimMaker's resets (2026-11-12, `animfix`)**: decided as not OpenMUI's (same rate on MUI
+  3.8, "AnimMaker's resets" above); the corrupting write in AnimMaker or its classes is not
+  named. Its own bugs found on the way (DisposeLayerInfo(NULL) twice a quit, which clears the
+  level 1 interrupt vector after about six quits on one boot; a TmpRas declared 150,000 bytes
+  over a 19,200-byte buffer) matter for long `--loops` runs of it.
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
   measurements of what the compiler and the link can still give, "Toward the core" above;
   LTO measured properly on 2026-11-11, "LTO, done right": its bytes are the methods inlined
