@@ -318,6 +318,36 @@ static LONG plain_length(CONST_STRPTR s)
     return c == s ? -1 : c - s;
 }
 
+/* The preparse string's copy, or for the common ones (a button's "\33c",
+ * a label's "\33r", "\33l") a shared constant: an allocation of four
+ * bytes per object otherwise (tests/native/alloccount.c: 13 of the 150 an
+ * application of 37 objects made), and the memory with it */
+static const char common_preparse[][3] = { "\33c", "\33r", "\33l" };
+
+static __attribute__((noinline)) char *text_preparse_dup(CONST_STRPTR s)
+{
+    int i;
+
+    for (i = 0; i < 3; i++)
+        if (!strcmp(s, common_preparse[i]))
+            return (char *)common_preparse[i];
+    return StrDup(s);
+}
+
+static __attribute__((noinline)) void text_preparse_free(CONST_STRPTR s)
+{
+    if ((char *)s < common_preparse[0] || (char *)s > common_preparse[2])
+        FreeVec((APTR)s);
+}
+
+/* Text's own blocks at OM_DISPOSE (one call: OM_DISPOSE's frame stays) */
+static __attribute__((noinline)) void text_free_all(struct MUI_TextData *data)
+{
+    FreeVec(data->mark);
+    FreeVec(data->owned_contents);
+    text_preparse_free(data->preparse);
+}
+
 /* Copy new contents, reusing the buffer when the text fits. Status
  * lines are set repeatedly with similar lengths, so round the size up.
  * The source may point into the current buffer. */
@@ -434,7 +464,7 @@ IPTR Text__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     }
 
     if (initial_preparse && *initial_preparse)
-        data->preparse = StrDup(initial_preparse);
+        data->preparse = text_preparse_dup(initial_preparse);
     if (!store_contents(data, initial_contents) ||
         (initial_preparse && *initial_preparse && !data->preparse))
     {
@@ -469,9 +499,7 @@ IPTR Text__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 {
     struct MUI_TextData *data = INST_DATA(cl, obj);
 
-    FreeVec(data->mark);
-    FreeVec(data->owned_contents);
-    FreeVec((APTR) data->preparse);
+    text_free_all(data);
     if (data->textdata) MUI_DisposeObject(data->textdata);
 
     return DoSuperMethodA(cl, obj, msg);
@@ -577,7 +605,7 @@ IPTR Text__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_Text_PreParse:
             {
                 char *new_preparse =
-                    StrDup(((char *)tag->ti_Data) ? (char *)tag->
+                    text_preparse_dup(((char *)tag->ti_Data) ? (char *)tag->
                     ti_Data : "");
                 if (new_preparse)
                 {
@@ -587,7 +615,7 @@ IPTR Text__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                         data->ztext = NULL;
                         data->plain_chunk = NULL;
                     }
-                    FreeVec((APTR) data->preparse);
+                    text_preparse_free(data->preparse);
                     data->preparse = new_preparse;
                     if (_flags(obj) & MADF_SETUP)
                         setup_text(data, obj);

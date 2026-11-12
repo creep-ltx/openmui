@@ -530,10 +530,12 @@ int main(int argc, char **argv)
     if ((app = build_small())) MUI_DisposeObject(app);
 
     TIMED("prefs+app (empty)", 1, {
-        app = build_small(); if (!app) goto done; MUI_DisposeObject(app); });
+        app = build_small(); if (!app) goto done; MUI_DisposeObject(app);
+        app = NULL; });
     app = NULL;
     TIMED("app+windows create", 1, {
-        app = build(); if (!app) goto done; MUI_DisposeObject(app); });
+        app = build(); if (!app) goto done; MUI_DisposeObject(app);
+        app = NULL; });
 
     if (!(app = build()))
         goto done;
