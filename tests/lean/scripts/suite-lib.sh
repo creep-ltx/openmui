@@ -80,7 +80,7 @@ parse_prog() { # the table line ID|GROUP|SOURCE|EXE|WAIT|EXTRAS
 
 # ---- the instance ----
 boot() {
-  amiga-test $MACH start --as $NAME --port $PORT --config fast_memory=8192 --config fpu=68882 \
+  amiga-test $MACH start --as $NAME --port $PORT --config fast_memory=8192 --config fpu=68882 ${BOOTOPTS:-} \
     > "$ZWORK/logs/$NAME.log" 2>&1 < /dev/null &
   local i
   for i in $(seq 1 60); do sleep 1; wasabi ping >/dev/null 2>&1 && break; done
@@ -114,6 +114,12 @@ running() { # "wasabi ps" cuts a long task name (Workbench:Real/simplemail/Simpl
 # reuses the libraries and classes the first run loaded, so the difference is what the run
 # itself keeps.
 avail() { sleep 2; wasabi run avail 2>/dev/null | awk '/^total/{print $3}'; }
+# the --loops figures: flushed on OpenMUI (unflushed, a program's libraries and datatypes loaded
+# again each run made TheBar's demos "keep" 15-280 KB over 5 runs, MUI 3.8 the same; flushed, 0:
+# stability round 2); MUI 3.8 and MUI 5 unflushed, as avail() above says why
+lavail() {
+  if [ "$TARGET" = zune ]; then wasabi run "avail flush" >/dev/null 2>&1; sleep 1; wasabi run "avail flush" >/dev/null 2>&1; fi
+  avail; }
 grab() { local f; f=$(wasabi grab 2>/dev/null | tail -1 | sed 's/.*-> //; s/ (.*//'); [ -f "$f" ] && cp "$f" "$1"; }
 alerts() { wasabi info 2>/dev/null | grep -i -c -e 'guru' -e 'alert [0-9a-f]'; }
 yscale() { local sh; sh=$(wasabi windows --raw 2>/dev/null | awk -F'\t' '$1=="S"{print $6; exit}'); [ "${sh:-256}" -le 300 ] && echo 2 || echo 1; }
@@ -383,7 +389,7 @@ run_prog() {
   # --loops K: K more start/quit cycles on the same machine (rare quit crashes, memory drift)
   if [ "${LOOPS:-0}" -gt 0 ] && [ "$status" = ok ] && [ "$left" = 0 ] && alive; then
     local k lk=0 lfail=0 l0 l1 lw
-    l0=$(avail)
+    l0=$(lavail)
     for k in $(seq 1 "$LOOPS"); do
       hook pre; start_prog "$dir"
       if ! wait_window "$P_WAIT"; then
@@ -396,7 +402,7 @@ run_prog() {
       alive || break
       lk=$k
     done
-    if alive; then l1=$(avail); lw=$((l0 - l1))
+    if alive; then l1=$(lavail); lw=$((l0 - l1))
     else why=$(gone_why); lw="?($why in loop $k)"; log "$id: $why in loop $k of $LOOPS"; reboot_instance; al0=$(alerts); fi
     printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$LOOPS" "$lk" "$lfail" "$lw" >> "$OUT/loops.tsv"
     status="$status,loops=$lk/$LOOPS,fail=$lfail,kept=$lw"

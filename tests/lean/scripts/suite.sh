@@ -31,6 +31,12 @@
 #   --reuse        do not make a fresh copy of the machine (files from the last run stay)
 #   --update       keep the other programs' lines in results.tsv (run some programs again)
 #   EMU=amiberry|fsuae in the environment: the emulator (default amiberry)
+#   ZMACH=MACHINE  zune: another test machine than a1200-31 (the RTG run: a1200-32-mui5 with
+#                  Picasso96 put in by rtg-setup.sh, MUI 5's classes moved aside)
+#   BOOTOPTS=...   more amiga-test start options (the RTG run, EMU=fsuae: "--cpu 030 --config
+#                  graphics_card=uaegfx-z3 --config graphics_memory=16384"; FS-UAE's runner has no --rtg)
+#   NORESET=1      install the programs into the instance's copy as it is (keeps what
+#                  rtg-setup.sh put there) instead of a fresh copy of the machine
 #
 # Results: $ZWORK/suite-real/TAG/results.tsv (one line per program: id, status, windows with
 # sizes, still running after quit, in-use before minus after the 2nd run (negative: memory
@@ -57,7 +63,7 @@ while [ $# -gt 0 ]; do
   esac; shift
 done
 case "$TARGET" in
-  zune)  MACH=a1200-31;       PORT=${PORT:-1410}; PGROUPS=${PGROUPS:-mui3} ;;
+  zune)  MACH=${ZMACH:-a1200-31};      PORT=${PORT:-1410}; PGROUPS=${PGROUPS:-mui3} ;;
   mui38) MACH=a1200-31-mui38; PORT=${PORT:-1411}; PGROUPS=${PGROUPS:-mui3} ;;
   mui5)  MACH=a1200-32-mui5;  PORT=${PORT:-1412}; PGROUPS=${PGROUPS:-mui5} ;;
   *) echo "suite.sh: target zune, mui38 or mui5" >&2; exit 2 ;;
@@ -75,7 +81,7 @@ log() { echo "$(date +%T) $*" | tee -a "$LOG" >&2; }
 [ "$REUSE" = 1 ] || [ "$UPDATE" = 1 ] || : > "$LOG"
 amiga-test $MACH stop --as $NAME >/dev/null 2>&1
 if [ "$REUSE" = 0 ]; then
-  amiga-test $MACH reset --as $NAME >/dev/null
+  [ -n "${NORESET:-}" ] || amiga-test $MACH reset --as $NAME >/dev/null
   D=$(amiga-test $MACH dir --as $NAME)
   log "install into $D ($TARGET)"
   host_install "$D"
