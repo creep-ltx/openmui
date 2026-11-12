@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenMUI in numbers</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #e2e1dc;
+  --grid: #ebeae6;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7974;
+  --s-openmui: #2a78d6;
+  --s-mui38: #eb6834;
+  --s-mui5: #1baf7a;
+  --s-zune68: #eda100;
+  --ref: #52514e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2c; --grid: #262624;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #908f87;
+    --s-openmui: #3987e5; --s-mui38: #d95926; --s-mui5: #199e70; --s-zune68: #c98500; --ref: #c3c2b7;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2c; --grid: #262624;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #908f87;
+  --s-openmui: #3987e5; --s-mui38: #d95926; --s-mui5: #199e70; --s-zune68: #c98500; --ref: #c3c2b7;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface-0); color: var(--text-primary);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; min-height: 100vh; padding: 32px 20px 48px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 19px; margin: 0 0 2px; }
+.lede { color: var(--text-secondary); margin: 0 0 20px; max-width: 760px; }
+.note { color: var(--text-muted); font-size: 13px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin: 16px 0; }
+.card .sub { color: var(--text-secondary); margin: 0 0 14px; font-size: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.tile .k { color: var(--text-secondary); font-size: 13px; }
+.tile .v { font-size: 30px; font-weight: 650; letter-spacing: -0.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.tile .d { color: var(--text-muted); font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 10px; font-size: 13px; color: var(--text-secondary); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px 28px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--text-secondary); font-size: 12px; }
+svg .val { fill: var(--text-primary); font-size: 12px; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--surface-1); stroke-width: 4px; stroke-linejoin: round; }
+svg .gridline { stroke: var(--grid); stroke-width: 1; }
+svg .refline { stroke: var(--ref); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .hit { fill: transparent; }
+svg .pending { fill: none; stroke: var(--text-muted); stroke-dasharray: 3 3; }
+.tip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; max-width: 280px; z-index: 10; }
+.tip b { font-weight: 600; }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-secondary); font-weight: 600; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px 24px; margin: 4px 0 0; }
+.facts div { border-left: 3px solid var(--border); padding: 2px 0 2px 10px; }
+.facts b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.facts span { color: var(--text-secondary); font-size: 13px; }
+.lineage { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--text-secondary); font-size: 14px; }
+.lineage b { color: var(--text-primary); }
+.toggle { float: right; font: inherit; font-size: 13px; color: var(--text-secondary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <button class="toggle" id="theme" type="button">Light / dark</button>
+  <h1>OpenMUI in numbers</h1>
+  <p class="lede">OpenMUI 0.1b1 next to the original Zune68, MUI 3.8 and MUI 5. All figures were measured in an
+  emulated Amiga 1200 (68EC020, OS 3.1 unless noted, FS-UAE), not on a real Amiga. Measured 2026-11-04 to 2026-11-12.</p>
+
+  <div class="lineage card" style="padding:12px 18px">
+    <b>Zune</b> (AROS) <span>&rarr;</span> <b>Zune68</b> (Stefan Reinauer's port to AmigaOS 3) <span>&rarr;</span>
+    <b>OpenMUI</b> (lean edition, renamed 2026-11-11). OpenMUI is not MUI and is not affiliated with MUI's authors.
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">First program, memory</div><div class="v">460.0 KB</div>
+      <div class="d">MUI 3.8: 460.3 &middot; MUI 5: 1,294 &middot; Zune68: 832</div></div>
+    <div class="tile"><div class="k">Each further program</div><div class="v">204.5 KB</div>
+      <div class="d">MUI 3.8: 211&ndash;219 &middot; MUI 5: 427&ndash;435 &middot; Zune68: 334</div></div>
+    <div class="tile"><div class="k">Operations at least as fast as MUI 3.8</div><div class="v">24 of 26</div>
+      <div class="d">started at 12 of 26</div></div>
+    <div class="tile"><div class="k">Operations faster than MUI 5</div><div class="v">27 of 27</div>
+      <div class="d">1.1 to 42&times; faster; a third of its memory</div></div>
+    <div class="tile"><div class="k">Inserting 1,000 list entries</div><div class="v">14&times; faster</div>
+      <div class="d">473 ms against MUI 3.8's 6,655 ms</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Memory: what MUI-Demo takes</h2>
+    <p class="sub">KB of memory in use, MUI-Demo started from a cold boot. Shorter is better.</p>
+    <div class="legend" id="memlegend"></div>
+    <div class="grid2">
+      <div><div class="note">First program (library + its files + MUI-Demo)</div><svg id="memFirst"></svg></div>
+      <div><div class="note">Each further program</div><svg id="memFurther"></svg></div>
+      <div><div class="note">The library alone, opened</div><svg id="memLib"></svg></div>
+      <div><div class="note">Library file on disk</div><svg id="memFile"></svg></div>
+    </div>
+    <p class="note" id="mempending"></p>
+    <details><summary>Table view</summary><table id="memTable"></table></details>
+  </div>
+
+  <div class="card">
+    <h2>Speed: OpenMUI's time as a share of MUI 3.8's</h2>
+    <p class="sub">26 everyday operations, the same test program on both libraries, cycle-exact emulation.
+      The dashed line is MUI 3.8 (100&nbsp;%). Shorter is faster.</p>
+    <svg id="speed"></svg>
+    <details><summary>Table view: all four, ms per operation</summary><table id="speedTable"></table>
+      <p class="note">* MUI 5 columns on OS 3.2.1, the others on OS 3.1. &ldquo;&mdash;&rdquo;: Zune68's popup opens on another screen, so the test cannot time it (a bug fixed in OpenMUI).</p></details>
+  </div>
+
+  <div class="card">
+    <h2>Speed: OpenMUI's time as a share of MUI 5's</h2>
+    <p class="sub">The same test on OS 3.2.1. OpenMUI gives MUI 5 programs MUI 5's behaviour, so it was opened as MUI 5 here.
+      Faster in all 27 operations.</p>
+    <svg id="speed5"></svg>
+  </div>
+
+  <div class="card">
+    <h2>Against the original Zune68</h2>
+    <p class="sub">The same test on the same machine (OS 3.1). OpenMUI is Zune68 after a diet and three speed rounds.</p>
+    <div class="facts">
+      <div><b>55&times;</b><span>faster moving a slider (2.7 ms against 150 ms)</span></div>
+      <div><b>53&times;</b><span>faster through a chain of notifications (5.7 against 301 ms)</span></div>
+      <div><b>4&times;</b><span>faster adding one list entry (8.5 against 34 ms)</span></div>
+      <div><b>2.7&times;</b><span>faster bringing back an iconified program (372 against 991 ms)</span></div>
+      <div><b>1.5&times;</b><span>faster typing, relayout and register pages</span></div>
+      <div><b>3&times; slower</b><span>only at starting an empty program (49 against 15 ms): Zune68 has every class inside one 429 KB library, OpenMUI loads rarely used ones from files</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>How far it has come</h2>
+    <p class="sub">Speed rounds against MUI 3.8: operations at least as fast as MUI 3.8, out of 26.</p>
+    <svg id="rounds"></svg>
+  </div>
+
+  <div class="card">
+    <h2>Compatibility and stability</h2>
+    <div class="facts">
+      <div><b>181</b><span>real programs and add-on class demos tested against real MUI 3.8 and MUI 5</span></div>
+      <div><b>24 of 24</b><span>MUI 4/5 programs in the test set run</span></div>
+      <div><b>19 of 27</b><span>of MUI's own demo windows pixel-identical to MUI 3.8</span></div>
+      <div><b>705</b><span>start/quit cycles over the test set without a crash caused by OpenMUI</span></div>
+      <div><b>~3,200</b><span>forced out-of-memory points tried; every OpenMUI crash found is fixed</span></div>
+      <div><b>70 min</b><span>of open/close loops with memory flat</span></div>
+      <div><b>0</b><span>compiler warnings in the library</span></div>
+      <div><b>68000</b><span>stock A600, OS 3.1, works with 0, 1 and 2 MB of fast memory</span></div>
+    </div>
+  </div>
+
+  <p class="note">Sources: docs/lean/measurements.md and docs/production.md in the OpenMUI repository
+  (github.com/creep-ltx/openmui). Emulator figures; real-hardware figures follow.</p>
+</div>
+<div class="tip" id="tip"></div>
+</div>
+
+<script>
+const LIBS = [
+  { id: 'openmui', name: 'OpenMUI 0.1b1', color: 'var(--s-openmui)' },
+  { id: 'mui38',   name: 'MUI 3.8',       color: 'var(--s-mui38)' },
+  { id: 'mui5',    name: 'MUI 5',         color: 'var(--s-mui5)' },
+  { id: 'zune68',  name: 'Zune68 (original)', color: 'var(--s-zune68)' },
+];
+// KB; null = not measured yet. Zune68 = upstream main, 68000 build, GCC 16.2.
+const MEM = {
+  first:   { openmui: 460.0, mui38: 460.3, mui5: 1293.7, zune68: 832 },
+  further: { openmui: 204.5, mui38: 214.8, mui5: 431.0, zune68: 334 },
+  lib:     { openmui: 266.7, mui38: 238.5, mui5: 581.0, zune68: 535 },
+  file:    { openmui: 252.4, mui38: 166.4, mui5: 565.5, zune68: 429.5 },
+};
+const MEMNOTE = { further: 'MUI 3.8: 210.6–218.9 KB, midpoint shown', file: 'Library file only. Class files on top: MUI 3.8 196 KB, OpenMUI 271 KB (loaded only when used), MUI 5 2,054 KB.' };
+// ms per operation, speed round 3 (2026-11-12), OS 3.1: [name, MUI 3.8, OpenMUI, Zune68 original]; median of runs.
+const SPEED = [
+  ['Prefs + empty program', 93.72, 48.66, 15.47], ['Program + windows created', 236.19, 233.55, 286.36],
+  ['Window open + close', 522.56, 440.82, 581.1], ['Full redraw', 145.76, 149.99, 147.53], ['Relayout', 202.48, 194.4, 294.63],
+  ['Slider set', 4.06, 2.73, 149.74], ['Notify chain', 7.88, 5.66, 301.39], ['Cycle set', 2.44, 2.36, 4.49],
+  ['Radio set', 15.56, 9.61, 19.66], ['Text set', 2.5, 2.41, 2.4], ['List: insert 1', 10.32, 8.47, 34.2],
+  ['List: insert 100', 831.13, 85.68, 104.06], ['List: insert 1,000', 6655.97, 473.76, 653.33], ['List: select', 21.15, 19.34, 22.33],
+  ['List: scroll a line', 14.63, 13.33, 17.02], ['List: scroll a page', 44.44, 40.27, 41.73], ['List: sort 1,000', 658.72, 110.63, 113.44],
+  ['Button click', 22.37, 17.49, 23.04], ['Typing', 7.86, 7.38, 10.82], ['Backspace', 7.77, 7.25, 10.47],
+  ['Menu open + close', 13.2, 13.17, 19.96], ['Iconify', 84.65, 77.87, 82.35], ['Uniconify', 449.79, 372.37, 991.4],
+  ['Register page', 53.81, 53.91, 78.86], ['Popup open + close', 120.0, 120.0, null], ['Window resize', 230.1, 220.09, 251.0],
+];
+// OS 3.2.1: [name, MUI 5, OpenMUI behaving as MUI 5]
+const SPEED5 = [
+  ['Prefs + empty program', 307.94, 50.6], ['Program + windows created', 582.38, 242.83], ['Window open + close', 1033.72, 481.59],
+  ['Full redraw', 206.43, 156.85], ['Relayout', 317.02, 204.37], ['Slider set', 6.76, 3.02], ['Notify chain', 12.77, 6.25],
+  ['Cycle set', 2.74, 2.4], ['Radio set', 11.91, 9.74], ['Text set', 2.25, 1.68], ['List: insert 1', 22.84, 9.38],
+  ['List: insert 100', 2036.23, 87.14], ['List: insert 1,000', 20261.62, 477.33], ['List: select', 39.22, 19.76],
+  ['List: scroll a line', 21.15, 15.41], ['List: scroll a page', 56.97, 41.87], ['List: sort 1,000', 2308.31, 154.17],
+  ['Button click', 21.23, 17.77], ['Typing', 15.42, 7.58], ['Backspace', 14.81, 7.46], ['Menu open + close', 26.28, 19.99],
+  ['Iconify', 203.42, 98.31], ['Uniconify', 1228.62, 422.23], ['Register page', 88.64, 51.76], ['Popup open + close', 535.45, 120.03],
+  ['Window resize', 290.13, 230.08], ['Shortened text set (MUI 4/5 only)', 4.685, 3.425],
+];
+const ROUNDS = [['Start (lean)', 12], ['Speed round 1', 19], ['Speed round 2', 23], ['Speed round 3', 24]];
+
+const NS = 'http://www.w3.org/2000/svg';
+const tip = document.getElementById('tip');
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function hover(target, html) {
+  target.addEventListener('mousemove', ev => {
+    tip.innerHTML = html; tip.style.display = 'block';
+    const x = Math.min(ev.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+    tip.style.left = x + 'px'; tip.style.top = (ev.clientY + 14) + 'px';
+  });
+  target.addEventListener('mouseleave', () => tip.style.display = 'none');
+}
+// Bar end rounded 4px on the data end only, anchored at x0.
+function hbar(svg, x0, y, w, h, color) {
+  const r = Math.min(4, w / 2, h / 2);
+  const d = `M${x0},${y} H${x0 + w - r} Q${x0 + w},${y} ${x0 + w},${y + r} V${y + h - r} Q${x0 + w},${y + h} ${x0 + w - r},${y + h} H${x0} Z`;
+  return el('path', { d, fill: color }, svg);
+}
+
+document.getElementById('memlegend').innerHTML =
+  LIBS.map(l => `<span><i style="background:${l.color}"></i>${l.name}</span>`).join('');
+
+function memChart(id, key) {
+  const svg = document.getElementById(id), W = 440, labelW = 128, rowH = 30, barH = 18;
+  const data = LIBS.map(l => ({ l, v: MEM[key][l.id] }));
+  const max = Math.max(...data.map(d => d.v || 0)) * 1.18;
+  const H = data.length * rowH + 6;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const sx = v => (W - labelW - 10) * v / max;
+  data.forEach((d, i) => {
+    const y = i * rowH + 4;
+    el('text', { x: 0, y: y + barH - 4 }, svg, d.l.name);
+    if (d.v == null) {
+      el('rect', { x: labelW, y: y + 1, width: 90, height: barH - 2, rx: 4, class: 'pending' }, svg);
+      el('text', { x: labelW + 98, y: y + barH - 4 }, svg, 'measuring');
+      return;
+    }
+    const w = sx(d.v);
+    hbar(svg, labelW, y, w, barH, d.l.color);
+    el('text', { x: labelW + w + 6, y: y + barH - 4, class: 'val' }, svg, d.v.toLocaleString('en') + ' KB');
+    const hit = el('rect', { x: 0, y: y - 4, width: W, height: rowH, class: 'hit' }, svg);
+    hover(hit, `<b>${d.l.name}</b><br>${d.v.toLocaleString('en')} KB` + (MEMNOTE[key] && d.l.id === 'mui38' ? `<br><span class="note">${MEMNOTE[key]}</span>` : '')
+      + (key === 'file' && MEMNOTE.file ? `<br><span class="note">${MEMNOTE.file}</span>` : ''));
+  });
+}
+memChart('memFirst', 'first'); memChart('memFurther', 'further'); memChart('memLib', 'lib'); memChart('memFile', 'file');
+document.getElementById('mempending').textContent =
+  'MUI 5 was measured on OS 3.2.1 (the only OS it runs on here), the others on OS 3.1. The library file and "library alone" are larger for OpenMUI than for MUI 3.8 because MUI 3.8 keeps more of its code in separate class files; what a program actually costs is the first two charts.';
+(function () {
+  const t = document.getElementById('memTable');
+  const rows = [['First program', 'first'], ['Each further program', 'further'], ['Library alone', 'lib'], ['Library file', 'file']];
+  t.innerHTML = '<tr><th>KB</th>' + LIBS.map(l => `<th>${l.name}</th>`).join('') + '</tr>' +
+    rows.map(([n, k]) => `<tr><td>${n}</td>` + LIBS.map(l => `<td>${MEM[k][l.id] == null ? 'measuring' : MEM[k][l.id].toLocaleString('en')}</td>`).join('') + '</tr>').join('');
+})();
+
+function speedChart(id, rows0, refName, color) {
+  const svg = document.getElementById(id), W = 980, labelW = 230, rowH = 24, barH = 14, top = 22;
+  const rows = rows0.map(([n, m, o]) => ({ n, m, o, p: o / m * 100 })).sort((a, b) => a.p - b.p);
+  const max = 120, plotW = W - labelW - 70;
+  const sx = v => plotW * v / max;
+  const H = top + rows.length * rowH + 6;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  [0, 25, 50, 75, 100].forEach(t => {
+    el('line', { x1: labelW + sx(t), x2: labelW + sx(t), y1: top - 6, y2: H, class: 'gridline' }, svg);
+    el('text', { x: labelW + sx(t), y: 10, 'text-anchor': 'middle' }, svg, t === 100 ? '100 % = ' + refName : t + ' %');
+  });
+  rows.forEach((r, i) => {
+    const y = top + i * rowH;
+    el('text', { x: labelW - 10, y: y + barH - 2, 'text-anchor': 'end' }, svg, r.n);
+    const w = Math.max(sx(r.p), 2);
+    hbar(svg, labelW, y, w, barH, color);
+    const faster = r.m / r.o;
+    const label = r.p < 50 ? `${faster.toFixed(faster >= 10 ? 0 : 1)}× faster` : `${Math.round(r.p)} %`;
+    el('text', { x: labelW + w + 6, y: y + barH - 2, class: 'val' }, svg, label);
+    const hit = el('rect', { x: 0, y: y - 5, width: W, height: rowH, class: 'hit' }, svg);
+    hover(hit, `<b>${r.n}</b><br>OpenMUI ${r.o} ms<br>${refName} ${r.m} ms<br>${r.p < 100 ? (r.m / r.o).toFixed(2) + '× as fast' : (r.p / 100).toFixed(2) + '× the time'}`);
+  });
+  el('line', { x1: labelW + sx(100), x2: labelW + sx(100), y1: top - 6, y2: H, class: 'refline' }, svg);
+}
+speedChart('speed', SPEED.map(r => [r[0], r[1], r[2]]), 'MUI 3.8', 'var(--s-openmui)');
+speedChart('speed5', SPEED5, 'MUI 5', 'var(--s-openmui)');
+(function () {
+  const f = v => v == null ? '—' : v.toLocaleString('en', { maximumFractionDigits: 1 });
+  const t = document.getElementById('speedTable');
+  t.innerHTML = '<tr><th>Operation (ms)</th><th>MUI 3.8</th><th>OpenMUI</th><th>Zune68 (original)</th><th>MUI 5*</th><th>OpenMUI as MUI 5*</th></tr>' +
+    SPEED.map(r => { const m5 = SPEED5.find(x => x[0] === r[0]) || [];
+      return `<tr><td>${r[0]}</td><td>${f(r[1])}</td><td>${f(r[2])}</td><td>${f(r[3])}</td><td>${f(m5[1])}</td><td>${f(m5[2])}</td></tr>`; }).join('');
+})();
+
+(function () {
+  const svg = document.getElementById('rounds'), W = 980, labelW = 150, rowH = 30, barH = 18;
+  const H = ROUNDS.length * rowH + 4;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const sx = v => (W - labelW - 60) * v / 26;
+  ROUNDS.forEach(([n, v], i) => {
+    const y = i * rowH + 2;
+    el('text', { x: 0, y: y + barH - 4 }, svg, n);
+    hbar(svg, labelW, y, sx(v), barH, 'var(--s-openmui)');
+    el('text', { x: labelW + sx(v) + 6, y: y + barH - 4, class: 'val' }, svg, `${v} of 26`);
+  });
+})();
+
+document.getElementById('theme').addEventListener('click', () => {
+  const r = document.documentElement, dark = r.dataset.theme === 'dark' ||
+    (!r.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  r.dataset.theme = dark ? 'light' : 'dark';
+});
+</script>
+</body>
+</html>
