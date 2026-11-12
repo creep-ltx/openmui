@@ -1121,33 +1121,7 @@ static const char builtin_spec_pattern[][6] = {
     "0:144", "0:145"
 };
 
-/* A copy of a spec string, or the tables' own when it is one of theirs
- * ("6:<n>", "0:<n>", which is not copied: a copy is an allocation per
- * image, tests/native/alloccount.c) */
-static __attribute__((noinline)) STRPTR builtin_spec_string(
-    CONST_STRPTR s)
-{
-    ULONG n = 0;
-    CONST_STRPTR p;
-
-    if (!s || (s[0] != '6' && s[0] != '0') || s[1] != ':'
-        || s[2] < '0' || s[2] > '9')
-        return StrDup(s);
-    for (p = s + 2; *p >= '0' && *p <= '9' && p < s + 5; p++)
-        n = n * 10 + (*p - '0');
-    if (*p || (p > s + 3 && s[2] == '0'))
-        return StrDup(s);
-    if (s[0] == '6' && n < sizeof(builtin_spec_window)
-        / sizeof(builtin_spec_window[0]))
-        return (STRPTR)builtin_spec_window[n];
-    if (s[0] == '0' && n >= MUII_BACKGROUND && n - MUII_BACKGROUND
-        < sizeof(builtin_spec_pattern) / sizeof(builtin_spec_pattern[0]))
-        return (STRPTR)builtin_spec_pattern[n - MUII_BACKGROUND];
-    return StrDup(s);
-}
-
-/* A MUII_ number's spec */
-static __attribute__((noinline)) STRPTR spec_number_dup(IPTR in)
+STRPTR zune_image_spec_duplicate(IPTR in)
 {
     char *spec;
     char spec_buf[20];
@@ -1175,13 +1149,6 @@ static __attribute__((noinline)) STRPTR spec_number_dup(IPTR in)
     }
 
     return StrDup(spec);
-}
-
-STRPTR zune_image_spec_duplicate(IPTR in)
-{
-    /* a string ("6:17": Cycle's image), or a MUII_ number */
-    return in >= MUII_LASTPAT ? builtin_spec_string((CONST_STRPTR)in)
-        : spec_number_dup(in);
 }
 
 /**************************************************************************
