@@ -396,8 +396,8 @@ static Class *external_load(CONST_STRPTR classname,
     TEXT s[255];
 
     static CONST_STRPTR const searchpaths[] = {
-        "Zune/%s",
-        "Classes/Zune/%s",
+        "OpenMUI/%s",
+        "Classes/OpenMUI/%s",
         "MUI/%s",
         NULL,
     };
@@ -661,7 +661,7 @@ const struct __MUIBuiltinClass *ZUNE_LoadClassFile(CONST_STRPTR classid,
         me = FindTask(NULL);
         if (me->tc_Node.ln_Type != NT_PROCESS)
             return NULL;
-        snprintf(path, sizeof(path), "LIBS:Zune/%s", classfile_files[file]);
+        snprintf(path, sizeof(path), "LIBS:OpenMUI/%s", classfile_files[file]);
         if (!(seg = LoadSeg(path)))
             return NULL;
         /* Only Zune68's own class files have the query vector */

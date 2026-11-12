@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cfflush.sh NAME PORT [LIB]: the regression test for stability round 2's class-file reset. The Pages
 # demo under failn with its first counted LoadSeg failed (MASK 8000: LoadSeg only) after a flush:
-# the private load of LIBS:Zune/Register.mui fails, MUI_NewObjectA tries the class by name as an
+# the private load of LIBS:OpenMUI/Register.mui fails, MUI_NewObjectA tries the class by name as an
 # external class and OpenLibrary's the same file, which stays in the library list; then
 # "avail flush" expunges it. Before the fix cf_expunge ran through a NULL SysBase and the machine
 # reset. Prints "ok: no reset" or "FAIL: reset". Uses failsweep.sh to boot the instance (kept).

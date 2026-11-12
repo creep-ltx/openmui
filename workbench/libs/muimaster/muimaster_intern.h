@@ -167,7 +167,7 @@ UBYTE zune_task_identity(void);
     (MGI_IDENTITY(muiGlobalInfo(obj)) >= ZUNE_ID_MUI4)
 struct Library *zune_identity_open(ULONG version);
 void zune_identity_close(struct Library *base);
-void zune_identity_load(void);     /* read ENV:Zune/BehaveAs (a process) */
+void zune_identity_load(void);     /* read ENV:OpenMUI/BehaveAs (a process) */
 /* The record nesting around this library's own open, close and removal
  * of class modules (identity.c); zune_module_close and _remove do one
  * close or removal inside it, in their own frames, with register

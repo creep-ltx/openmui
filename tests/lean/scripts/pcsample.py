@@ -2,7 +2,7 @@
 """pcsample.py SAMPLEFILE PROGRAM LIBRARY CLASSDIR [top]: report a tests/lean/pcsample.c run.
 
 PROGRAM, LIBRARY: the unstripped files that were run (muimaster.library with
-symbols); CLASSDIR: the build's Zune/ class files (cfNN in the sample file = the NNth
+symbols); CLASSDIR: the build's OpenMUI/ class files (cfNN in the sample file = the NNth
 name in classfiles.h, which must sit next to LIBRARY). Prints a flat profile (where the
 PC was) and an inclusive one (functions of the program/library/class files found on the
 stack, once per sample)."""

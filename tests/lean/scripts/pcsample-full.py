@@ -4,7 +4,7 @@
 The library's hunk symbols hold its global functions only, so pcsample.py counts a static
 function under the global before it. Here muimaster.library's symbols come from the link map
 (LIBDIR/muimaster.library.map: the .text address of each object) and each object's own local
-symbols (nm -n): every function by its name. LIBDIR is a build folder (with Zune/ and
+symbols (nm -n): every function by its name. LIBDIR is a build folder (with OpenMUI/ and
 classfiles.h, as pcsample.py wants). CHAINS=label works as there."""
 import os, re, subprocess, sys, types
 
@@ -35,5 +35,5 @@ def full(path):
 
 pcs.__dict__['syms'] = full
 lib = os.path.join(sys.argv[3], 'muimaster.library')
-sys.argv = [sys.argv[0], sys.argv[1], sys.argv[2], lib, os.path.join(sys.argv[3], 'Zune')] + sys.argv[4:]
+sys.argv = [sys.argv[0], sys.argv[1], sys.argv[2], lib, (os.path.join(sys.argv[3], 'OpenMUI') if os.path.isdir(os.path.join(sys.argv[3], 'OpenMUI')) else os.path.join(sys.argv[3], 'Zune'))] + sys.argv[4:]
 pcs.main()

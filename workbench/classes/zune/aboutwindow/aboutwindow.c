@@ -189,7 +189,7 @@ Object *AboutWindow__OM_NEW
     /* Initialize locale ---------------------------------------------------*/
     catalog = OpenCatalog
     (
-        NULL, "System/Classes/Zune/AboutWindow.catalog",
+        NULL, "System/Classes/OpenMUI/AboutWindow.catalog",
         OC_Version, CATALOG_VERSION,
         TAG_DONE
     );

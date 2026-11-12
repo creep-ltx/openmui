@@ -2,7 +2,7 @@
  * "3:<name>.image" image specs: an external BOOPSI image class, as MUI's
  * autodoc of MUIA_Image_Spec describes "3:" ("the name of an external
  * boopsi image class"). The class is a class library file, e.g.
- * LIBS:Zune/Images/kmel/kmel_arrowdown.image: the name is looked for in
+ * LIBS:OpenMUI/Images/kmel/kmel_arrowdown.image: the name is looked for in
  * the image drawers (IMSPEC_EXTERNAL_PREFIX..., or as it is when it has a
  * volume), the file opened by its path with OpenLibrary() (exec counts the
  * opens: one per image spec that is set up), an object made of its public

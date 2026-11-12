@@ -8,7 +8,7 @@
 # up to the count of a run that fails nothing (N0 = count only prints it).
 # One TSV line per N into OUT (default $ZWORK/failreal/NAME.tsv): N, status, windows, lost
 # (in use before minus after; negative: kept), failn's report.
-#   LIB    muimaster.library (default /tmp/stab2/build/muimaster.library; its Zune/ and Libs/MUI
+#   LIB    muimaster.library (default /tmp/stab2/build/muimaster.library; its OpenMUI/ and Libs/MUI
 #          class files next to it, as suite.sh)
 #   FLUSH=1 "avail flush" twice before each memory figure (default 1: what a failed start loads
 #          on demand is flushed, so "lost" is what cannot be given back)

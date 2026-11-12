@@ -20,8 +20,10 @@ host_install() { # DRIVE
   if [ "$TARGET" = zune ]; then
     cdir=$(hostdir "$D" Libs/MUI)
     cp "$LIB" "$ldir/muimaster.library"
-    if [ -d "$(dirname "$LIB")/Zune" ]; then
-      mkdir -p "$ldir/Zune"; cp "$(dirname "$LIB")"/Zune/*.mui "$ldir/Zune/"
+    # the class files: LIBS:OpenMUI; a build of before 2026-11-12 (Zune/): LIBS:Zune
+    CFDIR=OpenMUI; [ -d "$(dirname "$LIB")/OpenMUI" ] || CFDIR=Zune
+    if [ -d "$(dirname "$LIB")/$CFDIR" ]; then
+      mkdir -p "$ldir/$CFDIR"; cp "$(dirname "$LIB")/$CFDIR"/*.mui "$ldir/$CFDIR/"
     fi
   else
     cdir=$(hostdir "$D" MUI/Libs/mui)
@@ -47,7 +49,7 @@ host_install() { # DRIVE
       hostfile_exists "$cdir" "$(basename "$e")" && continue
       cp "$e" "$cdir/"; z=$((z+1))
     done
-    [ -f "$own/Pixmap.mui" ] && mkdir -p "$ldir/Zune" && cp "$own/Pixmap.mui" "$ldir/Zune/"
+    [ -f "$own/Pixmap.mui" ] && mkdir -p "$ldir/$CFDIR" && cp "$own/Pixmap.mui" "$ldir/$CFDIR/"
     log "classes: $z of Zune's own ($own; MUI 3.8's Busy and Listtree replaced)"
   fi
   log "classes: $n copied to ${cdir#$D/}, $k kept (the MUI install has them)"

@@ -112,7 +112,7 @@ Object *SystemPrefsWindow__OM_NEW
     catalog = OpenCatalog
     (
         NULL,
-        "System/Classes/Zune/SystemPrefsWindow.catalog",
+        "System/Classes/OpenMUI/SystemPrefsWindow.catalog",
         OC_Version, CATALOG_VERSION,
         TAG_DONE
     );

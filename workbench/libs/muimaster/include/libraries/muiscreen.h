@@ -16,8 +16,8 @@
 
 #define PSD_NAME_FRONTMOST "\xAB""Frontmost""\xBB"
 
-#define PSD_FILENAME_SAVE "envarc:Zune/PublicScreens.iff"
-#define PSD_FILENAME_USE  "env:Zune/PublicScreens.iff"
+#define PSD_FILENAME_SAVE "envarc:OpenMUI/PublicScreens.iff"
+#define PSD_FILENAME_USE  "env:OpenMUI/PublicScreens.iff"
 
 #define PSD_MAXLEN_NAME         32
 #define PSD_MAXLEN_TITLE       128

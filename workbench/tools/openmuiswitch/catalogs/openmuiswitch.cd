@@ -26,7 +26,7 @@ MSG_USING_OPENMUI (//)
 OpenMUI chosen. Reboot: programs started after\nthe reboot get OpenMUI.\n
 ;
 MSG_ASK_REMOVE (//)
-Remove OpenMUI?\n\nOpenMUI's files are deleted and the files of yours\nit had replaced are put back. A MUI of yours stays\nas it is. Keep your OpenMUI settings (ENVARC:Zune)?
+Remove OpenMUI?\n\nOpenMUI's files are deleted and the files of yours\nit had replaced are put back. A MUI of yours stays\nas it is. Keep your OpenMUI settings (ENVARC:OpenMUI)?
 ;
 MSG_GADGETS_REMOVE (//)
 Remove, keep settings|Remove all|Cancel
@@ -59,7 +59,7 @@ MSG_DRAWER_SOON (//)
 The empty drawer goes in a moment (once no window shows it).\n
 ;
 MSG_SETTINGS_KEPT (//)
-Your OpenMUI settings in ENVARC:Zune are kept.\n
+Your OpenMUI settings in ENVARC:OpenMUI are kept.\n
 ;
 MSG_NO_ACTION (//)
 No ACTION tool type in this icon.\n
@@ -68,7 +68,7 @@ MSG_NO_RECORD (//)
 No OpenMUI installation record in %s/Data.\n
 ;
 MSG_UNKNOWN_ACTION (//)
-Unknown action %s (MUI, ZUNE, UNINSTALL, STATUS).\n
+Unknown action %s (MUI, OPENMUI, UNINSTALL, STATUS).\n
 ;
 MSG_OK (//)
 OK
@@ -108,4 +108,10 @@ in use
 ;
 MSG_STATUS_NO_RECORD (//)
 No OpenMUI installation record was found.\n
+;
+MSG_OLD_KEPT (//)
+Kept %s: OpenMUI's drawer has a file of that name.\n
+;
+MSG_OLD_MOVED (//)
+Moved to OpenMUI's drawers: %s\n
 ;

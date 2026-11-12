@@ -9,7 +9,8 @@
 #   TARGET   zune  - a1200-31 (OS 3.1) with the library given by --lib (default /tmp/suite/build)
 #            mui38 - a1200-31-mui38 (OS 3.1 + MUI 3.8)
 #            mui5  - a1200-32-mui5 (OS 3.2.1 + MUI 5)
-#   --lib FILE     muimaster.library to test (zune; its class files from Zune/ next to it)
+#   --lib FILE     muimaster.library to test (zune; its class files from OpenMUI/ next to it,
+#                  Zune/ for a build of before 2026-11-12)
 #   --port N       wasabid port (default zune 1410, mui38 1411, mui5 1412)
 #   --name NAME    instance name (default suite-TARGET)
 #   --groups LIST  program groups, e.g. mui3,mui5 (default: zune and mui38 mui3, mui5 mui5)
@@ -94,11 +95,16 @@ wasabi run "makedir ENV:MUI" >/dev/null 2>&1
 # --behave-as MUI3.8|MUI4|MUI5 sets one for all programs (ENVARC: so that it
 # survives the reboot before each program)
 if [ "$TARGET" = zune ] && [ -n "$BEHAVE" ]; then
-  wasabi run "makedir ENVARC:Zune
-echo >ENVARC:Zune/BehaveAs $BEHAVE
+  # ENV(ARC):OpenMUI; ENV(ARC):Zune too, for a library of before 2026-11-12
+  wasabi run "makedir ENVARC:OpenMUI
+echo >ENVARC:OpenMUI/BehaveAs $BEHAVE
+makedir ENV:OpenMUI
+copy ENVARC:OpenMUI/BehaveAs ENV:OpenMUI/
+makedir ENVARC:Zune
+copy ENVARC:OpenMUI/BehaveAs ENVARC:Zune/
 makedir ENV:Zune
-copy ENVARC:Zune/BehaveAs ENV:Zune/" >/dev/null 2>&1
-  log "Zune behaves as $BEHAVE for all programs (ENVARC:Zune/BehaveAs)"
+copy ENVARC:OpenMUI/BehaveAs ENV:Zune/" >/dev/null 2>&1
+  log "OpenMUI behaves as $BEHAVE for all programs (ENVARC:OpenMUI/BehaveAs)"
 fi
 
 # ---- run ----

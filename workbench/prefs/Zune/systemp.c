@@ -306,7 +306,7 @@ static IPTR ExecuteScreenInspectorFunc(struct Hook *hook, Object *caller, void *
     return (IPTR) TRUE;
 }
 
-/* Which MUI programs see and OpenMUI behaves as (ENV:Zune/BehaveAs, read
+/* Which MUI programs see and OpenMUI behaves as (ENV:OpenMUI/BehaveAs, read
  * by the library when it is loaded and when these settings are saved or
  * used; muimaster identity.c). Automatic: the MUI each program asks
  * for. The per-program lines win over the setting for all. A line of
@@ -570,8 +570,11 @@ static IPTR SystemP_ConfigToGadgets(struct IClass *cl, Object *obj,
         int id = 0;
 
         DoMethod(data->program_list, MUIM_List_Clear);
-        if (text && GetVar("Zune/BehaveAs", text, ZUNE_BEHAVE_AS_SIZE,
-            GVF_GLOBAL_ONLY | GVF_BINARY_VAR) >= 0)
+        /* an earlier edition's (ENV:Zune) when OpenMUI has none yet */
+        if (text && (GetVar("OpenMUI/BehaveAs", text, ZUNE_BEHAVE_AS_SIZE,
+                GVF_GLOBAL_ONLY | GVF_BINARY_VAR) >= 0
+            || GetVar("Zune/BehaveAs", text, ZUNE_BEHAVE_AS_SIZE,
+                GVF_GLOBAL_ONLY | GVF_BINARY_VAR) >= 0))
         {
             for (line = text; line; line = e)
             {
@@ -612,7 +615,7 @@ static IPTR SystemP_GadgetsToConfig(struct IClass *cl, Object *obj,
     CheckmarkToConfig(data->on_startup_checkmark, msg->configdata, MUICFG_Iconification_OnStartup);
     CheckmarkToConfig(data->arexx_checkmark, msg->configdata, MUICFG_Interfaces_EnableARexx);
     {
-        /* the text zune.c saves as ENV:Zune/BehaveAs */
+        /* the text zune.c saves as ENV:OpenMUI/BehaveAs */
         char *t = zune_behave_as;
         STRPTR line;
         LONG i, n = 0;

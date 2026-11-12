@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # opbench.sh NAME PORT OUT [LIBDIR] [REPS]: cold-boot a1200-31-mui38 as instance NAME on PORT in
 # cycle-exact FS-UAE (warp mode: the emulated time, which the EClock counts, is unchanged), install
-# OpenMUI from LIBDIR (its muimaster.library and Zune/ class files) if given, else MUI 3.8 stays,
+# OpenMUI from LIBDIR (its muimaster.library and OpenMUI/ class files) if given, else MUI 3.8 stays,
 # run tests/native/opbench there (REPS repetitions, default 9) and copy its output to OUT.
 # OPBENCH = the opbench binary (default $ZWORK/opbench; build line in opbench.c). FRESH=0 keeps the
 # instance's copy (default: reset), WARP=0 runs at the real speed, KEEP=1 leaves it running.

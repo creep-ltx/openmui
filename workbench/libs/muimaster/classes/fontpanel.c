@@ -74,7 +74,10 @@ static BOOL add_family(struct FontpanelData *d, CONST_STRPTR family, CONST_STRPT
 static void load_families(struct FontpanelData *d)
 {
     char line[512];
-    BPTR file = Open("ENV:Zune/fontfamilies", MODE_OLDFILE);
+    BPTR file = Open("ENV:OpenMUI/fontfamilies", MODE_OLDFILE);
+    if (!file) file = Open("ENVARC:OpenMUI/fontfamilies", MODE_OLDFILE);
+    /* an earlier edition's, until the settings are moved (read only) */
+    if (!file) file = Open("ENV:Zune/fontfamilies", MODE_OLDFILE);
     if (!file) file = Open("ENVARC:Zune/fontfamilies", MODE_OLDFILE);
     if (!file) return;
     while (FGets(file, line, sizeof(line)))
@@ -110,7 +113,7 @@ static BOOL save_family_directory(struct FontpanelData *d)
 }
 static BOOL save_families(struct FontpanelData *d)
 {
-    static const char *paths[] = {"ENVARC:Zune", "ENV:Zune"};
+    static const char *paths[] = {"ENVARC:OpenMUI", "ENV:OpenMUI"};
     BPTR dirs[2] = {0, 0};
     BOOL ok = TRUE;
     for (ULONG i = 0; i < 2; i++)

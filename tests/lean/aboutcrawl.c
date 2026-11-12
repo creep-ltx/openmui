@@ -1,6 +1,6 @@
 /* aboutcrawl: a window with a Crawling object (scrolling credits) and the
  * "About MUI" window (MUIM_Application_AboutMUI, the Aboutmui class), the
- * two classes MUI 3.8 loads from MUI:Libs/mui and Zune68 from LIBS:Zune
+ * two classes MUI 3.8 loads from MUI:Libs/mui and OpenMUI from LIBS:OpenMUI
  * since branch smaller2. Both stay open for SECONDS (default 8), then the
  * program quits. Built by hand:
  *   m68k-amigaos-gcc -m68000 -noixemul -Os -s -o aboutcrawl tests/lean/aboutcrawl.c

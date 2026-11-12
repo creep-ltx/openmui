@@ -10,7 +10,7 @@
 #define zune_ARRAY
 #include "strings.h"
 
-#define CATALOG_NAME     "System/Prefs/Zune.catalog"
+#define CATALOG_NAME     "System/Prefs/OpenMUI.catalog"
 #include "catalogs/catalog_version.h"
 
 /*** Variables **************************************************************/

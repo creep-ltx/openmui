@@ -48,13 +48,13 @@ def catalog_jobs(build):
     prefs = ROOT / 'workbench/prefs/Zune/catalogs'
     for source in sorted(prefs.glob('*.ct')):
         language = {v: k for k, v in LANGUAGES.items()}.get(source.stem, source.stem)
-        yield (build / 'Locale/Catalogs' / language / 'System/Prefs/Zune.catalog',
+        yield (build / 'Locale/Catalogs' / language / 'System/Prefs/OpenMUI.catalog',
                [prefs / 'zune.cd', source], ['VERSION', '1', 'REVISION', '0'])
     for path, stem, destination in [
         ('workbench/libs/muimaster/catalogs', 'muimaster', 'System/Libs/muimaster.catalog'),
-        ('workbench/classes/zune/prefswindow/catalogs', 'prefswindow', 'System/Classes/Zune/PrefsWindow.catalog'),
-        ('workbench/classes/zune/aboutwindow/catalogs', 'aboutwindow', 'System/Classes/Zune/AboutWindow.catalog'),
-        ('workbench/classes/zune/systemprefswindow/catalogs', 'systemprefswindow', 'System/Classes/Zune/SystemPrefsWindow.catalog'),
+        ('workbench/classes/zune/prefswindow/catalogs', 'prefswindow', 'System/Classes/OpenMUI/PrefsWindow.catalog'),
+        ('workbench/classes/zune/aboutwindow/catalogs', 'aboutwindow', 'System/Classes/OpenMUI/AboutWindow.catalog'),
+        ('workbench/classes/zune/systemprefswindow/catalogs', 'systemprefswindow', 'System/Classes/OpenMUI/SystemPrefsWindow.catalog'),
     ]:
         catalog_dir = ROOT / path
         for source in sorted(catalog_dir.glob('*.ct')):

@@ -76,7 +76,7 @@ static void whois(ULONG addr)
     Permit();
 }
 
-/* OpenMUI's own class files (LIBS:Zune/X.mui) are LoadSeg'ed privately, not in the library
+/* OpenMUI's own class files (LIBS:OpenMUI/X.mui) are LoadSeg'ed privately, not in the library
    list: their seglists sit in the base at CFOFF (MUIMasterBase_intern.ClassFiles, CFN of them;
    offsetof from a build of muimaster_intern.h, 2026-11-12: 334 and 52). The first of the three
    callers inside one: the file's number (classfiles.h order), its hunk, the offset in it. */

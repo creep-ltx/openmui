@@ -15,7 +15,7 @@
 #endif
 
 /* listview class */
-/* zune.c: the System page's "Behave as" settings -> ENV:Zune/BehaveAs */
+/* zune.c: the System page's "Behave as" settings -> ENV:OpenMUI/BehaveAs */
 #define ZUNE_BEHAVE_AS_SIZE 2048
 extern char zune_behave_as[ZUNE_BEHAVE_AS_SIZE];
 extern struct MUI_CustomClass *ClassListview_CLASS;

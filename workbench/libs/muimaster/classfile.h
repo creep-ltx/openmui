@@ -1,4 +1,4 @@
-/* Classes built as files of their own (LIBS:Zune/<Name>.mui), loaded the
+/* Classes built as files of their own (LIBS:OpenMUI/<Name>.mui), loaded the
  * first time a program makes one of their objects, the way MUI 3.8 ships
  * its rarely used classes in MUI:Libs/mui. The class source is unchanged;
  * the file (classfile.c) is a small library whose second vector hands the

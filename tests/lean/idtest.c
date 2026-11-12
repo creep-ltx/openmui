@@ -1,7 +1,7 @@
 /* idtest: which MUI a program gets from Zune (identity.c, roadmap phase 8).
  *
  *   idtest VERSION [AGAIN] [wait]
- *   idtest reload      have the library read ENV:Zune/BehaveAs again
+ *   idtest reload      have the library read ENV:OpenMUI/BehaveAs again
  *
  * Opens muimaster.library with VERSION (0 = OldOpenLibrary), prints the
  * version of the base it got, the base in the library list, and the

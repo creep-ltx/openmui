@@ -23,7 +23,7 @@ static struct Screen *screen;
 static volatile ULONG done, popup_seen;
 static LONG selection;
 static int failures;
-static const char *paths[]={"ENV:zune/ZuneTitleProbe.prefs","ENVARC:zune/ZuneTitleProbe.prefs"};
+static const char *paths[]={"ENV:OpenMUI/ZuneTitleProbe.prefs","ENVARC:OpenMUI/ZuneTitleProbe.prefs"};
 static void check(int ok,const char *label) { printf("%s %s\n",ok?"PASS":"FAIL",label); if(!ok) failures++; }
 static Object *config(void) { return MO(MUIC_Configdata,TAG_DONE); }
 static void prefs(ULONG mask)

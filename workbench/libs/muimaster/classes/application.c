@@ -212,7 +212,7 @@ struct timerequest_ext
 *       configuration, legacy menu, or child validation failure. Optional
 *       broker or Rexx-port creation failure does not fail construction. The
 *       first input-processing call creates configuration notification for
-*       ENV:zune/<base>.prefs when possible and reloads the configuration if
+*       ENV:OpenMUI/<base>.prefs when possible and reloads the configuration if
 *       that file was written after construction; failure to watch that file
 *       is not reported. NewInput processes changes and queues configuration
 *       replacement.
@@ -1269,8 +1269,8 @@ static Object *find_application_by_base(struct IClass *cl, Object *obj,
 /**************************************************************************
  Config file notification
 
- ENV:zune/<appbase>.prefs is watched. Whenever it is written (e.g. by the
- MUI Settings window, sys:prefs/Zune) a fresh Configdata is built from it
+ ENV:OpenMUI/<appbase>.prefs is watched. Whenever it is written (e.g. by the
+ MUI Settings window, sys:prefs/OpenMUI) a fresh Configdata is built from it
  and handed to the application, so the new settings are applied
  immediately without restarting the application.
 **************************************************************************/
@@ -1315,7 +1315,7 @@ static void Application_ReloadConfigdata(struct IClass *cl, Object *obj)
 }
 
 /* Create owned port/name resources and start DOS message notification for
- * the bounded ENV:zune/<base>.prefs path. On local allocation or
+ * the bounded ENV:OpenMUI/<base>.prefs path. On local allocation or
  * StartNotify failure, release those resources and leave notification
  * disabled. There is no return status.
  */
@@ -1334,7 +1334,7 @@ static __attribute__((noinline)) void Application_SetupConfigNotify(
     if (!data->app_CfgNotifyPort)
         return;
 
-    snprintf(name, sizeof(name), "ENV:zune/%s.prefs", data->app_Base);
+    snprintf(name, sizeof(name), "ENV:OpenMUI/%s.prefs", data->app_Base);
     data->app_CfgNotifyName = StrDup(name);
     if (!data->app_CfgNotifyName)
     {
@@ -1457,7 +1457,7 @@ static __attribute__((noinline)) void app_make_broker(
 }
 
 /* At OM_DISPOSE: the final window positions into the application's own
- * file, ENV:zune/<base>.prefs (the settings' window position mode 1), and
+ * file, ENV:OpenMUI/<base>.prefs (the settings' window position mode 1), and
  * ENVARC: too so they survive a reboot (mode 2). Only the positions go
  * there, as with MUI: writing the settings in use there made the
  * application ignore every later change of the global settings. Windows
@@ -1480,12 +1480,12 @@ static __attribute__((noinline)) void app_save_positions(
         while ((child = NextObject(&cstate)))
             ZuneRememberWindowPosition(child);
     }
-    snprintf(filename, 255, "ENV:zune/%s.prefs", data->app_Base);
+    snprintf(filename, 255, "ENV:OpenMUI/%s.prefs", data->app_Base);
     DoMethod(data->app_GlobalInfo.mgi_Configdata,
         MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
     if (positionmode == 2)
     {
-        snprintf(filename, 255, "ENVARC:zune/%s.prefs", data->app_Base);
+        snprintf(filename, 255, "ENVARC:OpenMUI/%s.prefs", data->app_Base);
         DoMethod(data->app_GlobalInfo.mgi_Configdata,
             MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
     }

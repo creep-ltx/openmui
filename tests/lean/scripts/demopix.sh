@@ -3,7 +3,7 @@
 #
 #   demopix.sh [options] [SHOT...]
 #   --lib FILE     Zune's muimaster.library (default /tmp/suite/build/muimaster.library; its
-#                  class files from Zune/ next to it)
+#                  class files from OpenMUI/ next to it)
 #   --zport N      wasabid port of the Zune instance (default 1442), --mport N MUI 3.8's (1443)
 #   --only T       shoot only zune or mui38 (the other side's shots from an earlier run stay)
 #   --compare      shoot nothing, only compare what is there
@@ -14,7 +14,7 @@
 # SHOT: a demo name (Class1 ... BoopsiDoor, MUI-Demo) or MUIDemo-<button> (Groups Frames Backfill
 # Notify Listviews Cycle Images Strings); none = all 27. Each side runs on its own freshly booted
 # instance: a1200-31 with the library (Zune) and a1200-31-mui38 (MUI 3.8), both with 8 MB fast
-# RAM, default settings (no ENV:MUI, no ENV:Zune), the same 640x256 Workbench screen and fonts.
+# RAM, default settings (no ENV:MUI, no ENV:OpenMUI), the same 640x256 Workbench screen and fonts.
 # For each shot: start the demo (stack 40000), wait for its windows, wait until the screen stops
 # changing, grab the screen unscaled (640x256) and write the window list; then close it. The
 # compare (demopix-compare.py) crops each window, matches them by title and writes
@@ -93,7 +93,7 @@ shoot() { # SIDE MACHINE NAME PORT
   boot "$mach" "$name" "$4" --fresh
   if [ "$side" = zune ]; then
     "$S/putlib.sh" "$LIB" >/dev/null 2>&1
-    wasabi run "delete ENVARC:Zune ENV:Zune ALL QUIET" >/dev/null 2>&1
+    wasabi run "delete ENVARC:OpenMUI ENV:OpenMUI ENVARC:Zune ENV:Zune ALL QUIET" >/dev/null 2>&1
     boot "$mach" "$name" "$4"
   fi
   wasabi run "delete ENV:MUI ENVARC:MUI ALL QUIET" >/dev/null 2>&1

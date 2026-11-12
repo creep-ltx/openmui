@@ -27,8 +27,8 @@
 #define AROS_BE2LONG(x) (x)
 #define BNULL 0
 #define RAWARG APTR
-/* External images: Zune's own drawer first (no MUI needed), then MUI's. */
-#define IMSPEC_EXTERNAL_PREFIX "LIBS:Zune/Images/"
+/* External images: OpenMUI's own drawer first (no MUI needed), then MUI's. */
+#define IMSPEC_EXTERNAL_PREFIX "LIBS:OpenMUI/Images/"
 #define IMSPEC_EXTERNAL_PREFIX2 "MUI:Images/"
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

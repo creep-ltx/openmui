@@ -14,14 +14,25 @@
  *   BACKUP <name>       <home>/Data/Backup/<name>
  *   DIR <path>          a drawer the installer made
  *
- * MUI:     every Zune file in the LIBS directory (muimaster.library,
- *          LIBS:Zune/..., the classes in LIBS:MUI; zunemaster.library in
- *          an earlier edition's record) is moved to <home>/Data/Parked and the user's own files it had
- *          replaced are put back: after a reboot programs get the real MUI.
- * ZUNE:    the other way round.
- * UNINSTALL: Zune's files are deleted, the user's own put back, the
+ * MUI:     every OpenMUI file in the LIBS directory (muimaster.library,
+ *          LIBS:OpenMUI/..., the classes in LIBS:MUI; zunemaster.library and
+ *          LIBS:Zune/... in an earlier edition's record) is moved to
+ *          <home>/Data/Parked and the user's own files it had replaced are
+ *          put back: after a reboot programs get the real MUI.
+ * OPENMUI (or ZUNE): the other way round.
+ * UNINSTALL: OpenMUI's files are deleted, the user's own put back, the
  *          drawers the installer made removed when empty; with SETTINGS
- *          also ENV:Zune and ENVARC:Zune.
+ *          also ENV:OpenMUI and ENVARC:OpenMUI (and an earlier edition's
+ *          ENV:Zune and ENVARC:Zune).
+ * MIGRATE [FILE]: for the installer, updating an earlier edition. The
+ *          settings in ENVARC:Zune and ENV:Zune are moved to ENVARC:OpenMUI
+ *          and ENV:OpenMUI (a file of the same name already there is not
+ *          replaced: the old one stays where it is); FILE, the earlier
+ *          edition's class drawer (LIBS:Zune) once its record has taken its
+ *          own files away: what is left there is the user's, moved to
+ *          <home>/Data/Backup and written into the record as REPLACED with
+ *          no file of OpenMUI's in its place, so that Uninstall and "Use
+ *          real MUI" put it back.
  * STATUS:  what is installed where (Shell).
  *
  * zunemaster.library, the second name earlier editions installed the
@@ -80,7 +91,7 @@ static int Strnicmp(const char *a, const char *b, int n)
 
 #define Stricmp(a, b) Strnicmp((const char *)(a), (const char *)(b), 0x7fff)
 
-static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.1 (11.11.2026) OpenMUI 0.1b1";
+static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.2 (12.11.2026) OpenMUI 0.1b1";
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;
@@ -254,11 +265,46 @@ static BOOL copyfile(const char *from, const char *to)
     return ok;
 }
 
+/* Make the drawer a file goes into when it is missing (a file put back
+ * into an earlier edition's LIBS:Zune, which is gone). TRUE if made. */
+static BOOL make_parent(const char *path)
+{
+    char dir[PATHLEN];
+    char *end;
+    BPTR lock;
+
+    strncpy(dir, path, PATHLEN - 1);
+    dir[PATHLEN - 1] = 0;
+    end = (char *)PathPart((STRPTR)dir);
+    if (end == dir)
+        return FALSE;
+    *end = 0;
+    if ((lock = Lock((STRPTR)dir, ACCESS_READ)))
+    {
+        UnLock(lock);
+        return FALSE;
+    }
+    if (!(lock = CreateDir((STRPTR)dir)))
+        return FALSE;
+    UnLock(lock);
+    return TRUE;
+}
+
 static BOOL move(const char *from, const char *to)
 {
+    LONG err;
+
     if (Rename((STRPTR)from, (STRPTR)to))
         return TRUE;
-    if (IoErr() == ERROR_RENAME_ACROSS_DEVICES && copyfile(from, to))
+    err = IoErr();
+    if (err != ERROR_RENAME_ACROSS_DEVICES && make_parent(to))
+    {
+        if (Rename((STRPTR)from, (STRPTR)to))
+            return TRUE;
+        err = IoErr();
+    }
+    if (err == ERROR_RENAME_ACROSS_DEVICES
+        && (make_parent(to), copyfile(from, to)))
         return DeleteFile((STRPTR)from) || TRUE;
     return FALSE;
 }
@@ -651,16 +697,17 @@ fail:
     return 10;
 }
 
-/* Delete a drawer and everything in it (the settings) */
-static void delete_tree(const char *path)
+/* The names in a drawer (files and drawers), NUL after NUL; NULL if none */
+static char *dir_names(const char *path, LONG *usedp)
 {
     BPTR lock = Lock((STRPTR)path, ACCESS_READ);
     struct FileInfoBlock *fib;
-    char *names = NULL, sub[PATHLEN];
+    char *names = NULL;
     LONG used = 0, size = 0;
 
+    *usedp = 0;
     if (!lock)
-        return;
+        return NULL;
     if ((fib = AllocDosObject(DOS_FIB, NULL)))
     {
         if (Examine(lock, fib) && fib->fib_DirEntryType > 0)
@@ -688,10 +735,19 @@ static void delete_tree(const char *path)
         FreeDosObject(DOS_FIB, fib);
     }
     UnLock(lock);
+    *usedp = used;
+    return names;
+}
+
+/* Delete a drawer and everything in it (the settings) */
+static void delete_tree(const char *path)
+{
+    char sub[PATHLEN];
+    LONG used, at;
+    char *names = dir_names(path, &used);
+
     if (names)
     {
-        LONG at;
-
         for (at = 0; at < used; at += strlen(names + at) + 1)
         {
             LONG type = 0;
@@ -814,7 +870,9 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
             say1(MSG_KEPT_DRAWER, ents[i].path);
     if (settings)
     {
-        delete_tree("ENVARC:Zune");
+        delete_tree("ENVARC:OpenMUI");
+        delete_tree("ENV:OpenMUI");
+        delete_tree("ENVARC:Zune");     /* an earlier edition's */
         delete_tree("ENV:Zune");
     }
     if (exists(home, NULL))
@@ -844,6 +902,110 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
     (void)removed;
     (void)restored;
     return kept ? 10 : 0;
+}
+
+/* An earlier edition's settings drawer into OpenMUI's: each file or drawer
+ * not there yet is moved; one whose name is taken stays where it is. The
+ * old drawer goes when it is empty. */
+static __attribute__((noinline)) void migrate_settings(const char *from,
+    const char *to)
+{
+    char src[PATHLEN], dst[PATHLEN];
+    LONG used, at;
+    char *names = dir_names(from, &used);
+    BPTR lock;
+
+    if (!names)
+    {
+        DeleteFile((STRPTR)from);       /* an empty one */
+        return;
+    }
+    if (!(lock = Lock((STRPTR)to, ACCESS_READ)))
+        lock = CreateDir((STRPTR)to);
+    if (lock)
+    {
+        int moved = 0;
+
+        UnLock(lock);
+        for (at = 0; at < used; at += strlen(names + at) + 1)
+        {
+            join(src, from, names + at);
+            join(dst, to, names + at);
+            if (exists(dst, NULL))
+                say1(MSG_OLD_KEPT, src);
+            else if (!move(src, dst))
+                say1(MSG_COULD_NOT_MOVE, src);
+            else
+                moved++;
+        }
+        if (moved)
+            say1(MSG_OLD_MOVED, from);
+    }
+    FreeVec(names);
+    DeleteFile((STRPTR)from);
+}
+
+/* What is left in an earlier edition's class drawer (its own files are
+ * gone with its record) is the user's: into the backup, written down as
+ * replaced. Returns 0, or 10 when something could not be done. */
+static __attribute__((noinline)) int retire_drawer(const char *path)
+{
+    char src[PATHLEN], bak[PATHLEN], name[40];
+    LONG used, at;
+    char *names = dir_names(path, &used);
+    int n = 0, rc = 0;
+    BPTR fh;
+
+    if (!names)
+    {
+        DeleteFile((STRPTR)path);
+        return 0;
+    }
+    join(src, home, "Data/Manifest");
+    if (!(fh = Open((STRPTR)src, MODE_OLDFILE)))
+    {
+        say1(MSG_NO_RECORD, home);
+        FreeVec(names);
+        return 10;
+    }
+    Seek(fh, 0, OFFSET_END);
+    for (at = 0; at < used; at += strlen(names + at) + 1)
+    {
+        const char *f = names + at;
+
+        /* Z1-name, Z2-name, ...: the installer's are B1-..., B2-... */
+        do
+        {
+            int v = ++n, d = 0;
+            char digits[8];
+
+            do
+                digits[d++] = '0' + v % 10;
+            while ((v /= 10) && d < 7);
+            name[0] = 'Z';
+            for (v = 1; d; )
+                name[v++] = digits[--d];
+            name[v++] = '-';
+            strncpy(name + v, f, sizeof(name) - v - 1);
+            name[sizeof(name) - 1] = 0;
+            join(bak, home, "Data/Backup");
+            AddPart((STRPTR)bak, (STRPTR)name, PATHLEN);
+        } while (exists(bak, NULL));
+        join(src, path, f);
+        if (!move(src, bak))
+        {
+            say1(MSG_COULD_NOT_MOVE, src);
+            rc = 10;
+            continue;
+        }
+        if (FPrintf(fh, (STRPTR)"REPLACED %s\nBACKUP %s\n", (IPTR)src,
+                (IPTR)name) < 0)
+            rc = 10;
+    }
+    Close(fh);
+    FreeVec(names);
+    DeleteFile((STRPTR)path);
+    return rc;
 }
 
 static void status(void)
@@ -988,6 +1150,14 @@ int main(void)
                 GVF_GLOBAL_ONLY);
             rc = 0;
         }
+        goto end;
+    }
+    if (!Stricmp((STRPTR)action, (STRPTR)"MIGRATE"))
+    {
+        migrate_settings("ENVARC:Zune", "ENVARC:OpenMUI");
+        migrate_settings("ENV:Zune", "ENV:OpenMUI");
+        if (args[1])
+            rc = retire_drawer((char *)args[1]);
         goto end;
     }
     if (!read_manifest())

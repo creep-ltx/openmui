@@ -36,8 +36,12 @@
  * look for it in the library's id string to tell it from a real MUI
  * (earlier editions said "Zune68k lean"; OpenMUISwitch knows those too).
  * The file name muimaster.library (the one library: zunemaster.library,
- * the same library under a second name, is gone), the version numbers
- * above and LIBS:Zune, ENV:Zune, ENVARC:Zune stay as they are. */
+ * the same library under a second name, is gone) and the version numbers
+ * above stay as they are. OpenMUI's own drawers are LIBS:OpenMUI (class
+ * files, modules), ENV:OpenMUI and ENVARC:OpenMUI (settings); earlier
+ * editions used LIBS:Zune, ENV:Zune and ENVARC:Zune (the installer and
+ * OpenMUI prefs move the settings, the library reads the old ones while
+ * there are no new ones). */
 #define ZUNE68_EDITION_NUMBER "0.1b1"
 #define ZUNE68_EDITION "OpenMUI " ZUNE68_EDITION_NUMBER
 #define ZUNE68_STRINGIFY_(x) #x

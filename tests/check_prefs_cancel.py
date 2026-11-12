@@ -140,11 +140,11 @@ def check(path):
 
             h.value = 20
             h.call('main_test_pressed')
-            assert ('save', 'ENV:zune/TESTAPP.prefs', 20) in h.events
+            assert ('save', 'ENV:OpenMUI/TESTAPP.prefs', 20) in h.events
             h.events.clear()
             h.call(action)
             assert h.value == 10
-            assert h.changes()[0] == ('save', 'ENV:zune/TESTAPP.prefs', 10)
+            assert h.changes()[0] == ('save', 'ENV:OpenMUI/TESTAPP.prefs', 10)
             assert len(h.changes()) == 2, 'restore once and reload own prefs'
             h.events.clear()
             h.call('main_cancel_pressed')
@@ -158,7 +158,7 @@ def check(path):
         h.events.clear()
         h.call('main_open_menu')
         assert h.value == 30
-        assert ('save', 'ENV:zune/TESTAPP.prefs', 30) in h.events
+        assert ('save', 'ENV:OpenMUI/TESTAPP.prefs', 30) in h.events
         created = [event[1] for event in h.events if event[0] == 'new']
         assert len(created) == 3  # import, save, own live configuration
         assert created[0] not in h.configs, 'import must release its temporary'
@@ -166,12 +166,12 @@ def check(path):
         assert created[2] in h.configs, 'Application owns its live configuration'
         h.events.clear()
         h.call('main_cancel_pressed')
-        assert h.changes()[0] == ('save', 'ENV:zune/TESTAPP.prefs', 10)
+        assert h.changes()[0] == ('save', 'ENV:OpenMUI/TESTAPP.prefs', 10)
 
         for action, paths in (
-                ('main_use_pressed', ['ENV:zune/TESTAPP.prefs']),
-                ('main_save_pressed', ['ENVARC:zune/TESTAPP.prefs',
-                                       'ENV:zune/TESTAPP.prefs'])):
+                ('main_use_pressed', ['ENV:OpenMUI/TESTAPP.prefs']),
+                ('main_save_pressed', ['ENVARC:OpenMUI/TESTAPP.prefs',
+                                       'ENV:OpenMUI/TESTAPP.prefs'])):
             h.events.clear()
             h.value = 40
             h.call(action)

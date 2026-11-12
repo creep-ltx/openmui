@@ -124,7 +124,7 @@ def main():
                           'Tools/OpenMUISwitch', 'ReadMe', 'ReadMe.info',
                           'Home/OpenMUI.info', 'Home/ReadMe.info'}
     known |= {'Home/' + n for n in HOME_PROJECTS} | {'Home/' + n + '.info' for n in HOME_PROJECTS}
-    known |= {'Libs/Zune', 'Libs/MUI'} | {'Libs/Zune/' + n for n in builtin_class_files(build)}
+    known |= {'Libs/OpenMUI', 'Libs/MUI'} | {'Libs/OpenMUI/' + n for n in builtin_class_files(build)}
     for name in set(re.findall(r'\(tackon #package "([^"]+)"\)', script)):
         if name not in known:
             problems.append(f'the script names {name}, which the package does not have')
@@ -134,6 +134,14 @@ def main():
         problems.append('the script does not take away an old LIBS:zunemaster.library')
     if re.search(r'\(P_Put [^\n]*zunemaster', script):
         problems.append('the script installs zunemaster.library')
+    # OpenMUI's own drawers (2026-11-12): class files into LIBS:OpenMUI; an
+    # earlier edition's LIBS:Zune and ENV(ARC):Zune handled by the switch
+    if '(set #zunedir (tackon #libsdir "OpenMUI"))' not in script:
+        problems.append('the class files do not go to LIBS:OpenMUI')
+    if '" MIGRATE QUIET HOME="' not in script:
+        problems.append('the script does not move an earlier edition\'s settings (MIGRATE)')
+    if '"Libs/Zune"' in script:
+        problems.append('the script still installs from the package\'s old drawer Libs/Zune')
     for problem in problems:
         print('check_installer:', problem)
     if problems:

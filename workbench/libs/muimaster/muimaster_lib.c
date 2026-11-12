@@ -18,8 +18,8 @@ void L_ExpungeLib(struct Library *base);
     " (" ZUNE68_LIBRARY_DATE ") " ZUNE68_EDITION "\r\n"
 
 /* The fourth vector, reserved: exec never calls it and it returns 0.
- * Zune prefs calls it with D0 'ZnID' from its own process after saving
- * ENV:Zune/BehaveAs, to have the library read the settings again
+ * OpenMUI prefs calls it with D0 'ZnID' from its own process after saving
+ * ENV:OpenMUI/BehaveAs, to have the library read the settings again
  * (identity.c: Open runs under Forbid and cannot read them itself). */
 #define ZUNE_RELOAD_MAGIC 0x5A6E4944 /* 'ZnID' */
 ULONG LibReserved(ULONG magic __asm("d0"))

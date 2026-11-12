@@ -93,37 +93,37 @@ def component_files(build_dir):
 
 
 def builtin_class_files(build_dir):
-    """The library's own classes built as files (LIBS:Zune, classfile.h)."""
-    return sorted(p.name for p in (build_dir / 'Zune').glob('*.mui'))
+    """The library's own classes built as files (LIBS:OpenMUI, classfile.h)."""
+    return sorted(p.name for p in (build_dir / 'OpenMUI').glob('*.mui'))
 
 
 def package_path(name):
-    """Where a build file goes in the archive. Zune68's own .mui files
-    (Pixmap.mui) go to Libs/Zune with the class files, not to Libs/MUI:
-    LIBS:MUI is real MUI's drawer, and a Zune68 Pixmap.mui there would
+    """Where a build file goes in the archive. OpenMUI's own .mui files
+    (Pixmap.mui) go to Libs/OpenMUI with the class files, not to Libs/MUI:
+    LIBS:MUI is real MUI's drawer, and an OpenMUI Pixmap.mui there would
     shadow (or replace) real MUI's own Pixmap.mui."""
     if name.startswith('Libs/MUI/') and name.endswith('.mui'):
-        return 'Libs/Zune/' + name[len('Libs/MUI/'):]
+        return 'Libs/OpenMUI/' + name[len('Libs/MUI/'):]
     return name
 
 
 def install_script(files, class_files=()):
     """dist/Install with the package check and the catalog lines filled in.
 
-    The libraries, LIBS:Zune and the MUI classes are installed by the
+    The libraries, LIBS:OpenMUI and the MUI classes are installed by the
     script itself (foreach over the package's drawers); here every file is
     checked to be in the package with a readable version, and each catalog
     gets its line, its language drawer named the Amiga way (german ->
     deutsch) in the first directory of LOCALE:."""
     script = (ROOT / 'dist/Install').read_text()
     files = [package_path(name) for name in files]
-    files += ['Libs/Zune/' + name for name in class_files
-              if 'Libs/Zune/' + name not in files]
+    files += ['Libs/OpenMUI/' + name for name in class_files
+              if 'Libs/OpenMUI/' + name not in files]
     preflight = []
     for name in files:
         preflight.append('(if (<> (exists (tackon #package "' + name + '")) 1)\n'
                          '    (abort "The package is incomplete. Extract the complete archive again."))')
-        if name == 'Prefs/OpenMUI' or name.startswith(('Libs/MUI/', 'Libs/Zune/')):
+        if name == 'Prefs/OpenMUI' or name.startswith(('Libs/MUI/', 'Libs/OpenMUI/')):
             preflight.append(f'(if (= (getversion (tackon #package "{name}")) 0)\n'
                              f'    (abort "Cannot read the bundled version of {name}."))')
     lines = []
@@ -260,11 +260,11 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
             (package / 'Libs' / name).chmod(0o755)
         class_files = builtin_class_files(build_dir)
         if class_files:
-            (package / 'Libs' / 'Zune').mkdir()
+            (package / 'Libs' / 'OpenMUI').mkdir()
         for name in class_files:
-            component_version(build_dir / 'Zune' / name)
-            shutil.copyfile(build_dir / 'Zune' / name, package / 'Libs/Zune' / name)
-            (package / 'Libs/Zune' / name).chmod(0o755)
+            component_version(build_dir / 'OpenMUI' / name)
+            shutil.copyfile(build_dir / 'OpenMUI' / name, package / 'Libs/OpenMUI' / name)
+            (package / 'Libs/OpenMUI' / name).chmod(0o755)
         (package / 'Tools').mkdir()
         shutil.copyfile(build_dir / 'Tools/OpenMUISwitch', package / 'Tools/OpenMUISwitch')
         (package / 'Tools/OpenMUISwitch').chmod(0o755)

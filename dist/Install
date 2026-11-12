@@ -1,4 +1,4 @@
-; $VER: Install-OpenMUI 2.2 (11.11.2026) OpenMUI 0.1b1
+; $VER: Install-OpenMUI 2.3 (12.11.2026) OpenMUI 0.1b1
 ; Amiga Installer script, Installer 43 or newer (OS 3.1: Installer 43.3
 ; from Aminet; OS 3.2: SYS:System/Installer). tools/release.py fills in the
 ; lines marked COMPONENT_... when it builds the archive.
@@ -6,7 +6,8 @@
 ; What it does:
 ; - looks for a real MUI (MUI: assign, SYS:MUI, every muimaster.library in
 ;   the LIBS: directories, MUI's block in S:User-Startup) and says what it
-;   found; none of it is changed: Zune goes to the first LIBS: directory,
+;   found; none of it is changed: OpenMUI goes to the first LIBS: directory
+;   (muimaster.library, its own class files in LIBS:OpenMUI),
 ;   where programs find it before MUI's, and nothing is added to the
 ;   startup files;
 ; - writes down every file it puts on the system and keeps every file it
@@ -15,10 +16,16 @@
 ;   (Tools/OpenMUISwitch);
 ; - installs a bundled MUI class only when the user has no newer one of
 ;   their own (in any LIBS:MUI drawer but MUI's own; classes of a real MUI
-;   are written for that MUI and are not used by Zune);
+;   are written for that MUI and are not used by OpenMUI);
 ; - an earlier OpenMUI installation is removed first (its backups put
-;   back), so that an update starts from the user's own files; the Zune
-;   settings (ENVARC:Zune, ENV:Zune) are kept;
+;   back), so that an update starts from the user's own files; the
+;   settings (ENVARC:OpenMUI, ENV:OpenMUI) are kept;
+; - earlier editions kept their class files in LIBS:Zune and their settings
+;   in ENVARC:Zune and ENV:Zune: on an update the settings are moved to
+;   ENVARC:OpenMUI and ENV:OpenMUI (a file already there is not replaced),
+;   and what is left in LIBS:Zune once the earlier record has taken its own
+;   files away is the user's: kept in the backup and written down, so that
+;   Uninstall and "Use real MUI" put it back (Tools/OpenMUISwitch MIGRATE);
 ; - an installation of the same program under its earlier name, Zune68k
 ;   lean (SYS:Zune68k, SYS:Prefs/Zune), is removed the same way first:
 ;   its record is in SYS:Zune68k/Data, and Tools/OpenMUISwitch reads it;
@@ -51,7 +58,9 @@
 ; would be MUI's own.
 (set #libsdir (expandpath "LIBS:"))
 (set #libsmui (tackon #libsdir "MUI"))
-(set #zunedir (tackon #libsdir "Zune"))
+(set #zunedir (tackon #libsdir "OpenMUI"))
+; earlier editions' class drawer
+(set #oldzunedir (tackon #libsdir "Zune"))
 (set #localedir (expandpath "LOCALE:"))
 (set #rec "")
 (set #nb 0)
@@ -181,7 +190,7 @@
 ; unless the user has the same or a newer one in a LIBS:MUI drawer; an older
 ; one there is kept in the backup. MUI's own drawer (MUI:Libs/mui) is not
 ; looked at for this: its classes belong to that MUI (Use real MUI brings
-; them back) and are not used by Zune.
+; them back) and are not used by OpenMUI.
 (procedure P_Class #name
     (set #src (tackon (tackon #package "Libs/MUI") #name))
     (set #bv (getversion #src))
@@ -352,8 +361,14 @@
     (set #found (cat #found (tackon #libsdir "zunemaster.library")
         ": no longer used, taken away.\n"))
 )
+(if (= (exists "ENVARC:OpenMUI" (noreq)) 2)
+    (set #found (cat #found "Your settings (ENVARC:OpenMUI) are kept.\n"))
+)
 (if (= (exists "ENVARC:Zune" (noreq)) 2)
-    (set #found (cat #found "Your settings (ENVARC:Zune) are kept.\n"))
+    (if (or #update #old)
+        (set #found (cat #found "Your settings in ENVARC:Zune move to ENVARC:OpenMUI.\n"))
+        (set #found (cat #found "Settings in ENVARC:Zune: OpenMUI prefs copies them.\n"))
+    )
 )
 (if (= (exists "ENVARC:MUI" (noreq)) 2)
     (set #found (cat #found "MUI's settings (ENVARC:MUI) are not touched.\n"))
@@ -383,7 +398,7 @@
             (default 0)))
         (
             (set #keep (askbool
-                (prompt "Keep your OpenMUI settings (ENVARC:Zune)?")
+                (prompt "Keep your OpenMUI settings (ENVARC:OpenMUI)?")
                 (help "The settings are small text files. Keep them if you "
                     "may install OpenMUI again.")
                 (choices "Keep them" "Remove them")
@@ -443,7 +458,7 @@
     (default 1)
 ))
 
-; ---- the Zune68k drawer: the record, the switch, Uninstall ----
+; ---- the OpenMUI drawer: the record, the switch, Uninstall ----
 (P_OwnDir #home)
 (P_OwnDir #data)
 (P_OwnDir #backup)
@@ -462,6 +477,16 @@
 (P_Put (tackon #package "ReadMe") #home "ReadMe")
 (P_Put (tackon #package "Home/ReadMe.info") #home "ReadMe.info")
 (P_SaveRecord)
+; ---- an earlier edition's names: its settings to ENV(ARC):OpenMUI, and
+; what is left in its LIBS:Zune (the user's) to the backup, written down ----
+(if (and (or #update #old) (= @pretend 0))
+    (if (<> 0 (run (cat (P_Quote #tool) " MIGRATE QUIET HOME=" (P_Quote #home)
+            (if (= (exists #oldzunedir (noreq)) 2)
+                (cat " " (P_Quote (P_Rel #oldzunedir))) ""))))
+        (message "Some files in " #oldzunedir " could not be moved to the "
+            "backup (" #backup "); they are left where they are." (all))
+    )
+)
 (complete 20)
 
 ; ---- the library and its own class files ----
@@ -469,8 +494,8 @@
 (P_Put (tackon #package "Libs/muimaster.library") #libsdir "muimaster.library")
 (P_Retire #libsdir "zunemaster.library")
 (P_MakeDir #zunedir)
-(foreach (tackon #package "Libs/Zune") "#?.mui"
-    (P_Put (tackon (tackon #package "Libs/Zune") @each-name) #zunedir @each-name)
+(foreach (tackon #package "Libs/OpenMUI") "#?.mui"
+    (P_Put (tackon (tackon #package "Libs/OpenMUI") @each-name) #zunedir @each-name)
 )
 (P_SaveRecord)
 (complete 40)

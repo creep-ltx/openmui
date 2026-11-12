@@ -31,7 +31,7 @@
 
 #include <proto/muiscreen.h>
 
-#define PUBSCREEN_FILE "env:Zune/PublicScreens.iff"
+#define PUBSCREEN_FILE "env:OpenMUI/PublicScreens.iff"
 
 #define DFSN(x)
 #define DPSD(x)
@@ -479,6 +479,24 @@ static IPTR Configdata__MUIM_SetupNotify(struct IClass *cl, Object *obj,
 static BOOL prefs_read(Object *ds, CONST_STRPTR filename, BOOL clear);
 static void prefs_write(Object *ds, CONST_STRPTR filename);
 
+/* A settings file over what the object has: <ENV or ENVARC>:OpenMUI/
+ * <name>.prefs, or with CFG_OLD the earlier edition's ENV(ARC):Zune/.
+ * Called from OM_NEW (whose frame is small without the name), its
+ * frame and OM_NEW's together are no deeper than OM_NEW's alone was
+ * (316 bytes): room for a base name of 200 characters. */
+#define CFG_ARC 1
+#define CFG_OLD 2
+static __attribute__((noinline)) BOOL cfg_read(Object *ds, LONG which,
+    CONST_STRPTR name)
+{
+    char filename[224];
+
+    snprintf(filename, sizeof(filename), "%s:%s/%s.prefs",
+        which & CFG_ARC ? "ENVARC" : "ENV",
+        which & CFG_OLD ? "Zune" : "OpenMUI", name);
+    return prefs_read(ds, filename, FALSE);
+}
+
 IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct MUI_ConfigdataData *data;
@@ -524,10 +542,16 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     /* Without a preference drawer there is nothing to load: one Lock
      * replaces up to four failing Open calls (each a handler round
      * trip) per application. ENV: is restored from ENVARC: at boot and
-     * the preferences program creates both drawers when it first saves. */
+     * the preferences program creates both drawers when it first saves.
+     * The settings are in ENV:OpenMUI. An earlier edition kept them in
+     * ENV:Zune: while an installation has not moved them (the installer
+     * and OpenMUI prefs do), they are read from there, never written
+     * (res CFG_OLD: the old drawer). */
     {
-        BPTR drawer = Lock("ENV:zune", SHARED_LOCK);
+        BPTR drawer = Lock("ENV:OpenMUI", SHARED_LOCK);
 
+        if (!drawer && (drawer = Lock("ENV:Zune", SHARED_LOCK)))
+            res = CFG_OLD;
         if (drawer)
             UnLock(drawer);
         else
@@ -539,26 +563,24 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
      * positions remembered when the application quit; it must not hide
      * the global settings (it did: an application that once remembered
      * a window kept the settings of that moment for ever). */
-    if (res == 0)
+    if (res >= 0)
     {
-        BOOL loaded = prefs_read(obj, "ENV:zune/global.prefs", FALSE)
-            || prefs_read(obj, "ENVARC:zune/global.prefs", FALSE);
+        BOOL loaded = !res && (cfg_read(obj, 0, "global")
+            || cfg_read(obj, CFG_ARC, "global"));
 
-        if (data->appbase && Stricmp(data->appbase, "global"))
-        {
-            char filename[255];
+        /* No global settings of OpenMUI's own: an earlier edition's */
+        if (!loaded && (cfg_read(obj, CFG_OLD, "global")
+            || cfg_read(obj, CFG_OLD | CFG_ARC, "global")))
+            loaded = res = CFG_OLD;
 
-            snprintf(filename, 255, "ENV:zune/%s.prefs", data->appbase);
-            if (prefs_read(obj, filename, FALSE))
-                loaded = TRUE;
-            else
-            {
-                snprintf(filename, 255, "ENVARC:zune/%s.prefs",
-                    data->appbase);
-                if (prefs_read(obj, filename, FALSE))
-                    loaded = TRUE;
-            }
-        }
+        /* The application's own file, from the same drawer as the
+         * global settings (window positions saved while the settings are
+         * still the earlier edition's go to OpenMUI's drawer: they are
+         * read once the settings have been moved there) */
+        if (data->appbase && Stricmp(data->appbase, "global")
+            && (cfg_read(obj, res, data->appbase)
+                || cfg_read(obj, res | CFG_ARC, data->appbase)))
+            loaded = TRUE;
         if (loaded)
             DoMethod(obj, MUIM_Configdata_LoadPubScreens);
     }

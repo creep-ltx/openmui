@@ -6693,7 +6693,7 @@ static void SaveWindowSnapshot(Object *obj, ULONG id, BOOL remember)
     {
         char path[256];
         ULONG *saved, bytes = 0, count = 0, i;
-        if (snprintf(path, sizeof(path), "%s:zune/%s.prefs",
+        if (snprintf(path, sizeof(path), "%s:OpenMUI/%s.prefs",
                 file ? "ENVARC" : "ENV", base) >= sizeof(path)) continue;
         BPTR existing = Lock(path, SHARED_LOCK);
         if (existing) UnLock(existing);

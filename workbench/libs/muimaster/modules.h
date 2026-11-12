@@ -1,6 +1,6 @@
 /* Rarely used parts of the library that are not classes, as modules: each
  * is a private class (a name only Zune uses) in a file of its own,
- * LIBS:Zune/<Name>.mui, loaded through the class-file loader (classfile.h)
+ * LIBS:OpenMUI/<Name>.mui, loaded through the class-file loader (classfile.h)
  * the first time the library needs it. The class has no objects; its
  * dispatcher, called with no object, answers MUIM_ZuneModule_Get with a
  * table of the module's functions. The library's functions of the same

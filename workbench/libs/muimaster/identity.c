@@ -15,7 +15,7 @@
  * every program with that identity.
  *
  * The identity of a program: the first match of
- *   1. the program's line in the per-program list (ENV:Zune/BehaveAs),
+ *   1. the program's line in the per-program list (ENV:OpenMUI/BehaveAs),
  *   2. the "Behave as" setting for all programs, unless Automatic,
  *   3. Automatic: the version it asks for, 0-19 MUI 3.8, 20 MUI 4,
  *      21 and higher MUI 5.
@@ -28,13 +28,14 @@
  * set by support_classes.c around the load), else the rules above with
  * the version the class asks for.
  *
- * ENV:Zune/BehaveAs (written by Zune prefs):
+ * ENV:OpenMUI/BehaveAs (written by OpenMUI prefs; ENV:Zune/BehaveAs, an
+ * earlier edition's, is read when there is none):
  *   first line: Auto | MUI3.8 | MUI4 | MUI5   (the setting for all)
  *   each further line: MUI3.8|MUI4|MUI5 <program name>
  * The program name is the command's file name (the Shell's command
  * name, or the task name of a program started from Workbench), without
  * its path, compared without case. Read when the library is loaded and
- * when Zune prefs saves or uses its settings (the library's reserved
+ * when OpenMUI prefs saves or uses its settings (the library's reserved
  * vector, LibReserved in muimaster_lib.c): Open runs under Forbid and
  * must not use DOS. */
 #include <proto/exec.h>
@@ -174,7 +175,8 @@ void zune_identity_load(void)
         return;
     if (!(buf = AllocVec(2048, MEMF_ANY)))
         return;
-    if (GetVar("Zune/BehaveAs", buf, 2048, GVF_GLOBAL_ONLY | GVF_BINARY_VAR) < 0)
+    if (GetVar("OpenMUI/BehaveAs", buf, 2048, GVF_GLOBAL_ONLY | GVF_BINARY_VAR) < 0
+        && GetVar("Zune/BehaveAs", buf, 2048, GVF_GLOBAL_ONLY | GVF_BINARY_VAR) < 0)
         buf[0] = 0;
     parse_settings(base, buf);
     FreeVec(buf);

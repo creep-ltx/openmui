@@ -32,11 +32,11 @@ static Object *application(void)
 }
 int main(void)
 {
-    const char *file="ENV:zune/Zune68ConfigInitProbe.prefs";
+    const char *file="ENV:OpenMUI/Zune68ConfigInitProbe.prefs";
     setvbuf(stdout,NULL,_IONBF,0);
     MUIMasterBase=OpenLibrary("muimaster.library",19);if(!MUIMasterBase)return 20;
     DeleteFile(file);
-    BPTR dir=CreateDir("ENV:zune"); if(dir)UnLock(dir);
+    BPTR dir=CreateDir("ENV:OpenMUI"); if(dir)UnLock(dir);
     BPTR initial=Open(file,MODE_NEWFILE); if(initial)Close(initial);
     Object *app=application();if(!app)return 20;
     Object *cfg=muiGlobalInfo(app)->mgi_Configdata;

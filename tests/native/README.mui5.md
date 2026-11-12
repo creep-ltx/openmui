@@ -158,8 +158,8 @@ callbacks receive the original public requester address. Unsupported ASL
 options and other requester types continue through asl.library.
 
 Fontpanel supports installed fonts, styles, pens, draw modes and outline/
-shadow previews. User font families are saved to ENV:Zune/fontfamilies
-and ENVARC:Zune/fontfamilies with replacement/rollback handling. Native
+shadow previews. User font families are saved to ENV:OpenMUI/fontfamilies
+and ENVARC:OpenMUI/fontfamilies with replacement/rollback handling. Native
 probes use temporary RAM assigns and restore the original assignments.
 Fontdisplay is a shared built-in preview class. Installed font engines
 remain responsible for font availability and rasterization; no private

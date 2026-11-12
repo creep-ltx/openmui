@@ -142,8 +142,8 @@ trapped-list:
 	$(MAKE) -f GNUmakefile check BUILD=$(BUILD) LTO=0 ZUNE68_SYMBOLS_LOG=$(BUILD)/symbols.log
 	sort -u $(BUILD)/symbols.log > $(TRAPPED_LIST)
 export ZUNE68_SYMBOLS_LOG
-# Classes built as files of their own, $(BUILD)/Zune/<Name>.mui, installed
-# in LIBS:Zune/ and loaded the first time a program makes one of their
+# Classes built as files of their own, $(BUILD)/OpenMUI/<Name>.mui, installed
+# in LIBS:OpenMUI/ and loaded the first time a program makes one of their
 # objects, as MUI 3.8 does with MUI:Libs/mui (classfile.h). CLASSFILES=
 # (empty) builds every class into the library again. The z* entries are
 # modules (modules.h): rarely used parts of the library that are not
@@ -159,7 +159,7 @@ CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   zlist zmui45 zprefs
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
 CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
-CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/Zune/$(shell echo $(c) | sed 's/^./\U&/').mui)
+CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/OpenMUI/$(shell echo $(c) | sed 's/^./\U&/').mui)
 CF_OFF = $(foreach c,$(CLASSFILES),-DZUNE_BUILTIN_$(shell echo $(c) | tr a-z A-Z)=0)
 SOURCES := $(filter-out $(CF_SOURCES),$(SOURCES))
 CPPFLAGS += $(CF_OFF)
@@ -436,7 +436,7 @@ $(BUILD)/cf/libclassstubs.a: $(BUILD)/cf/classtable.c
 	$(CROSS)ar rcs $@ $(BUILD)/cf/stubs/*.o
 
 define classfile_rule
-$(BUILD)/Zune/$(shell echo $(1) | sed 's/^./\U&/').mui: $(BUILD)/start.o \
+$(BUILD)/OpenMUI/$(shell echo $(1) | sed 's/^./\U&/').mui: $(BUILD)/start.o \
   $(BUILD)/cf/classfile-$(1).o $(BUILD)/cf/$(1).o $(BUILD)/cf/cfbases.o \
   $(BUILD)/cf/libclassstubs.a
 	@mkdir -p $$(@D)

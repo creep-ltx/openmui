@@ -368,7 +368,7 @@ static BOOL known_mcp(struct MUI_CustomClass *candidate)
  * Zune's). Its classes are written for that MUI's private interface (MUI
  * 5's Listtree.mcp, LayGroup.mcp, ... jump past the end of Zune's jump
  * table; opening them all here reset the machine), and with "Use real
- * MUI" (SYS:Zune68k) the real MUI gets them back: Zune prefs leaves them
+ * MUI" (SYS:OpenMUI) the real MUI gets them back: OpenMUI prefs leaves them
  * alone. Returns a lock on MUI:Libs, or 0. */
 static BPTR real_mui_libs(void)
 {
@@ -405,8 +405,8 @@ void find_mcps(void)
 {
     static CONST_STRPTR const searchpaths[] =
     {
-        "Zune/#?.(mcp|mcc)",
-        "Classes/Zune/#?.(mcp|mcc)",
+        "OpenMUI/#?.(mcp|mcc)",
+        "Classes/OpenMUI/#?.(mcp|mcc)",
         /* MUI's drawer: settings classes only. Opening every .mcc there
          * to ask it for a settings class loaded ~35 class files (most of
          * the start-up time from disk, all kept until a flush), and
@@ -812,7 +812,7 @@ void restore_prefs(CONST_STRPTR name)
     if (!LiveTestActive)
         return;
 
-    snprintf(buf, 255, "ENV:zune/%s.prefs", name);
+    snprintf(buf, 255, "ENV:OpenMUI/%s.prefs", name);
     DoMethod(LastSavedConfigdata, MUIM_Configdata_Save, (IPTR)buf);
     LiveTestActive = FALSE;
 
@@ -896,7 +896,7 @@ static void open_file(CONST_STRPTR filename)
 
 void main_open_menu(void)
 {
-    static char dirpart[500]="ENVARC:Zune",filepart[500],filename[1000];
+    static char dirpart[500]="ENVARC:OpenMUI",filepart[500],filename[1000];
 
     if (aslfilerequest ("Load an OpenMUI Prefs File", (char *)&dirpart, (char *)&filepart, (char *)&filename, prefstags))
         open_file(filename);
@@ -904,12 +904,12 @@ void main_open_menu(void)
 
 /****************************************************************
  Import MUI 3.8's settings (ENVARC:MUI, only read): every program's own
- file that Zune has none of into ENVARC:zune and ENV:zune, the global
+ file that OpenMUI has none of into ENVARC:OpenMUI and ENV:OpenMUI, the global
  settings into this editor as Open does (Save or Use keeps them)
 *****************************************************************/
 void main_import_menu(void)
 {
-    static const char tmp[] = "ENV:zune/MUI38-import.prefs";
+    static const char tmp[] = "ENV:OpenMUI/MUI38-import.prefs";
     char from[300];
     LONG programs = mui38_import_programs();
     BOOL global = mui38_global_file(from, sizeof(from))
@@ -934,7 +934,7 @@ void main_import_menu(void)
 /* Set by the System page: which MUI programs get (see systemp.c) */
 char zune_behave_as[ZUNE_BEHAVE_AS_SIZE];
 
-/* Have the library read ENV:Zune/BehaveAs again, when it is OpenMUI: its
+/* Have the library read ENV:OpenMUI/BehaveAs again, when it is OpenMUI: its
  * reserved vector with 'ZnID' in D0 (muimaster_lib.c LibReserved). The
  * base this program opened serves: a base handed out for a "Behave as"
  * identity is a copy of the jump table, and its call reaches the one
@@ -983,15 +983,15 @@ void save_prefs(CONST_STRPTR name, BOOL envarc)
 
         if (envarc)
         {
-            snprintf(buf, 255, "ENVARC:zune/%s.prefs", name);
+            snprintf(buf, 255, "ENVARC:OpenMUI/%s.prefs", name);
             DoMethod(configdata, MUIM_Configdata_Save, (IPTR)buf);
         }
-        snprintf(buf, 255, "ENV:zune/%s.prefs", name);
+        snprintf(buf, 255, "ENV:OpenMUI/%s.prefs", name);
         DoMethod(configdata, MUIM_Configdata_Save, (IPTR)buf);
         /* The MUI programs get is global, not per program's settings */
         if (!strcmp(name, "global") && zune_behave_as[0])
         {
-            SetVar("Zune/BehaveAs", zune_behave_as, -1,
+            SetVar("OpenMUI/BehaveAs", zune_behave_as, -1,
                 GVF_GLOBAL_ONLY | (envarc ? GVF_SAVE_VAR : 0));
             reload_behave_as();
         }
@@ -1008,7 +1008,7 @@ void save_prefs(CONST_STRPTR name, BOOL envarc)
 
 void main_saveas_menu(void)
 {
-    static char dirpart[500]="ENVARC:Zune",filepart[500],filename[1000];
+    static char dirpart[500]="ENVARC:OpenMUI",filepart[500],filename[1000];
 
     if (aslfilerequest("Save an OpenMUI Prefs File", (char *)&dirpart, (char *)&filepart, (char *)&filename, prefstags))
     {
@@ -1112,12 +1112,14 @@ int main(void)
             if (init_gui())
             {
                 TS("gui made");
+                /* An earlier edition's settings, the first time */
+                openmui_import_old();
                 load_prefs((STRPTR)args[ARG_APPNAME]);
                 TS("prefs loaded");
                 set(main_wnd, MUIA_Window_Open, TRUE);
                 window_extra();
                 TS("window open");
-                /* First run: no Zune settings yet, MUI 3.8's there */
+                /* First run: no OpenMUI settings yet, MUI 3.8's there */
                 if (XGET(main_wnd, MUIA_Window_Open)
                     && !strcmp(appname, "global") && mui38_first_run()
                     && MUI_Request(app, main_wnd, 0, "OpenMUI",

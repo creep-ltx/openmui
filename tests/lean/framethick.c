@@ -4,7 +4,7 @@
  * t s 2 2 1 1) and the MUI 3.8 width test buttons; print each frame's offsets and its pixel map
  * (6 left and 6 right columns, as maps.md: W shine, w halfshine, B background, d halfshadow,
  * K shadow) and the buttons' min/default widths. The thickness setting goes into the
- * application's own prefs file ENV:zune/FThick.1.prefs (auto: the file is deleted; a fifth
+ * application's own prefs file ENV:OpenMUI/FThick.1.prefs (auto: the file is deleted; a fifth
  * argument keeps it). Build like the other lean tests (GCC 16.2: -Wno-int-conversion, -lmui). */
 #include <libraries/mui.h>
 #include <graphics/modeid.h>
@@ -63,11 +63,11 @@ int main(int argc, char **argv)
         Object *c = MUI_NewObject(MUIC_Configdata, TAG_DONE);
         if (c) {
             DoMethod(c, MUIM_Configdata_SetULong, MUICFG_Frame_Thickness, strcmp(th, "thick") ? 2 : 1);
-            DoMethod(c, MUIM_Configdata_Save, (IPTR)"ENV:zune/FThick.1.prefs");
+            DoMethod(c, MUIM_Configdata_Save, (IPTR)"ENV:OpenMUI/FThick.1.prefs");
             MUI_DisposeObject(c);
         }
     } else
-        DeleteFile("ENV:zune/FThick.1.prefs");
+        DeleteFile("ENV:OpenMUI/FThick.1.prefs");
     scr = OpenScreenTags(NULL, SA_Width, w, SA_Height, h, SA_DisplayID, mode, SA_Depth, 4,
         SA_Pens, (IPTR)pens, SA_SharePens, TRUE, SA_Colors32, (IPTR)cols, SA_Title, (IPTR)"FThick",
         SA_Type, CUSTOMSCREEN, TAG_DONE);
@@ -119,7 +119,7 @@ out:
     fflush(stdout);
     MUI_DisposeObject(app);
     CloseScreen(scr);
-    if (argc < 6) DeleteFile("ENV:zune/FThick.1.prefs");
+    if (argc < 6) DeleteFile("ENV:OpenMUI/FThick.1.prefs");
     CloseLibrary(MUIMasterBase);
     return 0;
 }

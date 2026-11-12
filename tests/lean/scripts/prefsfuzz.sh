@@ -3,7 +3,7 @@
 # Boots an a1200-31 instance NAME on PORT with the library LIB installed and, for each seed
 # N0..N1, writes tools/lean/prefsmutate.py's mutated settings file (a Zune global.prefs with
 # every setting the library reads: fonts, pen/image/frame specs, key strings, ULONGs; one or
-# more of them damaged) to ENV:Zune/global.prefs and ENV:Zune/<BASE>.prefs, starts PROG
+# more of them damaged) to ENV:OpenMUI/global.prefs and ENV:OpenMUI/<BASE>.prefs, starts PROG
 # (default MUI-Demo from $ZWORK/demos) with it, closes its windows and checks that the program
 # ended, that the machine neither reset nor froze, and how much memory stayed in use. Seed 0 is
 # the undamaged file. One TSV line per seed into OUT (default $ZWORK/prefsfuzz/NAME.tsv): seed,
@@ -36,7 +36,7 @@ boot() {
   for i in $(seq 1 30); do wasabi windows 2>/dev/null | grep -q '^ *window "Workbench"' && break; sleep 1; done
   sleep 2
 }
-putfiles() { wasabi put "$PROG" RAM:Prog >/dev/null; wasabi run "protect RAM:Prog +e" >/dev/null; wasabi run "makedir ENV:Zune" >/dev/null 2>&1; }
+putfiles() { wasabi put "$PROG" RAM:Prog >/dev/null; wasabi run "protect RAM:Prog +e" >/dev/null; wasabi run "makedir ENV:OpenMUI" >/dev/null 2>&1; }
 avail() { [ -n "${FLUSH:-}" ] && { wasabi run "avail flush" >/dev/null; sleep 1; wasabi run "avail flush" >/dev/null; }; sleep 1; wasabi run avail 2>/dev/null | awk '/^total/{print $3}'; }   # FLUSH=1: libraries a quit program left loaded do not count
 wins() { wasabi windows 2>/dev/null | grep '^ *window' | grep -v '"Workbench"'; }
 running() { wasabi ps 2>/dev/null | grep -q 'RAM:Prog'; }
@@ -60,8 +60,8 @@ log "seeds $N0..$N1 with $(basename "$PROG") -> $OUT"
 for N in $(seq "$N0" "$N1"); do
   F=$ZWORK/prefsfuzz/files/$NAME-$N.prefs
   desc=$(python3 -I "$TOP/tools/lean/prefsmutate.py" "$N" "$F" | sed 's/^[^:]*: //')
-  wasabi put "$F" ENV:Zune/global.prefs --force >/dev/null 2>&1
-  wasabi put "$F" "ENV:Zune/$BASE.prefs" --force >/dev/null 2>&1
+  wasabi put "$F" ENV:OpenMUI/global.prefs --force >/dev/null 2>&1
+  wasabi put "$F" "ENV:OpenMUI/$BASE.prefs" --force >/dev/null 2>&1
   status=ok; wl=
   A0=$(avail)
   wasabi run "stack 40000
@@ -88,5 +88,5 @@ run >NIL: RAM:Prog" >/dev/null 2>&1
   else A1=$(avail); fi
   printf '%s\t%s\t%s\t%s\t%s\n' "$N" "$status" "$wl" "$(( ${A0:-0} - ${A1:-0} ))" "$desc" | tee -a "$OUT"
 done
-wasabi run "delete ENV:Zune/global.prefs ENV:Zune/$BASE.prefs QUIET" >/dev/null 2>&1
+wasabi run "delete ENV:OpenMUI/global.prefs ENV:OpenMUI/$BASE.prefs QUIET" >/dev/null 2>&1
 [ -n "${KEEP:-}" ] || amiga-test $MACH stop --as $NAME >/dev/null 2>&1

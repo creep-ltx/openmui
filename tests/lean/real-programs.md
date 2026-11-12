@@ -74,7 +74,7 @@ as before). A whole run of the 36 MUI 3.x entries takes about 40 minutes per tar
 
 | target | machine | MUI | classes go to |
 |---|---|---|---|
-| zune | a1200-31 (OS 3.1, 68EC020 + 68882, 2 MB chip + 8 MB fast) | the library under test, its class files in `LIBS:Zune` | `LIBS:MUI` (Zune's own builds from `make plugins` in place of MUI 3.8's Busy and Listtree, and of the classes MUI 4/5 bring (Aboutbox, Calltips, Clock...), as Zune's installer puts them) |
+| zune | a1200-31 (OS 3.1, 68EC020 + 68882, 2 MB chip + 8 MB fast) | the library under test, its class files in `LIBS:OpenMUI` (`LIBS:Zune` for a build of before 2026-11-12) | `LIBS:MUI` (Zune's own builds from `make plugins` in place of MUI 3.8's Busy and Listtree, and of the classes MUI 4/5 bring (Aboutbox, Calltips, Clock...), as Zune's installer puts them) |
 | mui38 | a1200-31-mui38 (same + MUI 3.8) | MUI 3.8 | `MUI:Libs/mui` (`LIBS:mui` does not exist there; MUI 3.8's own Busy, Listtree, Crawling kept) |
 | mui5 | a1200-32-mui5 (OS 3.2.1 + MUI 5, 8 MB fast) | MUI 5.0-20210831 | `MUI:Libs/mui` (MUI 5's own classes kept) |
 

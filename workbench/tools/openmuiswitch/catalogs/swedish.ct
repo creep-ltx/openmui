@@ -36,8 +36,8 @@ OpenMUI valt. Starta om: program som startas efter\nomstarten får OpenMUI.\n
 ; OpenMUI chosen. Reboot: programs started after\nthe reboot get OpenMUI.\n
 ;
 MSG_ASK_REMOVE
-Ta bort OpenMUI?\n\nOpenMUIs filer raderas och dina egna filer som den\nhade ersatt läggs tillbaka. Din egen MUI lämnas som\nden är. Behålla dina OpenMUI-inställningar (ENVARC:Zune)?
-; Remove OpenMUI?\n\nOpenMUI's files are deleted and the files of yours\nit had replaced are put back. A MUI of yours stays\nas it is. Keep your OpenMUI settings (ENVARC:Zune)?
+Ta bort OpenMUI?\n\nOpenMUIs filer raderas och dina egna filer som den\nhade ersatt läggs tillbaka. Din egen MUI lämnas som\nden är. Behålla dina OpenMUI-inställningar (ENVARC:OpenMUI)?
+; Remove OpenMUI?\n\nOpenMUI's files are deleted and the files of yours\nit had replaced are put back. A MUI of yours stays\nas it is. Keep your OpenMUI settings (ENVARC:OpenMUI)?
 ;
 MSG_GADGETS_REMOVE
 Ta bort, behåll inställningar|Ta bort allt|Avbryt
@@ -80,8 +80,8 @@ Den tomma lådan tas bort strax (när inget fönster visar den).\n
 ; The empty drawer goes in a moment (once no window shows it).\n
 ;
 MSG_SETTINGS_KEPT
-Dina OpenMUI-inställningar i ENVARC:Zune är kvar.\n
-; Your OpenMUI settings in ENVARC:Zune are kept.\n
+Dina OpenMUI-inställningar i ENVARC:OpenMUI är kvar.\n
+; Your OpenMUI settings in ENVARC:OpenMUI are kept.\n
 ;
 MSG_NO_ACTION
 Ingen ACTION-tooltype i den här ikonen.\n
@@ -92,8 +92,8 @@ Ingen installationsförteckning för OpenMUI i %s/Data.\n
 ; No OpenMUI installation record in %s/Data.\n
 ;
 MSG_UNKNOWN_ACTION
-Okänd åtgärd %s (MUI, ZUNE, UNINSTALL, STATUS).\n
-; Unknown action %s (MUI, ZUNE, UNINSTALL, STATUS).\n
+Okänd åtgärd %s (MUI, OPENMUI, UNINSTALL, STATUS).\n
+; Unknown action %s (MUI, OPENMUI, UNINSTALL, STATUS).\n
 ;
 MSG_OK
 OK
@@ -146,4 +146,12 @@ används
 MSG_STATUS_NO_RECORD
 Ingen installationsförteckning för OpenMUI hittades.\n
 ; No OpenMUI installation record was found.\n
+;
+MSG_OLD_KEPT
+Kvar: %s. OpenMUIs låda har redan en fil med det namnet.\n
+; Kept %s: OpenMUI's drawer has a file of that name.\n
+;
+MSG_OLD_MOVED
+Flyttat till OpenMUIs lådor: %s\n
+; Moved to OpenMUI's drawers: %s\n
 ;

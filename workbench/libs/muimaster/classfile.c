@@ -1,4 +1,4 @@
-/* One class file, e.g. LIBS:Zune/Floattext.mui (see classfile.h).
+/* One class file, e.g. LIBS:OpenMUI/Floattext.mui (see classfile.h).
  * Built once per class source with
  *   -DZCF_NAME=\"Floattext.mui\" -DZCF_DESCS=_MUI_Floattext_desc
  *   -DZCF_DESC_PTRS=&_MUI_Floattext_desc
@@ -131,7 +131,7 @@ static const struct __MUIBuiltinClass *cf_query(
 static struct Library *cf_init(struct ClassFileBase *b __asm("d0"),
     BPTR seglist __asm("a0"), struct ExecBase *sys __asm("a6"))
 {
-    /* Opened as a shared library (OpenLibrary of LIBS:Zune/X.mui: the
+    /* Opened as a shared library (OpenLibrary of LIBS:OpenMUI/X.mui: the
      * external-class path tries it when the private load failed for
      * lack of memory), the bases were never copied in: cf_expunge's
      * Remove() and FreeMem() at the next flush went through a NULL

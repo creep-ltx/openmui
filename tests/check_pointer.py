@@ -4,7 +4,7 @@
 The native probe separately checks real input.device hover dispatch and
 SetWindowPointerA calls against MUI 5. Images here are Zune's own artwork.
 The drawn shapes are in the module Zmui45 (pointer45.c, modules.h): the
-module file next to the library (Zune/Zmui45.mui) is loaded and relocated
+module file next to the library (OpenMUI/Zmui45.mui) is loaded and relocated
 beside it, and the library's module lookup hands out a table with its
 function; a library built with the modules inside (CLASSFILES=) has it
 among its own symbols. Without the module a shape is the normal pointer.
@@ -44,7 +44,7 @@ class PointerHarness(Harness):
     def load_module(self, path):
         if '_zmod_pointer_image' in self.symbols:
             return self.symbols['_zmod_pointer_image']
-        image = BinFmt().load_image(str(Path(path).parent / 'Zune' / 'Zmui45.mui'))
+        image = BinFmt().load_image(str(Path(path).parent / 'OpenMUI' / 'Zmui45.mui'))
         reloc = Relocate(image)
         data = bytes(reloc.relocate_one_block(MODBASE))
         assert MODBASE + len(data) < 2048 * 1024, 'module exceeds memory'

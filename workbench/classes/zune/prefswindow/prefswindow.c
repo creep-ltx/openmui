@@ -58,7 +58,7 @@ Object *PrefsWindow__OM_NEW
     Object         *testButton, *revertButton,
                    *saveButton, *useButton, *cancelButton;
        
-    catalog = OpenCatalog(NULL, "System/Classes/Zune/PrefsWindow.catalog",
+    catalog = OpenCatalog(NULL, "System/Classes/OpenMUI/PrefsWindow.catalog",
                           OC_Version, CATALOG_VERSION,
                           TAG_DONE);
     

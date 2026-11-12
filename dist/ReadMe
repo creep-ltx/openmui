@@ -38,8 +38,8 @@ added to S:Startup-Sequence or S:User-Startup.
   Libs/muimaster.library -> first LIBS: drawer (an earlier test build's
                         zunemaster.library there is taken away: OpenMUI
                         is one library now)
-  Libs/Zune/*        -> LIBS:Zune/ (OpenMUI's own class files and modules,
-                        loaded when a program first needs them)
+  Libs/OpenMUI/*     -> LIBS:OpenMUI/ (OpenMUI's own class files and
+                        modules, loaded when a program first needs them)
   Libs/MUI/*         -> LIBS:MUI/ of the first LIBS: drawer, never into
                         MUI's own MUI:Libs/mui
   Prefs/OpenMUI      -> SYS:Prefs/OpenMUI
@@ -60,6 +60,13 @@ Running Install again offers "Install this version over it" (an update:
 the earlier installation is removed first, your files put back, then this
 one installed; your settings are kept) and "Remove OpenMUI".
 
+Earlier test builds kept their class files in LIBS:Zune and their settings
+in ENVARC:Zune and ENV:Zune. Installing over such a build moves the
+settings to ENVARC:OpenMUI and ENV:OpenMUI (a file already there is not
+replaced; the old one then stays where it is) and takes its files out of
+LIBS:Zune; anything else in LIBS:Zune is yours: it is kept in the backup
+and comes back with Uninstall or "Use real MUI".
+
 Novice installs everything without questions; Intermediate and Expert
 ask whether to install the translations. Pretend mode changes nothing.
 
@@ -75,7 +82,7 @@ found):
   Uninstall     deletes every file OpenMUI installed, puts back every file
                 of yours it had replaced, and removes the drawers it made
                 when they are empty. Asks whether to keep your OpenMUI
-                settings (ENVARC:Zune). Your MUI keeps working.
+                settings (ENVARC:OpenMUI). Your MUI keeps working.
 
 From a Shell: SYS:OpenMUI/Data/OpenMUISwitch MUI, OPENMUI, UNINSTALL [SETTINGS]
 or STATUS (what is installed where).
@@ -83,9 +90,11 @@ or STATUS (what is installed where).
 Settings
 --------
 SYS:Prefs/OpenMUI, the OpenMUI preferences program. MUI's own settings
-(ENVARC:MUI) are not read or changed by OpenMUI. Its own settings are still
-in ENV:Zune and ENVARC:Zune, and its classes in LIBS:Zune; those paths keep
-their old names for now (programs and earlier installations depend on them).
+(ENVARC:MUI) are not changed by OpenMUI. Its own settings are in
+ENVARC:OpenMUI (saved) and ENV:OpenMUI (in use), its classes in
+LIBS:OpenMUI. Settings of an earlier test build that are still in
+ENVARC:Zune are used until OpenMUI has its own: OpenMUI prefs copies them
+over the first time it runs (the old files stay as they are).
 
 Each program gets the MUI it asks for: a program written for MUI 3 sees
 MUI 3.8 (muimaster.library 19.35), one asking for MUI 4 sees MUI 4, one

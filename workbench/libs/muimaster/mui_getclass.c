@@ -30,8 +30,8 @@
 /*  FUNCTION
         Look up a built-in MUI class or load an external class module.
         Built-in class names are compared case-sensitively. If no built-in
-        class is found, the loader tries Zune/<classid>,
-        Classes/Zune/<classid>, and MUI/<classid>, in that order, using
+        class is found, the loader tries OpenMUI/<classid>,
+        Classes/OpenMUI/<classid>, and MUI/<classid>, in that order, using
         exec.library/OpenLibrary().
 
     INPUTS
