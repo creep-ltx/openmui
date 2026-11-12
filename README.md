@@ -1,7 +1,8 @@
 # OpenMUI
 
-A MUI-compatible `muimaster.library` for classic AmigaOS 3.x. It runs programs
-written for MUI 3, 4 and 5 on a stock 68000 with OS 3.1, and aims at the look
+A MUI-compatible GUI system for classic AmigaOS 3.x, an alternative to MUI:
+`muimaster.library`, its classes, the add-on classes programs use and its own
+preferences program. It runs programs written for MUI 3, 4 and 5 on a stock 68000 with OS 3.1, and aims at the look
 and the memory use of MUI 3.8.
 
 **Version 0.1b1, a test build.** Betas are `X.YbN` until OpenMUI has been in

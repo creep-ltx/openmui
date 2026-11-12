@@ -2,9 +2,9 @@
 
 > **Renamed 2026-11-11: this edition is now OpenMUI** (first beta
 > 0.1b1), earlier test builds were "Zune68k lean". OpenMUI is not MUI and
-> is not affiliated with MUI's authors; MUI is the product of Stefan
-> Stuntz. The notes below keep the names of their time ("Zune", "Zune68k",
-> "lean") where they describe what was done then. The rename changed
+> is not affiliated with MUI's authors; MUI was created by Stefan
+> Stuntz; MUI 4 and 5 come from the MUI team. The notes below keep the
+> names of their time ("Zune", "Zune68k", "lean") where they describe what was done then. The rename changed
 > texts only: the library file `muimaster.library`, the version numbers,
 > `LIBS:Zune`, `ENV:Zune` and `ENVARC:Zune` are as they were; the prefs program is `SYS:Prefs/OpenMUI`,
 > the installer drawer `SYS:OpenMUI` (was `SYS:Zune68k`), the switch tool

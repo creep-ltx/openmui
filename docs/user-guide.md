@@ -1,7 +1,9 @@
 # OpenMUI user guide
 
-OpenMUI is a `muimaster.library` for AmigaOS 3.x. Programs written for MUI
-(the Magic User Interface) open their windows through it. It runs programs
+OpenMUI is a MUI-compatible GUI system for AmigaOS 3.x, an alternative to MUI
+(the Magic User Interface): `muimaster.library`, its classes, the add-on
+classes programs use and its own preferences program. Programs written for
+MUI open their windows through it. It runs programs
 written for MUI 3, 4 and 5, and aims at the look and the memory use of MUI 3.8.
 
 > OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was created by Stefan Stuntz;
