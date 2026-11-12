@@ -1,0 +1,111 @@
+; OpenMUISwitch.c
+; Format specifiers (%s) and \n must stay as they are, in the same order.
+;
+MSG_REAL_ALREADY (//)
+Real MUI is already chosen. Reboot if programs still get OpenMUI.\n
+;
+MSG_NO_REAL_MUI (//)
+No real MUI was found in LIBS:, so OpenMUI stays in use.\nNothing was changed.\n
+;
+MSG_ASK_USE_MUI (//)
+Use the real MUI instead of OpenMUI?\n\nOpenMUI's libraries and classes are put aside in\nthe OpenMUI drawer, and your own files they had\nreplaced are put back. \"Use OpenMUI\" undoes it.
+;
+MSG_GADGETS_USE_MUI (//)
+Use real MUI|Cancel
+;
+MSG_USING_MUI (//)
+Real MUI chosen. Reboot: programs started after\nthe reboot get the real MUI. \"Use OpenMUI\" switches back.\n
+;
+MSG_NOTHING_CHANGED (//)
+Nothing was changed.\n
+;
+MSG_OPENMUI_ALREADY (//)
+OpenMUI is already in use.\n
+;
+MSG_USING_OPENMUI (//)
+OpenMUI chosen. Reboot: programs started after\nthe reboot get OpenMUI.\n
+;
+MSG_ASK_REMOVE (//)
+Remove OpenMUI?\n\nOpenMUI's files are deleted and the files of yours\nit had replaced are put back. A MUI of yours stays\nas it is. Keep your OpenMUI settings (ENVARC:Zune)?
+;
+MSG_GADGETS_REMOVE (//)
+Remove, keep settings|Remove all|Cancel
+;
+MSG_NOT_MOVED (//)
+Not moved: %s is in the way.\n
+;
+MSG_COULD_NOT_MOVE (//)
+Could not move %s\n
+;
+MSG_COULD_NOT_DELETE (//)
+Could not delete %s\n
+;
+MSG_COULD_NOT_PUT_BACK (//)
+Could not put back %s\n
+;
+MSG_KEPT_DRAWER (//)
+Kept %s: other files are in it.\n
+;
+MSG_DRAWER_DELETABLE (//)
+The drawer %s can be deleted now.\n
+;
+MSG_RECORD_KEPT (//)
+Some files could not be changed (see above); the record\nin the OpenMUI drawer is kept.\n
+;
+MSG_REMOVED (//)
+OpenMUI is removed. Reboot to make sure no program\nstill uses it.\n
+;
+MSG_DRAWER_SOON (//)
+The empty drawer goes in a moment (once no window shows it).\n
+;
+MSG_SETTINGS_KEPT (//)
+Your OpenMUI settings in ENVARC:Zune are kept.\n
+;
+MSG_NO_ACTION (//)
+No ACTION tool type in this icon.\n
+;
+MSG_NO_RECORD (//)
+No OpenMUI installation record in %s/Data.\n
+;
+MSG_UNKNOWN_ACTION (//)
+Unknown action %s (MUI, ZUNE, UNINSTALL, STATUS).\n
+;
+MSG_OK (//)
+OK
+;
+MSG_STATUS_LIBS (//)
+LIBS: is\n
+;
+MSG_STATUS_LIBRARY (//)
+    muimaster.library: %s%s\n
+;
+MSG_STATUS_IS_OPENMUI (//)
+ (OpenMUI)
+;
+MSG_STATUS_NOT_OPENMUI (//)
+ (not OpenMUI)
+;
+MSG_STATUS_ZUNEMASTER (//)
+    zunemaster.library: %s (left from an earlier Zune or OpenMUI, not used)\n
+;
+MSG_STATUS_MUI_ASSIGNED (//)
+MUI: is assigned; MUI:Libs/muimaster.library: %s\n
+;
+MSG_STATUS_NONE (//)
+none
+;
+MSG_STATUS_MUI_NOT_ASSIGNED (//)
+MUI: is not assigned\n
+;
+MSG_STATUS_INSTALLED (//)
+OpenMUI is installed (record in %s/Data), %s.\n
+;
+MSG_STATUS_REAL_MUI_CHOSEN (//)
+real MUI chosen
+;
+MSG_STATUS_IN_USE (//)
+in use
+;
+MSG_STATUS_NO_RECORD (//)
+No OpenMUI installation record was found.\n
+;

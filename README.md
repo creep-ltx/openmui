@@ -103,7 +103,7 @@ AmIRC, AmFTP and IBrowse; 30 of 36 MUI 3 programs behave as with MUI 3.8 there.
   `tools/upstream/` (`import-aros.py`, `paths.txt`, `source.json`,
   `commit-map`). Use a complete AROS clone and a new output directory; never
   fetch the unfiltered AROS branch into `aros-upstream`.
-- The translations and TheBar are git submodules: run
+- TheBar is a git submodule (the translations are in the repository): run
   `git submodule update --init --recursive` after cloning.
 
 GitHub Actions builds and checks pushes; a date tag such as `v2026.11.11`

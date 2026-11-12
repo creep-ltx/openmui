@@ -49,11 +49,16 @@
 #include <proto/dos.h>
 #include <proto/intuition.h>
 #include <proto/icon.h>
+#include <proto/locale.h>
 #include <string.h>
 
 #ifndef IPTR
 #define IPTR ULONG
 #endif
+
+#define openmuiswitch_ARRAY
+#include "openmuiswitch_strings.h"
+#include "catalogs/catalog_version.h"
 
 /* ASCII case-insensitive compares (utility.library's are not needed) */
 static int lower(int c)
@@ -79,6 +84,36 @@ static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.1 (11.
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;
+struct LocaleBase *LocaleBase;
+static struct Catalog *catalog;
+static BOOL catalog_tried;
+
+/* A message: from the catalog when locale.library and one for the user's
+ * language are there, else the English built in */
+static const char *msg(ULONG id)
+{
+    if (!catalog_tried)
+    {
+        catalog_tried = TRUE;
+        if ((LocaleBase = (struct LocaleBase *)OpenLibrary((STRPTR)"locale.library", 38)))
+            catalog = OpenCatalog(NULL, (STRPTR)"System/Tools/OpenMUISwitch.catalog",
+                OC_Version, CATALOG_VERSION, TAG_DONE);
+    }
+    if (catalog)
+        return (const char *)GetCatalogStr(catalog, id,
+            openmuiswitch_Array[id].cca_Str);
+    return (const char *)openmuiswitch_Array[id].cca_Str;
+}
+
+static void close_catalog(void)
+{
+    if (catalog)
+        CloseCatalog(catalog);
+    if (LocaleBase)
+        CloseLibrary((struct Library *)LocaleBase);
+    catalog = NULL;
+    LocaleBase = NULL;
+}
 extern struct WBStartup *_WBenchMsg;
 
 #define MAXENT 600
@@ -104,26 +139,40 @@ static BOOL quiet, fromwb, home_later;
 static char report[2048];
 static int reportlen;
 
-static void say(const char *s)
+static void say_n(const char *s, int n)
 {
     if (!fromwb)
     {
         if (!quiet)
-            PutStr((STRPTR)s);
+            while (n-- > 0)
+                FPutC(Output(), (UBYTE)*s++);
         return;
     }
-    while (*s && reportlen < (int)sizeof(report) - 1)
+    while (n-- > 0 && reportlen < (int)sizeof(report) - 1)
         report[reportlen++] = *s++;
     report[reportlen] = 0;
 }
 
-static void say2(const char *a, const char *b, const char *c)
+static void say(ULONG id)
 {
-    say(a);
-    if (b)
-        say(b);
-    if (c)
-        say(c);
+    const char *s = msg(id);
+
+    say_n(s, strlen(s));
+}
+
+/* A message with one %s */
+static void say1(ULONG id, const char *arg)
+{
+    const char *s = msg(id), *at = strstr(s, "%s");
+
+    if (!at)
+    {
+        say_n(s, strlen(s));
+        return;
+    }
+    say_n(s, at - s);
+    say_n(arg, strlen(arg));
+    say_n(at + 2, strlen(at + 2));
 }
 
 static LONG ask(const char *text, const char *gadgets)
@@ -460,12 +509,12 @@ static BOOL op_move(const char *from, const char *to)
         return TRUE;    /* nothing there (removed by hand): nothing to move */
     if (exists(to, NULL))
     {
-        say2("Not moved: ", to, " is in the way.\n");
+        say1(MSG_NOT_MOVED, to);
         return FALSE;
     }
     if (!move(from, to))
     {
-        say2("Could not move ", from, "\n");
+        say1(MSG_COULD_NOT_MOVE, from);
         return FALSE;
     }
     if (nops < 2 * MAXENT)
@@ -530,20 +579,15 @@ static int do_park(void)
 
     if (parked())
     {
-        say("Real MUI is already chosen. Reboot if programs still get OpenMUI.\n");
+        say(MSG_REAL_ALREADY);
         return 0;
     }
     if (!real_mui_after_park())
     {
-        say("No real MUI was found in LIBS:, so OpenMUI stays in use.\n"
-            "Nothing was changed.\n");
+        say(MSG_NO_REAL_MUI);
         return 5;
     }
-    if (ask("Use the real MUI instead of OpenMUI?\n\n"
-            "OpenMUI's libraries and classes are put aside in\n"
-            "the OpenMUI drawer, and your own files they had\n"
-            "replaced are put back. \"Use OpenMUI\" undoes it.",
-            "Use real MUI|Cancel") != 1)
+    if (ask(msg(MSG_ASK_USE_MUI), msg(MSG_GADGETS_USE_MUI)) != 1)
         return 5;
     join(p, home, "Data/Parked");
     UnLock(CreateDir((STRPTR)p));
@@ -564,12 +608,11 @@ static int do_park(void)
         }
     }
     set_parked(TRUE);
-    say("Real MUI chosen. Reboot: programs started after\n"
-        "the reboot get the real MUI. \"Use OpenMUI\" switches back.\n");
+    say(MSG_USING_MUI);
     return 0;
 fail:
     undo_ops();
-    say("Nothing was changed.\n");
+    say(MSG_NOTHING_CHANGED);
     return 10;
 }
 
@@ -580,7 +623,7 @@ static int do_unpark(void)
 
     if (!parked())
     {
-        say("OpenMUI is already in use.\n");
+        say(MSG_OPENMUI_ALREADY);
         return 0;
     }
     for (i = nents - 1; i >= 0; i--)
@@ -600,12 +643,11 @@ static int do_unpark(void)
             goto fail;
     }
     set_parked(FALSE);
-    say("OpenMUI chosen. Reboot: programs started after\n"
-        "the reboot get OpenMUI.\n");
+    say(MSG_USING_OPENMUI);
     return 0;
 fail:
     undo_ops();
-    say("Nothing was changed.\n");
+    say(MSG_NOTHING_CHANGED);
     return 10;
 }
 
@@ -717,11 +759,7 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
 
     if (askfirst)
     {
-        LONG r = ask("Remove OpenMUI?\n\n"
-            "OpenMUI's files are deleted and the files of yours\n"
-            "it had replaced are put back. A MUI of yours stays\n"
-            "as it is. Keep your OpenMUI settings (ENVARC:Zune)?",
-            "Remove, keep settings|Remove all|Cancel");
+        LONG r = ask(msg(MSG_ASK_REMOVE), msg(MSG_GADGETS_REMOVE));
 
         if (r == 0)
             return 5;
@@ -746,7 +784,7 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
             removed++;
         else if (exists(e->path, NULL))
         {
-            say2("Could not delete ", e->path, "\n");
+            say1(MSG_COULD_NOT_DELETE, e->path);
             kept++;
             continue;
         }
@@ -757,7 +795,7 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
                 restored++;
             else if (exists(b, NULL))
             {
-                say2("Could not put back ", e->path, "\n");
+                say1(MSG_COULD_NOT_PUT_BACK, e->path);
                 kept++;
             }
         }
@@ -773,7 +811,7 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
         if (ents[i].kind == E_DIR && !DeleteFile((STRPTR)ents[i].path)
             && IoErr() == ERROR_DIRECTORY_NOT_EMPTY
             && Strnicmp(ents[i].path, home, strlen(home)))
-            say2("Kept ", ents[i].path, ": other files are in it.\n");
+            say1(MSG_KEPT_DRAWER, ents[i].path);
     if (settings)
     {
         delete_tree("ENVARC:Zune");
@@ -790,21 +828,19 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
             if (!quiet)
                 home_later = TRUE;
             else
-                say2("The drawer ", home, " can be deleted now.\n");
+                say1(MSG_DRAWER_DELETABLE, home);
         }
     }
     if (kept)
-        say("Some files could not be changed (see above); the record\n"
-            "in the OpenMUI drawer is kept.\n");
+        say(MSG_RECORD_KEPT);
     else
     {
-        say("OpenMUI is removed. Reboot to make sure no program\n"
-            "still uses it.\n");
+        say(MSG_REMOVED);
         if (home_later)
-            say("The empty drawer goes in a moment (once no window shows it).\n");
+            say(MSG_DRAWER_SOON);
     }
     if (!settings)
-        say("Your OpenMUI settings in ENVARC:Zune are kept.\n");
+        say(MSG_SETTINGS_KEPT);
     (void)removed;
     (void)restored;
     return kept ? 10 : 0;
@@ -817,7 +853,7 @@ static void status(void)
     int i, n = libs_dirs(dirs, 8);
     LONG type;
 
-    PutStr((STRPTR)"LIBS: is\n");
+    PutStr((STRPTR)msg(MSG_STATUS_LIBS));
     for (i = 0; i < n; i++)
     {
         int z;
@@ -828,31 +864,30 @@ static void status(void)
         if (z >= 0)
         {
             file_version(path, ver, sizeof(ver));
-            Printf((STRPTR)"    muimaster.library: %s%s\n", (IPTR)ver,
-                (IPTR)(z ? " (OpenMUI)" : " (not OpenMUI)"));
+            Printf((STRPTR)msg(MSG_STATUS_LIBRARY), (IPTR)ver,
+                (IPTR)msg(z ? MSG_STATUS_IS_OPENMUI : MSG_STATUS_NOT_OPENMUI));
         }
         join(path, dirs[i], "zunemaster.library");
         if (exists(path, NULL))
         {
             file_version(path, ver, sizeof(ver));
-            Printf((STRPTR)"    zunemaster.library: %s (left from an earlier "
-                "Zune or OpenMUI, not used)\n", (IPTR)ver);
+            Printf((STRPTR)msg(MSG_STATUS_ZUNEMASTER), (IPTR)ver);
         }
     }
     if (exists("MUI:", &type))
     {
         join(path, "MUI:Libs", "muimaster.library");
         file_version(path, ver, sizeof(ver));
-        Printf((STRPTR)"MUI: is assigned; MUI:Libs/muimaster.library: %s\n",
-            (IPTR)(ver[0] ? ver : "none"));
+        Printf((STRPTR)msg(MSG_STATUS_MUI_ASSIGNED),
+            (IPTR)(ver[0] ? ver : msg(MSG_STATUS_NONE)));
     }
     else
-        PutStr((STRPTR)"MUI: is not assigned\n");
+        PutStr((STRPTR)msg(MSG_STATUS_MUI_NOT_ASSIGNED));
     if (libsdir)
-        Printf((STRPTR)"OpenMUI is installed (record in %s/Data), %s.\n",
-            (IPTR)home, (IPTR)(parked() ? "real MUI chosen" : "in use"));
+        Printf((STRPTR)msg(MSG_STATUS_INSTALLED), (IPTR)home,
+            (IPTR)msg(parked() ? MSG_STATUS_REAL_MUI_CHOSEN : MSG_STATUS_IN_USE));
     else
-        PutStr((STRPTR)"No OpenMUI installation record was found.\n");
+        PutStr((STRPTR)msg(MSG_STATUS_NO_RECORD));
 }
 
 static LONG to_long(const char *s)
@@ -960,14 +995,14 @@ int main(void)
     if (!Stricmp((STRPTR)action, (STRPTR)"STATUS") || !action[0])
     {
         if (fromwb)
-            say("No ACTION tool type in this icon.\n");
+            say(MSG_NO_ACTION);
         else
             status();
         goto end;
     }
     if (!libsdir)
     {
-        say2("No OpenMUI installation record in ", home, "/Data.\n");
+        say1(MSG_NO_RECORD, home);
         rc = 10;
         goto end;
     }
@@ -980,14 +1015,15 @@ int main(void)
         rc = do_uninstall(args[3] != 0, fromwb);
     else
     {
-        say2("Unknown action ", action, " (MUI, ZUNE, UNINSTALL, STATUS).\n");
+        say1(MSG_UNKNOWN_ACTION, action);
         rc = 10;
     }
 end:
     if (fromwb && reportlen && IntuitionBase)
-        ask(report, "OK");
+        ask(report, msg(MSG_OK));
     if (home_later)
         delete_home_later();
+    close_catalog();
     if (rda)
         FreeArgs(rda);
     if (IntuitionBase)

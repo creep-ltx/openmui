@@ -50,8 +50,13 @@ class ReleaseTests(unittest.TestCase):
         for name in ('System/Libs/muimaster.catalog', 'System/Prefs/Zune.catalog',
                      'System/Classes/Zune/PrefsWindow.catalog',
                      'System/Classes/Zune/AboutWindow.catalog',
-                     'System/Classes/Zune/SystemPrefsWindow.catalog'):
+                     'System/Classes/Zune/SystemPrefsWindow.catalog',
+                     'System/Tools/OpenMUISwitch.catalog'):
             self.assertIn('Locale/Catalogs/swedish/' + name, names)
+        # the installer gets a line for it (into Catalogs/svenska/System/Tools)
+        script = release.install_script(['Locale/Catalogs/swedish/System/Tools/OpenMUISwitch.catalog'])
+        self.assertIn('Catalogs/svenska/System/Tools', script)
+        self.assertIn('OpenMUISwitch.catalog', script)
         self.assertEqual(components.LANGUAGES['swedish'], 'svenska')
 
     def test_missing_date(self):

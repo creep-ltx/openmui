@@ -1,0 +1,149 @@
+## version $VER: OpenMUISwitch.catalog 1.0 (12.11.2026)
+## language svenska
+## codeset 0
+;
+;
+MSG_REAL_ALREADY
+Riktiga MUI är redan valt. Starta om datorn om program fortfarande får OpenMUI.\n
+; Real MUI is already chosen. Reboot if programs still get OpenMUI.\n
+;
+MSG_NO_REAL_MUI
+Ingen riktig MUI hittades i LIBS:, så OpenMUI används kvar.\nInget har ändrats.\n
+; No real MUI was found in LIBS:, so OpenMUI stays in use.\nNothing was changed.\n
+;
+MSG_ASK_USE_MUI
+Använda den riktiga MUI i stället för OpenMUI?\n\nOpenMUIs bibliotek och klasser läggs undan i\nOpenMUI-lådan, och dina egna filer som de hade\nersatt läggs tillbaka. \"Använd OpenMUI\" ångrar det.
+; Use the real MUI instead of OpenMUI?\n\nOpenMUI's libraries and classes are put aside in\nthe OpenMUI drawer, and your own files they had\nreplaced are put back. \"Use OpenMUI\" undoes it.
+;
+MSG_GADGETS_USE_MUI
+Använd riktiga MUI|Avbryt
+; Use real MUI|Cancel
+;
+MSG_USING_MUI
+Riktiga MUI valt. Starta om: program som startas efter\nomstarten får den riktiga MUI. \"Använd OpenMUI\" växlar tillbaka.\n
+; Real MUI chosen. Reboot: programs started after\nthe reboot get the real MUI. \"Use OpenMUI\" switches back.\n
+;
+MSG_NOTHING_CHANGED
+Inget har ändrats.\n
+; Nothing was changed.\n
+;
+MSG_OPENMUI_ALREADY
+OpenMUI används redan.\n
+; OpenMUI is already in use.\n
+;
+MSG_USING_OPENMUI
+OpenMUI valt. Starta om: program som startas efter\nomstarten får OpenMUI.\n
+; OpenMUI chosen. Reboot: programs started after\nthe reboot get OpenMUI.\n
+;
+MSG_ASK_REMOVE
+Ta bort OpenMUI?\n\nOpenMUIs filer raderas och dina egna filer som den\nhade ersatt läggs tillbaka. Din egen MUI lämnas som\nden är. Behålla dina OpenMUI-inställningar (ENVARC:Zune)?
+; Remove OpenMUI?\n\nOpenMUI's files are deleted and the files of yours\nit had replaced are put back. A MUI of yours stays\nas it is. Keep your OpenMUI settings (ENVARC:Zune)?
+;
+MSG_GADGETS_REMOVE
+Ta bort, behåll inställningar|Ta bort allt|Avbryt
+; Remove, keep settings|Remove all|Cancel
+;
+MSG_NOT_MOVED
+Inte flyttad: %s ligger i vägen.\n
+; Not moved: %s is in the way.\n
+;
+MSG_COULD_NOT_MOVE
+Kunde inte flytta %s\n
+; Could not move %s\n
+;
+MSG_COULD_NOT_DELETE
+Kunde inte radera %s\n
+; Could not delete %s\n
+;
+MSG_COULD_NOT_PUT_BACK
+Kunde inte lägga tillbaka %s\n
+; Could not put back %s\n
+;
+MSG_KEPT_DRAWER
+Behöll %s: andra filer ligger i den.\n
+; Kept %s: other files are in it.\n
+;
+MSG_DRAWER_DELETABLE
+Lådan %s kan raderas nu.\n
+; The drawer %s can be deleted now.\n
+;
+MSG_RECORD_KEPT
+Några filer kunde inte ändras (se ovan); förteckningen\ni OpenMUI-lådan behålls.\n
+; Some files could not be changed (see above); the record\nin the OpenMUI drawer is kept.\n
+;
+MSG_REMOVED
+OpenMUI är borttagen. Starta om så att inget program\nfortfarande använder den.\n
+; OpenMUI is removed. Reboot to make sure no program\nstill uses it.\n
+;
+MSG_DRAWER_SOON
+Den tomma lådan tas bort strax (när inget fönster visar den).\n
+; The empty drawer goes in a moment (once no window shows it).\n
+;
+MSG_SETTINGS_KEPT
+Dina OpenMUI-inställningar i ENVARC:Zune är kvar.\n
+; Your OpenMUI settings in ENVARC:Zune are kept.\n
+;
+MSG_NO_ACTION
+Ingen ACTION-tooltype i den här ikonen.\n
+; No ACTION tool type in this icon.\n
+;
+MSG_NO_RECORD
+Ingen installationsförteckning för OpenMUI i %s/Data.\n
+; No OpenMUI installation record in %s/Data.\n
+;
+MSG_UNKNOWN_ACTION
+Okänd åtgärd %s (MUI, ZUNE, UNINSTALL, STATUS).\n
+; Unknown action %s (MUI, ZUNE, UNINSTALL, STATUS).\n
+;
+MSG_OK
+OK
+; OK
+;
+MSG_STATUS_LIBS
+LIBS: är\n
+; LIBS: is\n
+;
+MSG_STATUS_LIBRARY
+    muimaster.library: %s%s\n
+;     muimaster.library: %s%s\n
+;
+MSG_STATUS_IS_OPENMUI
+ (OpenMUI)
+;  (OpenMUI)
+;
+MSG_STATUS_NOT_OPENMUI
+ (inte OpenMUI)
+;  (not OpenMUI)
+;
+MSG_STATUS_ZUNEMASTER
+    zunemaster.library: %s (kvar från en tidigare Zune eller OpenMUI, används inte)\n
+;     zunemaster.library: %s (left from an earlier Zune or OpenMUI, not used)\n
+;
+MSG_STATUS_MUI_ASSIGNED
+MUI: är tilldelad; MUI:Libs/muimaster.library: %s\n
+; MUI: is assigned; MUI:Libs/muimaster.library: %s\n
+;
+MSG_STATUS_NONE
+ingen
+; none
+;
+MSG_STATUS_MUI_NOT_ASSIGNED
+MUI: är inte tilldelad\n
+; MUI: is not assigned\n
+;
+MSG_STATUS_INSTALLED
+OpenMUI är installerat (förteckning i %s/Data), %s.\n
+; OpenMUI is installed (record in %s/Data), %s.\n
+;
+MSG_STATUS_REAL_MUI_CHOSEN
+riktiga MUI valt
+; real MUI chosen
+;
+MSG_STATUS_IN_USE
+används
+; in use
+;
+MSG_STATUS_NO_RECORD
+Ingen installationsförteckning för OpenMUI hittades.\n
+; No OpenMUI installation record was found.\n
+;

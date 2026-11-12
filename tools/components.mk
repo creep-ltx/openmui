@@ -41,9 +41,14 @@ check-components: prefs plugins catalogs sdk examples
 	$(PYTHON) $(ROOT)/tests/check_pixmap_render.py $(COMPONENT_BUILD)/Libs/MUI/Pixmap.mui
 # The installer's switch and uninstall tool (dist/Install, SYS:OpenMUI)
 tools: $(BUILD)/Tools/OpenMUISwitch
-$(BUILD)/Tools/OpenMUISwitch: $(ROOT)/workbench/tools/openmuiswitch/OpenMUISwitch.c
+$(BUILD)/Tools/openmuiswitch_strings.h: $(ROOT)/workbench/tools/openmuiswitch/catalogs/openmuiswitch.cd
 	@mkdir -p $(@D)
-	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) -Wno-pointer-sign $(PROGRAM_DEPS) -o $@ $<
+	$(FLEXCAT) $< $@=$(ROOT)/tools/flexcat/CatComp_h.sd
+$(BUILD)/Tools/OpenMUISwitch: $(ROOT)/workbench/tools/openmuiswitch/OpenMUISwitch.c \
+  $(BUILD)/Tools/openmuiswitch_strings.h
+	@mkdir -p $(@D)
+	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) -Wno-pointer-sign $(PROGRAM_DEPS) \
+	  -I$(BUILD)/Tools -I$(ROOT)/workbench/tools/openmuiswitch -o $@ $<
 $(BUILD)/Tools/OpenMUISwitch: $(BUILD)/cflags
 -include $(BUILD)/Tools/OpenMUISwitch.d
 examples: $(EXAMPLES)

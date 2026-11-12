@@ -10,11 +10,28 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Added
 
+- OpenMUISwitch has a catalog (`OpenMUISwitch.catalog`, Swedish included):
+  its messages, requesters and gadget texts follow the user's language;
+  without locale.library or a catalog the English built in is used.
+  The program grew by 968 bytes (13112 to 14080, stripped).
+- The "MUI version" group of the prefs page (Behave as, the program list,
+  Add/Remove and the help texts) is translatable: 8 new ids in the prefs
+  catalog, Swedish added, other languages show English until translated.
 - Release check that the five catalogs of OpenMUI's own texts (library,
   prefs program, PrefsWindow, AboutWindow, SystemPrefsWindow) each have a
   Swedish (`svenska`) catalog in the package. The Swedish translations
   themselves were already built into the package (from the AROS translation
   team's catalogs); they are now audited: complete, ISO-8859-1.
+
+### Changed
+
+- The five catalogs of OpenMUI's own texts are now part of the repository
+  instead of git submodules of the AROS translation team (source URL and
+  commit in `UPSTREAM.txt` in each folder; AROS Public License). TheBar
+  stays a submodule.
+- Swedish: Color is Färg, Mark is Markering, Top/Bottom are
+  Överkant/Nederkant, and the tape image labels read naturally (Spela upp,
+  Spela bakåt, Paus, Stopp, Spela in, Upp, Ner).
 
 (No 0.1b1 archive or tag has been published at the time of writing;
 everything below is in the first beta.)

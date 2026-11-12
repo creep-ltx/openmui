@@ -125,7 +125,7 @@ Needed: `m68k-amigaos-gcc` (GCC 16 used), GNU make, `sfdc`, `fd2sfd`,
 FlexCat and `lha`; Python 3 for the checks.
 
 ```sh
-git submodule update --init --recursive   # translations and TheBar
+git submodule update --init --recursive   # TheBar (the translations are in the repository)
 make -j4 all
 make check      # needs the Python bundled with the Amiga toolchain (amitools)
 make release    # the archive and its Aminet readme, in build/muimaster/release

@@ -60,6 +60,10 @@ def catalog_jobs(build):
         for source in sorted(catalog_dir.glob('*.ct')):
             yield (build / 'Locale/Catalogs' / source.stem / destination,
                    [catalog_dir / (stem + '.cd'), source], [])
+    switch = ROOT / 'workbench/tools/openmuiswitch/catalogs'
+    for source in sorted(switch.glob('*.ct')):
+        yield (build / 'Locale/Catalogs' / source.stem / 'System/Tools/OpenMUISwitch.catalog',
+               [switch / 'openmuiswitch.cd', source], [])
     # FlexCat uses the Amiga language name from each PO file for catalog lookup.
     for component, name in PLUGINS.items():
         if name.endswith('.mcp'):
