@@ -2793,8 +2793,13 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
             {
                 start = end - diffy;
                 /* The former bottom row may have been clipped: its newly
-                 * visible lower pixels cannot be recovered by the blit. */
-                if ((entries_bottom - data->entries_top_pixel + 1) % data->entry_maxheight)
+                 * visible lower pixels cannot be recovered by the blit.
+                 * Only when it was: MUI 3.8's whole rows, centred, are
+                 * never cut off, and drawing it again cost a row of text
+                 * and the entry clip per step (opbench "list scroll
+                 * line", tests/native/syscount.h) */
+                if (data->entries_top_pixel + data->entries_visible
+                    * data->entry_maxheight - 1 > entries_bottom)
                     start--;
                 y = data->entries_top_pixel +
                     (start - data->entries_first) * data->entry_maxheight;

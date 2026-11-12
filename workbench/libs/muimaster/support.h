@@ -105,3 +105,19 @@ void ZuneDeleteSharedPort(struct MsgPort *port);
 Object *ZuneNextObject(APTR iterator);
 #undef NextObject
 #define NextObject ZuneNextObject
+
+#if !defined(ZUNE_CLASSFILE) && !defined(__AROS__)
+/* NextTagItem from the library's own code, not utility.library's vector
+ * (support.c: ZuneNextTagItem); the same registers as the vector. Class
+ * files keep utility's. */
+#include <proto/utility.h>
+#undef NextTagItem
+#define NextTagItem(___tagListPtr) ({\
+  register struct TagItem * __zv_ret __asm("d0");\
+  register struct TagItem ** __zv0 __asm("a0") = (struct TagItem **)(___tagListPtr);\
+  __asm volatile ("jsr _ZuneNextTagItem"\
+                   : "=d"(__zv_ret), "+a"(__zv0)\
+                   :\
+                   : "cc", "memory", "d1", "a1");\
+  __zv_ret;})
+#endif

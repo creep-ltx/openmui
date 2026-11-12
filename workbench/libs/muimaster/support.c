@@ -69,9 +69,17 @@ static struct
 
 ULONG ConvertKey(struct IntuiMessage *message)
 {
-    APTR address = message->IAddress ? *(APTR *)message->IAddress : NULL;
+    APTR address;
     ULONG result;
 
+    /* a key release maps to no character (keymap.library's MapRawKey
+     * gives 0 for every up code, OS 3.1 and 3.2.1); the release of a key
+     * cost two MapRawKey calls (opbench "count": the window converts the
+     * press code, the active object the release code, and they replaced
+     * each other in the cache) */
+    if (message->Code & IECODE_UP_PREFIX)
+        return 0;
+    address = message->IAddress ? *(APTR *)message->IAddress : NULL;
     Forbid();
     if (key_cache.micros == message->Micros
         && key_cache.secs == message->Seconds
@@ -396,6 +404,43 @@ Object *ZuneNextObject(APTR iterator)
     *cursor = (struct _Object *)header->o_Node.mln_Succ;
     return (Object *)BASEOBJECT(header);
 }
+
+/* utility.library's NextTagItem in the library's own code (support.h):
+ * every OM_SET and OM_NEW walks its tags once per class, dozens of calls
+ * per operation (a radio set 118, a list insert 142: opbench "count",
+ * tests/native/syscount.h); MUI 3.8 makes none. The same interface as the
+ * library vector: a0 = the list pointer's address, the tag in d0, d1/a1
+ * used. TAG_DONE, TAG_IGNORE, TAG_MORE and TAG_SKIP as utility's; at the
+ * end the list pointer is NULL. */
+asm(
+    "\t.text\n\t.even\n\t.globl _ZuneNextTagItem\n"
+    "_ZuneNextTagItem:\n"
+    "\tmove.l (%a0),%d0\n"
+    "1:\tbeq.s 9f\n"                    /* no list (left) */
+    "\tmove.l %d0,%a1\n"
+    "\tmove.l (%a1),%d1\n"              /* ti_Tag */
+    "\tcmp.l #3,%d1\n"
+    "\tbhi.s 8f\n"                      /* an attribute */
+    "\tsubq.l #1,%d1\n"
+    "\tbmi.s 9f\n"                      /* TAG_DONE */
+    "\tbeq.s 6f\n"                      /* TAG_IGNORE */
+    "\tsubq.l #1,%d1\n"
+    "\tbeq.s 5f\n"                      /* TAG_MORE */
+    "\tmove.l 4(%a1),%d1\n"             /* TAG_SKIP: ti_Data + 1 items on */
+    "\taddq.l #1,%d1\n"
+    "\tlsl.l #3,%d1\n"
+    "\tadd.l %d1,%d0\n"
+    "\tbra.s 1b\n"
+    "5:\tmove.l 4(%a1),%d0\n"           /* TAG_MORE: ti_Data, or the end */
+    "\tbra.s 1b\n"
+    "6:\taddq.l #8,%d0\n"
+    "\tbra.s 1b\n"
+    "8:\taddq.l #8,%a1\n"
+    "\tmove.l %a1,(%a0)\n"
+    "\trts\n"
+    "9:\tclr.l (%a0)\n"
+    "\tmoveq #0,%d0\n"
+    "\trts\n");
 
 
 /* A message port that signals with another port's signal bit. MUI 3.9
