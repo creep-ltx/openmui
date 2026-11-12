@@ -912,15 +912,14 @@ static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
         {
             zune_text_get_bounds(text, obj);
 
-            /* Row pitch includes the Listview font leading preference */
+            /* Row pitch includes the Listview font leading preference.
+             * Rows are drawn entry_maxheight apart: only a new maximum
+             * (below) moves the other rows, not this entry's own height
+             * growing from 0 as it is measured */
             if (text->height + data->prefs_linespacing
                 > data->entries[pos]->height)
-            {
                 data->entries[pos]->height =
                     text->height + data->prefs_linespacing;
-                /* entry height changed, redraw all entries later */
-                ret = 1;
-            }
             LONG width = text->width;
 
             /* a SORTABLE column's title has room for the sort mark
@@ -3631,7 +3630,8 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
 
     /* Recalculate the number of visible entries */
     if (_flags(obj) & MADF_SETUP)
-        CalcVertVisible(cl, obj);
+        if (CalcVertVisible(cl, obj))
+            adjusted = TRUE;
     if (adjusted)
         List_CheckHoriz(cl, obj);
 
@@ -3673,6 +3673,28 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
 
         if ((adjusted) && (data->flags & LIST_QUIET))
             data->update = UPDATEMODE_ALL;
+    }
+    else if (!adjusted && !(data->flags & LIST_QUIET) && !data->update
+        && (_flags(obj) & MADF_SETUP)
+        && data->insert_position >= data->entries_first)
+    {
+        /* No row height, column width or visible count changed and the
+         * rows above the insert stay: only the rows from the insert to
+         * the bottom of the view move. An insert below the view changes
+         * no row at all (its scroller is told by MUIA_List_Entries
+         * above), as on MUI 3.8 (opbench "list insert 1": 33.6 -> 6.9
+         * ms, MUI 3.8 10.3 ms). */
+        LONG i, last = data->entries_first + data->entries_visible;
+
+        if (last > data->entries_num)
+            last = data->entries_num;
+        if (data->insert_position < last)
+        {
+            for (i = data->insert_position; i < last; i++)
+                data->entries[i]->flags |= ENTRY_RENDER;
+            data->update = UPDATEMODE_NEEDED;
+            MUI_Redraw(obj, MADF_DRAWUPDATE);
+        }
     }
     else
     {
