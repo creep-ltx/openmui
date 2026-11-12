@@ -16,7 +16,11 @@
  * Build (GCC 16.2 or bebbo 6.5; I = OpenMUI's library build):
  *   m68k-amigaos-gcc -m68000 -noixemul -Os -DMUI_OBSOLETE -I$I/include \
  *     -Iworkbench/libs/muimaster/include tests/native/opbench.c -o opbench -lamiga
- * Run: opbench [REPS]   (on its own 640x480 depth-2 screen; default 9 reps)
+ * Run: opbench [vN] [count|time] [REPS]   (on its own 640x480 depth-2 screen;
+ *   default 9 reps; vN opens muimaster.library version N, default 19, v20 or
+ *   higher gives OpenMUI's MUI 4/5 identity; "count" adds a line per operation
+ *   with the OS calls it made, "time" also the time inside them, "who=NAME"
+ *   with count lists the callers of NAME's top-level calls: syscount.h)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,6 +117,23 @@ static ULONG now(void)
 
     eclock_freq = ReadEClock(&ev);
     return ev.ev_lo;
+}
+
+#include "syscount.h"
+
+/* The start and the end of a timed part (and of the counted calls) */
+static ULONG tstart(void)
+{
+    sc_start();
+    return now();
+}
+
+static ULONG tstop(ULONG t)
+{
+    ULONG d = now() - t;
+
+    sc_stop();
+    return d;
 }
 
 static int cmp(const void *a, const void *b)
@@ -441,6 +462,8 @@ static int cond_open(void)
  * after a pause, for tests/lean/pcsample.c to sample it */
 static const char *prof_name;
 static int prof_count;
+static int libversion = 19;   /* "vN": open muimaster.library version N */
+static int counting;          /* "count": OS calls per operation, "time": and their time */
 
 /* Wait (not running: the sampler skips a waiting task) until RAM:opbench.go
  * exists, so the samples hold the profiled operation only */
@@ -461,10 +484,11 @@ static void prof_wait(const char *name)
         if (prof_name && !strcmp(prof_name, name)) { \
             n_ = prof_count; prof_wait(name); } \
         timedout = 0; \
-        for (i_ = 0; i_ < n_; i_++) { ULONG t_ = now(); __VA_ARGS__; \
-            if (i_ < MAXREPS) samples[i_] = now() - t_; } \
+        for (i_ = 0; i_ < n_; i_++) { ULONG t_ = tstart(); __VA_ARGS__; \
+            t_ = tstop(t_); if (i_ < MAXREPS) samples[i_] = t_; } \
         if (n_ < reps) reps = n_; else if (n_ > MAXREPS) reps = MAXREPS; else reps = n_; \
         if (timedout) printf("%-18s timeout\n", name); else report(name, ops); \
+        sc_report(name, (ULONG)(ops) * n_); \
         reps = keep_; \
         if (prof_name && !strcmp(prof_name, name)) goto done; \
     } while (0)
@@ -485,14 +509,26 @@ int main(int argc, char **argv)
     static char buf[40];
 
     setvbuf(stdout, NULL, _IONBF, 0);
-    if (argc > 3 && !strcmp(argv[1], "prof"))
+    for (i = 1; i < argc; i++)
     {
-        prof_name = argv[2];
-        prof_count = atoi(argv[3]);
-        reps = 3;
+        if (!strcmp(argv[i], "prof") && i + 2 < argc)
+        {
+            prof_name = argv[i + 1];
+            prof_count = atoi(argv[i + 2]);
+            reps = 3;
+            i += 2;
+        }
+        else if (argv[i][0] == 'v' && argv[i][1] >= '0' && argv[i][1] <= '9')
+            libversion = atoi(argv[i] + 1);
+        else if (!strcmp(argv[i], "count"))
+            counting = 1;
+        else if (!strcmp(argv[i], "time"))
+            counting = 2;
+        else if (!strncmp(argv[i], "who=", 4))
+            sc_whoname = argv[i] + 4;
+        else
+            reps = atoi(argv[i]);
     }
-    else if (argc > 1)
-        reps = atoi(argv[1]);
     if (reps < 3) reps = 3;
     if (reps > MAXREPS) reps = MAXREPS;
     for (i = 0; i < NBIG; i++)
@@ -517,10 +553,12 @@ int main(int argc, char **argv)
         return 20;
     presshook.h_Entry = (HOOKFUNC)press_func;
 
-    if (!(MUIMasterBase = OpenLibrary("muimaster.library", 19)))
+    if (!(MUIMasterBase = OpenLibrary("muimaster.library", libversion)))
         goto nolib;
-    printf("library %d.%d eclock=%lu reps=%d\n", MUIMasterBase->lib_Version,
-        MUIMasterBase->lib_Revision, (unsigned long)(now(), eclock_freq), reps);
+    printf("library %d.%d eclock=%lu reps=%d opened-as=%d%s\n",
+        MUIMasterBase->lib_Version, MUIMasterBase->lib_Revision,
+        (unsigned long)(now(), eclock_freq), reps, libversion,
+        counting == 2 ? " count+time" : counting ? " count" : "");
     scr = OpenScreenTags(NULL, SA_Width, 640, SA_Height, 480, SA_Depth, 2,
         SA_DisplayID, HIRESLACE_KEY, SA_Title, "opbench", TAG_DONE);
     if (!scr) goto done;
@@ -528,6 +566,8 @@ int main(int argc, char **argv)
     /* Warm class caches and prefs before measuring */
     if ((app = build())) MUI_DisposeObject(app);
     if ((app = build_small())) MUI_DisposeObject(app);
+    if (counting && !sc_install(counting == 2))
+        goto done;
 
     TIMED("prefs+app (empty)", 1, {
         app = build_small(); if (!app) goto done; MUI_DisposeObject(app);
@@ -586,16 +626,16 @@ int main(int argc, char **argv)
     /* Lists: inserts with the list shown, scrolling, sorting */
     TIMED("list insert 1", 50, {
         DoMethod(list, MUIM_List_Clear);
-        t_ = now();
+        t_ = tstart();
         for (j = 0; j < 50; j++)
             DoMethod(list, MUIM_List_Insert, &big[j], 1, MUIV_List_Insert_Bottom); });
     TIMED("list insert 100", 1, {
         DoMethod(list, MUIM_List_Clear);
-        t_ = now();
+        t_ = tstart();
         DoMethod(list, MUIM_List_Insert, big, 100, MUIV_List_Insert_Bottom); });
     TIMED("list insert 1000", 1, {
         DoMethod(list, MUIM_List_Clear);
-        t_ = now();
+        t_ = tstart();
         DoMethod(list, MUIM_List_Insert, big, NBIG, MUIV_List_Insert_Bottom); });
     {
         ULONG count = 0;
@@ -608,7 +648,7 @@ int main(int argc, char **argv)
     set(list, MUIA_List_Active, MUIV_List_Active_Off);
     TIMED("list scroll line", 40, {
         DoMethod(list, MUIM_List_Jump, 0);
-        t_ = now();
+        t_ = tstart();
         for (j = 0; j < 40; j++) {
             ULONG first = 0, vis = 0;
             get(list, MUIA_List_First, &first);
@@ -616,7 +656,7 @@ int main(int argc, char **argv)
             DoMethod(list, MUIM_List_Jump, first + vis); } });
     TIMED("list scroll page", 20, {
         DoMethod(list, MUIM_List_Jump, 0);
-        t_ = now();
+        t_ = tstart();
         for (j = 0; j < 20; j++) {
             ULONG first = 0, vis = 0;
             get(list, MUIA_List_First, &first);
@@ -630,7 +670,7 @@ int main(int argc, char **argv)
     }
     TIMED("list sort 1000", 1, {
         list_fill(list, shuffled, 1);
-        t_ = now();
+        t_ = tstart();
         DoMethod(list, MUIM_List_Sort); });
     {
         STRPTR e = NULL;
@@ -658,7 +698,7 @@ int main(int argc, char **argv)
     TIMED("string type", 40, {
         set(string, MUIA_String_Contents, "");
         DoMethod(app, MUIM_Application_InputBuffered);
-        t_ = now();
+        t_ = tstart();
         for (j = 1; j <= 40 && !timedout; j++) {
             want = j;
             key(0x20);                       /* "a" */
@@ -667,7 +707,7 @@ int main(int argc, char **argv)
         set(string, MUIA_String_Contents, "abcdefghijklmnopqrstuvwxyz");
         set(string, MUIA_String_BufferPos, 26);
         DoMethod(app, MUIM_Application_InputBuffered);
-        t_ = now();
+        t_ = tstart();
         for (j = 1; j <= 20 && !timedout; j++) {
             want = 26 - j;
             key(0x41);                       /* backspace */
@@ -689,7 +729,7 @@ int main(int argc, char **argv)
         set(app, MUIA_Application_Iconified, FALSE);
         run_until(cond_window);
         settle();
-        t_ = now();
+        t_ = tstart();
         set(app, MUIA_Application_Iconified, TRUE);
         run_until(cond_nowindow);
         DoMethod(app, MUIM_Application_InputBuffered); });
@@ -697,7 +737,7 @@ int main(int argc, char **argv)
         set(app, MUIA_Application_Iconified, TRUE);
         run_until(cond_nowindow);
         settle();
-        t_ = now();
+        t_ = tstart();
         set(app, MUIA_Application_Iconified, FALSE);
         run_until(cond_window);
         DoMethod(app, MUIM_Application_InputBuffered); });
@@ -762,6 +802,7 @@ int main(int argc, char **argv)
         puts("window 2 did not open");
     rc = 0;
 done:
+    sc_remove();
     if (app)
         MUI_DisposeObject(app);
     if (scr) CloseScreen(scr);
