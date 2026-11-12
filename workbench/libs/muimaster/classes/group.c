@@ -1185,6 +1185,73 @@ static void Group_ShiftChildren(struct IClass *cl, Object *obj,
     }
 }
 
+/*
+ * Group__OM_SET's forwarding: turn the tags the children must not see into
+ * TAG_IGNORE, put MUIA_NestedDisabled in front (nestedAttrs) for a
+ * MUIA_Disabled. TRUE when a tag is left to pass on: a set of the active
+ * page alone (a Cycle's every change) sent every page an OM_SET of ignored
+ * tags (opbench "cycle set"). Not inlined: Group__OM_SET's frame is on the
+ * stack once per nesting level.
+ */
+static __attribute__((noinline)) BOOL group_forward_filter(struct opSet *msg,
+    struct TagItem *nestedAttrs)
+{
+    struct TagItem *tags, *tag;
+    BOOL left = FALSE;
+
+    tags = msg->ops_AttrList;
+    while ((tag = NextTagItem(&tags)) != NULL)
+    {
+        switch (tag->ti_Tag)
+        {
+        case MUIA_NoNotify:
+            break;
+        default:
+            left = TRUE;
+            break;
+        case MUIA_Disabled:
+            nestedAttrs[0].ti_Data = tag->ti_Data;
+            msg->ops_AttrList = nestedAttrs;
+            left = TRUE;
+            break;
+        case MUIA_HelpLine:
+        case MUIA_HelpNode:
+        case MUIA_ObjectID:
+        case MUIA_UserData:
+
+        case MUIA_ContextMenu:
+        case MUIA_ContextMenuTrigger:
+        case MUIA_ControlChar:
+        case MUIA_CustomBackfill:
+        case MUIA_CycleChain:
+        case MUIA_Draggable:
+        case MUIA_FillArea:
+        case MUIA_Group_ActivePage:
+        case MUIA_Group_LayoutHook:
+        case MUIA_Frame:
+        case MUIA_FrameTitle:
+        case MUIA_HorizWeight:
+        case MUIA_Pressed:
+        case MUIA_ShortHelp:
+        case MUIA_ShowMe:
+        case MUIA_VertWeight:
+        case MUIA_Weight:
+        case MUIA_Virtgroup_Left:
+        case MUIA_Virtgroup_Top:
+        case MUIA_AppMessage:
+        case MUIA_Timer:
+            tag->ti_Tag = TAG_IGNORE;
+            break;
+        case MUIA_Selected:
+/*                D(bug("Group_Set(%p) MUIA_Selected forwarded\n", obj)); */
+/*                          tag->ti_Tag = TAG_IGNORE; */
+            left = TRUE;
+            break;
+        }
+    }
+    return left;
+}
+
 /**************************************************************************
  OM_SET
 **************************************************************************/
@@ -1307,54 +1374,8 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             { TAG_MORE,             (IPTR)msg->ops_AttrList}
         };
 
-        /* Attributes which are to be filtered out, so that they are ignored
-           when OM_SET is passed to group's children */
-
-        tags = msg->ops_AttrList;
-        while ((tag = NextTagItem(&tags)) != NULL)
-        {
-            switch (tag->ti_Tag)
-            {
-            case MUIA_Disabled:
-                nestedAttrs[0].ti_Data = tag->ti_Data;
-                msg->ops_AttrList = nestedAttrs;
-                break;
-            case MUIA_HelpLine:
-            case MUIA_HelpNode:
-            case MUIA_ObjectID:
-            case MUIA_UserData:
-
-            case MUIA_ContextMenu:
-            case MUIA_ContextMenuTrigger:
-            case MUIA_ControlChar:
-            case MUIA_CustomBackfill:
-            case MUIA_CycleChain:
-            case MUIA_Draggable:
-            case MUIA_FillArea:
-            case MUIA_Group_ActivePage:
-            case MUIA_Group_LayoutHook:
-            case MUIA_Frame:
-            case MUIA_FrameTitle:
-            case MUIA_HorizWeight:
-            case MUIA_Pressed:
-            case MUIA_ShortHelp:
-            case MUIA_ShowMe:
-            case MUIA_VertWeight:
-            case MUIA_Weight:
-            case MUIA_Virtgroup_Left:
-            case MUIA_Virtgroup_Top:
-            case MUIA_AppMessage:
-            case MUIA_Timer:
-                tag->ti_Tag = TAG_IGNORE;
-                break;
-            case MUIA_Selected:
-/*                D(bug("Group_Set(%p) MUIA_Selected forwarded\n", obj)); */
-/*                          tag->ti_Tag = TAG_IGNORE; */
-                break;
-            }
-        }
-
-        Group_DispatchMsg(cl, obj, (Msg) msg);
+        if (group_forward_filter(msg, nestedAttrs))
+            Group_DispatchMsg(cl, obj, (Msg) msg);
         msg->ops_AttrList = attrsOrig;
     }
 
