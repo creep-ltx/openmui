@@ -506,7 +506,7 @@ int main(int argc, char **argv)
     struct timerequest tr;
     ULONG open = 0;
     int i, j, rc = 20, x, y;
-    static char buf[40];
+    static char buf[64];
 
     setvbuf(stdout, NULL, _IONBF, 0);
     for (i = 1; i < argc; i++)
@@ -800,6 +800,43 @@ int main(int argc, char **argv)
     }
     else
         puts("window 2 did not open");
+
+    /* MUI 4/5 only (opened as version 20 or higher): a Text that elides
+     * what does not fit (MUIA_Text_Shorten, V20), set 100 times */
+    if (libversion >= 20 && MUIMasterBase->lib_Version >= 20)
+    {
+        Object *w3, *t3 = NULL;
+
+        w3 = WindowObject,
+            MUIA_Window_Title, "opbench 3",
+            MUIA_Window_Screen, scr,
+            MUIA_Window_LeftEdge, 40,
+            MUIA_Window_TopEdge, 60,
+            WindowContents, VGroup,
+                Child, t3 = TextObject, TextFrame,
+                    MUIA_FixWidth, 120,
+                    MUIA_Text_Shorten, MUIV_Text_Shorten_ElideRight,
+                    MUIA_Text_Contents, "A status line that does not fit", End,
+                End,
+            End;
+        if (w3)
+        {
+            DoMethod(app, OM_ADDMEMBER, w3);
+            set(w3, MUIA_Window_Open, TRUE);
+            get(w3, MUIA_Window_Open, &open);
+            settle();
+            if (open)
+                TIMED("text shorten set", 100, {
+                    for (j = 0; j < 100; j++) {
+                        sprintf(buf, "Status line %d, longer than its box", j);
+                        set(t3, MUIA_Text_Contents, buf); } });
+            set(w3, MUIA_Window_Open, FALSE);
+            DoMethod(app, OM_REMMEMBER, w3);
+            MUI_DisposeObject(w3);
+        }
+        else
+            puts("window 3 (MUIA_Text_Shorten) not made");
+    }
     rc = 0;
 done:
     sc_remove();

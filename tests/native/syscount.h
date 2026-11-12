@@ -155,7 +155,19 @@ asm(
     "\tbne.w 9f\n"
     "\tlea _sc_top,%a0\n"
     "\taddq.l #1,0(%a0,%d0.l)\n"
-    "\tcmp.l _sc_who,%d0\n"              /* "who=NAME": record the callers */
+    "\tcmp.l _sc_rectidx,%d0\n"          /* RectFill: the pixels it fills */
+    "\tbne.s 3f\n"
+    "\tmovem.l %d1-%d3/%a1,-(%sp)\n"      /* the caller's d0 is at 16(sp) */
+    "\tmove.l %d3,-(%sp)\n"
+    "\tmove.l %d2,-(%sp)\n"
+    "\tmove.l %d1,-(%sp)\n"
+    "\tmove.l 28(%sp),-(%sp)\n"
+    "\tjsr _sc_rect\n"
+    "\tlea 16(%sp),%sp\n"
+    "\tmovem.l (%sp)+,%d1-%d3/%a1\n"
+    "\tmove.l 8(%sp),%d0\n"
+    "\tlsl.l #2,%d0\n"
+    "3:\tcmp.l _sc_who,%d0\n"            /* "who=NAME": record the callers */
     "\tbne.s 2f\n"
     "\tmovem.l %d1/%a1,-(%sp)\n"
     "\tpea 20(%sp)\n"                     /* the return address */
@@ -208,10 +220,24 @@ asm(
  * code), printed as "who OP ADDR ADDR ..." with "whobase ADDR" (the gate's
  * address) for tests/lean/scripts/syscount-who.py */
 LONG sc_who = -1;
+
+/* The pixels the top-level RectFill calls fill (their rectangles' areas),
+ * reported per operation as "_pixels": how much a toolkit paints */
+LONG sc_rectidx = -1;
+static ULONG sc_pix, sc_apix, sc_lastarea;
+
+void sc_rect(LONG x0, LONG y0, LONG x1, LONG y1)
+{
+    LONG w = (WORD)x1 - (WORD)x0 + 1, h = (WORD)y1 - (WORD)y0 + 1;
+
+    sc_lastarea = 0;
+    if (w > 0 && h > 0)
+        sc_pix += sc_lastarea = w * h;
+}
 static ULONG sc_lo, sc_hi;
 #define SC_RECS 600
 #define SC_DEPTH 6
-static ULONG sc_rec[SC_RECS][SC_DEPTH];
+static ULONG sc_rec[SC_RECS][SC_DEPTH], sc_recarea[SC_RECS];
 static int sc_nrec, sc_nrec_kept;
 static const char *sc_whoname;   /* "who=NAME" */
 
@@ -222,6 +248,7 @@ void sc_record(ULONG *p)
 
     if (sc_nrec >= SC_RECS)
         return;
+    sc_recarea[sc_nrec] = sc_who == sc_rectidx ? sc_lastarea : 0;
     r = sc_rec[sc_nrec++];
     r[n++] = p[0];
     for (i = 1; i < 96 && n < SC_DEPTH; i++)
@@ -266,6 +293,9 @@ static int sc_install(int timing)
                 sc_pass[i] = 1;
     }
     sc_me = FindTask(NULL);
+    for (i = 0; i < SC_N; i++)
+        if (!strcmp(sc_fns[i].name, "RectFill"))
+            sc_rectidx = i * 4;
     sc_timing = timing;
     if (sc_whoname)
     {
@@ -332,6 +362,7 @@ static void sc_start(void)
     memset(sc_top, 0, sizeof(sc_top));
     memset(sc_time, 0, sizeof(sc_time));
     sc_nrec = sc_nrec_kept;
+    sc_pix = 0;
     sc_on = 1;
 }
 
@@ -350,6 +381,7 @@ static void sc_stop(void)
         sc_atime[i] += sc_time[i];
     }
     sc_nrec_kept = sc_nrec;
+    sc_apix += sc_pix;
 }
 
 /* "calls NAME | Fn top total us | ...": per operation, two decimals */
@@ -371,17 +403,21 @@ static void sc_report(const char *name, ULONG ops)
             printf(" | %s %lu.%02lu %lu.%02lu %lu", sc_fns[i].name,
                 top / 100, top % 100, tot / 100, tot % 100, us);
         }
+    printf(" | _pixels %lu 0 0", (unsigned long)(sc_apix / ops));
     printf("\n");
     for (i = 0; i < (unsigned)sc_nrec; i++)
     {
         int k;
 
         printf("who %s", name);
+        if (sc_who == sc_rectidx)
+            printf(" a=%lu", (unsigned long)sc_recarea[i]);
         for (k = 0; k < SC_DEPTH && sc_rec[i][k]; k++)
             printf(" %08lx", (unsigned long)sc_rec[i][k]);
         printf("\n");
     }
     sc_nrec = sc_nrec_kept = 0;
+    sc_apix = 0;
     memset(sc_atotal, 0, sizeof(sc_atotal));
     memset(sc_atop, 0, sizeof(sc_atop));
     memset(sc_atime, 0, sizeof(sc_atime));

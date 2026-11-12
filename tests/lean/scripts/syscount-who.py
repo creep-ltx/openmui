@@ -35,14 +35,18 @@ def name(a):
 
 base = None
 chains = collections.Counter()
+areas = collections.Counter()
 for line in open(out, errors='replace'):
     if line.startswith('whobase '):
         base = int(line.split()[1], 16) - gate
     elif line.startswith('who '):
-        m = re.match(r'who (.*?)((?: [0-9a-f]{8})+)$', line.rstrip())
-        op, ads = m.group(1), [int(x, 16) for x in m.group(2).split()]
+        m = re.match(r'who (.*?)(?: a=(\d+))?((?: [0-9a-f]{8})+)$', line.rstrip())
+        op, ads = m.group(1), [int(x, 16) for x in m.group(3).split()]
         if only and op != only:
             continue
-        chains[(op,) + tuple(name(a - base) for a in ads)] += 1
+        key = (op,) + tuple(name(a - base) for a in ads)
+        chains[key] += 1
+        areas[key] += int(m.group(2) or 0)
 for c, n in chains.most_common():
-    print('%5d  %-18s %s' % (n, c[0], ' < '.join(c[1:])))
+    a = (' pixels=%d' % areas[c]) if areas[c] else ''
+    print('%5d  %-18s %s%s' % (n, c[0], ' < '.join(c[1:]), a))
