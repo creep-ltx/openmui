@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language dansk
+## codeset 0
+;
+MSG_OK
+_O.k.
+; _Ok
+;
+MSG_CANCEL
+_Afbryd
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+Om Zune
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, en MUI-klon\n\nKompileret den %s\nCopyright (C) 2002-2026, The AROS Development Team.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Rød:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Grøn:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Blå:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Navn
+; Name
+;
+MSG_DIRLIST_SIZE
+Størrelse
+; Size
+;
+MSG_DIRLIST_DATE
+Dato
+; Date
+;
+MSG_DIRLIST_TIME
+Tid
+; Time
+;
+MSG_DIRLIST_FLAGS
+Flag
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Bemærkninger
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Indvendig afstand:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Venstre
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Øverst
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Højre
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Sidste
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Aktivér
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Eksempel
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+Radius
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+Bredde
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+Indbyggede rammer
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Brugerdefinerede rammer
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Afrundet ramme
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+Mønster
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vektor
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Farve
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Ekstern
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Bitmap
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Farveovergang
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Skaleret
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+Fliselagt
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Type:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Vinkel:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Lodret
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Vandret
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Farver:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+Startpen
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Slutpen
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Forhåndsvisning:
+; Preview:
+;
+MSG_PALETTE_COLOR
+Farve %ld
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Farvekort
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Lys
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Halvlys
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Baggrundsfarve
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Halvskygge
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Skygge
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Tekst
+; Text
+;
+MSG_PENADJUST_FILL
+Fyld
+; Fill
+;
+MSG_PENADJUST_MARK
+Markér
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Navn
+; Name
+;
+MSG_VOLUMELIST_FULL
+Fuld
+; Full
+;
+MSG_VOLUMELIST_FREE
+Ledig
+; Free
+;
+MSG_VOLUMELIST_USED
+Brugt
+; Used
+;

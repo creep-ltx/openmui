@@ -1,0 +1,24 @@
+## version $VER: PrefsWindow.catalog 1.0 (06.08.2026)
+## language nederlands
+## codeset 0
+;
+MSG_TEST
+_Test
+; _Test
+;
+MSG_REVERT
+_Herstel
+; _Revert
+;
+MSG_SAVE
+_Bewaar
+; _Save
+;
+MSG_USE
+_Gebruik
+; _Use
+;
+MSG_CANCEL
+_Annuleer
+; _Cancel
+;

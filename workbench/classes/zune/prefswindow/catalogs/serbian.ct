@@ -1,0 +1,24 @@
+## version $VER: PrefsWindow.catalog 1.0 (06.08.2026)
+## language srpski
+## codeset 8
+;
+MSG_TEST
+_Test
+; _Test
+;
+MSG_REVERT
+_Vrati
+; _Revert
+;
+MSG_SAVE
+_Snimi
+; _Save
+;
+MSG_USE
+_Koristi
+; _Use
+;
+MSG_CANCEL
+_Poniçti
+; _Cancel
+;

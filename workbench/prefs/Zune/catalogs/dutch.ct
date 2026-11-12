@@ -1,0 +1,884 @@
+## version $VER: Zune.catalog 2.0 (06.08.2026)
+## language nederlands
+## codeset 0
+;
+MSG_GENERAL
+Algemeen
+; General
+;
+MSG_BACKGROUND_COLON
+Achtergrond:
+; Background:
+;
+MSG_BACKGROUND_PRESSED
+Achtergrond in\ningedrukte staat:
+; Background in\npressed state:
+;
+MSG_TEXT_BUTTONS
+Tekstknoppen
+; Text Buttons
+;
+MSG_FRAME_COLON
+Kader:
+; Frame:
+;
+MSG_FONT
+Font:
+; Font:
+;
+MSG_IMAGE_BUTTONS
+Afbeeldingsknoppen
+; Image Buttons
+;
+MSG_ADJUST_FRAME
+Kader aanpassen
+; Adjust Frame
+;
+MSG_CHECKMARKS
+Vinkjes
+; Checkmarks
+;
+MSG_LOOK_COLON
+Uiterlijk:
+; Look:
+;
+MSG_CHECKMARK
+Vinkje
+; Checkmark
+;
+MSG_RADIO_BUTTONS
+Radioknoppen
+; Radio Buttons
+;
+MSG_RADIOBUTTON
+Radioknop
+; Radiobutton
+;
+MSG_LOOK
+Uiterlijk
+; Look
+;
+MSG_H
+H
+; H
+;
+MSG_V
+V
+; V
+;
+MSG_SPACING
+Afstand
+; Spacing
+;
+MSG_BELOW
+onder
+; below
+;
+MSG_ON_ACTIVE
+bij actief
+; on active
+;
+MSG_CYCLE_GADGET_DESIGN
+Ontwerp cycle-gadget
+; Cycle Gadget Design
+;
+MSG_CYCLE
+Cycle
+; Cycle
+;
+MSG_POPUP_MENU_CONTROL
+Besturing popupmenu
+; Popup Menu Control
+;
+MSG_POSITION
+Positie:
+; Position:
+;
+MSG_LEVEL
+Niveau:
+; Level:
+;
+MSG_SPEED
+Snelheid:
+; Speed:
+;
+MSG_POPUP_MENU_DESIGN
+Ontwerp popupmenu
+; Popup Menu Design
+;
+MSG_FRAME
+Kader
+; Frame
+;
+MSG_ADJUST_BACKGROUND
+Achtergrond aanpassen
+; Adjust Background
+;
+MSG_BACKGROUND
+Achtergrond
+; Background
+;
+MSG_RECESSED_ENTRIES
+Verzonken items:
+; Recessed Entries:
+;
+MSG_ABOVE
+boven
+; above
+;
+MSG_CENTERED
+gecentreerd
+; centered
+;
+MSG_STANDARD
+standaard
+; standard
+;
+MSG_HILITE
+gemarkeerd
+; hilite
+;
+MSG_3D
+3d
+; 3d
+;
+MSG_OUTLINE
+omlijnd
+; outline
+;
+MSG_TITLE
+Titel
+; Title
+;
+MSG_COLOR
+Kleur:
+; Color:
+;
+MSG_HORIZONTAL
+Horizontaal:
+; Horizontal:
+;
+MSG_VERTICAL
+Verticaal:
+; Vertical:
+;
+MSG_REGISTER
+Register
+; Register
+;
+MSG_DEFAULT_SIZE_TRUNCATE_TITLES
+Standaardgrootte, titels afkorten
+; Default size truncate titles
+;
+MSG_NORMAL
+Normaal
+; Normal
+;
+MSG_VIRTUAL
+Virtueel
+; Virtual
+;
+MSG_FRAMED
+Omkaderd
+; Framed
+;
+MSG_PAGE
+Pagina
+; Page
+;
+MSG_SHIFTED
+verschoven
+; shifted
+;
+MSG_ALWAYS
+altijd
+; always
+;
+MSG_LINEAR
+lineair
+; linear
+;
+MSG_MIXED
+gemengd
+; mixed
+;
+MSG_CONTROL
+Besturing
+; Control
+;
+MSG_MULTI
+Multi:
+; Multi:
+;
+MSG_REFRESH
+Verversen:
+; Refresh:
+;
+MSG_SMOOTH
+Vloeiend:
+; Smooth:
+;
+MSG_FONTS
+Fonts
+; Fonts
+;
+MSG_NORMAL_COLON
+Normaal:
+; Normal:
+;
+MSG_FIXED
+Vast:
+; Fixed:
+;
+MSG_LEADING
+Regelafstand
+; Leading
+;
+MSG_DESIGN
+Ontwerp
+; Design
+;
+MSG_INPUT_LISTS
+Invoer \nlijsten:
+; Input \nLists:
+;
+MSG_READONLY_LISTS
+Alleen-lezen \nlijsten:
+; Readonly \nLists:
+;
+MSG_CURSOR
+Cursor
+; Cursor
+;
+MSG_ACTIVE
+Actief:
+; Active:
+;
+MSG_ACTIVE_SELECTED
+Actief &\ngeselecteerd:
+; Active &\nSelected:
+;
+MSG_SELECTED
+Gekozen:
+; Selected:
+;
+MSG_ALWAYS_SOLID
+altijd massief
+; always solid
+;
+MSG_GHOSTED_ON_BOX
+gedimd in vak
+; ghosted on box
+;
+MSG_GHOSTED_OUTSIDE_BOX
+gedimd buiten vak
+; ghosted outside box
+;
+MSG_ALWAYS_GHOSTED
+altijd gedimd
+; always ghosted
+;
+MSG_SHOW_FRAMES
+toon kaders
+; show frames
+;
+MSG_SHOW_OBJECTS
+toon objecten
+; show objects
+;
+MSG_KL_PRESS
+Indrukken:
+; Press:
+;
+MSG_KL_TOGGLE
+Omschakelen:
+; Toggle:
+;
+MSG_KL_UP
+Omhoog:
+; Up:
+;
+MSG_KL_DOWN
+Omlaag:
+; Down:
+;
+MSG_KL_PAGE_UP
+Pagina omhoog:
+; Page up:
+;
+MSG_KL_PAGE_DOWN
+Pagina omlaag:
+; Page down:
+;
+MSG_KL_TOP
+Boven:
+; Top:
+;
+MSG_KL_BOTTOM
+Onder:
+; Bottom:
+;
+MSG_KL_LEFT
+Links:
+; Left:
+;
+MSG_KL_RIGHT
+Rechts:
+; Right:
+;
+MSG_KL_WORD_LEFT
+Woord links:
+; Word left:
+;
+MSG_KL_WORD_RIGHT
+Woord rechts:
+; Word right:
+;
+MSG_KL_LINE_START
+Regelbegin:
+; Line start:
+;
+MSG_KL_LINE_END
+Regeleinde:
+; Line end:
+;
+MSG_KL_NEXT_GADGET
+Volgend gadget:
+; Next gadget:
+;
+MSG_KL_PREV_GADGET
+Vorig gadget:
+; Prev. gadget:
+;
+MSG_KL_GADGET_OFF
+Gadget uit:
+; Gadget off:
+;
+MSG_KL_CLOSE_WINDOW
+Venster sluiten:
+; Close window:
+;
+MSG_KL_NEXT_WINDOW
+Volgend venster:
+; Next window:
+;
+MSG_KL_PREV_WINDOW
+Vorig venster:
+; Prev. window:
+;
+MSG_KL_HELP
+Help:
+; Help:
+;
+MSG_KL_POPUP
+Popup:
+; Popup:
+;
+MSG_DRAG_DROP
+Drag & Drop
+; Drag & Drop
+;
+MSG_LEFT_BUTTON
+Linkerknop:
+; Left Button:
+;
+MSG_MIDDLE_BUTTON
+Middelste knop:
+; Middle Button:
+;
+MSG_AUTOSTART
+Autostart:
+; Autostart:
+;
+MSG_PIXEL
+%ld pixel
+; %ld pixel
+;
+MSG_BALANCING_GROUPS
+Balansgroepen
+; Balancing Groups
+;
+MSG_EXAMPLE
+Voorbeeld:
+; Example:
+;
+MSG_TRY_WITH
+Probeer met
+; Try with
+;
+MSG_SHIFT
+shift
+; shift
+;
+MSG_TOO
+erbij!
+; too!
+;
+MSG_KEYBOARD_CONTROL
+Toetsenbordbesturing
+; Keyboard Control
+;
+MSG_COLOR_ACTIVE_OBJ
+Kleur van actief object:
+; Color of active object:
+;
+MSG_NEWLOOK
+newlook
+; newlook
+;
+MSG_CUSTOM
+aangepast
+; custom
+;
+MSG_ARROWS
+Pijlen
+; Arrows
+;
+MSG_UP
+omhoog
+; up
+;
+MSG_ARROW_UP
+Pijl omhoog
+; Arrow up
+;
+MSG_ARROW_DOWN
+Pijl omlaag
+; Arrow down
+;
+MSG_DOWN
+omlaag
+; down
+;
+MSG_LEFT
+links
+; left
+;
+MSG_ARROW_LEFT
+Pijl links
+; Arrow left
+;
+MSG_ARROW_RIGHT
+Pijl rechts
+; Arrow right
+;
+MSG_RIGHT
+rechts
+; right
+;
+MSG_BAR
+Balk
+; Bar
+;
+MSG_GADGET_TYPE
+Gadgettype:
+; Gadget Type:
+;
+MSG_SCROLLER
+Schuifbalk
+; Scroller
+;
+MSG_KNOB
+Schuifknop
+; Knob
+;
+MSG_ARRANGEMENT
+Rangschikking
+; Arrangement
+;
+MSG_CONTAINER_DESIGN
+Containerontwerp
+; Container Design
+;
+MSG_KNOB_DESIGN
+Ontwerp schuifknop
+; Knob Design
+;
+MSG_EXAMPLE_SLIDERS
+Voorbeeld schuifregelaars
+; Example Sliders
+;
+MSG_TEXT_FIELDS
+Tekstvlakken
+; Text fields
+;
+MSG_EXAMPLE_TEXTFIELD
+Voorbeeld tekstvlak
+; Example Textfield
+;
+MSG_PROGRESS_INDICATOR
+Voortgangsindicator
+; Progress Indicator
+;
+MSG_DEVICE_IMAGES
+Apparaatafbeeldingen
+; Device Images
+;
+MSG_DRAWER
+Lade
+; Drawer
+;
+MSG_HARDDISK
+Harde schijf
+; Harddisk
+;
+MSG_DISK
+Schijf
+; Disk
+;
+MSG_RAM
+RAM
+; RAM
+;
+MSG_VOLUME
+Volume
+; Volume
+;
+MSG_NETWORK
+Netwerk
+; Network
+;
+MSG_ASSIGN
+Assign
+; Assign
+;
+MSG_TAPE_IMAGES
+Tape-afbeeldingen
+; Tape Images
+;
+MSG_TAPE_PLAY
+Tape afspelen
+; Tape play
+;
+MSG_TAPE_PLAYBACK
+Tape weergave
+; Tape playback
+;
+MSG_TAPE_PAUSE
+Tape pauze
+; Tape pause
+;
+MSG_TAPE_STOP
+Tape stop
+; Tape stop
+;
+MSG_TAPE_RECORD
+Tape opnemen
+; Tape record
+;
+MSG_TAPE_UP
+Tape omhoog
+; Tape up
+;
+MSG_TAPE_DOWN
+Tape omlaag
+; Tape down
+;
+MSG_STRING_FRAME
+Kader tekstveld
+; String Frame
+;
+MSG_SPECIAL_POPUP_BUTTONS
+Speciale popupknoppen
+; Special Popup Buttons
+;
+MSG_POPUP
+Popup
+; Popup
+;
+MSG_DEFAULT
+Standaard
+; Default
+;
+MSG_FILE
+Bestand
+; File
+;
+MSG_POPUP_FILE
+Popup bestand
+; Popup file
+;
+MSG_POPUP_DRAWER
+Popup map
+; Popup drawer
+;
+MSG_INACTIVE_STRING_COLORS
+Kleuren inactief tekstveld
+; Inactive String Colors
+;
+MSG_TEXT
+Tekst
+; Text
+;
+MSG_ACTIVE_STRING_COLORS
+Kleuren actief tekstveld
+; Active String Colors
+;
+MSG_MARKED_STRING_COLORS
+Kleuren gemarkeerd tekstveld
+; Marked String Colors
+;
+MSG_EXAMPLE_STRING_GADGET
+Voorbeeld tekstveld
+; Example String Gadget
+;
+MSG_FORGET_ON_EXIT
+vergeten bij afsluiten
+; forget on exit
+;
+MSG_REMEMBER_ON_EXIT
+onthouden bij afsluiten
+; remember on exit
+;
+MSG_SAVE_ON_EXIT
+opslaan bij afsluiten
+; save on exit
+;
+MSG_SMART
+slim
+; smart
+;
+MSG_SIMPLE
+eenvoudig
+; simple
+;
+MSG_WITHOUT_CLEAR
+zonder wissen
+; without clear
+;
+MSG_WITH_CLEAR
+met wissen
+; with clear
+;
+MSG_POSITIONS
+Posities:
+; Positions:
+;
+MSG_REDRAW
+Hertekenen:
+; Redraw:
+;
+MSG_TINY
+Klein:
+; Tiny:
+;
+MSG_BIG
+Groot:
+; Big:
+;
+MSG_WINDOW
+Venster
+; Window
+;
+MSG_REQUESTER
+Requester
+; Requester
+;
+MSG_L
+L
+; L
+;
+MSG_T
+T
+; T
+;
+MSG_R
+R
+; R
+;
+MSG_B
+B
+; B
+;
+MSG_BUTTONS
+Knoppen
+; Buttons
+;
+MSG_WINTITLE1
+Zune - Algemene instellingen
+; Zune - Global Prefs
+;
+MSG_WINTITLE2
+Zune - Instellingen voor: %s
+; Zune - Prefs for : %s
+;
+MSG_MEN_PROJECT
+Project
+; Project
+;
+MSG_MEN_OPEN
+Openen ...
+; Open ...
+;
+MSG_MEN_OPEN_SC
+O
+; O
+;
+MSG_MEN_APPEND
+Toevoegen ...
+; Append ...
+;
+MSG_MEN_SAVEAS
+Opslaan als ...
+; Save As ...
+;
+MSG_MEN_SAVEAS_SC
+A
+; A
+;
+MSG_MEN_ABOUT
+Over Zune ...
+; About Zune ...
+;
+MSG_MEN_ABOUT_SC
+echt verwijderen?
+; ?
+;
+MSG_MEN_QUIT
+Einde
+; Quit
+;
+MSG_MEN_QUIT_SC
+Q
+; Q
+;
+MSG_FRAME_CLIPBOARD
+Kaderklembord
+; Frame Clipboard
+;
+MSG_IMAGE_CLIPBOARD
+Afbeeldingsklembord
+; Image Clipboard
+;
+MSG_GAD_TEST
+_Test
+; _Test
+;
+MSG_GAD_SAVE
+_Bewaar
+; _Save
+;
+MSG_GAD_USE
+_Gebruik
+; _Use
+;
+MSG_GAD_CANCEL
+_Annuleer
+; _Cancel
+;
+MSG_DSC_SYSTEM
+Systeem
+; System
+;
+MSG_DSC_WINDOWS
+Vensters
+; Windows
+;
+MSG_DSC_GROUPS
+Groepen
+; Groups
+;
+MSG_DSC_BUTTONS
+Knoppen
+; Buttons
+;
+MSG_DSC_CYCLES
+Cycles
+; Cycles
+;
+MSG_DSC_SLIDERS
+Schuifregelaars
+; Sliders
+;
+MSG_DSC_SCROLLBARS
+Schuifbalken
+; Scrollbars
+;
+MSG_DSC_LISTVIEWS
+Listviews
+; Listviews
+;
+MSG_DSC_STRINGS
+Tekstvelden
+; Strings
+;
+MSG_DSC_NAVIGATION
+Navigatie
+; Navigation
+;
+MSG_DSC_SPECIAL
+Speciaal
+; Special
+;
+MSG_DSC_FRAMES
+Kaders
+; Frames
+;
+MSG_ADJUST_PEN
+Pen aanpassen
+; Adjust Pen
+;
+MSG_CUSTOMFRAMES
+Aangepaste kaders
+; Customframes
+;
+MSG_PUBLIC_SCREEN
+Public Screen
+; Public Screen
+;
+MSG_NAME
+Naam:
+; Name:
+;
+MSG_CALL_INSPECTOR
+Inspector oproepen
+; Call Inspector
+;
+MSG_POP_TO_FRONT
+Naar voren halen:
+; Pop to front:
+;
+MSG_ICONIFICATION
+Iconificatie
+; Iconification
+;
+MSG_HOTKEY
+Sneltoets:
+; Hotkey:
+;
+MSG_SHOW
+Toon:
+; Show:
+;
+MSG_ICON
+Iconen
+; Icon
+;
+MSG_MENU
+Menu
+; Menu
+;
+MSG_ON_STARTUP
+Bij opstarten:
+; On Startup:
+;
+MSG_INTERFACES
+Interfaces
+; Interfaces
+;
+MSG_AREXX
+ARexx:
+; ARexx:
+;
+MSG_BUBBLE_HELP
+Ballonhulp
+; Bubble Help
+;
+MSG_FIRST_BUBBLE
+Eerste ballon:
+; First Bubble:
+;
+MSG_NEXT_BUBBLE
+Volgende ballon:
+; Next Bubble:
+;

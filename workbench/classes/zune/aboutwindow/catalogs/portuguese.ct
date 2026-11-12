@@ -1,0 +1,24 @@
+## version $VER: AboutWindow.catalog 1.0 (06.08.2026)
+## language português
+## codeset 0
+;
+MSG_ABOUT
+Acerca de
+; About
+;
+MSG_AUTHORS
+Autores
+; Authors
+;
+MSG_SPONSORS
+Patrocinadores
+; Sponsors
+;
+MSG_SECTION_PROGRAMMING
+Programação
+; Programming
+;
+MSG_SECTION_TRANSLATING
+Tradução
+; Translating
+;

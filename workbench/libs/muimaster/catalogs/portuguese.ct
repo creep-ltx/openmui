@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language português
+## codeset 0
+;
+MSG_OK
+_Ok
+; _Ok
+;
+MSG_CANCEL
+_Cancelar
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+Acerca do Zune
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, um clone do MUI\n\nCompilado em %s\nCopyright (C) 2002-2026, The AROS Development Team.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Vermelho:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Verde:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Azul:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Nome
+; Name
+;
+MSG_DIRLIST_SIZE
+Tamanho
+; Size
+;
+MSG_DIRLIST_DATE
+Data
+; Date
+;
+MSG_DIRLIST_TIME
+Hora
+; Time
+;
+MSG_DIRLIST_FLAGS
+Flags
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Comentário
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Espaçamento Interno:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Esquerda
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Cima
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Direita
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Baixo
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Activar
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Exemplo
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+Raio
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+Largura
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+Molduras Incorporadas
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Molduras Personalizadas
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Moldura Arredondada
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+Padrão
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vector
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Cor
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Externo
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Bitmap
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Gradiente
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Redimensionado
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+Em mosaico
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Tipo:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Ângulo:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Vertical
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Horizontal
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Cores:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+Caneta inicial
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Caneta final
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Pré-visualização:
+; Preview:
+;
+MSG_PALETTE_COLOR
+Cor %ld
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Mapa de cores
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Brilho
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Meio-brilho
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Fundo
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Meia-sombra
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Sombra
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Texto
+; Text
+;
+MSG_PENADJUST_FILL
+Preenchimento
+; Fill
+;
+MSG_PENADJUST_MARK
+Marcar parágrafo
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Nome
+; Name
+;
+MSG_VOLUMELIST_FULL
+Completo
+; Full
+;
+MSG_VOLUMELIST_FREE
+Livre
+; Free
+;
+MSG_VOLUMELIST_USED
+Usado
+; Used
+;

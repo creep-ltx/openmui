@@ -1,0 +1,5 @@
+These catalogs come from the AROS translation team:
+https://github.com/aros-translation-team/systemprefswindow
+commit df33230f3ed14d5e6419f9583fc2996ab6789bcb
+License: AROS Public License.
+Vendored into OpenMUI on 2026-11-12; OpenMUI now maintains its own changes here.

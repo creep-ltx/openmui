@@ -1,0 +1,5 @@
+These catalogs come from the AROS translation team:
+https://github.com/aros-translation-team/zune-prefs
+commit 02c60890c6b395d6ec41e885ee896bdac66fbd33
+License: AROS Public License.
+Vendored into OpenMUI on 2026-11-12; OpenMUI now maintains its own changes here.

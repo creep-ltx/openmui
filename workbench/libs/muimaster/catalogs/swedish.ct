@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language svenska
+## codeset 0
+;
+MSG_OK
+_OK
+; _Ok
+;
+MSG_CANCEL
+A_vbryt
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+Om Zune
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, en MUI-klon\n\nKompilerad %s\nCopyright (C) 2002-2026, The AROS Development Team.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Rött:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Grönt:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Blått:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Namn
+; Name
+;
+MSG_DIRLIST_SIZE
+Storlek
+; Size
+;
+MSG_DIRLIST_DATE
+Datum
+; Date
+;
+MSG_DIRLIST_TIME
+Tid
+; Time
+;
+MSG_DIRLIST_FLAGS
+Flaggor
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Kommentar
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Inre marginal:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Vänster
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Toppen
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Höger
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Botten
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Aktivera
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Exempel
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+Radie
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+Bredd
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+Inbyggda ramar
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Egna ramar
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Rundad ram
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+Mönster
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vektor
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Color
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Extern
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Bitmapp
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Gradient
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Skalad
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+Upprepad
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Typ:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Vinkel:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Vertikal
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Horisontell
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Färger:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+Startpenna
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Slutpenna
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Förhandsgranskning:
+; Preview:
+;
+MSG_PALETTE_COLOR
+Färg %ld
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Färgkarta
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Glans
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Halvglans
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Bakgrund
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Halvskugga
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Skugga
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Text
+; Text
+;
+MSG_PENADJUST_FILL
+Fyllning
+; Fill
+;
+MSG_PENADJUST_MARK
+Bit på
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Namn
+; Name
+;
+MSG_VOLUMELIST_FULL
+Full
+; Full
+;
+MSG_VOLUMELIST_FREE
+Ledigt
+; Free
+;
+MSG_VOLUMELIST_USED
+Använt
+; Used
+;

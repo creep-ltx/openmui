@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language czech
+## codeset 5
+;
+MSG_OK
+_Ok
+; _Ok
+;
+MSG_CANCEL
+_Zru¹it
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+O Zune
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, klon rozhraní MUI\n\nSestaveno %s\nCopyright (C) 2002-2026, The AROS Development Team.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Èervená:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Zelená:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Modrá:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Název
+; Name
+;
+MSG_DIRLIST_SIZE
+Velikost
+; Size
+;
+MSG_DIRLIST_DATE
+Datum
+; Date
+;
+MSG_DIRLIST_TIME
+Èas
+; Time
+;
+MSG_DIRLIST_FLAGS
+Pøíznak
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Komentáø
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Vnitøní odstup:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Vlevo
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Nahoøe
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Vpravo
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Dole
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Enable
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Ukázka
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+Polomìr
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+©íøka
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+Vestavìné rámeèky
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Vlastní rámeèky
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Zaoblený rámeèek
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+Maska
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vektor
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Barva
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Externí
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Bitmapa
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Pøechod
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Pøizpùsobit velikost
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+Umístit vedle sebe
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Typ:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Úhel:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Svislý
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Vodorovný
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Barvy:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+Poèáteèní barva
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Koncová barva
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Náhled:
+; Preview:
+;
+MSG_PALETTE_COLOR
+Barva %ld
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Mapa barev
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Svìtlá
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Polosvìtlá
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Pozadí
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Polostínová
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Stínovaná
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Text
+; Text
+;
+MSG_PENADJUST_FILL
+Výplòová
+; Fill
+;
+MSG_PENADJUST_MARK
+Oznaèit
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Název
+; Name
+;
+MSG_VOLUMELIST_FULL
+Plné
+; Full
+;
+MSG_VOLUMELIST_FREE
+Volné
+; Free
+;
+MSG_VOLUMELIST_USED
+Obsazené
+; Used
+;

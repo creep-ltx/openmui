@@ -1,0 +1,12 @@
+# Copyright (C) 1995-2023, The AROS Development Team. All rights reserved.
+
+include $(SRCDIR)/config/aros.cfg
+
+CATALOGS := basque catalan croatian czech danish dutch \
+    finnish french german hungarian italian norwegian \
+    polish portuguese russian serbian spanish swedish \
+    turkish
+
+%build_catalogs mmake=workbench-libs-muimaster-catalogs \
+    catalogs=$(CATALOGS) source="../muimaster_strings.h" \
+    name=muimaster subdir=System/Libs

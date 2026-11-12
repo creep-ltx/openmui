@@ -1,0 +1,24 @@
+## version $VER: PrefsWindow.catalog 1.0 (17.08.2003)
+## codeset 0
+## language deutsch
+;
+MSG_TEST
+_Testen
+; _Test
+;
+MSG_REVERT
+_Rückgängig
+; _Revert
+;
+MSG_SAVE
+_Speichern
+;
+; Save
+MSG_USE
+_Benutzen
+; _Use
+;
+MSG_CANCEL
+_Abbrechen
+; _Cancel
+;

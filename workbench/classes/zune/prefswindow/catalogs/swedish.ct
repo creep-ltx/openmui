@@ -1,0 +1,24 @@
+## version $VER: PrefsWindow.catalog 1.0 (28.05.2003)
+## codeset 0
+## language svenska
+;
+MSG_TEST
+_Testa
+; _Test
+;
+MSG_REVERT
+_Återställ
+; _Revert
+;
+MSG_SAVE
+_Spara
+;
+; Save
+MSG_USE
+_Använd
+; _Use
+;
+MSG_CANCEL
+A_vbryt
+; _Cancel
+;

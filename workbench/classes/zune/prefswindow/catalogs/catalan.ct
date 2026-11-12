@@ -1,0 +1,24 @@
+## version $VER: PrefsWindow.catalog 1.0 (06.08.2026)
+## language català
+## codeset 0
+;
+MSG_TEST
+_Provar
+; _Test
+;
+MSG_REVERT
+_Revertir
+; _Revert
+;
+MSG_SAVE
+_Desar
+; _Save
+;
+MSG_USE
+_Usar
+; _Use
+;
+MSG_CANCEL
+_Cancel.lar
+; _Cancel
+;

@@ -1,0 +1,56 @@
+## version $VER: systemprefswindow.catalog 2.0 (06.08.2026)
+## language dansk
+## codeset 0
+;
+; TODO: update me and set version to 2
+;
+; Initial Danish translation by Kristian Poul Herkild
+;
+MSG_MENU_PREFS
+Indstillinger
+; Preferences
+;
+MSG_MENU_PREFS_IMPORT
+I\0Importér...
+; I\0Import...
+;
+MSG_MENU_PREFS_EXPORT
+E\0Eksportér...
+; E\0Export...
+;
+MSG_MENU_PREFS_TEST
+T\0Afprøv
+; T\0Test
+;
+MSG_MENU_PREFS_REVERT
+R\0Fortryd
+; R\0Revert
+;
+MSG_MENU_PREFS_SAVE
+S\0Gem
+; S\0Save
+;
+MSG_MENU_PREFS_USE
+U\0Brug
+; U\0Use
+;
+MSG_MENU_PREFS_CANCEL
+C\0Afbryd
+; C\0Cancel
+;
+MSG_MENU_PREFS_EXPORT_WITH_ICON
+Eksportér med ikon...
+; Export with Icon...
+;
+MSG_MENU_RESET_TO_DEFAULTS
+Nulstil til standardværdier
+; Reset to Defaults
+;
+MSG_FILEREQ_EXPORT_TITLE
+Eksportér
+; Export
+;
+MSG_FILEREQ_IMPORT_TITLE
+Importér
+; Import
+;

@@ -1,0 +1,884 @@
+## version $VER: Zune.catalog 2.0 (06.08.2026)
+## language suomi
+## codeset 0
+;
+MSG_GENERAL
+Yleistä
+; General
+;
+MSG_BACKGROUND_COLON
+Tausta:
+; Background:
+;
+MSG_BACKGROUND_PRESSED
+Tausta\npainetussa tilassa:
+; Background in\npressed state:
+;
+MSG_TEXT_BUTTONS
+Tekstipainikkeet
+; Text Buttons
+;
+MSG_FRAME_COLON
+Kehys:
+; Frame:
+;
+MSG_FONT
+Kirjasin:
+; Font:
+;
+MSG_IMAGE_BUTTONS
+Kuvapainikkeet
+; Image Buttons
+;
+MSG_ADJUST_FRAME
+Säädä kehystä
+; Adjust Frame
+;
+MSG_CHECKMARKS
+Valintamerkit
+; Checkmarks
+;
+MSG_LOOK_COLON
+Ulkonäkö:
+; Look:
+;
+MSG_CHECKMARK
+Valintamerkki
+; Checkmark
+;
+MSG_RADIO_BUTTONS
+Valintanapit
+; Radio Buttons
+;
+MSG_RADIOBUTTON
+Valintanappi
+; Radiobutton
+;
+MSG_LOOK
+Ulkonäkö
+; Look
+;
+MSG_H
+H
+; H
+;
+MSG_V
+V
+; V
+;
+MSG_SPACING
+Välit
+; Spacing
+;
+MSG_BELOW
+alla
+; below
+;
+MSG_ON_ACTIVE
+aktiivisena
+; on active
+;
+MSG_CYCLE_GADGET_DESIGN
+Kiertovalitsimen ulkoasu
+; Cycle Gadget Design
+;
+MSG_CYCLE
+Kiertovalitsin
+; Cycle
+;
+MSG_POPUP_MENU_CONTROL
+Ponnahdusvalikon ohjaus
+; Popup Menu Control
+;
+MSG_POSITION
+Paikka:
+; Position:
+;
+MSG_LEVEL
+Taso:
+; Level:
+;
+MSG_SPEED
+Nopeus:
+; Speed:
+;
+MSG_POPUP_MENU_DESIGN
+Ponnahdusvalikon ulkoasu
+; Popup Menu Design
+;
+MSG_FRAME
+Kehys
+; Frame
+;
+MSG_ADJUST_BACKGROUND
+Säädä taustaa
+; Adjust Background
+;
+MSG_BACKGROUND
+Tausta
+; Background
+;
+MSG_RECESSED_ENTRIES
+Upotetut kohdat:
+; Recessed Entries:
+;
+MSG_ABOVE
+yllä
+; above
+;
+MSG_CENTERED
+keskitetty
+; centered
+;
+MSG_STANDARD
+vakio
+; standard
+;
+MSG_HILITE
+korostus
+; hilite
+;
+MSG_3D
+3d
+; 3d
+;
+MSG_OUTLINE
+ääriviiva
+; outline
+;
+MSG_TITLE
+Otsikko
+; Title
+;
+MSG_COLOR
+Väri:
+; Color:
+;
+MSG_HORIZONTAL
+Vaaka:
+; Horizontal:
+;
+MSG_VERTICAL
+Pysty:
+; Vertical:
+;
+MSG_REGISTER
+Välilehti
+; Register
+;
+MSG_DEFAULT_SIZE_TRUNCATE_TITLES
+Oletuskoko katkaisee otsikot
+; Default size truncate titles
+;
+MSG_NORMAL
+Normaali
+; Normal
+;
+MSG_VIRTUAL
+Virtuaalinen
+; Virtual
+;
+MSG_FRAMED
+Kehystetty
+; Framed
+;
+MSG_PAGE
+Sivu
+; Page
+;
+MSG_SHIFTED
+shiftillä
+; shifted
+;
+MSG_ALWAYS
+aina
+; always
+;
+MSG_LINEAR
+lineaarinen
+; linear
+;
+MSG_MIXED
+sekoitettu
+; mixed
+;
+MSG_CONTROL
+Hallinta
+; Control
+;
+MSG_MULTI
+Monivalinta:
+; Multi:
+;
+MSG_REFRESH
+Päivitys:
+; Refresh:
+;
+MSG_SMOOTH
+Pehmeä:
+; Smooth:
+;
+MSG_FONTS
+Kirjasimet
+; Fonts
+;
+MSG_NORMAL_COLON
+Normaali:
+; Normal:
+;
+MSG_FIXED
+Kiinteä:
+; Fixed:
+;
+MSG_LEADING
+Riviväli
+; Leading
+;
+MSG_DESIGN
+Ulkoasu
+; Design
+;
+MSG_INPUT_LISTS
+Syötettävät \nlistat:
+; Input \nLists:
+;
+MSG_READONLY_LISTS
+Vain luettavat \nlistat:
+; Readonly \nLists:
+;
+MSG_CURSOR
+Kohdistin
+; Cursor
+;
+MSG_ACTIVE
+Aktiivinen:
+; Active:
+;
+MSG_ACTIVE_SELECTED
+Aktiivinen &\nvalittu:
+; Active &\nSelected:
+;
+MSG_SELECTED
+Valittu:
+; Selected:
+;
+MSG_ALWAYS_SOLID
+aina kiinteä
+; always solid
+;
+MSG_GHOSTED_ON_BOX
+himmennetty laatikossa
+; ghosted on box
+;
+MSG_GHOSTED_OUTSIDE_BOX
+himmennetty laatikon ulkopuolella
+; ghosted outside box
+;
+MSG_ALWAYS_GHOSTED
+aina himmennetty
+; always ghosted
+;
+MSG_SHOW_FRAMES
+näytä kehykset
+; show frames
+;
+MSG_SHOW_OBJECTS
+näytä objektit
+; show objects
+;
+MSG_KL_PRESS
+Paina:
+; Press:
+;
+MSG_KL_TOGGLE
+Vaihda:
+; Toggle:
+;
+MSG_KL_UP
+Ylös:
+; Up:
+;
+MSG_KL_DOWN
+Alas:
+; Down:
+;
+MSG_KL_PAGE_UP
+Sivu ylös:
+; Page up:
+;
+MSG_KL_PAGE_DOWN
+Sivu alas:
+; Page down:
+;
+MSG_KL_TOP
+Ylin:
+; Top:
+;
+MSG_KL_BOTTOM
+Alin:
+; Bottom:
+;
+MSG_KL_LEFT
+Vasen:
+; Left:
+;
+MSG_KL_RIGHT
+Oikea:
+; Right:
+;
+MSG_KL_WORD_LEFT
+Sana vasemmalle:
+; Word left:
+;
+MSG_KL_WORD_RIGHT
+Sana oikealle:
+; Word right:
+;
+MSG_KL_LINE_START
+Rivin alku:
+; Line start:
+;
+MSG_KL_LINE_END
+Rivin loppu:
+; Line end:
+;
+MSG_KL_NEXT_GADGET
+Seuraava valitsin:
+; Next gadget:
+;
+MSG_KL_PREV_GADGET
+Ed. valitsin:
+; Prev. gadget:
+;
+MSG_KL_GADGET_OFF
+Valitsin pois:
+; Gadget off:
+;
+MSG_KL_CLOSE_WINDOW
+Sulje ikkuna:
+; Close window:
+;
+MSG_KL_NEXT_WINDOW
+Seuraava ikkuna:
+; Next window:
+;
+MSG_KL_PREV_WINDOW
+Ed. ikkuna:
+; Prev. window:
+;
+MSG_KL_HELP
+Ohje:
+; Help:
+;
+MSG_KL_POPUP
+Ponnahdus:
+; Popup:
+;
+MSG_DRAG_DROP
+Veto ja pudotus
+; Drag & Drop
+;
+MSG_LEFT_BUTTON
+Vasen painike:
+; Left Button:
+;
+MSG_MIDDLE_BUTTON
+Keskipainike:
+; Middle Button:
+;
+MSG_AUTOSTART
+Automaattikäynnistys:
+; Autostart:
+;
+MSG_PIXEL
+%ld pikseliä
+; %ld pixel
+;
+MSG_BALANCING_GROUPS
+Tasapainotusryhmät
+; Balancing Groups
+;
+MSG_EXAMPLE
+Esimerkki:
+; Example:
+;
+MSG_TRY_WITH
+Kokeile myös
+; Try with
+;
+MSG_SHIFT
+shiftin
+; shift
+;
+MSG_TOO
+kanssa!
+; too!
+;
+MSG_KEYBOARD_CONTROL
+Näppäimistöohjaus
+; Keyboard Control
+;
+MSG_COLOR_ACTIVE_OBJ
+Aktiivisen objektin väri:
+; Color of active object:
+;
+MSG_NEWLOOK
+uusi ulkoasu
+; newlook
+;
+MSG_CUSTOM
+mukautettu
+; custom
+;
+MSG_ARROWS
+Nuolet
+; Arrows
+;
+MSG_UP
+ylös
+; up
+;
+MSG_ARROW_UP
+Nuoli ylös
+; Arrow up
+;
+MSG_ARROW_DOWN
+Nuoli alas
+; Arrow down
+;
+MSG_DOWN
+alas
+; down
+;
+MSG_LEFT
+vasen
+; left
+;
+MSG_ARROW_LEFT
+Nuoli vasemmalle
+; Arrow left
+;
+MSG_ARROW_RIGHT
+Nuoli oikealle
+; Arrow right
+;
+MSG_RIGHT
+oikea
+; right
+;
+MSG_BAR
+Palkki
+; Bar
+;
+MSG_GADGET_TYPE
+Valitsimen tyyppi:
+; Gadget Type:
+;
+MSG_SCROLLER
+Vierityspalkki
+; Scroller
+;
+MSG_KNOB
+Nuppi
+; Knob
+;
+MSG_ARRANGEMENT
+Asettelu
+; Arrangement
+;
+MSG_CONTAINER_DESIGN
+Säiliön ulkoasu
+; Container Design
+;
+MSG_KNOB_DESIGN
+Nupin ulkoasu
+; Knob Design
+;
+MSG_EXAMPLE_SLIDERS
+Esimerkkiliukusäätimet
+; Example Sliders
+;
+MSG_TEXT_FIELDS
+Tekstikentät
+; Text fields
+;
+MSG_EXAMPLE_TEXTFIELD
+Esimerkkitekstikenttä
+; Example Textfield
+;
+MSG_PROGRESS_INDICATOR
+Edistymisen ilmaisin
+; Progress Indicator
+;
+MSG_DEVICE_IMAGES
+Laitekuvat
+; Device Images
+;
+MSG_DRAWER
+Hakemisto
+; Drawer
+;
+MSG_HARDDISK
+Kiintolevy
+; Harddisk
+;
+MSG_DISK
+Levy
+; Disk
+;
+MSG_RAM
+RAM
+; RAM
+;
+MSG_VOLUME
+Levyn
+; Volume
+;
+MSG_NETWORK
+Verkko
+; Network
+;
+MSG_ASSIGN
+Asetettu
+; Assign
+;
+MSG_TAPE_IMAGES
+Nauhurikuvat
+; Tape Images
+;
+MSG_TAPE_PLAY
+Toisto
+; Tape play
+;
+MSG_TAPE_PLAYBACK
+Toisto taaksepäin
+; Tape playback
+;
+MSG_TAPE_PAUSE
+Tauko
+; Tape pause
+;
+MSG_TAPE_STOP
+Pysäytys
+; Tape stop
+;
+MSG_TAPE_RECORD
+Äänitys
+; Tape record
+;
+MSG_TAPE_UP
+Nauha ylös
+; Tape up
+;
+MSG_TAPE_DOWN
+Nauha alas
+; Tape down
+;
+MSG_STRING_FRAME
+Tekstikentän kehys
+; String Frame
+;
+MSG_SPECIAL_POPUP_BUTTONS
+Erityiset ponnahduspainikkeet
+; Special Popup Buttons
+;
+MSG_POPUP
+Ponnahdus
+; Popup
+;
+MSG_DEFAULT
+Oletus
+; Default
+;
+MSG_FILE
+Tiedosto
+; File
+;
+MSG_POPUP_FILE
+Ponnahdustiedosto
+; Popup file
+;
+MSG_POPUP_DRAWER
+Ponnahdushakemisto
+; Popup drawer
+;
+MSG_INACTIVE_STRING_COLORS
+Passiivisen merkkijonon värit
+; Inactive String Colors
+;
+MSG_TEXT
+Teksti
+; Text
+;
+MSG_ACTIVE_STRING_COLORS
+Aktiivisen merkkijonon värit
+; Active String Colors
+;
+MSG_MARKED_STRING_COLORS
+Merkityn merkkijonon värit
+; Marked String Colors
+;
+MSG_EXAMPLE_STRING_GADGET
+Esimerkkisyöttökenttä
+; Example String Gadget
+;
+MSG_FORGET_ON_EXIT
+unohda lopetettaessa
+; forget on exit
+;
+MSG_REMEMBER_ON_EXIT
+muista lopetettaessa
+; remember on exit
+;
+MSG_SAVE_ON_EXIT
+tallenna lopetettaessa
+; save on exit
+;
+MSG_SMART
+älykäs
+; smart
+;
+MSG_SIMPLE
+yksinkertainen
+; simple
+;
+MSG_WITHOUT_CLEAR
+ilman tyhjennystä
+; without clear
+;
+MSG_WITH_CLEAR
+tyhjennyksellä
+; with clear
+;
+MSG_POSITIONS
+Sijainnit:
+; Positions:
+;
+MSG_REDRAW
+Uudelleenpiirto:
+; Redraw:
+;
+MSG_TINY
+Pieni:
+; Tiny:
+;
+MSG_BIG
+Suuri:
+; Big:
+;
+MSG_WINDOW
+Ikkuna
+; Window
+;
+MSG_REQUESTER
+Valintaikkuna
+; Requester
+;
+MSG_L
+L
+; L
+;
+MSG_T
+T
+; T
+;
+MSG_R
+R
+; R
+;
+MSG_B
+B
+; B
+;
+MSG_BUTTONS
+Napit
+; Buttons
+;
+MSG_WINTITLE1
+Zune - Yleisasetukset
+; Zune - Global Prefs
+;
+MSG_WINTITLE2
+Zune - Asetukset: %s
+; Zune - Prefs for : %s
+;
+MSG_MEN_PROJECT
+Projekti
+; Project
+;
+MSG_MEN_OPEN
+Avaa ...
+; Open ...
+;
+MSG_MEN_OPEN_SC
+O
+; O
+;
+MSG_MEN_APPEND
+Liitä ...
+; Append ...
+;
+MSG_MEN_SAVEAS
+Tallenna nimellä ...
+; Save As ...
+;
+MSG_MEN_SAVEAS_SC
+A
+; A
+;
+MSG_MEN_ABOUT
+Tietoa Zunesta ...
+; About Zune ...
+;
+MSG_MEN_ABOUT_SC
+?
+; ?
+;
+MSG_MEN_QUIT
+Lopeta
+; Quit
+;
+MSG_MEN_QUIT_SC
+Q
+; Q
+;
+MSG_FRAME_CLIPBOARD
+Kehysleikepöytä
+; Frame Clipboard
+;
+MSG_IMAGE_CLIPBOARD
+Kuvaleikepöytä
+; Image Clipboard
+;
+MSG_GAD_TEST
+_Kokeile
+; _Test
+;
+MSG_GAD_SAVE
+_Tallenna
+; _Save
+;
+MSG_GAD_USE
+_Käytä
+; _Use
+;
+MSG_GAD_CANCEL
+_Peru
+; _Cancel
+;
+MSG_DSC_SYSTEM
+Järjestelmä
+; System
+;
+MSG_DSC_WINDOWS
+Ikkunat
+; Windows
+;
+MSG_DSC_GROUPS
+Ryhmät
+; Groups
+;
+MSG_DSC_BUTTONS
+Napit
+; Buttons
+;
+MSG_DSC_CYCLES
+Kiertovalitsimet
+; Cycles
+;
+MSG_DSC_SLIDERS
+Liukusäätimet
+; Sliders
+;
+MSG_DSC_SCROLLBARS
+Vierityspalkit
+; Scrollbars
+;
+MSG_DSC_LISTVIEWS
+Listanäkymät
+; Listviews
+;
+MSG_DSC_STRINGS
+Merkkijonot
+; Strings
+;
+MSG_DSC_NAVIGATION
+Navigointi
+; Navigation
+;
+MSG_DSC_SPECIAL
+Erikoiset
+; Special
+;
+MSG_DSC_FRAMES
+Kehykset
+; Frames
+;
+MSG_ADJUST_PEN
+Säädä kynää
+; Adjust Pen
+;
+MSG_CUSTOMFRAMES
+Mukautetut kehykset
+; Customframes
+;
+MSG_PUBLIC_SCREEN
+Julkinen näyttö
+; Public Screen
+;
+MSG_NAME
+Nimi:
+; Name:
+;
+MSG_CALL_INSPECTOR
+Kutsu tarkastin
+; Call Inspector
+;
+MSG_POP_TO_FRONT
+Nosta eteen:
+; Pop to front:
+;
+MSG_ICONIFICATION
+Kuvakkeeksi pienentäminen
+; Iconification
+;
+MSG_HOTKEY
+Pikanäppäin:
+; Hotkey:
+;
+MSG_SHOW
+Näytä:
+; Show:
+;
+MSG_ICON
+Kuvake
+; Icon
+;
+MSG_MENU
+Valikko
+; Menu
+;
+MSG_ON_STARTUP
+Käynnistettäessä:
+; On Startup:
+;
+MSG_INTERFACES
+Liitännät
+; Interfaces
+;
+MSG_AREXX
+ARexx:
+; ARexx:
+;
+MSG_BUBBLE_HELP
+Kuplaohje
+; Bubble Help
+;
+MSG_FIRST_BUBBLE
+Ensimmäinen kupla:
+; First Bubble:
+;
+MSG_NEXT_BUBBLE
+Seuraava kupla:
+; Next Bubble:
+;

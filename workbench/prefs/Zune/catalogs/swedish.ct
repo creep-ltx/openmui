@@ -1,0 +1,884 @@
+## version $VER: Zune.catalog 2.0 (06.08.2026)
+## language svenska
+## codeset 0
+;
+MSG_GENERAL
+Diverse
+; General
+;
+MSG_BACKGROUND_COLON
+Bakgrund:
+; Background:
+;
+MSG_BACKGROUND_PRESSED
+Bakgrund i\nnedtryckt läge:
+; Background in\npressed state:
+;
+MSG_TEXT_BUTTONS
+Textknappar
+; Text Buttons
+;
+MSG_FRAME_COLON
+Ram:
+; Frame:
+;
+MSG_FONT
+Typsnitt:
+; Font:
+;
+MSG_IMAGE_BUTTONS
+Bildknappar
+; Image Buttons
+;
+MSG_ADJUST_FRAME
+Justera ram
+; Adjust Frame
+;
+MSG_CHECKMARKS
+Kryssmarkeringar
+; Checkmarks
+;
+MSG_LOOK_COLON
+Utseende:
+; Look:
+;
+MSG_CHECKMARK
+Kryssmarkering
+; Checkmark
+;
+MSG_RADIO_BUTTONS
+Radioknappar
+; Radio Buttons
+;
+MSG_RADIOBUTTON
+Radioknapp
+; Radiobutton
+;
+MSG_LOOK
+Utseende
+; Look
+;
+MSG_H
+H
+; H
+;
+MSG_V
+V
+; V
+;
+MSG_SPACING
+Avstånd
+; Spacing
+;
+MSG_BELOW
+nedanför
+; below
+;
+MSG_ON_ACTIVE
+vid aktiv
+; on active
+;
+MSG_CYCLE_GADGET_DESIGN
+Cykelknappens utseende
+; Cycle Gadget Design
+;
+MSG_CYCLE
+Cykelknapp
+; Cycle
+;
+MSG_POPUP_MENU_CONTROL
+Styrning av popupmeny
+; Popup Menu Control
+;
+MSG_POSITION
+Läge:
+; Position:
+;
+MSG_LEVEL
+Nivå:
+; Level:
+;
+MSG_SPEED
+Hastighet:
+; Speed:
+;
+MSG_POPUP_MENU_DESIGN
+Popupmenyns utseende
+; Popup Menu Design
+;
+MSG_FRAME
+Ram
+; Frame
+;
+MSG_ADJUST_BACKGROUND
+Justera bakgrund
+; Adjust Background
+;
+MSG_BACKGROUND
+Bakgrund
+; Background
+;
+MSG_RECESSED_ENTRIES
+Nedsänkta poster:
+; Recessed Entries:
+;
+MSG_ABOVE
+ovanför
+; above
+;
+MSG_CENTERED
+centrerad
+; centered
+;
+MSG_STANDARD
+standard
+; standard
+;
+MSG_HILITE
+markerad
+; hilite
+;
+MSG_3D
+3d
+; 3d
+;
+MSG_OUTLINE
+kontur
+; outline
+;
+MSG_TITLE
+Titel
+; Title
+;
+MSG_COLOR
+Färg:
+; Color:
+;
+MSG_HORIZONTAL
+Horisontell:
+; Horizontal:
+;
+MSG_VERTICAL
+Vertikal:
+; Vertical:
+;
+MSG_REGISTER
+Register
+; Register
+;
+MSG_DEFAULT_SIZE_TRUNCATE_TITLES
+Standardstorlek förkortar titlar
+; Default size truncate titles
+;
+MSG_NORMAL
+Normal
+; Normal
+;
+MSG_VIRTUAL
+Virtuell
+; Virtual
+;
+MSG_FRAMED
+Inramad
+; Framed
+;
+MSG_PAGE
+Sida
+; Page
+;
+MSG_SHIFTED
+med skift
+; shifted
+;
+MSG_ALWAYS
+alltid
+; always
+;
+MSG_LINEAR
+linjär
+; linear
+;
+MSG_MIXED
+blandad
+; mixed
+;
+MSG_CONTROL
+Kontroll
+; Control
+;
+MSG_MULTI
+Multi:
+; Multi:
+;
+MSG_REFRESH
+Uppdatering:
+; Refresh:
+;
+MSG_SMOOTH
+Mjuk:
+; Smooth:
+;
+MSG_FONTS
+Typsnitt
+; Fonts
+;
+MSG_NORMAL_COLON
+Normal:
+; Normal:
+;
+MSG_FIXED
+Fast:
+; Fixed:
+;
+MSG_LEADING
+Radavstånd
+; Leading
+;
+MSG_DESIGN
+Utseende
+; Design
+;
+MSG_INPUT_LISTS
+Inmatnings- \nlistor:
+; Input \nLists:
+;
+MSG_READONLY_LISTS
+Skrivskyddade \nlistor:
+; Readonly \nLists:
+;
+MSG_CURSOR
+Markör
+; Cursor
+;
+MSG_ACTIVE
+Aktiv:
+; Active:
+;
+MSG_ACTIVE_SELECTED
+Aktiv &\nmarkerad:
+; Active &\nSelected:
+;
+MSG_SELECTED
+Valda:
+; Selected:
+;
+MSG_ALWAYS_SOLID
+alltid solid
+; always solid
+;
+MSG_GHOSTED_ON_BOX
+nedtonad på ruta
+; ghosted on box
+;
+MSG_GHOSTED_OUTSIDE_BOX
+nedtonad utanför ruta
+; ghosted outside box
+;
+MSG_ALWAYS_GHOSTED
+alltid nedtonad
+; always ghosted
+;
+MSG_SHOW_FRAMES
+visa ramar
+; show frames
+;
+MSG_SHOW_OBJECTS
+visa objekt
+; show objects
+;
+MSG_KL_PRESS
+Tryck:
+; Press:
+;
+MSG_KL_TOGGLE
+Växla:
+; Toggle:
+;
+MSG_KL_UP
+Upp:
+; Up:
+;
+MSG_KL_DOWN
+Ner:
+; Down:
+;
+MSG_KL_PAGE_UP
+Sida upp:
+; Page up:
+;
+MSG_KL_PAGE_DOWN
+Sida ner:
+; Page down:
+;
+MSG_KL_TOP
+Överst:
+; Top:
+;
+MSG_KL_BOTTOM
+Nederst:
+; Bottom:
+;
+MSG_KL_LEFT
+Vänster:
+; Left:
+;
+MSG_KL_RIGHT
+Höger:
+; Right:
+;
+MSG_KL_WORD_LEFT
+Ord vänster:
+; Word left:
+;
+MSG_KL_WORD_RIGHT
+Ord höger:
+; Word right:
+;
+MSG_KL_LINE_START
+Radbörjan:
+; Line start:
+;
+MSG_KL_LINE_END
+Radslut:
+; Line end:
+;
+MSG_KL_NEXT_GADGET
+Nästa gadget:
+; Next gadget:
+;
+MSG_KL_PREV_GADGET
+Föreg. gadget:
+; Prev. gadget:
+;
+MSG_KL_GADGET_OFF
+Gadget av:
+; Gadget off:
+;
+MSG_KL_CLOSE_WINDOW
+Stäng fönster:
+; Close window:
+;
+MSG_KL_NEXT_WINDOW
+Nästa fönster:
+; Next window:
+;
+MSG_KL_PREV_WINDOW
+Föreg. fönster:
+; Prev. window:
+;
+MSG_KL_HELP
+Hjälp:
+; Help:
+;
+MSG_KL_POPUP
+Popup:
+; Popup:
+;
+MSG_DRAG_DROP
+Dra & släpp
+; Drag & Drop
+;
+MSG_LEFT_BUTTON
+Vänsterknapp:
+; Left Button:
+;
+MSG_MIDDLE_BUTTON
+Mittenknapp:
+; Middle Button:
+;
+MSG_AUTOSTART
+Autostart:
+; Autostart:
+;
+MSG_PIXEL
+%ld pixlar
+; %ld pixel
+;
+MSG_BALANCING_GROUPS
+Balansgrupper
+; Balancing Groups
+;
+MSG_EXAMPLE
+Exempel:
+; Example:
+;
+MSG_TRY_WITH
+Prova med
+; Try with
+;
+MSG_SHIFT
+skift
+; shift
+;
+MSG_TOO
+också!
+; too!
+;
+MSG_KEYBOARD_CONTROL
+Tangentbordsstyrning
+; Keyboard Control
+;
+MSG_COLOR_ACTIVE_OBJ
+Färg på aktivt objekt:
+; Color of active object:
+;
+MSG_NEWLOOK
+newlook
+; newlook
+;
+MSG_CUSTOM
+anpassad
+; custom
+;
+MSG_ARROWS
+Pilar
+; Arrows
+;
+MSG_UP
+upp
+; up
+;
+MSG_ARROW_UP
+Pil upp
+; Arrow up
+;
+MSG_ARROW_DOWN
+Pil ner
+; Arrow down
+;
+MSG_DOWN
+ner
+; down
+;
+MSG_LEFT
+vänster
+; left
+;
+MSG_ARROW_LEFT
+Pil vänster
+; Arrow left
+;
+MSG_ARROW_RIGHT
+Pil höger
+; Arrow right
+;
+MSG_RIGHT
+höger
+; right
+;
+MSG_BAR
+List
+; Bar
+;
+MSG_GADGET_TYPE
+Gadgettyp:
+; Gadget Type:
+;
+MSG_SCROLLER
+Rullningslist
+; Scroller
+;
+MSG_KNOB
+Reglage
+; Knob
+;
+MSG_ARRANGEMENT
+Arrangemang
+; Arrangement
+;
+MSG_CONTAINER_DESIGN
+Behållarens utseende
+; Container Design
+;
+MSG_KNOB_DESIGN
+Reglagets utseende
+; Knob Design
+;
+MSG_EXAMPLE_SLIDERS
+Exempelreglage
+; Example Sliders
+;
+MSG_TEXT_FIELDS
+Textfält
+; Text fields
+;
+MSG_EXAMPLE_TEXTFIELD
+Exempeltextfält
+; Example Textfield
+;
+MSG_PROGRESS_INDICATOR
+Förloppsindikator
+; Progress Indicator
+;
+MSG_DEVICE_IMAGES
+Enhetsbilder
+; Device Images
+;
+MSG_DRAWER
+Låda
+; Drawer
+;
+MSG_HARDDISK
+Hårddisk
+; Harddisk
+;
+MSG_DISK
+Disk
+; Disk
+;
+MSG_RAM
+RAM
+; RAM
+;
+MSG_VOLUME
+Volym
+; Volume
+;
+MSG_NETWORK
+Nätverk
+; Network
+;
+MSG_ASSIGN
+Tilldelning
+; Assign
+;
+MSG_TAPE_IMAGES
+Bandbilder
+; Tape Images
+;
+MSG_TAPE_PLAY
+Band spela
+; Tape play
+;
+MSG_TAPE_PLAYBACK
+Band uppspelning
+; Tape playback
+;
+MSG_TAPE_PAUSE
+Band paus
+; Tape pause
+;
+MSG_TAPE_STOP
+Band stopp
+; Tape stop
+;
+MSG_TAPE_RECORD
+Band inspelning
+; Tape record
+;
+MSG_TAPE_UP
+Band upp
+; Tape up
+;
+MSG_TAPE_DOWN
+Band ner
+; Tape down
+;
+MSG_STRING_FRAME
+Strängram
+; String Frame
+;
+MSG_SPECIAL_POPUP_BUTTONS
+Speciella popupknappar
+; Special Popup Buttons
+;
+MSG_POPUP
+Popup
+; Popup
+;
+MSG_DEFAULT
+Standard
+; Default
+;
+MSG_FILE
+Fil
+; File
+;
+MSG_POPUP_FILE
+Popup-fil
+; Popup file
+;
+MSG_POPUP_DRAWER
+Popup-låda
+; Popup drawer
+;
+MSG_INACTIVE_STRING_COLORS
+Färger för inaktiv sträng
+; Inactive String Colors
+;
+MSG_TEXT
+Text
+; Text
+;
+MSG_ACTIVE_STRING_COLORS
+Färger för aktiv sträng
+; Active String Colors
+;
+MSG_MARKED_STRING_COLORS
+Färger för markerad sträng
+; Marked String Colors
+;
+MSG_EXAMPLE_STRING_GADGET
+Exempelsträngfält
+; Example String Gadget
+;
+MSG_FORGET_ON_EXIT
+glöm vid avslut
+; forget on exit
+;
+MSG_REMEMBER_ON_EXIT
+kom ihåg vid avslut
+; remember on exit
+;
+MSG_SAVE_ON_EXIT
+spara vid avslut
+; save on exit
+;
+MSG_SMART
+smart
+; smart
+;
+MSG_SIMPLE
+enkel
+; simple
+;
+MSG_WITHOUT_CLEAR
+utan radering
+; without clear
+;
+MSG_WITH_CLEAR
+med radering
+; with clear
+;
+MSG_POSITIONS
+Positioner:
+; Positions:
+;
+MSG_REDRAW
+Omritning:
+; Redraw:
+;
+MSG_TINY
+Liten:
+; Tiny:
+;
+MSG_BIG
+Stor:
+; Big:
+;
+MSG_WINDOW
+Fönster
+; Window
+;
+MSG_REQUESTER
+Dialogruta
+; Requester
+;
+MSG_L
+E
+; L
+;
+MSG_T
+T
+; T
+;
+MSG_R
+Å
+; R
+;
+MSG_B
+B
+; B
+;
+MSG_BUTTONS
+Knappar
+; Buttons
+;
+MSG_WINTITLE1
+Zune - Globala inställningar
+; Zune - Global Prefs
+;
+MSG_WINTITLE2
+Zune - Inställningar för : %s
+; Zune - Prefs for : %s
+;
+MSG_MEN_PROJECT
+Projekt
+; Project
+;
+MSG_MEN_OPEN
+Öppna ...
+; Open ...
+;
+MSG_MEN_OPEN_SC
+O
+; O
+;
+MSG_MEN_APPEND
+Lägg till ...
+; Append ...
+;
+MSG_MEN_SAVEAS
+Spara som ...
+; Save As ...
+;
+MSG_MEN_SAVEAS_SC
+A
+; A
+;
+MSG_MEN_ABOUT
+Om Zune ...
+; About Zune ...
+;
+MSG_MEN_ABOUT_SC
+?
+; ?
+;
+MSG_MEN_QUIT
+Avsluta
+; Quit
+;
+MSG_MEN_QUIT_SC
+Q
+; Q
+;
+MSG_FRAME_CLIPBOARD
+Urklipp för ramar
+; Frame Clipboard
+;
+MSG_IMAGE_CLIPBOARD
+Urklipp för bilder
+; Image Clipboard
+;
+MSG_GAD_TEST
+_Testa
+; _Test
+;
+MSG_GAD_SAVE
+_Spara
+; _Save
+;
+MSG_GAD_USE
+_Använd
+; _Use
+;
+MSG_GAD_CANCEL
+A_vbryt
+; _Cancel
+;
+MSG_DSC_SYSTEM
+System
+; System
+;
+MSG_DSC_WINDOWS
+Fönster
+; Windows
+;
+MSG_DSC_GROUPS
+Grupper
+; Groups
+;
+MSG_DSC_BUTTONS
+Knappar
+; Buttons
+;
+MSG_DSC_CYCLES
+Cykelknappar
+; Cycles
+;
+MSG_DSC_SLIDERS
+Skjutreglage
+; Sliders
+;
+MSG_DSC_SCROLLBARS
+Rullningslister
+; Scrollbars
+;
+MSG_DSC_LISTVIEWS
+Listvyer
+; Listviews
+;
+MSG_DSC_STRINGS
+Strängar
+; Strings
+;
+MSG_DSC_NAVIGATION
+Förflyttning
+; Navigation
+;
+MSG_DSC_SPECIAL
+Speciellt
+; Special
+;
+MSG_DSC_FRAMES
+Ramar
+; Frames
+;
+MSG_ADJUST_PEN
+Justera penna
+; Adjust Pen
+;
+MSG_CUSTOMFRAMES
+Egna ramar
+; Customframes
+;
+MSG_PUBLIC_SCREEN
+Allmän skärm
+; Public Screen
+;
+MSG_NAME
+Namn:
+; Name:
+;
+MSG_CALL_INSPECTOR
+Anropa inspektör
+; Call Inspector
+;
+MSG_POP_TO_FRONT
+Placera överst:
+; Pop to front:
+;
+MSG_ICONIFICATION
+Ikonifiering
+; Iconification
+;
+MSG_HOTKEY
+Snabbtangent:
+; Hotkey:
+;
+MSG_SHOW
+Visa:
+; Show:
+;
+MSG_ICON
+Ikon
+; Icon
+;
+MSG_MENU
+Meny
+; Menu
+;
+MSG_ON_STARTUP
+Vid start:
+; On Startup:
+;
+MSG_INTERFACES
+Gränssnitt
+; Interfaces
+;
+MSG_AREXX
+ARexx:
+; ARexx:
+;
+MSG_BUBBLE_HELP
+Bubbelhjälp
+; Bubble Help
+;
+MSG_FIRST_BUBBLE
+Första bubbla:
+; First Bubble:
+;
+MSG_NEXT_BUBBLE
+Nästa bubbla:
+; Next Bubble:
+;

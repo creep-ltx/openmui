@@ -1,0 +1,884 @@
+## version $VER: Zune.catalog 2.0 (06.08.2026)
+## language magyar
+## codeset 5
+;
+MSG_GENERAL
+Általános
+; General
+;
+MSG_BACKGROUND_COLON
+Háttér:
+; Background:
+;
+MSG_BACKGROUND_PRESSED
+Háttér lenyomott\nállapotban:
+; Background in\npressed state:
+;
+MSG_TEXT_BUTTONS
+Szöveges gombok
+; Text Buttons
+;
+MSG_FRAME_COLON
+Keret:
+; Frame:
+;
+MSG_FONT
+Betûtípus:
+; Font:
+;
+MSG_IMAGE_BUTTONS
+Képes gombok
+; Image Buttons
+;
+MSG_ADJUST_FRAME
+Keret beállítása
+; Adjust Frame
+;
+MSG_CHECKMARKS
+Pipák
+; Checkmarks
+;
+MSG_LOOK_COLON
+Kinézet:
+; Look:
+;
+MSG_CHECKMARK
+Pipa
+; Checkmark
+;
+MSG_RADIO_BUTTONS
+Rádiógombok
+; Radio Buttons
+;
+MSG_RADIOBUTTON
+Rádiógomb
+; Radiobutton
+;
+MSG_LOOK
+Kinézet
+; Look
+;
+MSG_H
+H
+; H
+;
+MSG_V
+V
+; V
+;
+MSG_SPACING
+Térköz
+; Spacing
+;
+MSG_BELOW
+alatta
+; below
+;
+MSG_ON_ACTIVE
+aktív elemen
+; on active
+;
+MSG_CYCLE_GADGET_DESIGN
+Léptetõgomb kinézete
+; Cycle Gadget Design
+;
+MSG_CYCLE
+Léptetõ
+; Cycle
+;
+MSG_POPUP_MENU_CONTROL
+Popup menü vezérlése
+; Popup Menu Control
+;
+MSG_POSITION
+Pozíció:
+; Position:
+;
+MSG_LEVEL
+Szint:
+; Level:
+;
+MSG_SPEED
+Sebesség:
+; Speed:
+;
+MSG_POPUP_MENU_DESIGN
+Popup menü kinézete
+; Popup Menu Design
+;
+MSG_FRAME
+Keret
+; Frame
+;
+MSG_ADJUST_BACKGROUND
+Háttér beállítása
+; Adjust Background
+;
+MSG_BACKGROUND
+Háttér
+; Background
+;
+MSG_RECESSED_ENTRIES
+Süllyesztett bejegyzések:
+; Recessed Entries:
+;
+MSG_ABOVE
+felül
+; above
+;
+MSG_CENTERED
+középen
+; centered
+;
+MSG_STANDARD
+szabványos
+; standard
+;
+MSG_HILITE
+kiemelt
+; hilite
+;
+MSG_3D
+3d
+; 3d
+;
+MSG_OUTLINE
+körvonalas
+; outline
+;
+MSG_TITLE
+Fejléc
+; Title
+;
+MSG_COLOR
+Szín:
+; Color:
+;
+MSG_HORIZONTAL
+Vízszintes:
+; Horizontal:
+;
+MSG_VERTICAL
+Függõleges:
+; Vertical:
+;
+MSG_REGISTER
+Regiszter
+; Register
+;
+MSG_DEFAULT_SIZE_TRUNCATE_TITLES
+Alapméret, címek levágása
+; Default size truncate titles
+;
+MSG_NORMAL
+Normál
+; Normal
+;
+MSG_VIRTUAL
+Virtuális
+; Virtual
+;
+MSG_FRAMED
+Keretes
+; Framed
+;
+MSG_PAGE
+Lap
+; Page
+;
+MSG_SHIFTED
+shift-tel
+; shifted
+;
+MSG_ALWAYS
+mindig
+; always
+;
+MSG_LINEAR
+lineáris
+; linear
+;
+MSG_MIXED
+vegyes
+; mixed
+;
+MSG_CONTROL
+Vezérlés
+; Control
+;
+MSG_MULTI
+Többes kijelölés:
+; Multi:
+;
+MSG_REFRESH
+Frissítés:
+; Refresh:
+;
+MSG_SMOOTH
+Sima:
+; Smooth:
+;
+MSG_FONTS
+Betûtípusok
+; Fonts
+;
+MSG_NORMAL_COLON
+Normál:
+; Normal:
+;
+MSG_FIXED
+Fix:
+; Fixed:
+;
+MSG_LEADING
+Sorköz
+; Leading
+;
+MSG_DESIGN
+Kinézet
+; Design
+;
+MSG_INPUT_LISTS
+Beviteli \nlisták:
+; Input \nLists:
+;
+MSG_READONLY_LISTS
+Csak olvasható \nlisták:
+; Readonly \nLists:
+;
+MSG_CURSOR
+Kurzor
+; Cursor
+;
+MSG_ACTIVE
+Aktív:
+; Active:
+;
+MSG_ACTIVE_SELECTED
+Aktív &\nkijelölt:
+; Active &\nSelected:
+;
+MSG_SELECTED
+Kijelölve:
+; Selected:
+;
+MSG_ALWAYS_SOLID
+mindig tömör
+; always solid
+;
+MSG_GHOSTED_ON_BOX
+halványítva a dobozon
+; ghosted on box
+;
+MSG_GHOSTED_OUTSIDE_BOX
+halványítva a dobozon kívül
+; ghosted outside box
+;
+MSG_ALWAYS_GHOSTED
+mindig halványítva
+; always ghosted
+;
+MSG_SHOW_FRAMES
+keretek mutatása
+; show frames
+;
+MSG_SHOW_OBJECTS
+objektumok mutatása
+; show objects
+;
+MSG_KL_PRESS
+Lenyomás:
+; Press:
+;
+MSG_KL_TOGGLE
+Átkapcsolás:
+; Toggle:
+;
+MSG_KL_UP
+Fel:
+; Up:
+;
+MSG_KL_DOWN
+Le:
+; Down:
+;
+MSG_KL_PAGE_UP
+Lapozás fel:
+; Page up:
+;
+MSG_KL_PAGE_DOWN
+Lapozás le:
+; Page down:
+;
+MSG_KL_TOP
+Tetejére:
+; Top:
+;
+MSG_KL_BOTTOM
+Aljára:
+; Bottom:
+;
+MSG_KL_LEFT
+Balra:
+; Left:
+;
+MSG_KL_RIGHT
+Jobbra:
+; Right:
+;
+MSG_KL_WORD_LEFT
+Szó balra:
+; Word left:
+;
+MSG_KL_WORD_RIGHT
+Szó jobbra:
+; Word right:
+;
+MSG_KL_LINE_START
+Sor eleje:
+; Line start:
+;
+MSG_KL_LINE_END
+Sor vége:
+; Line end:
+;
+MSG_KL_NEXT_GADGET
+Következõ gadget:
+; Next gadget:
+;
+MSG_KL_PREV_GADGET
+Elõzõ gadget:
+; Prev. gadget:
+;
+MSG_KL_GADGET_OFF
+Gadget ki:
+; Gadget off:
+;
+MSG_KL_CLOSE_WINDOW
+Ablak bezárása:
+; Close window:
+;
+MSG_KL_NEXT_WINDOW
+Következõ ablak:
+; Next window:
+;
+MSG_KL_PREV_WINDOW
+Elõzõ ablak:
+; Prev. window:
+;
+MSG_KL_HELP
+Súgó:
+; Help:
+;
+MSG_KL_POPUP
+Popup:
+; Popup:
+;
+MSG_DRAG_DROP
+Drag & Drop
+; Drag & Drop
+;
+MSG_LEFT_BUTTON
+Bal gomb:
+; Left Button:
+;
+MSG_MIDDLE_BUTTON
+Középsõ gomb:
+; Middle Button:
+;
+MSG_AUTOSTART
+Automatikus indítás:
+; Autostart:
+;
+MSG_PIXEL
+%ld képpont
+; %ld pixel
+;
+MSG_BALANCING_GROUPS
+Kiegyenlítõ csoportok
+; Balancing Groups
+;
+MSG_EXAMPLE
+Példa:
+; Example:
+;
+MSG_TRY_WITH
+Próbáld a
+; Try with
+;
+MSG_SHIFT
+shift
+; shift
+;
+MSG_TOO
+billentyûvel is!
+; too!
+;
+MSG_KEYBOARD_CONTROL
+Billentyûzetvezérlés
+; Keyboard Control
+;
+MSG_COLOR_ACTIVE_OBJ
+Aktív objektum színe:
+; Color of active object:
+;
+MSG_NEWLOOK
+newlook
+; newlook
+;
+MSG_CUSTOM
+egyéni
+; custom
+;
+MSG_ARROWS
+Nyilak
+; Arrows
+;
+MSG_UP
+fel
+; up
+;
+MSG_ARROW_UP
+Nyíl fel
+; Arrow up
+;
+MSG_ARROW_DOWN
+Nyíl le
+; Arrow down
+;
+MSG_DOWN
+le
+; down
+;
+MSG_LEFT
+balra
+; left
+;
+MSG_ARROW_LEFT
+Nyíl balra
+; Arrow left
+;
+MSG_ARROW_RIGHT
+Nyíl jobbra
+; Arrow right
+;
+MSG_RIGHT
+jobbra
+; right
+;
+MSG_BAR
+Sáv
+; Bar
+;
+MSG_GADGET_TYPE
+Gadget típusa:
+; Gadget Type:
+;
+MSG_SCROLLER
+Gördítõ
+; Scroller
+;
+MSG_KNOB
+Fogantyú
+; Knob
+;
+MSG_ARRANGEMENT
+Elrendezés
+; Arrangement
+;
+MSG_CONTAINER_DESIGN
+Konténer kinézete
+; Container Design
+;
+MSG_KNOB_DESIGN
+Fogantyú kinézete
+; Knob Design
+;
+MSG_EXAMPLE_SLIDERS
+Példa csúszkák
+; Example Sliders
+;
+MSG_TEXT_FIELDS
+Szövegmezõk
+; Text fields
+;
+MSG_EXAMPLE_TEXTFIELD
+Példa szövegmezõ
+; Example Textfield
+;
+MSG_PROGRESS_INDICATOR
+Folyamatjelzõ
+; Progress Indicator
+;
+MSG_DEVICE_IMAGES
+Eszközképek
+; Device Images
+;
+MSG_DRAWER
+Fiók
+; Drawer
+;
+MSG_HARDDISK
+Merevlemez
+; Harddisk
+;
+MSG_DISK
+Lemez
+; Disk
+;
+MSG_RAM
+RAM
+; RAM
+;
+MSG_VOLUME
+Egység
+; Volume
+;
+MSG_NETWORK
+Hálózat
+; Network
+;
+MSG_ASSIGN
+Logikai
+; Assign
+;
+MSG_TAPE_IMAGES
+Szalagképek
+; Tape Images
+;
+MSG_TAPE_PLAY
+Szalag lejátszás
+; Tape play
+;
+MSG_TAPE_PLAYBACK
+Szalag visszajátszás
+; Tape playback
+;
+MSG_TAPE_PAUSE
+Szalag szünet
+; Tape pause
+;
+MSG_TAPE_STOP
+Szalag állj
+; Tape stop
+;
+MSG_TAPE_RECORD
+Szalag felvétel
+; Tape record
+;
+MSG_TAPE_UP
+Szalag fel
+; Tape up
+;
+MSG_TAPE_DOWN
+Szalag le
+; Tape down
+;
+MSG_STRING_FRAME
+Beviteli mezõ kerete
+; String Frame
+;
+MSG_SPECIAL_POPUP_BUTTONS
+Speciális popup gombok
+; Special Popup Buttons
+;
+MSG_POPUP
+Popup
+; Popup
+;
+MSG_DEFAULT
+Alapértelmezett
+; Default
+;
+MSG_FILE
+Állomány
+; File
+;
+MSG_POPUP_FILE
+Popup állomány
+; Popup file
+;
+MSG_POPUP_DRAWER
+Popup fiók
+; Popup drawer
+;
+MSG_INACTIVE_STRING_COLORS
+Inaktív beviteli mezõ színei
+; Inactive String Colors
+;
+MSG_TEXT
+Szöveg
+; Text
+;
+MSG_ACTIVE_STRING_COLORS
+Aktív beviteli mezõ színei
+; Active String Colors
+;
+MSG_MARKED_STRING_COLORS
+Kijelölt szöveg színei
+; Marked String Colors
+;
+MSG_EXAMPLE_STRING_GADGET
+Példa beviteli mezõ
+; Example String Gadget
+;
+MSG_FORGET_ON_EXIT
+elfelejtés kilépéskor
+; forget on exit
+;
+MSG_REMEMBER_ON_EXIT
+megjegyzés kilépéskor
+; remember on exit
+;
+MSG_SAVE_ON_EXIT
+mentés kilépéskor
+; save on exit
+;
+MSG_SMART
+smart
+; smart
+;
+MSG_SIMPLE
+simple
+; simple
+;
+MSG_WITHOUT_CLEAR
+törlés nélkül
+; without clear
+;
+MSG_WITH_CLEAR
+törléssel
+; with clear
+;
+MSG_POSITIONS
+Pozíciók:
+; Positions:
+;
+MSG_REDRAW
+Újrarajzolás:
+; Redraw:
+;
+MSG_TINY
+Apró:
+; Tiny:
+;
+MSG_BIG
+Nagy:
+; Big:
+;
+MSG_WINDOW
+Ablak
+; Window
+;
+MSG_REQUESTER
+Requester
+; Requester
+;
+MSG_L
+L
+; L
+;
+MSG_T
+T
+; T
+;
+MSG_R
+R
+; R
+;
+MSG_B
+K
+; B
+;
+MSG_BUTTONS
+Gombok
+; Buttons
+;
+MSG_WINTITLE1
+Zune - Globális beállítások
+; Zune - Global Prefs
+;
+MSG_WINTITLE2
+Zune - Beállítások ehhez: %s
+; Zune - Prefs for : %s
+;
+MSG_MEN_PROJECT
+Projekt
+; Project
+;
+MSG_MEN_OPEN
+Megnyitás ...
+; Open ...
+;
+MSG_MEN_OPEN_SC
+O
+; O
+;
+MSG_MEN_APPEND
+Hozzáfûzés ...
+; Append ...
+;
+MSG_MEN_SAVEAS
+Mentés másként ...
+; Save As ...
+;
+MSG_MEN_SAVEAS_SC
+A
+; A
+;
+MSG_MEN_ABOUT
+Zune névjegye ...
+; About Zune ...
+;
+MSG_MEN_ABOUT_SC
+?
+; ?
+;
+MSG_MEN_QUIT
+Kilépés
+; Quit
+;
+MSG_MEN_QUIT_SC
+Q
+; Q
+;
+MSG_FRAME_CLIPBOARD
+Keret-vágólap
+; Frame Clipboard
+;
+MSG_IMAGE_CLIPBOARD
+Kép-vágólap
+; Image Clipboard
+;
+MSG_GAD_TEST
+_Teszt
+; _Test
+;
+MSG_GAD_SAVE
+Ment_sd
+; _Save
+;
+MSG_GAD_USE
+Használd
+; _Use
+;
+MSG_GAD_CANCEL
+Mégse
+; _Cancel
+;
+MSG_DSC_SYSTEM
+Rendszer
+; System
+;
+MSG_DSC_WINDOWS
+Ablakok
+; Windows
+;
+MSG_DSC_GROUPS
+Csoportok
+; Groups
+;
+MSG_DSC_BUTTONS
+Gombok
+; Buttons
+;
+MSG_DSC_CYCLES
+Léptetõk
+; Cycles
+;
+MSG_DSC_SLIDERS
+Csúszkák
+; Sliders
+;
+MSG_DSC_SCROLLBARS
+Gördítõsávok
+; Scrollbars
+;
+MSG_DSC_LISTVIEWS
+Listanézetek
+; Listviews
+;
+MSG_DSC_STRINGS
+Beviteli mezõk
+; Strings
+;
+MSG_DSC_NAVIGATION
+Navigáció
+; Navigation
+;
+MSG_DSC_SPECIAL
+Speciális
+; Special
+;
+MSG_DSC_FRAMES
+Keretek
+; Frames
+;
+MSG_ADJUST_PEN
+Toll beállítása
+; Adjust Pen
+;
+MSG_CUSTOMFRAMES
+Egyéni keretek
+; Customframes
+;
+MSG_PUBLIC_SCREEN
+Publikus képernyõ
+; Public Screen
+;
+MSG_NAME
+Név:
+; Name:
+;
+MSG_CALL_INSPECTOR
+Inspektor hívása
+; Call Inspector
+;
+MSG_POP_TO_FRONT
+Elõtérbe hozás:
+; Pop to front:
+;
+MSG_ICONIFICATION
+Ikonizálás
+; Iconification
+;
+MSG_HOTKEY
+Gyorsbillentyû:
+; Hotkey:
+;
+MSG_SHOW
+Megjelenítés:
+; Show:
+;
+MSG_ICON
+Ikon
+; Icon
+;
+MSG_MENU
+Menü
+; Menu
+;
+MSG_ON_STARTUP
+Indításkor:
+; On Startup:
+;
+MSG_INTERFACES
+Interfészek
+; Interfaces
+;
+MSG_AREXX
+ARexx:
+; ARexx:
+;
+MSG_BUBBLE_HELP
+Buboréksúgó
+; Bubble Help
+;
+MSG_FIRST_BUBBLE
+Elsõ buborék:
+; First Bubble:
+;
+MSG_NEXT_BUBBLE
+Következõ buborék:
+; Next Bubble:
+;

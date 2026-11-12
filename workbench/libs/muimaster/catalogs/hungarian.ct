@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language magyar
+## codeset 5
+;
+MSG_OK
+_Rendben
+; _Ok
+;
+MSG_CANCEL
+Mégse
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+A Zune névjegye
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, egy MUI klón\n\nFordítás dátuma: %s\nCopyright (C) 2002-2026, The AROS Development Team.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Vörös:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Zöld:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Kék:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Név
+; Name
+;
+MSG_DIRLIST_SIZE
+Méret
+; Size
+;
+MSG_DIRLIST_DATE
+Dátum
+; Date
+;
+MSG_DIRLIST_TIME
+Idõ
+; Time
+;
+MSG_DIRLIST_FLAGS
+Jelzõk
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Megjegyzés
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Belsõ térköz:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Balra
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Fent
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Jobbra
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Lent
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Engedélyez
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Példa
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+Sugár
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+Szélesség
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+Beépített keretek
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Egyéni keretek
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Lekerekített keret
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+Minta
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vektor
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Szín
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Külsõ
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Bitmap
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Átmenet
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Méretezett
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+Csempézett
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Típus:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Szög:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Függõleges
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Vízszintes
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Színek:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+Kezdõ toll
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Záró toll
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Elõnézet:
+; Preview:
+;
+MSG_PALETTE_COLOR
+%ld. szín
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Színtérkép
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Fény
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Félfény
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Háttér
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Félárnyék
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Árnyék
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Szöveg
+; Text
+;
+MSG_PENADJUST_FILL
+Kitöltés
+; Fill
+;
+MSG_PENADJUST_MARK
+Kijelölés
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Név
+; Name
+;
+MSG_VOLUMELIST_FULL
+Teljes
+; Full
+;
+MSG_VOLUMELIST_FREE
+Szabad
+; Free
+;
+MSG_VOLUMELIST_USED
+Használt
+; Used
+;

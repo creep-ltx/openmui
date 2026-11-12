@@ -1,0 +1,52 @@
+## version $VER: systemprefswindow.catalog 2.0 (04.06.2023)
+## language polski
+## codeset 5
+;
+MSG_MENU_PREFS
+Preferencje
+; Preferences
+;
+MSG_MENU_PREFS_IMPORT
+I\0Importuj...
+; I\0Import...
+;
+MSG_MENU_PREFS_EXPORT
+E\0Eksportuj...
+; E\0Export...
+;
+MSG_MENU_PREFS_TEST
+T\0Testuj
+; T\0Test
+;
+MSG_MENU_PREFS_REVERT
+R\0Cofnij
+; R\0Revert
+;
+MSG_MENU_PREFS_SAVE
+S\0Zapisz
+; S\0Save
+;
+MSG_MENU_PREFS_USE
+U\0U¿yj
+; U\0Use
+;
+MSG_MENU_PREFS_CANCEL
+C\0Poniechaj
+; C\0Cancel
+;
+MSG_MENU_PREFS_EXPORT_WITH_ICON
+Eksportuj z ikon±...
+; Export with Icon...
+;
+MSG_MENU_RESET_TO_DEFAULTS
+Przywróæ domy¶lne
+; Reset to Defaults
+;
+MSG_FILEREQ_EXPORT_TITLE
+Eksportuj
+; Export
+;
+MSG_FILEREQ_IMPORT_TITLE
+Importuj
+; Import
+;

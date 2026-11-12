@@ -1,18 +1,3 @@
-[submodule "workbench/libs/muimaster/catalogs"]
-	path = workbench/libs/muimaster/catalogs
-	url = https://github.com/aros-translation-team/muimaster.library.git
-[submodule "workbench/classes/zune/aboutwindow/catalogs"]
-	path = workbench/classes/zune/aboutwindow/catalogs
-	url = https://github.com/aros-translation-team/aboutwindow.git
-[submodule "workbench/classes/zune/prefswindow/catalogs"]
-	path = workbench/classes/zune/prefswindow/catalogs
-	url = https://github.com/aros-translation-team/prefswindow.git
-[submodule "workbench/classes/zune/systemprefswindow/catalogs"]
-	path = workbench/classes/zune/systemprefswindow/catalogs
-	url = https://github.com/aros-translation-team/systemprefswindow.git
-[submodule "workbench/prefs/Zune/catalogs"]
-	path = workbench/prefs/Zune/catalogs
-	url = https://github.com/aros-translation-team/zune-prefs.git
 [submodule "workbench/classes/zune/thebar"]
 	path = workbench/classes/zune/thebar
 	url = https://github.com/amiga-mui/thebar.git

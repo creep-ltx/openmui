@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language srpski
+## codeset 8
+;
+MSG_OK
+_Ok
+; _Ok
+;
+MSG_CANCEL
+_Poniçti
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+O Zune-u
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, MUI klon\n\nKompajlirano %s\nCopyright (C) 2002-2026, The AROS Development Team.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Crvena:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Zelena:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Plava:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Ime
+; Name
+;
+MSG_DIRLIST_SIZE
+VeliŸina
+; Size
+;
+MSG_DIRLIST_DATE
+Datum
+; Date
+;
+MSG_DIRLIST_TIME
+Vreme
+; Time
+;
+MSG_DIRLIST_FLAGS
+Zastavice
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Komentar
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Unutraçnji razmak:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Levo
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Gore
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Desno
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Dole
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Omogu†i
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Primer
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+PolupreŸnik
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+æirina
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+UgraÐeni okviri
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Sopstveni okviri
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Zaobljeni okvir
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+æablon
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vektorska
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Boja
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Spoljaçnja
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Bitmapa
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Gradijent
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Skalirano
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+PoploŸano
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Tip:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Ugao:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Vertikalno
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Horizontalno
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Boje:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+PoŸetna olovka
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Krajnja olovka
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Pregled:
+; Preview:
+;
+MSG_PALETTE_COLOR
+Boja %ld
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Mapa boja
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Sjaj
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Polusjaj
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Pozadina
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Polusenka
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Senka
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Tekst
+; Text
+;
+MSG_PENADJUST_FILL
+Popuna
+; Fill
+;
+MSG_PENADJUST_MARK
+OznaŸi
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Ime
+; Name
+;
+MSG_VOLUMELIST_FULL
+Pun
+; Full
+;
+MSG_VOLUMELIST_FREE
+Slobodno
+; Free
+;
+MSG_VOLUMELIST_USED
+Zauzeto
+; Used
+;

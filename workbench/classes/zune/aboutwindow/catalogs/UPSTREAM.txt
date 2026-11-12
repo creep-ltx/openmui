@@ -1,0 +1,5 @@
+These catalogs come from the AROS translation team:
+https://github.com/aros-translation-team/aboutwindow
+commit 46b6c9cb0d8780341a104f405b6c8eaa7f7a3aac
+License: AROS Public License.
+Vendored into OpenMUI on 2026-11-12; OpenMUI now maintains its own changes here.

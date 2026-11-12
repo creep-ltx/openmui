@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language türkçe
+## codeset 12
+;
+MSG_OK
+_Tamam
+; _Ok
+;
+MSG_CANCEL
+_Vazgeç
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+Zune Hakkýnda
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, bir MUI klonu\n\n%s tarihinde derlendi\nTelif Hakký (C) 2002-2026, AROS Geliþtirme Takýmý.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Kýrmýzý:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Yeþil:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Mavi:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Adý
+; Name
+;
+MSG_DIRLIST_SIZE
+Boyut
+; Size
+;
+MSG_DIRLIST_DATE
+Tarih
+; Date
+;
+MSG_DIRLIST_TIME
+Saat
+; Time
+;
+MSG_DIRLIST_FLAGS
+Bayraklar
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Açýklama
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Ýç Boþluk:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Sol
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Üst
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Sað
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Alt
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Enable
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Örnek
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+Yarýçap
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+Geniþlik
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+Yerleþik Çerçeveler
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Özel Çerçeveler
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Yuvarlatýlmýþ Çerçeve
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+Desen
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vektör
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Renk
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Harici
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Bitmap
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Renk geçiþi
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Ölçekli
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+Döþeli
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Tür:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Açý:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Dikey
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Yatay
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Renkler:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+Baþlangýç kalemi
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Bitiþ kalemi
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Önizleme:
+; Preview:
+;
+MSG_PALETTE_COLOR
+Renk %ld
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Renk haritasý
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Parlak
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Yarý parlak
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Arkaplan
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Yarý gölge
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Gölge
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Metin
+; Text
+;
+MSG_PENADJUST_FILL
+Dolgu
+; Fill
+;
+MSG_PENADJUST_MARK
+Ýþaretle
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Adý
+; Name
+;
+MSG_VOLUMELIST_FULL
+Tam
+; Full
+;
+MSG_VOLUMELIST_FREE
+Boþ
+; Free
+;
+MSG_VOLUMELIST_USED
+Kullanýlan
+; Used
+;

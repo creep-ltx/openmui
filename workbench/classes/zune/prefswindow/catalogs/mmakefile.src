@@ -1,0 +1,13 @@
+# Copyright (C) 2003-2019, The AROS Development Team. All rights reserved.
+
+include $(SRCDIR)/config/aros.cfg
+
+CATALOGS := basque catalan croatian czech danish dutch \
+    finnish french german hungarian italian norwegian \
+    polish portuguese russian serbian spanish swedish \
+    turkish
+
+%build_catalogs mmake=workbench-classes-zune-prefswindow-catalogs \
+    catalogs=$(CATALOGS) \
+    name=PrefsWindow subdir=System/Classes/Zune
+

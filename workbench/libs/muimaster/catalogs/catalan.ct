@@ -1,0 +1,232 @@
+## version $VER: muimaster.catalog 1.0 (06.08.2026)
+## language català
+## codeset 0
+;
+MSG_OK
+_D'acord
+; _Ok
+;
+MSG_CANCEL
+_Cancel.lar
+; _Cancel
+;
+MSG_ABOUTMUI_WINDOW_TITLE
+Sobre Zune
+; About Zune
+;
+MSG_ABOUTMUI_STRING
+Zune, un clon de MUI\n\nCompilat el %s\nCopyright (C) 2002-2026, The AROS Development Team.
+; Zune, a MUI clone\n\nCompiled on %s\nCopyright (C) 2002-2026, The AROS Development Team.
+;
+MSG_COLORADJUST_RED
+Vermell:
+; Red:
+;
+MSG_COLORADJUST_GREEN
+Verd:
+; Green:
+;
+MSG_COLORADJUST_BLUE
+Blau:
+; Blue:
+;
+MSG_DIRLIST_NAME
+Nom
+; Name
+;
+MSG_DIRLIST_SIZE
+Mida
+; Size
+;
+MSG_DIRLIST_DATE
+Data
+; Date
+;
+MSG_DIRLIST_TIME
+Hora
+; Time
+;
+MSG_DIRLIST_FLAGS
+Indicadors
+; Flags
+;
+MSG_DIRLIST_COMMENT
+Comentari
+; Comment
+;
+MSG_FRAMEADJUST_INNER_SPACING
+Espaiat interior:
+; Inner Spacing:
+;
+MSG_FRAMEADJUST_LEFT
+Esquerra
+; Left
+;
+MSG_FRAMEADJUST_TOP
+Superior
+; Top
+;
+MSG_FRAMEADJUST_RIGHT
+Dreta
+; Right
+;
+MSG_FRAMEADJUST_BOTTOM
+Inferior
+; Bottom
+;
+MSG_FRAMEADJUST_ENABLE
+Activar
+; Enable
+;
+MSG_FRAMEADJUST_EXAMPLE
+Exemple
+; Example
+;
+MSG_FRAMEADJUST_RADIUS
+Radi
+; Radius
+;
+MSG_FRAMEADJUST_WIDTH
+Amplada
+; Width
+;
+MSG_FRAMEADJUST_BUILTIN_FRAMES
+Marcs integrats
+; Built-in Frames
+;
+MSG_FRAMEADJUST_CUSTOM_FRAMES
+Marcs personalitzats
+; Custom Frames
+;
+MSG_FRAMEADJUST_ROUNDED_FRAME
+Marc arrodonit
+; Rounded Frame
+;
+MSG_IMAGEADJUST_PATTERN
+Patró
+; Pattern
+;
+MSG_IMAGEADJUST_VECTOR
+Vector
+; Vector
+;
+MSG_IMAGEADJUST_COLOR
+Color
+; Color
+;
+MSG_IMAGEADJUST_EXTERNAL
+Extern
+; External
+;
+MSG_IMAGEADJUST_BITMAP
+Mapa de bits
+; Bitmap
+;
+MSG_IMAGEADJUST_GRADIENT
+Degradat
+; Gradient
+;
+MSG_IMAGEADJUST_SCALED
+Escalat
+; Scaled
+;
+MSG_IMAGEADJUST_TILED
+En mosaic
+; Tiled
+;
+MSG_IMAGEADJUST_TYPE
+Tipus:
+; Type:
+;
+MSG_IMAGEADJUST_ANGLE
+Angle:
+; Angle:
+;
+MSG_IMAGEADJUST_VERTICAL
+Vertical
+; Vertical
+;
+MSG_IMAGEADJUST_HORIZONTAL
+Horitzontal
+; Horizontal
+;
+MSG_IMAGEADJUST_COLORS
+Colors:
+; Colors:
+;
+MSG_IMAGEADJUST_START_PEN
+Llapis inicial
+; Start pen
+;
+MSG_IMAGEADJUST_END_PEN
+Llapis final
+; End pen
+;
+MSG_IMAGEADJUST_PREVIEW
+Previsualització:
+; Preview:
+;
+MSG_PALETTE_COLOR
+Color %ld
+; Color %ld
+;
+MSG_PENADJUST_MUI
+MUI
+; MUI
+;
+MSG_PENADJUST_COLORMAP
+Mapa de colors
+; Colormap
+;
+MSG_PENADJUST_RGB
+RGB
+; RGB
+;
+MSG_PENADJUST_SHINE
+Brillantor
+; Shine
+;
+MSG_PENADJUST_HALFSHINE
+Semibrillantor
+; Halfshine
+;
+MSG_PENADJUST_BACKGROUND
+Fons
+; Background
+;
+MSG_PENADJUST_HALFSHADOW
+Semiombra
+; Halfshadow
+;
+MSG_PENADJUST_SHADOW
+Ombra
+; Shadow
+;
+MSG_PENADJUST_TEXT
+Text
+; Text
+;
+MSG_PENADJUST_FILL
+Emplenat
+; Fill
+;
+MSG_PENADJUST_MARK
+Marcar
+; Mark
+;
+MSG_VOLUMELIST_NAME
+Nom
+; Name
+;
+MSG_VOLUMELIST_FULL
+Ple
+; Full
+;
+MSG_VOLUMELIST_FREE
+Lliure
+; Free
+;
+MSG_VOLUMELIST_USED
+Usat
+; Used
+;

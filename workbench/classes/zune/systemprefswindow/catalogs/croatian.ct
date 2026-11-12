@@ -1,0 +1,52 @@
+## version $VER: SystemPrefsWindow.catalog 2.0 (06.08.2026)
+## language hrvatski
+## codeset 5
+;
+MSG_MENU_PREFS
+Postavke
+; Preferences
+;
+MSG_MENU_PREFS_IMPORT
+I\0Uvezi...
+; I\0Import...
+;
+MSG_MENU_PREFS_EXPORT
+E\0Izvezi...
+; E\0Export...
+;
+MSG_MENU_PREFS_TEST
+T\0Isprobaj
+; T\0Test
+;
+MSG_MENU_PREFS_REVERT
+R\0Vrati
+; R\0Revert
+;
+MSG_MENU_PREFS_SAVE
+S\0Spremi
+; S\0Save
+;
+MSG_MENU_PREFS_USE
+U\0Koristi
+; U\0Use
+;
+MSG_MENU_PREFS_CANCEL
+C\0Odustani
+; C\0Cancel
+;
+MSG_MENU_PREFS_EXPORT_WITH_ICON
+Izvezi s Ikonom...
+; Export with Icon...
+;
+MSG_MENU_RESET_TO_DEFAULTS
+Vrati na osnovne
+; Reset to Defaults
+;
+MSG_FILEREQ_EXPORT_TITLE
+Izvoz
+; Export
+;
+MSG_FILEREQ_IMPORT_TITLE
+Uvoz
+; Import
+;

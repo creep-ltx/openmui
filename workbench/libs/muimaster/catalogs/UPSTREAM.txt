@@ -1,0 +1,5 @@
+These catalogs come from the AROS translation team:
+https://github.com/aros-translation-team/muimaster.library
+commit c023091e8efad955dd337f9c9bb1bb96a7fcf4c0
+License: AROS Public License.
+Vendored into OpenMUI on 2026-11-12; OpenMUI now maintains its own changes here.
