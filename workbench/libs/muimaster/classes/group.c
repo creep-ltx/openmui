@@ -3825,8 +3825,14 @@ static __attribute__((noinline)) void Layout1D_mui_redistrib(struct MinList *chi
             break;
     }
 
-    /* the rest, a pixel at a time from the last child back, weighted
-     * children first */
+    /* the rest, a pixel at a time, weighted children first: in a row from
+     * the first child on, in a column from the last child back (MUI 3.8
+     * measured: tests/native/hdist.c's rows fit the first-child order (28
+     * of 393 rows off instead of 46, 46 of 393 instead of 73 with spacing)
+     * and its columns the last-child order (49 of 253 against 81);
+     * tests/lean/probe/vsplit.c's column of four children of weight 100,
+     * the second fixed at 20, in 123 pixels is 35/20/34/34 on MUI 3.8,
+     * 33/20/35/35 here: the columns' rule is not whole yet) */
     while (remainder != 0)
     {
         BOOL moved = FALSE;
@@ -3834,10 +3840,11 @@ static __attribute__((noinline)) void Layout1D_mui_redistrib(struct MinList *chi
 
         for (round = 0; round < 2 && remainder != 0 && !moved; round++)
         {
-            struct MinNode *node;
+            struct MinNode *node, *next;
 
-            for (node = children->mlh_TailPred;
-                node->mln_Pred && remainder != 0; node = node->mln_Pred)
+            for (node = group_horiz ? children->mlh_Head : children->mlh_TailPred;
+                (next = group_horiz ? node->mln_Succ : node->mln_Pred) && remainder != 0;
+                node = next)
             {
                 Object *kid = BASEOBJECT((struct _Object *)node);
                 WORD *size, min, max;
