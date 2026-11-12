@@ -1270,6 +1270,15 @@ static __attribute__((noinline)) BOOL group_forward_filter(struct opSet *msg,
         case MUIA_FillArea:
         case MUIA_Group_ActivePage:
         case MUIA_Group_LayoutHook:
+        /* the group's own shape: MUI 3.8 and MUI 5 do not pass these
+         * on to child groups (probe/gforward.c); UP-MCC's panels set
+         * their spacing on their own groups */
+        case MUIA_Group_Columns:
+        case MUIA_Group_Horiz:
+        case MUIA_Group_HorizSpacing:
+        case MUIA_Group_Rows:
+        case MUIA_Group_Spacing:
+        case MUIA_Group_VertSpacing:
         case MUIA_Frame:
         case MUIA_FrameTitle:
         case MUIA_HorizWeight:
@@ -2693,8 +2702,11 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
 
     /* Custom backfill hooks keep one call for the whole inner box. An
      * update (a page switch) or a frame alone paints no background, so
-     * no gaps either: the children are not collected then */
-    if (!virtual && (_flags(obj) & MADF_FILLAREA)
+     * no gaps either: the children are not collected then. MUI 3.8 and
+     * MUI 5 paint a group's gaps whatever its MUIA_FillArea (FALSE only
+     * keeps the box under a child that paints nothing: probe/bgfill.c);
+     * UP-MCC's panels have FALSE and show their face that way */
+    if (!virtual
         && !(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
     {
         if (!(_flags(obj) & (MADF_DRAWOBJECT | MADF_DRAWALL)))
@@ -2709,9 +2721,10 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
     {
         /* Area paints the frame and its surround; the group fills
          * the uncovered parts of its inner box itself */
+        ULONG fill = _flags(obj) & MADF_FILLAREA;
         _flags(obj) &= ~MADF_FILLAREA;
         DoSuperMethodA(cl, obj, (Msg) msg);
-        _flags(obj) |= MADF_FILLAREA;
+        _flags(obj) |= fill;
         if (msg->flags & MADF_DRAWOBJECT)
             group_fill_gaps(obj, kids, nkids);
     }
@@ -2788,7 +2801,13 @@ IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
         group_draw_frame_and_gaps(cl, obj, msg, virtual);
     else
     {
+        /* Gaps whatever the group's FillArea, as above */
+        if (!virtual
+            && !(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
+            _flags(obj) |= MADF_FILLAREA;
         DoSuperMethodA(cl, obj, (Msg) msg);
+        if (!virtual)
+            _flags(obj) = (_flags(obj) & ~MADF_FILLAREA) | fill;
     }
 
     if (virtual)
