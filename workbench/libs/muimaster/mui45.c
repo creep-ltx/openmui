@@ -135,11 +135,43 @@ static const struct { ULONG attr; ULONG flag; } string_flags[] = {
  * that changes nothing becomes TAG_IGNORE); tag and store: OM_NEW's
  * Integer64, its text into the buffer store; store alone: OM_GET of attr,
  * TRUE when answered. */
+/* get(MUIA_Gadget_Gadget) of a String (string_private.h): for a program
+ * that gets MUI 3.8 the gadget, made at the first get */
+static IPTR string_gadget(struct MUI_StringData *data, IPTR *store)
+{
+    struct ZuneStringGadget *z = data->msd_Gadget;
+
+    if (!ZUNE_MUI38())
+        return FALSE;
+    *store = 0;
+    if (!z)
+    {
+        if (!(z = AllocVec(sizeof(*z), MEMF_ANY | MEMF_CLEAR)))
+            return TRUE;
+        data->msd_Gadget = z;
+        z->g.Flags = GFLG_EXTENDED;
+        z->g.GadgetType = GTYP_CUSTOMGADGET;
+        z->g.SpecialInfo = &z->si;
+        z->si.Extension = &z->sx;
+        z->sx.Pens[0] = z->sx.ActivePens[0] = 1;
+    }
+    z->si.Buffer = data->Buffer;
+    z->si.MaxChars = data->BufferSize;
+    z->si.NumChars = data->NumChars;
+    z->si.BufferPos = data->BufferPos;
+    z->si.DispPos = data->DispPos;
+    *store = (IPTR)&z->g;
+    return TRUE;
+}
+
 IPTR zune_string_mui45(Object *obj, struct MUI_StringData *data, ULONG attr,
     struct TagItem *tag, IPTR *store)
 {
     IPTR value = tag ? tag->ti_Data : 0;
     unsigned int i;
+
+    if (attr == MUIA_Gadget_Gadget)
+        return string_gadget(data, store);
 
     if (attr == MUIA_String_Integer64)
     {
@@ -327,6 +359,23 @@ void zune_string_draw45(Object *obj, struct MUI_StringData *data,
     struct TextExtent te;
     LONG ysize = _font(obj)->tf_YSize, rows, row, pos;
     STRPTR text = data->VisualBuffer;
+
+    if (what & ZUNE_SD_GADGET)
+    {
+        struct ZuneStringGadget *z = data->msd_Gadget;
+        UBYTE pen = data->is_active ? z->sx.ActivePens[1] : z->sx.Pens[1];
+
+        if (pen != ZSG_BACKPEN)
+        {
+            SetAPen(rp, pen);
+            RectFill(rp, _mleft(obj), _mtop(obj), _mright(obj),
+                _mbottom(obj));
+        }
+        else if (what & ZUNE_SD_UPDATE)
+            DoMethod(obj, MUIM_DrawBackground, _mleft(obj), _mtop(obj),
+                _mwidth(obj), _mheight(obj), _mleft(obj), _mtop(obj), 0);
+        return;
+    }
 
     if (what == ZUNE_SD_PLACEHOLDER)
     {

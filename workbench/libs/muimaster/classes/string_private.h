@@ -4,6 +4,7 @@
 #define _ZUNE_STRING_PRIVATE_H
 
 #include <exec/types.h>
+#include <intuition/sghooks.h>
 #include "penspec.h"
 
 struct MUI_StringData
@@ -85,6 +86,25 @@ struct MUI_StringData
 #define MSDF_OWNBACK        (1<<18) /* MUIA_Background given at creation */
 #define MSDF_DIRECTKEYS     (1<<17) /* MUI 3.8: keys edit directly, not
                                      * through the Textinput methods */
+
+/* MUI 3.8's String is an Intuition string gadget: get(MUIA_Gadget_Gadget)
+ * gives it (GTYP_CUSTOMGADGET, a StringInfo with a StringExtend, pens 1/0:
+ * tests/lean/probe/strbg.c), and a program can recolour the field
+ * through the StringExtend's background pens (UP-MCC's UP-Field does).
+ * For a program that gets MUI 3.8 the MUI 4/5 module (mui45.c) makes such
+ * a gadget at the first get, and the field is filled with a background pen
+ * the program changed there. MUI 5 gives no gadget, nor does Zune for a
+ * program that gets MUI 4/5. */
+#ifndef MUIA_Gadget_Gadget
+#define MUIA_Gadget_Gadget 0x8042ec1a /* MUI 3.8's Gadget class, V11 ..g */
+#endif
+struct ZuneStringGadget
+{
+    struct Gadget g;
+    struct StringInfo si;
+    struct StringExtend sx;
+};
+#define ZSG_BACKPEN 0           /* the background pen Zune puts in */
 
 #define TIP_UPDATE 1
 #define TIP_EDITED 2

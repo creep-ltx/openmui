@@ -272,6 +272,10 @@ IPTR zune_string_mui45(Object *obj, struct MUI_StringData *data, ULONG attr,
 #define ZUNE_SD_MULTILINE   1
 #define ZUNE_SD_UPDATE      2
 #define ZUNE_SD_MARKED      4
+/* ZUNE_SD_GADGET: the field of a MUI 3.8 program's string gadget
+ * (string_private.h) filled with the background pen the program changed
+ * there, or with ZUNE_SD_UPDATE its background when it changed none */
+#define ZUNE_SD_GADGET      8
 void zune_string_draw45(Object *obj, struct MUI_StringData *data,
     ULONG what, ULONG textpen, LONG markstart, LONG markstop);
 LONG zune_string_pos_at(Object *obj, struct MUI_StringData *data, LONG x,

@@ -48,71 +48,17 @@ extern struct Library *MUIMasterBase;
 #include "classes/string_private.h"
 #include "modules.h"
 
-/* MUI 3.8's String is an Intuition string gadget: get(MUIA_Gadget_Gadget)
- * gives it, and a program can recolour the field through the background
- * pens of its StringExtend (UP-MCC's UP-Field does). For a MUI 3.8
- * program Zune makes such a gadget at the first get and fills the field
- * with a background pen the program has changed there; MUI 5 gives no
- * gadget (tests/lean/probe/strbg.c). */
-struct ZuneStringGadget
-{
-    struct Gadget g;
-    struct StringInfo si;
-    struct StringExtend sx;
-};
-#ifndef MUIA_Gadget_Gadget
-#define MUIA_Gadget_Gadget 0x8042ec1a /* MUI 3.8's Gadget class, V11 ..g */
-#endif
-#define ZSG_BACKPEN 0           /* the background pen Zune puts in */
-
-static __attribute__((noinline)) BOOL string_gadget(
-    register struct MUI_StringData *data __asm("a1"),
-    register IPTR *store __asm("a0"))
-{
-    struct ZuneStringGadget *z = data->msd_Gadget;
-
-    if (!ZUNE_MUI38())
-        return FALSE;
-    *store = 0;
-    if (!z)
-    {
-        if (!(z = AllocVec(sizeof(*z), MEMF_ANY | MEMF_CLEAR)))
-            return TRUE;
-        data->msd_Gadget = z;
-        z->g.Flags = GFLG_EXTENDED;
-        z->g.GadgetType = GTYP_CUSTOMGADGET;
-        z->g.SpecialInfo = &z->si;
-        z->si.Extension = &z->sx;
-        z->sx.Pens[0] = z->sx.ActivePens[0] = 1;
-    }
-    z->si.Buffer = data->Buffer;
-    z->si.MaxChars = data->BufferSize;
-    z->si.NumChars = data->NumChars;
-    z->si.BufferPos = data->BufferPos;
-    z->si.DispPos = data->DispPos;
-    *store = (IPTR)&z->g;
-    return TRUE;
-}
-
-/* Fill the field from x to its right edge with the gadget's background
- * pen when the program changed it: TRUE then, else the caller draws the
- * background */
-static __attribute__((noinline)) BOOL string_pen_fill(
+/* A MUI 3.8 program's string gadget (MUIA_Gadget_Gadget, made in the
+ * MUI 4/5 module, classes/string_private.h) drawn with: the field filled
+ * with the background pen the program put into it, or with the object's
+ * background on an update */
+static __attribute__((noinline)) void string_gadget_fill(
     register Object *obj __asm("a2"),
     register struct MUI_StringData *data __asm("a1"),
-    register LONG x __asm("d0"))
+    register ULONG flags __asm("d0"))
 {
-    struct ZuneStringGadget *z = data->msd_Gadget;
-    UBYTE pen;
-
-    if (!z)
-        return FALSE;
-    pen = data->is_active ? z->sx.ActivePens[1] : z->sx.Pens[1];
-    if (pen == ZSG_BACKPEN)
-        return FALSE;
-    SetAPen(_rp(obj), pen);
-    RectFill(_rp(obj), x, _mtop(obj), _mright(obj), _mbottom(obj));
-    return TRUE;
+    zune_string_draw45(obj, data, ZUNE_SD_GADGET
+        | ((flags & MADF_DRAWUPDATE) ? ZUNE_SD_UPDATE : 0), 0, 0, 0);
 }
 
 /* OM_DISPOSE's frees, out of its frame */
@@ -123,18 +69,6 @@ static __attribute__((noinline)) void string_free_more(
     FreeVec(data->Buffer);
     FreeVec(data->SecBuffer);
     FreeVec(data->msd_Gadget);
-}
-
-/* get(MUIA_Gadget_Gadget): the gadget for a MUI 3.8 program, else the
- * superclass's answer */
-static __attribute__((noinline)) IPTR string_get_gadget(struct IClass *cl,
-    Object *obj, struct opGet *msg)
-{
-    struct MUI_StringData *data = INST_DATA(cl, obj);
-
-    if (string_gadget(data, msg->opg_Storage))
-        return TRUE;
-    return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
 /* The settings' string background, unless the program gave the String
@@ -1165,8 +1099,6 @@ IPTR String__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
     struct MUI_StringData *data = INST_DATA(cl, obj);
 
 #define STORE *(msg->opg_Storage)
-    if (msg->opg_AttrID == MUIA_Gadget_Gadget)
-        return string_get_gadget(cl, obj, msg);
     switch (msg->opg_AttrID)
     {
     case MUIA_Text_Contents: /* MUI5 */
@@ -1203,6 +1135,7 @@ IPTR String__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
     case MUIA_Textinput_Styles:
     case MUIA_Textinput_Font:
     case MUIA_String_Integer64:
+    case MUIA_Gadget_Gadget:    /* MUI 3.8's, in the module */
         return String_Get45(obj, data, msg);
     case MUIA_Textinput_Editable:
         STORE = !(data->msd_Flags & MSDF_NOINPUT);
@@ -1836,22 +1769,22 @@ IPTR String__MUIM_Draw(struct IClass *cl, Object *obj,
 
     // little flicker improvement, don't redraw first part of string
     // when adding a char
-    if (msg->flags & MADF_DRAWUPDATE &&
+    if (msg->flags & MADF_DRAWUPDATE && !data->msd_Gadget &&
         data->msd_RedrawReason == DO_ADDCHAR &&
         data->msd_Align == MUIV_String_Format_Left && data->DispPos == 0)
     {
         text_left += TextLength(_rp(obj), dispstr, data->BufferPos - 1);
         dispstr += data->BufferPos - 1;
         dispstrlen -= data->BufferPos - 1;
-        if (!string_pen_fill(obj, data, text_left))
-            DoMethod(obj, MUIM_DrawBackground, text_left, _mtop(obj),
-                _mwidth(obj) - text_left + _mleft(obj), _mheight(obj),
-                text_left, _mtop(obj), 0);
+        DoMethod(obj, MUIM_DrawBackground, text_left, _mtop(obj),
+            _mwidth(obj) - text_left + _mleft(obj), _mheight(obj),
+            text_left, _mtop(obj), 0);
     }
     /* a full draw too when a program may have changed the gadget's
      * background pen: Area has filled with the object's background */
-    else if (!string_pen_fill(obj, data, _mleft(obj))
-        && (msg->flags & MADF_DRAWUPDATE))
+    else if (data->msd_Gadget)
+        string_gadget_fill(obj, data, msg->flags);
+    else if (msg->flags & MADF_DRAWUPDATE)
     {
         DoMethod(obj, MUIM_DrawBackground, _mleft(obj), _mtop(obj),
             _mwidth(obj), _mheight(obj), _mleft(obj), _mtop(obj), 0);

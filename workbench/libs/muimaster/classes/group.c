@@ -1235,6 +1235,67 @@ static void Group_ShiftChildren(struct IClass *cl, Object *obj,
  * tags (opbench "cycle set"). Not inlined: Group__OM_SET's frame is on the
  * stack once per nesting level.
  */
+/* The attributes a set on a group keeps to itself, not passed on to its
+ * children: the low words of their IDs (all MUIA 0x8042xxxx), sorted for
+ * a binary search; a table instead of a switch saves about 200 bytes.
+ * The group's own shape (Columns, Horiz, Rows, spacing) is among them:
+ * MUI 3.8 and MUI 5 do not pass it on to child groups
+ * (tests/lean/probe/gforward.c); UP-MCC's panels set their spacing on
+ * their own groups. Searched in five halving steps (the filter's frame
+ * stays as it was). */
+#define GROUP_OWN(a) ((UWORD)(a))
+static const UWORD group_own_attrs[] = {
+    GROUP_OWN(MUIA_UserData), GROUP_OWN(MUIA_CustomBackfill),
+    GROUP_OWN(MUIA_Draggable), GROUP_OWN(MUIA_HelpNode),
+    GROUP_OWN(MUIA_ControlChar), GROUP_OWN(MUIA_AppMessage),
+    GROUP_OWN(MUIA_CycleChain), GROUP_OWN(MUIA_Weight),
+    GROUP_OWN(MUIA_Pressed), GROUP_OWN(MUIA_Group_ActivePage),
+    GROUP_OWN(MUIA_Virtgroup_Top), GROUP_OWN(MUIA_Group_Horiz),
+    GROUP_OWN(MUIA_Timer), GROUP_OWN(MUIA_HorizWeight),
+    GROUP_OWN(MUIA_Group_Spacing), GROUP_OWN(MUIA_ShortHelp),
+    GROUP_OWN(MUIA_Virtgroup_Left), GROUP_OWN(MUIA_FillArea),
+    GROUP_OWN(MUIA_VertWeight), GROUP_OWN(MUIA_ShowMe),
+    GROUP_OWN(MUIA_ContextMenuTrigger), GROUP_OWN(MUIA_HelpLine),
+    GROUP_OWN(MUIA_Frame), GROUP_OWN(MUIA_Group_Rows),
+    GROUP_OWN(MUIA_ContextMenu), GROUP_OWN(MUIA_Group_LayoutHook),
+    GROUP_OWN(MUIA_Group_HorizSpacing), GROUP_OWN(MUIA_FrameTitle),
+    GROUP_OWN(MUIA_ObjectID), GROUP_OWN(MUIA_Group_VertSpacing),
+    GROUP_OWN(MUIA_Group_Columns), 0xffff  /* 32 entries for the search */
+};
+#define GROUP_OWN_LT(a, b) ((UWORD)(a) < (UWORD)(b) \
+    && ((a) >> 16) == 0x8042 && ((b) >> 16) == 0x8042)
+_Static_assert(GROUP_OWN_LT(MUIA_UserData, MUIA_CustomBackfill)
+    && GROUP_OWN_LT(MUIA_CustomBackfill, MUIA_Draggable)
+    && GROUP_OWN_LT(MUIA_Draggable, MUIA_HelpNode)
+    && GROUP_OWN_LT(MUIA_HelpNode, MUIA_ControlChar)
+    && GROUP_OWN_LT(MUIA_ControlChar, MUIA_AppMessage)
+    && GROUP_OWN_LT(MUIA_AppMessage, MUIA_CycleChain)
+    && GROUP_OWN_LT(MUIA_CycleChain, MUIA_Weight)
+    && GROUP_OWN_LT(MUIA_Weight, MUIA_Pressed)
+    && GROUP_OWN_LT(MUIA_Pressed, MUIA_Group_ActivePage)
+    && GROUP_OWN_LT(MUIA_Group_ActivePage, MUIA_Virtgroup_Top)
+    && GROUP_OWN_LT(MUIA_Virtgroup_Top, MUIA_Group_Horiz)
+    && GROUP_OWN_LT(MUIA_Group_Horiz, MUIA_Timer)
+    && GROUP_OWN_LT(MUIA_Timer, MUIA_HorizWeight)
+    && GROUP_OWN_LT(MUIA_HorizWeight, MUIA_Group_Spacing)
+    && GROUP_OWN_LT(MUIA_Group_Spacing, MUIA_ShortHelp)
+    && GROUP_OWN_LT(MUIA_ShortHelp, MUIA_Virtgroup_Left)
+    && GROUP_OWN_LT(MUIA_Virtgroup_Left, MUIA_FillArea)
+    && GROUP_OWN_LT(MUIA_FillArea, MUIA_VertWeight)
+    && GROUP_OWN_LT(MUIA_VertWeight, MUIA_ShowMe)
+    && GROUP_OWN_LT(MUIA_ShowMe, MUIA_ContextMenuTrigger)
+    && GROUP_OWN_LT(MUIA_ContextMenuTrigger, MUIA_HelpLine)
+    && GROUP_OWN_LT(MUIA_HelpLine, MUIA_Frame)
+    && GROUP_OWN_LT(MUIA_Frame, MUIA_Group_Rows)
+    && GROUP_OWN_LT(MUIA_Group_Rows, MUIA_ContextMenu)
+    && GROUP_OWN_LT(MUIA_ContextMenu, MUIA_Group_LayoutHook)
+    && GROUP_OWN_LT(MUIA_Group_LayoutHook, MUIA_Group_HorizSpacing)
+    && GROUP_OWN_LT(MUIA_Group_HorizSpacing, MUIA_FrameTitle)
+    && GROUP_OWN_LT(MUIA_FrameTitle, MUIA_ObjectID)
+    && GROUP_OWN_LT(MUIA_ObjectID, MUIA_Group_VertSpacing)
+    && GROUP_OWN_LT(MUIA_Group_VertSpacing, MUIA_Group_Columns),
+    "group_own_attrs: MUIA 0x8042xxxx, sorted");
+
 static __attribute__((noinline)) BOOL group_forward_filter(struct opSet *msg,
     struct TagItem *nestedAttrs)
 {
@@ -1244,61 +1305,32 @@ static __attribute__((noinline)) BOOL group_forward_filter(struct opSet *msg,
     tags = msg->ops_AttrList;
     while ((tag = NextTagItem(&tags)) != NULL)
     {
-        switch (tag->ti_Tag)
+        ULONG id = tag->ti_Tag;
+
+        if (id == MUIA_NoNotify)
+            continue;
+        if (id == MUIA_Disabled)
         {
-        case MUIA_NoNotify:
-            break;
-        default:
-            left = TRUE;
-            break;
-        case MUIA_Disabled:
             nestedAttrs[0].ti_Data = tag->ti_Data;
             msg->ops_AttrList = nestedAttrs;
-            left = TRUE;
-            break;
-        case MUIA_HelpLine:
-        case MUIA_HelpNode:
-        case MUIA_ObjectID:
-        case MUIA_UserData:
-
-        case MUIA_ContextMenu:
-        case MUIA_ContextMenuTrigger:
-        case MUIA_ControlChar:
-        case MUIA_CustomBackfill:
-        case MUIA_CycleChain:
-        case MUIA_Draggable:
-        case MUIA_FillArea:
-        case MUIA_Group_ActivePage:
-        case MUIA_Group_LayoutHook:
-        /* the group's own shape: MUI 3.8 and MUI 5 do not pass these
-         * on to child groups (probe/gforward.c); UP-MCC's panels set
-         * their spacing on their own groups */
-        case MUIA_Group_Columns:
-        case MUIA_Group_Horiz:
-        case MUIA_Group_HorizSpacing:
-        case MUIA_Group_Rows:
-        case MUIA_Group_Spacing:
-        case MUIA_Group_VertSpacing:
-        case MUIA_Frame:
-        case MUIA_FrameTitle:
-        case MUIA_HorizWeight:
-        case MUIA_Pressed:
-        case MUIA_ShortHelp:
-        case MUIA_ShowMe:
-        case MUIA_VertWeight:
-        case MUIA_Weight:
-        case MUIA_Virtgroup_Left:
-        case MUIA_Virtgroup_Top:
-        case MUIA_AppMessage:
-        case MUIA_Timer:
-            tag->ti_Tag = TAG_IGNORE;
-            break;
-        case MUIA_Selected:
-/*                D(bug("Group_Set(%p) MUIA_Selected forwarded\n", obj)); */
-/*                          tag->ti_Tag = TAG_IGNORE; */
-            left = TRUE;
-            break;
         }
+        else if ((id >> 16) == 0x8042)
+        {
+            const UWORD *p = group_own_attrs;
+            UWORD w = id;
+
+            if (p[16] <= w) p += 16;
+            if (p[8] <= w) p += 8;
+            if (p[4] <= w) p += 4;
+            if (p[2] <= w) p += 2;
+            if (p[1] <= w) p += 1;
+            if (*p == w)
+            {
+                tag->ti_Tag = TAG_IGNORE;
+                continue;
+            }
+        }
+        left = TRUE;
     }
     return left;
 }
@@ -2702,11 +2734,8 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
 
     /* Custom backfill hooks keep one call for the whole inner box. An
      * update (a page switch) or a frame alone paints no background, so
-     * no gaps either: the children are not collected then. MUI 3.8 and
-     * MUI 5 paint a group's gaps whatever its MUIA_FillArea (FALSE only
-     * keeps the box under a child that paints nothing: probe/bgfill.c);
-     * UP-MCC's panels have FALSE and show their face that way */
-    if (!virtual
+     * no gaps either: the children are not collected then */
+    if (!virtual && (_flags(obj) & MADF_FILLAREA)
         && !(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
     {
         if (!(_flags(obj) & (MADF_DRAWOBJECT | MADF_DRAWALL)))
@@ -2721,10 +2750,9 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
     {
         /* Area paints the frame and its surround; the group fills
          * the uncovered parts of its inner box itself */
-        ULONG fill = _flags(obj) & MADF_FILLAREA;
         _flags(obj) &= ~MADF_FILLAREA;
         DoSuperMethodA(cl, obj, (Msg) msg);
-        _flags(obj) |= fill;
+        _flags(obj) |= MADF_FILLAREA;
         if (msg->flags & MADF_DRAWOBJECT)
             group_fill_gaps(obj, kids, nkids);
     }
@@ -2796,23 +2824,24 @@ IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
             group_clear_ring(obj);
     }
 
+    /* MUI 3.8 and MUI 5 paint a group's gaps whatever its MUIA_FillArea
+     * (FALSE only keeps the box under a child that paints nothing:
+     * tests/lean/probe/bgfill.c); UP-MCC's panels have FALSE and show
+     * their face that way */
+    else if (!(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
+        _flags(obj) |= MADF_FILLAREA;
+
     if (muiGlobalInfo(obj)->mgi_Prefs->window_redraw
         == WINDOW_REDRAW_WITHOUT_CLEAR)
         group_draw_frame_and_gaps(cl, obj, msg, virtual);
     else
     {
-        /* Gaps whatever the group's FillArea, as above */
-        if (!virtual
-            && !(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
-            _flags(obj) |= MADF_FILLAREA;
         DoSuperMethodA(cl, obj, (Msg) msg);
-        if (!virtual)
-            _flags(obj) = (_flags(obj) & ~MADF_FILLAREA) | fill;
     }
+    _flags(obj) = (_flags(obj) & ~MADF_FILLAREA) | fill;
 
     if (virtual)
     {
-        _flags(obj) |= fill;
         if (!DoMethod(obj, MUIM_Virtgroup_BeginPaint))
         {
             /* The raster has already moved, even if the client declines
