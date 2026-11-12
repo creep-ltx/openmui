@@ -11,7 +11,10 @@ struct Coloradjust_DATA
     struct Library *colorwheelbase;
     struct Library *gradientsliderbase;
     struct Hook     sliderhook, wheelhook, gradhook;
-    Object         *rslider, *gslider, *bslider, *colfield, *wheel, *grad;       
+    Object         *rslider, *gslider, *bslider, *colfield, *wheel, *grad;
+    Object         *popup, *palette;   /* the popup under the gradient slider, its palette */
+    struct Hook     palhook;
+    ULONG           palpens;           /* colour fields in the palette (made at Setup) */
     ULONG           rgb[3];
     UWORD           gradpenarray[3];
     LONG            gradpen;

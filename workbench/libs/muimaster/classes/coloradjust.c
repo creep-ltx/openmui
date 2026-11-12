@@ -357,6 +357,18 @@ static void WheelFunc(struct Hook *hook, Object *obj, struct MUIP_CANotifyMsg *m
  * pointer, but does not guard wheel absence. No ownership transfer or
  * returned status.
  */
+/* The palette's colour field for pen msg[0] was clicked: its colour becomes
+ * ours (every notification goes out through OM_SET) and the popup closes. */
+static void PaletteFunc(struct Hook *hook, Object *obj, ULONG *msg)
+{
+    struct Coloradjust_DATA *data = hook->h_Data;
+    ULONG rgb[3];
+
+    GetRGB32(_screen(obj)->ViewPort.ColorMap, msg[0], 1, rgb);
+    set(obj, MUIA_Coloradjust_RGB, (IPTR) rgb);
+    DoMethod(data->popup, MUIM_Popstring_Close, TRUE);
+}
+
 static void GradFunc(struct Hook *hook, Object *obj, struct MUIP_CANotifyMsg *msg)
 {
     struct Coloradjust_DATA *data = msg->caData;
@@ -389,6 +401,49 @@ static void GradFunc(struct Hook *hook, Object *obj, struct MUIP_CANotifyMsg *ms
     NotifyAll(obj, data);
 }
 
+/* The gradient slider with MUI 3.8's popup button under it (a palette of the
+ * screen's colours), in a spacing-0 column; the popup sets the column's
+ * width. Its own function: the tag list stays out of OM_NEW's frame. */
+static __attribute__((noinline)) Object *GradColumn(Object **grad, Object **popup, Object **palette)
+{
+    return (Object *) VGroup,
+    MUIA_Group_Spacing, 0,
+    Child, (IPTR) (*grad = (Object *) BoopsiObject,
+        MUIA_Boopsi_ClassID, (IPTR) "gradientslider.gadget",
+        MUIA_Boopsi_MinWidth, 1,
+        MUIA_Boopsi_MinHeight, 16,
+        MUIA_Boopsi_Remember, GRAD_CurVal,
+        MUIA_Boopsi_Remember, GRAD_PenArray,
+        MUIA_Boopsi_Remember, GRAD_KnobPixels,
+        GA_Left, 0,
+        GA_Top, 0,
+        GA_Width, 0,
+        GA_Height, 0,
+        GRAD_KnobPixels, 8,
+        PGA_Freedom, LORIENT_VERT,
+        ICA_TARGET, ICTARGET_IDCMP,
+        MUIA_FillArea, TRUE,
+    End),
+    /* MUI 3.8: a popup button under the slider (a palette of
+     * the screen's colours here); it sets the column's width */
+    Child, (IPTR) (*popup = (Object *) PopobjectObject,
+        MUIA_Popstring_Button, (IPTR) (Object *) ImageObject,
+            ImageButtonFrame,
+            MUIA_InputMode, MUIV_InputMode_RelVerify,
+            MUIA_Image_Spec, MUII_PopUp,
+            MUIA_Image_FreeVert, TRUE,
+            MUIA_FixWidthTxt, (IPTR) "W",
+            MUIA_Weight, 0,
+        End,
+        MUIA_Popobject_Object, (IPTR) (*palette = (Object *) VGroup,
+            MUIA_Frame, MUIV_Frame_Group,
+            MUIA_Group_Columns, 8,
+            MUIA_Group_Spacing, 1,
+        End),
+    End),
+End;
+}
+
 /*
  * Open gadget libraries, construct Group controls, initialize white RGB,
  * synchronize controls and register hooks. Return object or zero on
@@ -403,7 +458,7 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     struct TagItem *tag;
     struct Library *colorwheelbase, *gradientsliderbase;
     Object *rslider, *gslider, *bslider;
-    Object *colfield, *wheel = NULL, *grad = NULL;
+    Object *colfield, *wheel = NULL, *grad = NULL, *popup = NULL, *palette = NULL;
     ULONG *rgb;
 
     colorwheelbase = OpenLibrary("gadgets/colorwheel.gadget", 0);
@@ -413,19 +468,19 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         (cl, obj, NULL,
         MUIA_Group_Columns, 2,
         MUIA_Group_VertSpacing, 1,
-        Child, (IPTR) Label1(_(MSG_COLORADJUST_RED)),
+        Child, (IPTR) Label(_(MSG_COLORADJUST_RED)),
         Child, (IPTR) (rslider = (Object *)SliderObject,
             MUIA_Group_Horiz, TRUE,
             MUIA_Numeric_Min, 0,
             MUIA_Numeric_Max, 255,
         End),
-        Child, (IPTR) Label1(_(MSG_COLORADJUST_GREEN)),
+        Child, (IPTR) Label(_(MSG_COLORADJUST_GREEN)),
         Child, (IPTR) (gslider = (Object *)SliderObject,
             MUIA_Group_Horiz, TRUE,
             MUIA_Numeric_Min, 0,
             MUIA_Numeric_Max, 255,
         End),
-        Child, (IPTR) Label1(_(MSG_COLORADJUST_BLUE)),
+        Child, (IPTR) Label(_(MSG_COLORADJUST_BLUE)),
         Child, (IPTR) (bslider = (Object *)SliderObject,
             MUIA_Group_Horiz, TRUE,
             MUIA_Numeric_Min, 0,
@@ -458,23 +513,7 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 MUIA_FillArea, TRUE,
             End),
             (!gradientsliderbase) ? TAG_IGNORE : Child,
-                (IPTR) (grad = !gradientsliderbase ? NULL : (Object *) BoopsiObject,
-                MUIA_Boopsi_ClassID, (IPTR) "gradientslider.gadget",
-                MUIA_Boopsi_MinWidth, 16,
-                MUIA_Boopsi_MinHeight, 16,
-                MUIA_Boopsi_MaxWidth, 16,
-                MUIA_Boopsi_Remember, GRAD_CurVal,
-                MUIA_Boopsi_Remember, GRAD_PenArray,
-                MUIA_Boopsi_Remember, GRAD_KnobPixels,
-                GA_Left, 0,
-                GA_Top, 0,
-                GA_Width, 0,
-                GA_Height, 0,
-                GRAD_KnobPixels, 8,
-                PGA_Freedom, LORIENT_VERT,
-                ICA_TARGET, ICTARGET_IDCMP,
-                MUIA_FillArea, TRUE,
-            End),
+                (IPTR) (!gradientsliderbase ? NULL : GradColumn(&grad, &popup, &palette)),
             (!colorwheelbase && !gradientsliderbase) ? Child : TAG_IGNORE,
                 (!colorwheelbase && !gradientsliderbase) ? (IPTR)HVSpace : 0,
         End),
@@ -509,12 +548,18 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data->gradhook.h_Entry = HookEntry;
     data->gradhook.h_SubEntry = (HOOKFUNC) GradFunc;
 
+    data->palhook.h_Entry = HookEntry;
+    data->palhook.h_SubEntry = (HOOKFUNC) PaletteFunc;
+    data->palhook.h_Data = data;
+
     data->rslider = rslider;
     data->gslider = gslider;
     data->bslider = bslider;
     data->colfield = colfield;
     data->wheel = wheel;
     data->grad = grad;
+    data->popup = popup;
+    data->palette = palette;
 
     data->rgb[0] = data->rgb[1] = data->rgb[2] = 0xFFFFFFFF;
 
@@ -757,6 +802,45 @@ IPTR Coloradjust__OM_GET(struct IClass *cl, Object *obj,
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
+/* The popup's palette: one colour field per pen of this screen (up to 32),
+ * 8 to a row; a click sets the colour (PaletteFunc). Made at Setup (the
+ * screen is known then), freed at Cleanup; their own frames. */
+static __attribute__((noinline)) void MakePalette(Object *obj, struct Coloradjust_DATA *data)
+{
+    ULONG depth = GetBitMapAttr(_screen(obj)->RastPort.BitMap, BMA_DEPTH);
+    ULONG n = depth >= 5 ? 32 : 1UL << depth, i;
+
+    for (i = 0; i < n; i++)
+    {
+        Object *cf = ColorfieldObject,
+            MUIA_Colorfield_Pen, i,
+            MUIA_InputMode, MUIV_InputMode_RelVerify,
+            MUIA_FixWidth, 12, MUIA_FixHeight, 8,
+        End;
+        if (!cf)
+            break;
+        DoMethod(cf, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR) obj, 3,
+            MUIM_CallHook, (IPTR) &data->palhook, i);
+        DoMethod(data->palette, OM_ADDMEMBER, (IPTR) cf);
+    }
+    data->palpens = i;
+}
+
+static __attribute__((noinline)) void FreePalette(register struct Coloradjust_DATA *data __asm("a0"))
+{
+    struct List *l = NULL; Object *cf, *state;
+
+    DoMethod(data->popup, MUIM_Popstring_Close, FALSE);
+    get(data->palette, MUIA_Group_ChildList, &l);
+    state = (Object *) l->lh_Head;
+    while ((cf = NextObject(&state)))
+    {
+        DoMethod(data->palette, OM_REMMEMBER, (IPTR) cf);
+        MUI_DisposeObject(cf);
+    }
+    data->palpens = 0;
+}
+
 /*
  * Call Group, return zero on failure; with wheel obtain a gradient pen and
  * configure its full-brightness color and fallback array. Return one even
@@ -770,6 +854,9 @@ IPTR Coloradjust__MUIM_Setup(struct IClass *cl, Object *obj,
 
     if (!(DoSuperMethodA(cl, obj, (Msg) msg)))
         return 0;
+
+    if (data->palette)
+        MakePalette(obj, data);
 
     if (data->wheel)
     {
@@ -823,6 +910,9 @@ IPTR Coloradjust__MUIM_Cleanup(struct IClass *cl, Object *obj,
     struct MUIP_Cleanup *msg)
 {
     struct Coloradjust_DATA *data = INST_DATA(cl, obj);
+
+    if (data->palette && data->palpens)
+        FreePalette(data);
 
     if (data->gradpen != -1)
     {
