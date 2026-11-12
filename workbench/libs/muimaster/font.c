@@ -156,7 +156,7 @@ struct TextFont *zune_font_get(Object *obj, IPTR font)
             {
                 /* MUI 5 derives an unset Tiny, Title, Big and Knob font
                  * from the screen font's size; MUI 3.8 uses the screen font */
-                if (!ZUNE_APP_MUI38(obj)
+                if (ZUNE_APP_MUI45(obj)
                     && (mri->mri_Fonts[-preset] = zune_font_derived(obj, preset)))
                     return mri->mri_Fonts[-preset];
                 /* Normal owns the fallback; do not cache and close it twice. */

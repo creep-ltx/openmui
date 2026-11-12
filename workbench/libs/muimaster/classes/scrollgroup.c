@@ -391,17 +391,26 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
                 maxxxxheight += hh;
                 lm->lm_MinMax.MinHeight = maxxxxheight;
 
-                /* MUI 3.8/3.9: default and maximum are the contents'
-                 * sizes plus the scrollers */
+                /* MUI 3.8: the maximum is the contents' plus the
+                 * scrollers, and the default 100 x 84 kept within the
+                 * contents' default and maximum plus the scrollers, at
+                 * least the minimum (tests/lean/probe/virtsize.c: six
+                 * Scrollgroups with contents of known sizes, one with a
+                 * layout hook, 134x74 62x46 100x84 138x46 100x54 92x64 on
+                 * MUI 3.8; the contents' default alone gave 62x46 90x54
+                 * 62x48 for the last three) */
+                maxxxxwidth = _defwidth(data->contents) + vw;
+                maxxxxheight = _defheight(data->contents) + hh;
+                cminw = MAX((LONG)_maxwidth(data->contents) + vw, maxxxxwidth);
+                cminh = MAX((LONG)_maxheight(data->contents) + hh, maxxxxheight);
                 lm->lm_MinMax.DefWidth = MAX(lm->lm_MinMax.MinWidth,
-                    _defwidth(data->contents) + vw);
+                    CLAMP(100, maxxxxwidth, cminw));
                 lm->lm_MinMax.DefHeight = MAX(lm->lm_MinMax.MinHeight,
-                    _defheight(data->contents) + hh);
-                lm->lm_MinMax.MaxWidth = CLAMP((LONG)_maxwidth(data->contents)
-                    + vw, lm->lm_MinMax.DefWidth, MUI_MAXMAX);
-                lm->lm_MinMax.MaxHeight = CLAMP(
-                    (LONG)_maxheight(data->contents)
-                    + hh, lm->lm_MinMax.DefHeight, MUI_MAXMAX);
+                    CLAMP(84, maxxxxheight, cminh));
+                lm->lm_MinMax.MaxWidth = CLAMP(cminw,
+                    lm->lm_MinMax.DefWidth, MUI_MAXMAX);
+                lm->lm_MinMax.MaxHeight = CLAMP(cminh,
+                    lm->lm_MinMax.DefHeight, MUI_MAXMAX);
             }
 
             //kprintf("scrollgroup minmax: min %d x %d  def %d x %d\n",

@@ -336,11 +336,7 @@ static void drop_other_identity(CONST_STRPTR classname, UBYTE id)
         {
             released[i].lib = NULL;
             if (released[i].identity != id)
-            {
-                zune_identity_nest(1);
-                RemLibrary(lib);
-                zune_identity_nest(-1);
-            }
+                zune_module_remove(lib);
             return;
         }
 }
@@ -421,10 +417,7 @@ static Class *external_load(CONST_STRPTR classname,
             continue;
         }
 
-        zune_identity_nest(1);
-        mcclib = OpenLibrary(s, 0);
-        zune_identity_nest(-1);
-        if (mcclib)
+        if ((mcclib = OpenLibrary(s, 0)))
         {
             D(bug("Calling MCC Query. Librarybase at 0x%p\n", mcclib));
 
@@ -444,9 +437,7 @@ static Class *external_load(CONST_STRPTR classname,
                 }
             }
 
-            zune_identity_nest(1);
             CloseLibrary(mcclib);
-            zune_identity_nest(-1);
         }
     }
 
@@ -480,7 +471,11 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
         drop_other_identity(classname, id);
         base->IdLoader = id;
         Permit();
+        /* the module's LibOpen (and a failed load's close) open and
+         * close this library on this task: not this program's opens */
+        zune_identity_nest(1);
         cl = external_load(classname, &lib, MUIMasterBase);
+        zune_identity_nest(-1);
         base->IdLoader = prev;
         if (!cl)
             return NULL;
@@ -493,17 +488,13 @@ Class *ZUNE_GetExternalClass(CONST_STRPTR classname,
         /* Another task loaded it meanwhile (its reference is ours now):
          * one open is enough */
         ReleaseSemaphore(&base->ZuneSemaphore);
-        zune_identity_nest(1);
-        CloseLibrary(lib);
-        zune_identity_nest(-1);
+        zune_module_close(lib);
         return cl;
     }
     if (!(ec = AllocVec(sizeof(*ec) + strlen(classname), MEMF_ANY)))
     {
         ReleaseSemaphore(&base->ZuneSemaphore);
-        zune_identity_nest(1);
-        CloseLibrary(lib);
-        zune_identity_nest(-1);
+        zune_module_close(lib);
         return NULL;
     }
     if (!EXTERNAL_LIST_READY(base))
@@ -549,9 +540,7 @@ void ZUNE_ReleaseExternalClasses(struct Library *MUIMasterBase)
             released[released_next].lib = ec->lib;
             released[released_next].identity = ec->identity;
             released_next = (released_next + 1) % RELEASED_MEMO;
-            zune_identity_nest(1);
             CloseLibrary(ec->lib);
-            zune_identity_nest(-1);
             FreeVec(ec);
             again = TRUE;
         }

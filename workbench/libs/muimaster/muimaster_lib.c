@@ -103,7 +103,10 @@ BPTR LibClose(struct MUIMasterBase_intern *base __asm("a6"))
      * opens it), so waiting for this library's expunge would wait for
      * ever. Closed, they leave memory at the next flush and close this
      * library, which then releases those that only they used. */
-    ZUNE_ReleaseExternalClasses(&base->library);
+    /* (a module expunged by its close, its DELEXP flag set by an earlier
+     * flush, closes this library on this task: not the program's close:
+     * identity.c's record nesting around the release) */
+    zune_identity_release();
     /* Not while external classes are being closed: one of them closing
      * this library ends inside that release, whose caller goes on */
     if (!base->library.lib_OpenCnt &&

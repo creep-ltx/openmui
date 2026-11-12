@@ -161,10 +161,21 @@ UBYTE zune_task_identity(void);
 #define ZUNE_MUI38() (zune_task_identity() == ZUNE_ID_MUI38)
 #define ZUNE_APP_MUI38(obj) \
     (MGI_IDENTITY(muiGlobalInfo(obj)) == ZUNE_ID_MUI38)
+/* MUI 4 or 5 behaviour where it differs from MUI 3.8's (an identity not
+ * set, 0, behaves as MUI 3.8) */
+#define ZUNE_APP_MUI45(obj) \
+    (MGI_IDENTITY(muiGlobalInfo(obj)) >= ZUNE_ID_MUI4)
 struct Library *zune_identity_open(ULONG version);
 void zune_identity_close(struct Library *base);
 void zune_identity_load(void);     /* read ENV:Zune/BehaveAs (a process) */
-void zune_identity_nest(LONG delta); /* around a class module's open/close */
+/* The record nesting around this library's own open, close and removal
+ * of class modules (identity.c); zune_module_close and _remove do one
+ * close or removal inside it, in their own frames, with register
+ * arguments: the callers' frames stay as they were */
+void zune_identity_nest(register LONG delta __asm("d0"));
+void zune_identity_release(void);  /* LibClose's release of the classes */
+void zune_module_close(register struct Library *lib __asm("a1"));
+void zune_module_remove(register struct Library *lib __asm("a1"));
 void zune_identity_free(void);     /* at expunge */
 BOOL zune_is_master(struct Library *lib); /* this base or one of its copies */
 extern struct Library *MUIScreenBase;

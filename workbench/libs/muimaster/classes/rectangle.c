@@ -370,15 +370,15 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
          * demo 40x10 with 3D titles; OpenMUI had 72x8 and 28x9). MUI 5: 4
          * wider and no taller, in its title font (58x6 for the same title,
          * tests/lean/probe/bars.c on MUI 5 and MUI 3.8 side by side) */
-        if (ZUNE_APP_MUI38(obj))
-        {
-            msg->MinMaxInfo->MinWidth += data->ztext->width + 12;
-            msg->MinMaxInfo->MinHeight += data->ztext->height + 1;
-        }
-        else
+        if (ZUNE_APP_MUI45(obj))
         {
             msg->MinMaxInfo->MinWidth += data->ztext->width + 4;
             msg->MinMaxInfo->MinHeight += data->ztext->height;
+        }
+        else
+        {
+            msg->MinMaxInfo->MinWidth += data->ztext->width + 12;
+            msg->MinMaxInfo->MinHeight += data->ztext->height + 1;
         }
         D(bug("rect: minheight %ld\n", data->ztext->height));
         if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
