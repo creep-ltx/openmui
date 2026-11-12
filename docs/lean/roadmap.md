@@ -345,3 +345,10 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   Voyager's reset traced to a clear into a page bitmap its own quit routine freed, by its own
   task (three memory tools in tests/lean/memtally; the writer not named: open). Details in
   [README.md](README.md#compatibility-round-2-nfs-gui-tipofday-the-om_new-audit-voyagers-quit-2026-11-12).
+- *2026-11-12 (branch `compat3`, compatibility round 3)*: round 2's stack frames put back
+  (Popobject, Popasl, Scale); Voyager's write named (its own blit, still running when its own
+  FreeBitMap frees its double buffer; the buffer is made only on OpenMUI, by Voyager's own layout
+  state: decided as Voyager's, a lead kept) with a new black-box method tracer (mccspy);
+  Coloradjust, a bare List's scroller, Busy's size and frame, Rectangle bar titles measured on
+  MUI 3.8 and matched; 16 programs and 11 class demos more (132 and 60). Details in
+  [README.md](README.md#compatibility-round-3-the-frames-repaired-voyagers-write-named-coloradjust-list-busy-27-more-entries-2026-11-12).

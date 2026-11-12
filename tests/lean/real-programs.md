@@ -1,6 +1,6 @@
 # The real-program suite
 
-Real MUI programs (84 MUI 3 programs, 24 MUI 4/5 ones, 49 add-on class demos since 2026-11-11), started on Zune and on real MUI, compared side by side. Every change of the
+Real MUI programs (100 MUI 3 programs, 24 MUI 4/5 ones, 60 add-on class demos since 2026-11-12), started on Zune and on real MUI, compared side by side. Every change of the
 lean edition is checked with it (roadmap phase 1). The programs are freely downloadable; they are
 fetched into `~/.cache/zune68k-real/` (never committed, never redistributed) and run only in the
 test machines (`~/UAE/TestMachines`), in Amiberry headless since 2026-11-11 (`EMU=fsuae` for FS-UAE).
@@ -213,6 +213,31 @@ MUI). Group `mui3` (ID as in `programs.sh`):
 | jmri | JMRIController (model trains) | 0.92 (2026) | Aminet misc/misc/JMRIController.lha | freeware | 11 | a MUI 3.1 program |
 | amidrop | AmiDrop (MUI version) | 1.1 (2026) | Aminet comm/net/AmiDrop_MUI.lha | freeware | 19 | `Setup/AmiDrop_MUI`; MUI 3.8's run did not end at quit once |
 
+### Added 2026-11-12 (branch `compat3`): 16 more programs by downloads
+
+Aminet's most downloaded 68k archives whose readme names MUI ("MUI 3.8", "muimaster", "MUI" sorted by
+downloads), not yet in the suite; the group is mui3 (all say MUI 3.8). Status on OpenMUI / MUI 3.8 from
+the round's final run (2026-11-12 02:00-02:20, Amiberry, nine instances side by side): 16 of 16 the same status as MUI 3.8; AnimMaker and MonkeyClock differ in window size or place.
+
+| id | program | version | archive | licence | what it is, what the suite saw |
+|---|---|---|---|---|---|
+| netsurf | NetSurf | 3.6 (2016) | comm/www/netsurf-m68k.lha | GPL 2 | CSS web browser; ends at once on both (needs more than the test machine gives: it says so on a console) |
+| haracz | Haracz | 2.24 | comm/misc/2b_Haracz.lha | freeware | internet fee calculator (MonthNavigator); **freezes the MUI 3.8 test machine** inside the suite's quit (left out of the MUI 3.8 baseline run) |
+| amifish | amifish | 1.122 | comm/tcp/amifish.lha | freeware | babelfish front end; ends at once (no TCP stack) |
+| albin | AlbIn | 1.09 | biz/dbase/Albin_free.lha | freeware | music database |
+| amichess | AmiChess | 2.0 | game/board/AmiChess.lha | GPL | chess (GNUChess); **froze the OpenMUI machine once in the suite's quit** |
+| aminetchess | AmiNetChess | 0.9 | game/2play/AmiNetChess.lha | freeware | network chess (its own chess.pmcc) |
+| animmaker | AnimMaker | alpha -20 | gfx/edit/BF_AnimMaker.lha | freeware (source) | vector animation editor |
+| dpoker | DPoker | 1.0b | game/wb/DPoker_v1.0b.lha | freeware | poker |
+| monkeyclock | MonkeyClock | 1.1 | util/time/MonkeyClock.lha | freeware | clock |
+| scaleicon | ScaleIcon | 1993 | gfx/misc/ScaleIcon.lha | freeware | scales Workbench icons |
+| voodoox | Voodoo-X | 1.5 | util/arc/Voodoo-X.lha | freeware | archiver front end (XAD) |
+| amiplexamp | AmiPlexAmp | 0.70 (2026-10) | mus/play/AmiPlexAmp.lha | freeware | Plex audio client |
+| amifleet | amifleet68 | 0.5.0 (2026-10) | comm/net/amifleet68-0.5.0.lha | MIT | console for Amigas running amiagent |
+| ilona | Ilona | 1.3 | comm/irc/Ilona.lha | freeware | IRC bot with a MUI window |
+| amimdc800 | AmiMDC800 | 1.71 | gfx/misc/amimdc800.lha | freeware | Mustek camera control (ImageButton, InfoText, Toolbar, Lamp from its own libs/mui) |
+| pvtree | PVTreeMUI | 1.2 | util/wb/PVTree1_2.lha | freeware | disk tree viewer |
+
 ### Add-on classes: each class's own demo (group `mcc`, 2026-11-11)
 
 Many programs stand on third-party classes. The group runs each class's demo or test program from
@@ -227,7 +252,7 @@ the demo itself needs something the test machines lack (an argument, a file, a l
 |---|---|---|---|---|---|
 | htmlview-demo | HTMLview | 13.4 | dev/mui/MCC_HTMLview-13.4.lha | freeware (beta) | a time-bombed beta: a system requester first (answered by the hook), then the demo |
 | toolbar-demo | Toolbar | 15.12's demo on 15.6 | dev/mui/mcc_toolbar-15.12.lha | freeware | buttons from a brush |
-| lamp-demo | Lamp | 11.1's demo | dev/mui/MCC_Lamp.lha | freeware | Lamp with Coloradjust and Register pages; 338x219 on OpenMUI, 640x256 on MUI 3.8 (MUI 3.8's Coloradjust 60x84/126x84 against 62x72/126x72: 9-pixel labels and a 14x12 popup under the wheel that OpenMUI's lacks, measured 2026-11-12) |
+| lamp-demo | Lamp | 11.1's demo | dev/mui/MCC_Lamp.lha | freeware | Lamp with Coloradjust and Register pages; 338x219 on OpenMUI against 640x256 on MUI 3.8 until 2026-11-12; Coloradjust is MUI 3.8's 60x84/126x84 since (plain labels, the popup under the gradient slider; tests/lean/probe/labels.c) |
 | speedbar-demo1..9 | SpeedBar, SpeedButton, SpeedBarCfg, SpeedBarVirt | 19.4 | dev/mui/MCC_SpeedBar.lha | freeware | nine toolbar demos; demo6 1 px wider on OpenMUI |
 | bwin-demo1..3 | BWin | 22.0 | dev/mui/MCC_BWin.lha | freeware | borderless windows with their own drag bar (Boopsi gadgets); **demo1 and demo3 opened no window on OpenMUI, fixed**; demo2 resets every target |
 | calendar-demo1..4 | Calendar | 18.3's demos | dev/mui/MCC_Calendar.lha | freeware | demo4 ends at once everywhere |
@@ -240,7 +265,7 @@ the demo itself needs something the test machines lack (an argument, a file, a l
 | tablegroup-demo | TableGroup | 1.0 beta | dev/mui/MCC_TableGroup.lha | freeware | 278x142 against 286x151 |
 | mailtext-demo | Mailtext | 3.1 | dev/mui/MCC_Mailtext.lha | freeware | same |
 | mathstring-demo | MathString | 1.5 | dev/mui/MCC_MathString.lha | freeware | same |
-| tipofday-demo | tipboard, tipwindow | 15.8 | dev/mui/MCC_TipOfDay.lha | freeware | the tip window; ~~its title stays "Tip of the day..."~~ the custom title shows since 2026-11-12 (Window's OM_GET stored 0 for tipwindow's MUIA_Tip_WindowObject), its list still has a scroller MUI 3.8 does not show |
+| tipofday-demo | tipboard, tipwindow | 15.8 | dev/mui/MCC_TipOfDay.lha | freeware | the tip window; ~~its title stays "Tip of the day..."~~ the custom title shows since 2026-11-12 (Window's OM_GET stored 0 for tipwindow's MUIA_Tip_WindowObject), its list scroller gone since 2026-11-12 (a List on its own has none on MUI 3.8; the window min 365x121 on both) |
 | transferanim-demo | TransferAnim | 1.5 | dev/mui/MCC_TransferAn.lha | freeware | no window everywhere (imagepool.library) |
 | minimailer-demo | MiniMailer | 20.1 | dev/mui/MCC_MiniMailer.lha | freeware | same |
 | htmltext-demo | HTMLtext | 14.8 | dev/mui/MCC_HTMLtext.lha | freeware | an untitled 85x71 window against 143x83 (and 1 = did not end at quit, everywhere) |
@@ -270,6 +295,22 @@ HTMLtext (+mcp), SettingsWindow, MysticView, Icon, DateString, TimeString, Envel
 (xSysInfo), mcpgfx.library and reqtools.library (MCP), date.library, imagepool.library,
 mysticview.library. Programs with their own `MUI` drawer (NewsRog, Amster, MicroDot-II, AmFinger,
 Assampler) find those classes through the current directory, as on MUI.
+
+### Add-on class demos added 2026-11-12 (branch `compat3`): dev/mui by downloads
+
+| id | class | version | archive | licence | the demo, what the suite saw (2026-11-12 02:00-02:20, Amiberry, nine instances side by side: 11 of 11 the same status; BetterBalance 1 pixel wide) |
+|---|---|---|---|---|---|
+| datestring-demo | DateString | 1998 | dev/mui/MCC_DateString.lha | freeware | date string gadget |
+| datetext-demo | DateText | 12.0 | dev/mui/MCC_DateText.lha | freeware | date text |
+| envelope-demo | Envelope | 1997 | dev/mui/MCC_Envelope.lha | freeware | envelope display (with its mcp) |
+| hotkeystr-demo | HotkeyString | 2.x | dev/mui/MCC_HotkeyStr.lha | freeware | the test program; the suite's HotkeyString.mcc (BetterString 11.36) serves it |
+| mimeeditor-demo | MimeEditor | 1.4 | dev/mui/MCC_MimeEditor.lha | freeware | MIME types editor |
+| readargs-demo | Readargsgroup | 1998 | dev/mui/MCC_Readargsgr.lha | freeware | a GUI from a ReadArgs template |
+| setwin-demo | SettingsWindow | 1.00 | dev/mui/MCC_SetWin1_00.lzh | freeware | settings window |
+| timetext-demo | TimeText | 12.1 | dev/mui/MCC_TimeText.lha | freeware | time text |
+| tron-demo | Tron | 0.8 | dev/mui/MCC_Tron0_8.lha | freeware | the MCC example (with its mcp) |
+| imagebutton-demo | ImageButton | 11.2 | dev/mui/MCC_ImageButto.lha (an lzh inside) | freeware | image button |
+| bbalance-demo | BetterBalance | 11.1 | dev/mui/MCC_BetterBala.lha (an lzh inside) | freeware | balance object |
 
 ### Classes and libraries (same files on every target)
 

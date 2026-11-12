@@ -2762,6 +2762,109 @@ the `ab-*` runs):
   quit), Lamp (Coloradjust), SpeedBar demo6, Busy, HexEdit, TearOff, HTMLtext, GIFAnim within pixels.
 - `make check` passes; stack as in THE RULES above.
 
+## Compatibility round 3: the frames repaired, Voyager's write named, Coloradjust, List, Busy, 27 more entries (2026-11-12)
+
+Branch `compat3` (from `lean`). The rule break of round 2 first, then round 2's open items, each taken
+black-box against MUI 3.8 on Amiberry (OS 3.1 + OpenMUI, OS 3.1 + MUI 3.8, OS 3.2.1 + MUI 5 side by side).
+
+**The stack frames of round 2 put back (fixed).** Round 2 left Popobject__OM_NEW 56 -> 60 and
+Popasl__OM_NEW 64 -> 72 (`SetSuperAttrs` carries the class pointer, 4 bytes more of arguments, and
+keeping `cl` live across the later call costs a saved register), and its own `sudiff` had Scale__OM_NEW
+36 -> 40 too (reported "as before" by mistake). Now Popstring builds the OM_SET for its subclasses'
+hooks in its own frame (`Popstring_SetHooks`, classes/popstring.c) and the two call it before their tag
+loops, where `cl` is live anyway: 44 and 60. Scale sends its constant tiny-font message before `data`
+is live: 36. The superclass path of round 2 is kept (newset.c measures the same).
+
+**demopix's 17 of 27 in round 2 was MUI 3.8's side, not the code (proved).** OpenMUI's shots of
+ShowHide and InputHandler are byte-identical between round 1's and round 2's runs (`cmp` of the crops);
+MUI 3.8's own two runs differ (its checkmark glyph one pixel row lower in round 2, 40 pixels; the
+InputHandler timer window as always). This round's demopix: 19 of 27 windows pixel-identical with MUI 3.8 (ShowHide and InputHandler identical again; the eight others as every round: Balancing, Layout, Popup, Slidorama, Subtask, Virtual, Images, Listviews).
+
+**Voyager 3.5.3's reset: the write is a blit of Voyager's own, still running when Voyager frees the
+bitmap, and the bitmap exists only on OpenMUI; why the last part differs is narrowed to Voyager's own
+layout state (open, decided).** A new tool, `tests/lean/memtally/mccspy`, patches
+MUI_CreateCustomClass and wraps every class a program creates, so each method the library sends to the
+program's own classes is recorded in order (plus MUI_DisposeObject, MUI_Redraw, CloseWindow, AllocMem/
+FreeMem of 2 KB and more with callers, AllocBitMap with its sizes, and the 19 drawing calls of gfxwatch
+when they target a chip block the record saw allocated), into chip RAM that survives the reset; it runs
+unchanged on MUI 3.8 and OpenMUI (on OpenMUI it opens the library with the program's version: each
+identity has its own jump table). Nine runs on each (`/tmp/compat3/zwork/spy-*.txt`) say:
+
+- With Amiberry's `immediate_blits=true` the close-gadget quit does not reset. So the 555-pixel clear
+  into the freed block is a blit started before Voyager's own FreeBitMap and finished after it: the
+  missing `WaitBlit()` before freeing a bitmap the blitter may still use. None of the 19 graphics
+  drawing calls ever targets that block (0 records on OpenMUI, the block does not exist on MUI 3.8),
+  so it is Voyager's own blitter code, and no library call sits between its blit and its free where a
+  WaitBlit could be put.
+- The block is Voyager's double buffer: `AllocBitMap(554, 227, 2, flags, friend)` from its page class's
+  MUIM_Draw (its main program `V` disassembled for interoperability: a temp bitmap of the page's
+  right/bottom edge, cached globally with a hook layer, offsets 0x4a6bc and 0x4b942). Draw takes that
+  path when a flag in the page's data (+256) is set: set by the routine that adds a page's content and
+  calls ExitChange, cleared after a buffered draw. On OpenMUI the page's second Draw (after the content's
+  ExitChange and the Hide/Layout/Show of its group) allocates; on MUI 3.8 the same Draw, at the same
+  point of the same sequence, draws plainly. The method traffic into Voyager's classes is the same in
+  kind and order on both; MUI 3.8 sends three private methods (0x8042bcd2, 0x8042ffbf before Show,
+  0x80424d50 before Layout) that Voyager's binary does not know, so they do not change its state. What
+  does differ is a number Voyager computes in its own layout hook (data+20 from +176/+180) or gets from
+  the Virtgroup: not found within the round. MUI 3.8 also sets `MUIA_Virtgroup_Top` 0 on the page
+  through set() between Show and the next Draw, which OpenMUI does not; a lead for round 4.
+- Decision for the gate: Voyager's bug (no WaitBlit before FreeBitMap), reproducible only on OpenMUI
+  because only there Voyager's double buffer is made for the About page; the ARexx and menu quits are
+  clean on both; on a real 68030 the blit window is smaller but exists.
+
+**Coloradjust as MUI 3.8 measures it (fixed).** `tests/lean/probe/labels.c` (the label objects, plain
+Texts with the frames, and a Coloradjust, dumped) on both: Label1/Label2/FreeLabel1 and the phantom
+frames measure the same on both (12/14/12 high in topaz 8), so the Coloradjust difference was its own
+labels: MUI 3.8's are plain Texts (8 high, `Label()`), OpenMUI's were single-frame labels (12). Under the
+gradient slider MUI 3.8 has a Popobject 18x14 (an ImageButton-framed popup image) in a spacing-0 column
+with the slider (min 1x16), the column 18 wide. OpenMUI's Coloradjust now measures exactly MUI 3.8's
+(93x83 min, 188x83 default in the probe; 60x84/126x84 in Lamp's demo, was 62x72/126x72); its popup opens
+a palette of the screen's pens (made on first open; what MUI 3.8's lists was not seen: clicking it on the
+test screen opened nothing). The new code is in its own frames (`GradColumn`, `MakePalette`,
+`PaletteOpen`, `PaletteFunc`): OM_NEW 368 -> 360, Setup and Cleanup unchanged.
+
+**The TipOfDay list scroller: a List on its own has no scrollbar (fixed).** `objdump` of the demo on
+both: tipwindow's Tipboard embeds a bare Floattext, 48x31 min with a frame on MUI 3.8, 66x34 with a
+Scrollbar child on OpenMUI (Zune's List made its own scroller unless told
+MUIV_Listview_ScrollerPos_None; the scroller belongs to Listview). List now defaults to none and
+Listview sets the position it was asked for, or the default (right). The demo's window: 365x166 min
+365x121 on both (was min 365x124).
+
+**Busy.mcc's look and size (fixed in part).** `objdump` of Busy 2.4's demo: Busy.mcc min 12x6, default
+28x10, a thin recessed frame with one pixel beside the bar (`add 2,1`); OpenMUI's own class was 50x4 with
+no frame. Now the class draws the thin recessed frame itself and sizes as Busy 2.4; its bar is black with
+white blocks where Busy 2.4's blocks are white, blue and grey (its fade), left. The same dump showed
+**Rectangle bar titles 12 pixels wider and 1 taller than their text on MUI 3.8** (84x9 for "Speed: 20";
+Lamp's demo 40x10 with 3D titles), OpenMUI added nothing: fixed in rectangle.c. The demo's window is
+148x151 min 148x139 on both (was 136x130).
+
+**27 more entries in the suite (16 programs, 11 class demos):** Aminet's most downloaded 68k archives
+whose readme names MUI (NetSurf 3.6, Haracz, amifish, AlbIn, AmiChess, AmiNetChess, AnimMaker, DPoker,
+MonkeyClock, ScaleIcon, Voodoo-X, AmiPlexAmp, amifleet68, Ilona, AmiMDC800, PVTreeMUI) and dev/mui by
+downloads (the demos of DateString, DateText, Envelope, HotkeyString, MimeEditor, Readargsgroup,
+SettingsWindow, TimeText, Tron, ImageButton, BetterBalance; their classes installed). 132 programs and
+60 class demos now (the gate asks 120 and 60). Results: all 26 with a baseline have the same status on OpenMUI and MUI 3.8 (AlbIn and AmiChess freeze both machines in the suite quit, NetSurf, amifish, AmiNetChess, ScaleIcon and the Readargsgroup demo end at once on both, the Envelope and ImageButton demos open no window on both, Ilona freezes at quit on both), 23 of 26 the same windows (AnimMaker Frame Control 388x73 against 364x61, BetterBalance 506 against 507 wide, MonkeyClock placed 7 pixels apart); Haracz froze the MUI 3.8 machine in the baseline run.
+
+**Not reached:** HTMLview's demo still running after its quit, the pixel-level windows (Lumi* 556
+against 552, HexEdit, HTMLtext, GIFAnim, TearOff, SpeedBar demo6, NFS-GUI's list 1 pixel, TinyMeterPrefs'
+default height), Popscreen's WindowHook, Application's iconify-at-startup through the subclass, Busy's
+block colours.
+
+**THE RULES, measured:**
+
+- Nothing removed; MUI 3 programs pay nothing new (the changes are a few instructions in Popstring,
+  Popobject, Popasl, Scale, List, Listview, Rectangle, and in the Coloradjust and Busy class files that
+  load only when used).
+- Stack (`-fstack-usage` of every function against `lean`, `/tmp/compat3/sudiff.txt`): Popobject__OM_NEW
+  56 -> 44, Popasl__OM_NEW 64 -> 60, Scale__OM_NEW 36 (was 40 after round 2), Window__OM_GET 24 -> 20,
+  Coloradjust__OM_NEW 368 -> 360; new functions only otherwise (Popstring_SetHooks 56, GradColumn 220,
+  MakePalette 108, PaletteFunc 52, PaletteOpen 8). stackrun on FS-UAE: MUI-Demo with its eight sub-windows 5,196 (round 2: 5,196; a first run gave 5,260, the figure varies), Layout 2,268, Virtual 2,212, Pages 2,240, Slidorama 2,304: not deeper.
+- `make check` passes (check_coloradjust reads the class's data at fixed offsets: new fields go last).
+- Library file 278,384 bytes (278,220 at the start of the round: Rectangle's two constants, List's
+  default, Listview's set and Popstring's helper).
+
+**Results, the final library** (the whole suite of 181 entries in six chunks against round 2 final: 151 entries the same, the 27 new ones, Tron demo opens now (its class installed), Lamp 336x231 (was 338x219; MUI 3.8 640x256, its default), Busy 148x151 as MUI 3.8 (was 136x130), AmigaGPT 590x255 (bar titles 1 px taller; MUI 5: 576x230), HTMLtext demo 85x256 against 85x71 before and MUI 3.8 143x83 (looked at below), mui5-class4 frozen once under a load of 30 (rerun: ok, Process Class Demo 288x65; HTMLtext demo 85x256 again in the suite (88x71 min 62x71 on a kept instance, dumped: the demo window sizes to its loaded text), AmigaGPT 590x255 again); fullcheck lost 608 / 200 / AppWindow 264 as every round; make check passes).
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
@@ -2803,19 +2906,21 @@ the `ab-*` runs):
   211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
   list pools of 1 KB puddles, Text contents.)
 
-- **Compatibility (2026-11-12, after `compat2`)**: Voyager 3.5.3 still resets the machine after a
-  quit by its close gadget: a 555-pixel-wide clear lands in the 576x227 chip bitmap its own quit
-  routine freed, by its own task, through no graphics.library call; why MUI 3.8 survives it is
-  open (the three tools and the records: "Compatibility round 2" above). Left from the look at
-  sizes: Coloradjust (MUI 3.8's has a 14x12 popup under the wheel and 9-pixel labels), the
-  TipOfDay list scroller, OpenMUI's own Busy.mcc look, NFS-GUI's list 1 pixel, TinyMeterPrefs'
-  default height, NewsRog, the Lumi programs, u64mui, HexEdit, TableGroup, HTMLtext, GIFAnim,
-  TearOff within pixels, the HTMLview demo still running after quit. Popscreen sets no
-  WindowHook (MUI 3.8 does); Application's iconify-at-startup set still goes through a
-  subclass's OM_SET (unmeasured). Fixed this round: NFS-GUI's window (Register's frame spacing
-  in the fitting stages), the TipOfDay title (Window's OM_GET), the root object's frame
-  (TinyMeterPrefs), List/Scale/Popobject/Popasl's OM_NEW sets; AmiTradeCenter's Server Manager
-  is the program's with reqtools.library present (MUI 3.8 too).
+- **Compatibility (2026-11-12, after `compat3`)**: Voyager 3.5.3 still resets the machine after a
+  quit by its close gadget; the write is its own blit, still running when its own FreeBitMap frees
+  its double-buffer bitmap (Amiberry's immediate blits: no reset), and that bitmap is made only on
+  OpenMUI (its page's Draw takes Voyager's buffered path there, decided by Voyager's own layout
+  state; MUI 3.8's method traffic into Voyager's classes is the same in kind and order). Decided
+  as Voyager's bug; the lead for the last difference: MUI 3.8 sets MUIA_Virtgroup_Top on the page
+  through set() between Show and Draw ("Compatibility round 3" above, mccspy). Left from the look
+  at sizes: Busy's block colours, NFS-GUI's list 1 pixel, TinyMeterPrefs' default height, NewsRog,
+  the Lumi programs, u64mui, HexEdit, TableGroup, HTMLtext, GIFAnim, TearOff, SpeedBar demo6 within
+  pixels, the HTMLview demo still running after quit. Popscreen sets no WindowHook (MUI 3.8 does);
+  Application's iconify-at-startup set still goes through a subclass's OM_SET (unmeasured). Fixed
+  in rounds 2 and 3: NFS-GUI's window, the TipOfDay title and its list scroller (a List on its own
+  has none), the root object's frame, the OM_NEW sets, Coloradjust (plain labels, the popup under
+  the gradient slider), Busy's size and frame, Rectangle bar titles 12x1 larger; AmiTradeCenter's
+  Server Manager is the program's with reqtools.library present (MUI 3.8 too).
 - Tested in emulators only (Amiberry headless since 2026-11-11, FS-UAE before and still
   selectable), not on real hardware; RTG only as uaegfx with Picasso96 3.6.3 in FS-UAE (rtgfix):
   headless Amiberry has no RTG modes. InstallerNG cannot be tested on Amiberry (it freezes it).

@@ -8,18 +8,18 @@ into gates that can be checked. OpenMUI 1.0 ships when every gate is green; unti
 
 | Gate | Measured by | Today |
 |---|---|---|
-| Every MUI 3 program in the suite that runs on real MUI 3.8 runs on OpenMUI, same windows and sizes | `suite.sh` group mui3 against MUI 3.8 (Amiberry) | 35 of 36 old + 36 of 48 new alike |
-| Every MUI 4/5 program in the suite behaves as on real MUI 5 | group mui5 against MUI 5 | 24 of 24 status, known size differences |
-| Every add-on class demo that runs on MUI 3.8 runs on OpenMUI | group mcc against MUI 3.8 | 39 of 49 alike |
+| Every MUI 3 program in the suite that runs on real MUI 3.8 runs on OpenMUI, same windows and sizes | `suite.sh` group mui3 against MUI 3.8 (Amiberry) | as round 2 (35 of 36 old, 36 of 48 new alike) plus 14 of 16 new alike |
+| Every MUI 4/5 program in the suite behaves as on real MUI 5 | group mui5 against MUI 5 | 24 of 24 status (one freeze under load rerun), known size differences |
+| Every add-on class demo that runs on MUI 3.8 runs on OpenMUI | group mcc against MUI 3.8 | 40 of 49 alike (Busy demo now), 9 of 11 new alike |
 | MUI's own demos pixel-identical to MUI 3.8 at default settings | `demopix.sh` | 19 of 27 |
-| No known compatibility bug open without a decision | roadmap "Bugs found from outside", README "Left open" | open: Voyager, NFS-GUI, ATC, TipOfDay |
-| The suite covers what people use: at least 120 programs and 60 class demos | `real-programs.md` tables | 108 programs, 49 demos |
+| No known compatibility bug open without a decision | roadmap "Bugs found from outside", README "Left open" | open with a decision: Voyager (its own blit, freed too early; a lead kept); NFS-GUI 1 px, TinyMeterPrefs default height |
+| The suite covers what people use: at least 120 programs and 60 class demos | `real-programs.md` tables | 132 programs, 60 demos (2026-11-12 02:00-02:20, Amiberry, nine instances side by side) |
 
 ## 2. Stability
 
 | Gate | Measured by | Today |
 |---|---|---|
-| No crash, alert or hang caused by OpenMUI in the whole suite | suite statuses, trapcap, alerts | Voyager close-quit reset open |
+| No crash, alert or hang caused by OpenMUI in the whole suite | suite statuses, trapcap, alerts | Voyager close-quit reset: Voyager's own (no WaitBlit before its FreeBitMap), reproducible only on OpenMUI |
 | No memory leak: every program gives back what it took; hours of open/close loops flat | fullcheck "lost", a soak test (to build) | fullcheck flat; no soak test yet |
 | Out of memory never crashes: every allocation failure handled | fault injection at random allocations (to build) | not tested |
 | Works on a stock 68000, OS 3.1, 2 MB | the a600-31 test machine running the demos and a suite subset | not run |
