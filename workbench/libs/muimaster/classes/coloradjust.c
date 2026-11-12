@@ -369,6 +369,41 @@ static void PaletteFunc(struct Hook *hook, Object *obj, ULONG *msg)
     DoMethod(data->popup, MUIM_Popstring_Close, TRUE);
 }
 
+/* The popup's palette: one colour field per pen of the screen (up to 32),
+ * 8 to a row; a click sets the colour (PaletteFunc). Made when the popup
+ * first opens (PaletteOpen, the Popobject's StrObjHook: the screen is known
+ * then), disposed with the popup's group. obj is the Coloradjust. */
+static __attribute__((noinline)) void MakePalette(Object *obj, struct Coloradjust_DATA *data)
+{
+    ULONG depth = GetBitMapAttr(_screen(obj)->RastPort.BitMap, BMA_DEPTH);
+    ULONG n = depth >= 5 ? 32 : 1UL << depth, i;
+
+    for (i = 0; i < n; i++)
+    {
+        Object *cf = ColorfieldObject,
+            MUIA_Colorfield_Pen, i,
+            MUIA_InputMode, MUIV_InputMode_RelVerify,
+            MUIA_FixWidth, 12, MUIA_FixHeight, 8,
+        End;
+        if (!cf)
+            break;
+        DoMethod(cf, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR) obj, 3,
+            MUIM_CallHook, (IPTR) &data->palhook, i);
+        DoMethod(data->palette, OM_ADDMEMBER, (IPTR) cf);
+    }
+    data->palpens = i;
+}
+
+/* The popup opens (Popobject's StrObjHook): the palette on first use */
+static ULONG PaletteOpen(struct Hook *hook, Object *pobj, STRPTR *str)
+{
+    struct Coloradjust_DATA *data = hook->h_Data;
+
+    if (!data->palpens)
+        MakePalette(_parent(data->colfield), data);
+    return TRUE;
+}
+
 static void GradFunc(struct Hook *hook, Object *obj, struct MUIP_CANotifyMsg *msg)
 {
     struct Coloradjust_DATA *data = msg->caData;
@@ -551,6 +586,11 @@ IPTR Coloradjust__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data->palhook.h_Entry = HookEntry;
     data->palhook.h_SubEntry = (HOOKFUNC) PaletteFunc;
     data->palhook.h_Data = data;
+    data->openhook.h_Entry = HookEntry;
+    data->openhook.h_SubEntry = (HOOKFUNC) PaletteOpen;
+    data->openhook.h_Data = data;
+    if (popup)
+        set(popup, MUIA_Popobject_StrObjHook, (IPTR) &data->openhook);
 
     data->rslider = rslider;
     data->gslider = gslider;
@@ -802,45 +842,6 @@ IPTR Coloradjust__OM_GET(struct IClass *cl, Object *obj,
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
-/* The popup's palette: one colour field per pen of this screen (up to 32),
- * 8 to a row; a click sets the colour (PaletteFunc). Made at Setup (the
- * screen is known then), freed at Cleanup; their own frames. */
-static __attribute__((noinline)) void MakePalette(Object *obj, struct Coloradjust_DATA *data)
-{
-    ULONG depth = GetBitMapAttr(_screen(obj)->RastPort.BitMap, BMA_DEPTH);
-    ULONG n = depth >= 5 ? 32 : 1UL << depth, i;
-
-    for (i = 0; i < n; i++)
-    {
-        Object *cf = ColorfieldObject,
-            MUIA_Colorfield_Pen, i,
-            MUIA_InputMode, MUIV_InputMode_RelVerify,
-            MUIA_FixWidth, 12, MUIA_FixHeight, 8,
-        End;
-        if (!cf)
-            break;
-        DoMethod(cf, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR) obj, 3,
-            MUIM_CallHook, (IPTR) &data->palhook, i);
-        DoMethod(data->palette, OM_ADDMEMBER, (IPTR) cf);
-    }
-    data->palpens = i;
-}
-
-static __attribute__((noinline)) void FreePalette(register struct Coloradjust_DATA *data __asm("a0"))
-{
-    struct List *l = NULL; Object *cf, *state;
-
-    DoMethod(data->popup, MUIM_Popstring_Close, FALSE);
-    get(data->palette, MUIA_Group_ChildList, &l);
-    state = (Object *) l->lh_Head;
-    while ((cf = NextObject(&state)))
-    {
-        DoMethod(data->palette, OM_REMMEMBER, (IPTR) cf);
-        MUI_DisposeObject(cf);
-    }
-    data->palpens = 0;
-}
-
 /*
  * Call Group, return zero on failure; with wheel obtain a gradient pen and
  * configure its full-brightness color and fallback array. Return one even
@@ -854,9 +855,6 @@ IPTR Coloradjust__MUIM_Setup(struct IClass *cl, Object *obj,
 
     if (!(DoSuperMethodA(cl, obj, (Msg) msg)))
         return 0;
-
-    if (data->palette)
-        MakePalette(obj, data);
 
     if (data->wheel)
     {
@@ -910,9 +908,6 @@ IPTR Coloradjust__MUIM_Cleanup(struct IClass *cl, Object *obj,
     struct MUIP_Cleanup *msg)
 {
     struct Coloradjust_DATA *data = INST_DATA(cl, obj);
-
-    if (data->palette && data->palpens)
-        FreePalette(data);
 
     if (data->gradpen != -1)
     {
