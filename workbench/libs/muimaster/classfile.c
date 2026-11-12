@@ -131,7 +131,12 @@ static const struct __MUIBuiltinClass *cf_query(
 static struct Library *cf_init(struct ClassFileBase *b __asm("d0"),
     BPTR seglist __asm("a0"), struct ExecBase *sys __asm("a6"))
 {
-    (void)sys;
+    /* Opened as a shared library (OpenLibrary of LIBS:Zune/X.mui: the
+     * external-class path tries it when the private load failed for
+     * lack of memory), the bases were never copied in: cf_expunge's
+     * Remove() and FreeMem() at the next flush went through a NULL
+     * SysBase and reset the machine (fault sweep, stability round 2). */
+    SysBase = sys;
     b->seglist = seglist;
     b->lib.lib_Node.ln_Type = NT_LIBRARY;
     b->lib.lib_Node.ln_Name = (char *)libname;
