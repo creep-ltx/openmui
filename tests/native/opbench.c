@@ -405,6 +405,20 @@ static int cond_width(void)
     get(root2, MUIA_Width, &w);
     return (LONG)w == want_w;
 }
+static int cond_nowindow(void)
+{
+    struct Window *w = NULL;
+
+    get(win, MUIA_Window_Window, &w);
+    return w == NULL;
+}
+static int cond_window(void)
+{
+    struct Window *w = NULL;
+
+    get(win, MUIA_Window_Window, &w);
+    return w != NULL;
+}
 static int cond_open(void)
 {
     ULONG o = 0;
@@ -531,6 +545,14 @@ int main(int argc, char **argv)
 
     set(win, MUIA_Window_Open, TRUE);
     settle();
+    {
+        struct Window *nw = NULL;
+
+        get(win, MUIA_Window_Window, &nw);
+        if (nw)
+            printf("window idcmp=%08lx flags=%08lx\n",
+                (unsigned long)nw->IDCMPFlags, (unsigned long)nw->Flags);
+    }
 
     TIMED("full redraw", 10, {
         for (j = 0; j < 10; j++) MUI_Redraw(root, MADF_DRAWOBJECT); });
@@ -651,10 +673,21 @@ int main(int argc, char **argv)
         DoMethod(app, MUIM_Application_InputBuffered); });
 
     /* Iconify and back: the window closes, comes back and is drawn */
-    TIMED("iconify+uniconify", 1, {
-        set(app, MUIA_Application_Iconified, TRUE);
+    TIMED("iconify", 1, {
         set(app, MUIA_Application_Iconified, FALSE);
-        run_until(cond_open);
+        run_until(cond_window);
+        settle();
+        t_ = now();
+        set(app, MUIA_Application_Iconified, TRUE);
+        run_until(cond_nowindow);
+        DoMethod(app, MUIM_Application_InputBuffered); });
+    TIMED("uniconify", 1, {
+        set(app, MUIA_Application_Iconified, TRUE);
+        run_until(cond_nowindow);
+        settle();
+        t_ = now();
+        set(app, MUIA_Application_Iconified, FALSE);
+        run_until(cond_window);
         DoMethod(app, MUIM_Application_InputBuffered); });
     settle();
 

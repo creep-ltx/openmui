@@ -237,6 +237,7 @@ struct MUI_ListData
 #define LIST_QUIET         (1<<5)
 #define LIST_CHANGED    (1<<6)
 #define LIST_HORIZCHECK (1<<7)  /* check the horizontal scroller when quiet ends */
+#define LIST_DIMSVALID  (1<<8)  /* CalcWidths' results still hold (List_Dispatcher) */
 
 
 static inline __attribute__((always_inline)) LONG ColumnWidth(struct MUI_ListData *data, LONG column)

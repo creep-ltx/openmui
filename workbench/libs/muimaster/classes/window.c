@@ -1829,6 +1829,17 @@ static ULONG GetDefaultEvents(void)
         | IDCMP_ACTIVEWINDOW | IDCMP_INACTIVEWINDOW | IDCMP_GADGETUP;
 }
 
+/* IDCMP_MENUVERIFY is there for MUIM_Menustrip_WillOpen (MUI 4/5). Each
+ * menu opening then waits until the program's task answers it; MUI 3.8's
+ * windows do not ask for it (their IDCMPFlags, opbench), so a MUI 3
+ * program's windows do not either, unless an event handler asks (opbench
+ * "menu open+close", cycle-exact FS-UAE: 20.0 -> ... ms, MUI 3.8 13.2) */
+static ULONG Window_EventsMask(Object *obj)
+{
+    return (obj && muiGlobalInfo(obj) && ZUNE_APP_MUI38(obj))
+        ? ~(ULONG)IDCMP_MENUVERIFY : ~(ULONG)0;
+}
+
 /* Combine new_events with every registered handler mask, then remove
  * IDCMP_VANILLAKEY. Update stored events and call ModifyIDCMP if the mask
  * changed while open. Requires stable valid handler links; return no status
@@ -1840,6 +1851,7 @@ static void ChangeEvents(struct MUI_WindowData *data, ULONG new_events)
     struct MUI_EventHandlerNode *ehn;
     ULONG old_events = data->wd_Events;
 
+    new_events &= Window_EventsMask(data->wd_RenderInfo.mri_WindowObject);
     for (mn = data->wd_EHList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
     {
         ehn = (struct MUI_EventHandlerNode *)mn;
@@ -2236,6 +2248,7 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
         win->UserData = (BYTE *) data->wd_RenderInfo.mri_WindowObject;
         win->UserPort = muiGlobalInfo(obj)->mgi_WindowsPort;
             /* Same port for all windows */
+        ChangeEvents(data, GetDefaultEvents());
         ModifyIDCMP(win, data->wd_Events);
 
         data->wd_RenderInfo.mri_Window = win;

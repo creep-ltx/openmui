@@ -1722,6 +1722,7 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_Listview_MultiSelect: /* private set */
         case MUIA_Listview_DefClickColumn:
             List_SetPlain(data, tag);
+            data->flags &= ~LIST_DIMSVALID;   /* a hook: sizes measured again */
             break;
         case MUIA_List_Stripes:
             List_SetPlain(data, tag);
@@ -1731,6 +1732,7 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         case MUIA_List_HideColumn:
         case MUIA_List_ShowColumn:
         case MUIA_List_TitleArray:
+            data->flags &= ~LIST_DIMSVALID;
             zune_list_set_columns(obj, data, tag, FALSE);
             break;
         case MUIA_List_MultiTestHook:
@@ -2294,7 +2296,14 @@ IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
     DoSuperMethodA(cl, obj, (Msg) msg);
 
-    CalcWidths(cl, obj);
+    /* Every entry is measured again only when something that changes the
+     * sizes came since the last time (List_Dispatcher clears the flag): a
+     * relayout of an unchanged list measured all its entries */
+    if (!(data->flags & LIST_DIMSVALID))
+    {
+        CalcWidths(cl, obj);
+        data->flags |= LIST_DIMSVALID;
+    }
 
     if ((data->flags & LIST_ADJUSTWIDTH) && (data->entries_num > 0))
     {
@@ -3688,7 +3697,13 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
 
         if (last > data->entries_num)
             last = data->entries_num;
-        if (data->insert_position < last)
+        if (data->insert_position <= data->entries_first)
+        {
+            /* every row in view moves: one background, as before */
+            data->update = UPDATEMODE_ALL;
+            MUI_Redraw(obj, MADF_DRAWUPDATE);
+        }
+        else if (data->insert_position < last)
         {
             for (i = data->insert_position; i < last; i++)
                 data->entries[i]->flags |= ENTRY_RENDER;
@@ -4963,6 +4978,16 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 #include "../listx.c"
 #endif
 
+/* The sizes CalcWidths measures (List__MUIM_AskMinMax) depend on the
+ * entries, the format, the title, the hooks and the font. Every method
+ * that can change one forgets them ("forget" below): setup and cleanup (the
+ * font), entry changes, events (a title click, a column dragged) and drops;
+ * List__OM_SET forgets them for the hooks and the columns, a format or a
+ * title redraws everything (MUIM_List_Redraw). Order (Sort, Exchange, Move)
+ * and drawing keep them. The check sits in the cases, not before the
+ * switch: Sort and Insert send thousands of Compare, Construct and Display
+ * calls through here (a call per method cost opbench's list sort 1000
+ * +14%, a tag scan in every OM_SET list active +2%). */
 BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
 {
     IPTR (*method)(struct IClass *, Object *, APTR);
@@ -4988,43 +5013,46 @@ BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
     case OM_DISPOSE: method = (APTR)List__OM_DISPOSE; break;
     case OM_SET: method = (APTR)List__OM_SET; break;
     case OM_GET: method = (APTR)List__OM_GET; break;
-    case MUIM_Setup: method = (APTR)List__MUIM_Setup; break;
-    case MUIM_Cleanup: method = (APTR)List__MUIM_Cleanup; break;
-    case MUIM_HandleEvent: method = (APTR)List__MUIM_HandleEvent; break;
+    case MUIM_Setup: method = (APTR)List__MUIM_Setup; goto forget;
+    case MUIM_Cleanup: method = (APTR)List__MUIM_Cleanup; goto forget;
+    case MUIM_HandleEvent: method = (APTR)List__MUIM_HandleEvent; goto forget;
     case MUIM_AskMinMax: method = (APTR)List__MUIM_AskMinMax; break;
     case MUIM_Show: method = (APTR)List__MUIM_Show; break;
     case MUIM_Hide: method = (APTR)List__MUIM_Hide; break;
     case MUIM_Draw: method = (APTR)List__MUIM_Draw; break;
     case MUIM_Zune_Layout: method = (APTR)List__MUIM_Layout; break;
-    case MUIM_List_Clear: method = (APTR)List__MUIM_Clear; break;
+    case MUIM_List_Clear: method = (APTR)List__MUIM_Clear; goto forget;
     case MUIM_List_Sort: method = (APTR)List__MUIM_Sort; break;
     case MUIM_List_Exchange: method = (APTR)List__MUIM_Exchange; break;
-    case MUIM_List_Insert: method = (APTR)List__MUIM_Insert; break;
-    case MUIM_List_InsertSingle: method = (APTR)List__MUIM_InsertSingle; break;
+    case MUIM_List_Insert: method = (APTR)List__MUIM_Insert; goto forget;
+    case MUIM_List_InsertSingle: method = (APTR)List__MUIM_InsertSingle; goto forget;
     case MUIM_List_GetEntry: method = (APTR)List__MUIM_GetEntry; break;
-    case MUIM_List_Redraw: method = (APTR)List__MUIM_Redraw; break;
-    case MUIM_List_Remove: method = (APTR)List__MUIM_Remove; break;
+    case MUIM_List_Redraw: method = (APTR)List__MUIM_Redraw; goto forget;
+    case MUIM_List_Remove: method = (APTR)List__MUIM_Remove; goto forget;
     case MUIM_List_Select: method = (APTR)List__MUIM_Select; break;
     case MUIM_List_Construct: method = (APTR)List__MUIM_Construct; break;
     case MUIM_List_Destruct: method = (APTR)List__MUIM_Destruct; break;
     case MUIM_List_Compare: method = (APTR)List__MUIM_Compare; break;
     case MUIM_List_Display: method = (APTR)List__MUIM_Display; break;
     case MUIM_List_SelectChange: method = (APTR)List__MUIM_SelectChange; break;
-    case MUIM_List_CreateImage: method = (APTR)List__MUIM_CreateImage; break;
-    case MUIM_List_DeleteImage: method = (APTR)List__MUIM_DeleteImage; break;
+    case MUIM_List_CreateImage: method = (APTR)List__MUIM_CreateImage; goto forget;
+    case MUIM_List_DeleteImage: method = (APTR)List__MUIM_DeleteImage; goto forget;
     case MUIM_List_Jump: method = (APTR)List__MUIM_Jump; break;
     case MUIM_List_Move: method = (APTR)List__MUIM_Move; break;
     case MUIM_List_NextSelected: method = (APTR)List__MUIM_NextSelected; break;
     case MUIM_List_TestPos: method = (APTR)List__MUIM_TestPos; break;
     case MUIM_DragQuery: method = (APTR)List__MUIM_DragQuery; break;
-    case MUIM_DragFinish: method = (APTR)List__MUIM_DragFinish; break;
+    case MUIM_DragFinish: method = (APTR)List__MUIM_DragFinish; goto forget;
     case MUIM_DragReport: method = (APTR)zune_list_drag_report; break;
-    case MUIM_DragDrop: method = (APTR)zune_list_drag_drop; break;
+    case MUIM_DragDrop: method = (APTR)zune_list_drag_drop; goto forget;
     case MUIM_CreateDragImage: method = (APTR)zune_list_create_drag_image; break;
     default:
         return DoSuperMethodA(cl, obj, (Msg)msg);
     }
     /* one call for all: each case only picks its function */
+    return method(cl, obj, msg);
+forget:
+    ((struct MUI_ListData *)INST_DATA(cl, obj))->flags &= ~LIST_DIMSVALID;
     return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
