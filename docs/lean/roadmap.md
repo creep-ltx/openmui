@@ -309,6 +309,16 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
    one line); Zune prefs stays in topaz 8 on every page. Details in
    [README.md](README.md#the-suites-last-differences-against-mui-38-2026-11-07).
 
+4. **A program lost its identity after another program had used a class library** (found 2026-11-12 in
+   compatibility round 4 with `tests/lean/probe/idprobe.c`): a class library cached from a program of one
+   identity is dropped (`RemLibrary`) when a program of another identity loads it; its expunge closed
+   muimaster.library on the new program's task, which took the program's only opener count, and the
+   reload's LibOpen opened a fresh record with the class's own version: the program had the right library
+   base but its application behaved as MUI 3.8. *Fixed 2026-11-12* (branch `compat4`): a nesting depth in
+   the record around the library's own open/close/remove of class modules, and a hash of the program's name
+   in the record (a Shell's `run` gives every command the same task address and stack). Details in
+   [README.md](README.md#compatibility-round-4-the-identitys-records-mui-5s-geometry-for-mui-45-programs-the-spare-pixels-the-iconify-setting-2026-11-12).
+
 ## Phase 6 progress
 
 - *2026-11-07 (branch `diffs`)*: the suite's last window differences against MUI 3.8 worked through,
@@ -352,3 +362,11 @@ Measured on 2026-11-05 (FS-UAE A1200, OS 3.1, 4 MB fast RAM, MUI-Demo):
   Coloradjust, a bare List's scroller, Busy's size and frame, Rectangle bar titles measured on
   MUI 3.8 and matched; 16 programs and 11 class demos more (132 and 60). Details in
   [README.md](README.md#compatibility-round-3-the-frames-repaired-voyagers-write-named-coloradjust-list-busy-27-more-entries-2026-11-12).
+- *2026-11-12 (branch `compat4`, compatibility round 4)*: round 3's bar titles, a bare List's scroller,
+  Busy's size and the unset Tiny/Title/Big/Knob fonts follow the program's identity (MUI 5 measured with
+  tests/lean/probe/bars.c: titles 4 wider in a topaz 6 title font, a List with its own scrollbar, Busy
+  18x11, fonts two sizes smaller/larger); the identity records fixed (bug 4 above); Scrollgroup's default
+  as MUI 3.8's (100x84 within the contents' sizes); the iconify-at-startup setting applied by Application's
+  own OM_SET; Voyager's set shown to be its own (its content List's answer differs); the group spare-pixel
+  rule measured further and left; Popscreen's WindowHook measured and left. Details in
+  [README.md](README.md#compatibility-round-4-the-identitys-records-mui-5s-geometry-for-mui-45-programs-the-spare-pixels-the-iconify-setting-2026-11-12).

@@ -2865,6 +2865,146 @@ block colours.
 
 **Results, the final library** (the whole suite of 181 entries in six chunks against round 2 final: 151 entries the same, the 27 new ones, Tron demo opens now (its class installed), Lamp 336x231 (was 338x219; MUI 3.8 640x256, its default), Busy 148x151 as MUI 3.8 (was 136x130), AmigaGPT 590x255 (bar titles 1 px taller; MUI 5: 576x230), HTMLtext demo 85x256 against 85x71 before and MUI 3.8 143x83 (looked at below), mui5-class4 frozen once under a load of 30 (rerun: ok, Process Class Demo 288x65; HTMLtext demo 85x256 again in the suite (88x71 min 62x71 on a kept instance, dumped: the demo window sizes to its loaded text), AmigaGPT 590x255 again); fullcheck lost 608 / 200 / AppWindow 264 as every round; make check passes).
 
+## Compatibility round 4: the identity's records, MUI 5's geometry for MUI 4/5 programs, the spare pixels, the iconify setting (2026-11-12)
+
+Branch `compat4` (from `lean`). The possible regression of round 3 first, then round 3's leads, each
+black-box against MUI 3.8 and MUI 5 on Amiberry (OS 3.1 + OpenMUI, OS 3.1 + MUI 3.8, OS 3.2.1 + MUI 5
+side by side; the probes in `tests/lean/probe/`).
+
+**Round 3's bar titles were MUI 3.8's for every program; MUI 5 measures differently, and now each
+program gets its own (fixed).** `tests/lean/probe/bars.c` (titled and plain bars, a bare Floattext, a
+Busy.mcc, a Text in each preset font, dumped) on the three machines: MUI 5 makes a bar title 4 pixels
+wider than its text and no taller, in its title font (58x6 for "Speed: 20" against MUI 3.8's 84x9 in
+topaz 8; the bar line runs through the glyphs on MUI 5 too), and with a topaz 8 screen font its unset
+Tiny and Title fonts are topaz 6, Big is topaz 10 and Knob topaz 7 (MUI 3.8: the screen font for all).
+MUI 5's bare List has a scrollbar of its own (56x46 with a Scrollbar child; MUI 3.8's has none, round 3)
+and its own Busy.mcc is 18x11 minimum and default. OpenMUI now follows the program's identity in all
+four: MUI 3.8's numbers for a MUI 3 program (as round 3 measured them), MUI 5's for a MUI 4/5 one
+(Rectangle, List's OM_NEW through `ZUNE_MUI38()`, Busy's AskMinMax, and `zune_font_derived` in font.c:
+an unset Tiny/Title/Big/Knob preset opens the screen font two sizes smaller, two larger, one smaller
+through diskfont, falling back to Normal as before when that fails). Measured as version 21: titles
+58x6 and 34x6, fonts 6/6/10/7, Busy 18x11, the Floattext with its scrollbar; as version 19 everything
+as round 3. AmigaGPT itself asks for muimaster.library version 19 (`moveq #19,d0` before its
+OpenLibrary, its binary read for that number only), so under the Automatic rule it is a MUI 3.8
+program and keeps MUI 3.8's geometry (590x255; on MUI 5 it is a MUI 5 program, 576x230): by design,
+unless its line in "Behave as" says MUI 5.
+
+**A program lost its identity after another program had used a class library (found and fixed).**
+`tests/lean/probe/idprobe.c` (open with a version, make an application, print the identity byte of its
+global info; letters add a Busy.mcc, a window, dumptree's 32 MUI_GetClass calls, a Floattext, a bar, a
+tiny-font text, a 5 s stay) run in sequences of versions: after one program with a Busy.mcc, every
+later one got the right library base (19.35, 20.6000, 21.227 by its version) but identity byte 1 (MUI
+3.8) in its application, so its objects measured as MUI 3.8's. Traced from inside the library (a
+temporary RawDoFmt ring in chip RAM, read with `peek`, since neither libdebug's kprintf nor RawPutChar
+reaches `wasabi debug` here): a class library cached from the earlier program with another identity is
+dropped by `RemLibrary` when the new program loads it (`drop_other_identity`); its expunge (mccinit.c's
+`LibExpunge`, as in every MCC) closes muimaster.library *on the new program's task*, which took the
+program's only count and freed its record; the class's reload then opened the library on the same task
+with the class's own version (19) and made a fresh record with identity 1. Now the record carries a
+nesting depth, raised around every OpenLibrary/CloseLibrary/RemLibrary of a class module the library
+makes itself (support_classes.c, mui_freeclass.c): opens and closes inside it neither count nor change
+the record. A record also stores a hash of the program's name and matches only with it: a Shell's `run`
+gives every command the same task address and stack, so a stale record (a program that ended without
+closing the library) no longer gives the next program its identity. Rebooted sequences 21/20/19/21 now
+give 3/2/1/3 (`avail flush` does not reload the library while a cached class holds it open: the earlier
+"fixed" runs that still failed ran the old library; a reboot after `put` is the way).
+
+**The spare pixels of a group (measured, not changed).** The bars probe showed the same window laid
+out 31/32/32 on MUI 3.8 and 32/32/31 on OpenMUI; `tests/lean/probe/vsplit.c` (a column of children
+with minimums, maximums and weights from the command line, their heights printed) found four cases
+alike and one apart: four children of weight 100, the second fixed at 20, in 123 pixels: 35/20/34/34 on
+MUI 3.8, 33/20/35/35 on OpenMUI (the last pixels to the first children there, to the last here).
+Taken to `tests/native/hdist.c`'s 1,312 rows against the stored MUI 3.8 files: with the rest from the
+first child the rows improved (28 of 393 off instead of 46, 46 instead of 73 with spacing) and the
+columns worsened (81 of 253 instead of 49); the rest from the first child in a row and from the last in
+a column made every file equal or better, but it moved the Menus demo's VBar by a pixel (1,471 pixels
+off where round 3 had it identical): MUI 3.8's rule is not the direction, and the change was taken
+out (`/tmp/compat4/zwork/hdist-*`). The probe, the counter-example and the hdist figures stay for the
+next attempt.
+
+**Scrollgroup's default size as MUI 3.8's (fixed).** `tests/lean/probe/virtsize.c` (six Scrollgroups
+with contents of known sizes, one with a layout hook) measured MUI 3.8's Scrollgroup default as
+100x84 kept within the contents' default and maximum plus the scrollers, at least the minimum (134x74,
+62x46, 100x84, 138x46, 100x54, 92x64; OpenMUI gave the contents' default alone: 62x46, 90x54, 62x48
+for the last three, the probe window's minimum 380 wide against 418). Built into the layout hook's
+MINMAX for a Scrollgroup with scrollers (window-border and automatic scrollers as before); the six
+match now and the window minimum is 418. demopix and the suite's Scrollgroup demos unchanged by it.
+
+**Voyager's close-gadget reset: the lead was Voyager's own set (narrowed, open).** Round 3's
+`MUIA_Virtgroup_Top` 0 is sent by Voyager itself: in its page method the records show
+`851ba046`, `851ba047`, `851ba046`, `851ba0dd` on its classes and then the OM_SET on MUI 3.8, and
+its code at 0x4b360 (`V` disassembled for interoperability) reads the page's `MUIA_Virtgroup_Left` and
+`_Top`, compares them with its own data, asks its content list for a position with `851ba0dd` and sets
+Left and Top when that returns non-zero. On OpenMUI the same method runs and returns zero, so there is
+no set; the set would fire Voyager's own notification on `MUIA_Virtgroup_Top` (registered at start),
+which is what clears or sets the buffered-draw flag. What `851ba0dd` computes in Voyager's List subclass
+(its handlers sit behind a chain of `subil`/`beq` dispatchers, `/tmp/compat4/scripts/vdisp.py` lists
+the candidates) was not reached within the round: the gate's decision stands (Voyager's bug: no
+WaitBlit before its FreeBitMap), with a sharper lead.
+
+**The HTMLtext demo's 85x256 (narrowed, open).** Round 3's dumps side by side: the Scrollgroup's
+HTMLtext (a Virtgroup subclass with a layout hook) reports `def 28x24 max 9999x9999` on MUI 3.8 and
+`def 54x12 max 58x9999` on OpenMUI, and the demo's scrollers are in the window border (no Scrollbar
+children on MUI 3.8). `tests/lean/probe/virtsize.c` (five Virtgroups in Scrollgroups with contents of
+known sizes, one with a layout hook returning fixed min/def/max): a Virtgroup reports the same
+minimum, default and maximum on both (its contents' default and maximum plus its frame, the minimum
+the frame plus 8; the hook's values plus the frame), so the difference is HTMLtext's own hook measuring
+its text on OpenMUI (54 and 58, a line's width) and not yet on MUI 3.8 (its fixed 28x24 and no
+maximum) when MUILM_MINMAX is asked: when it loads its text relative to the first AskMinMax. The same
+probe found MUI 3.8's **Scrollgroup default: 100x84 clamped into [contents default + bars, contents
+maximum + bars]**, at least the minimum (134x74, 62x46, 100x84, 138x46, 100x54, 92x64 for the six
+cases; OpenMUI 134x74, 62x46, 62x46, 138x46, 90x54, 62x48): not built in this round.
+
+**The iconify-at-startup setting goes through the class's own OM_SET (fixed).** With
+`MUICFG_Iconification_OnStartup` in a prefs file on MUI 3.8 (`tools/lean/mkprefs.py global.prefs
+0x704=1` into ENV:MUI), a program opens no window (iconified), and `tests/lean/probe/newset.c`'s
+Application subclass sees no OM_SET during OM_NEW; OpenMUI's `set(obj, MUIA_Application_Iconified)`
+went through the subclass. Now `app_iconify_at_start` (register arguments, its own frame) calls
+Application's OM_SET; OpenMUI opens no window with the setting either, and newset reports none.
+
+**Popscreen's WindowHook (measured, left).** newset on MUI 3.8: Popscreen's OM_NEW sets
+`MUIA_Popobject_StrObjHook`, `MUIA_Popobject_ObjStrHook` and `MUIA_Popobject_WindowHook` through the
+subclass; OpenMUI the first two. What MUI 3.8's window hook does to the popup window was not seen;
+setting an empty one to match the list would be theatre, so it is left as it is.
+
+**Not reached:** Busy's block colours (MUI 3.8's Busy 2.4 is black with white blocks, as OpenMUI's;
+MUI 5's own is grey with blue blocks in a thin frame: a MUI 5-identity look, not done), the Lumi
+programs' 556 against 552, HexEdit, GIFAnim, TearOff, SpeedBar demo6, NFS-GUI's list pixel,
+TinyMeterPrefs' default height, AnimMaker, BetterBalance, MonkeyClock, Lamp's default size, HTMLview's
+demo still running after quit.
+
+**THE RULES, measured:**
+
+- Nothing removed; MUI 3 programs pay nothing new: the identity checks are a byte compare in
+  Rectangle, List, Busy and font.c; the record's nesting is a byte and a hash in the base (16 bytes per
+  record instead of 12, 32 records); Group's rest loop walks from the other end for rows.
+- Stack (`-fstack-usage` of every function against `lean`, `/tmp/compat4/sudiff.txt`): no function larger;
+  smaller: zune_identity_open 56 -> 28, zune_identity_close 16 -> 8, LibClose 12 -> 8 (their work in
+  helpers with register arguments and their own frames: opener_identity 64, opener_of 8, record_opener 4,
+  name_hash 28, zune_identity_nest 8, zune_identity_release, zune_module_close/remove 8; find_opener, 0,
+  replaced by opener_of), plus round 3's (Popobject 44, Popasl 60, Window__OM_GET 20, Coloradjust 360).
+  New otherwise: app_iconify_at_start 32, zune_font_derived 12. The lesson written down: a C call added
+  inside a loop of inline Amiga stubs costs a saved register per loop variable (external_load +8,
+  ZUNE_ReleaseExternalClasses +4 on the first try); the nesting now sits around those loops.
+- stackrun on FS-UAE: MUI-Demo with its eight sub-windows 5,196, Layout 2,268, Virtual 2,212, Pages
+  2,240, Slidorama 2,304: exactly round 3's figures.
+- `make check` passes (the first try failed: the harness gives objects an unset identity, 0, and no
+  screen, so the MUI 5 paths now test identity >= MUI 4, not != MUI 3.8).
+- Library file 279,112 bytes (278,384 at the start of the round: the identity branches, the derived
+  fonts, the record hash and nesting, the iconify helper).
+
+**Results, the final library** (the whole suite of 181 entries in six chunks against round 3's final,
+`/tmp/compat4/zwork/suite-real/fin`, 03:33-04:26, nine instances beside other sessions' load of ~19):
+173 entries the same; mui5-class4 and AlbIn ok (frozen under load in round 3); AmiHomeassist, AnimMaker
+and PVTree frozen or reset under load in the run and ok on a rerun of their own (as round 3); and the
+three MUI 4/5-identity programs resized toward MUI 5 by the round's geometry: LayGroup.mcc's demo
+292x151 (was 300x102; MUI 5 294x207), PassPocket 250x83 (was 313x87; MUI 5 254x101), Elided text
+590x139 (was 590x141; MUI 5 599x189). demopix 17 of 27 identical, the eight of every round plus
+ShowHide (20 pixels) and InputHandler (791) on MUI 3.8's side (OpenMUI's shots of both, and of Menus
+and Virtual, byte-identical to round 3's; Menus had moved under the group change, which was taken
+out for that). fullcheck lost 608 / 200 / AppWindow 264 as every round. AmigaGPT 590x255 as round 3
+(a version-19 opener).
+
 ## Left open
 
 - **Library code**: file 257,660 bytes (2026-11-11, `core`: dead code and -fipa-pta, and the
@@ -2906,6 +3046,12 @@ block colours.
   211-219; smart refresh backing store 17 KB as MUI 3.8, notifications,
   list pools of 1 KB puddles, Text contents.)
 
+- **Compatibility (2026-11-12, after `compat4`)**: the group spare-pixel rule (a column case and
+  hdist's rows differ from MUI 3.8's; the direction is not the rule: "Compatibility round 4"); the
+  HTMLtext demo (its own hook measures its text at MINMAX on OpenMUI, not yet on MUI 3.8); Voyager's
+  content List answering its position method with zero (the set that fires its notification is
+  Voyager's own); Busy's MUI 5 look (grey with blue blocks); Popscreen's WindowHook (MUI 3.8 sets
+  one, what it does unseen); AmigaGPT keeps MUI 3.8's geometry (it asks for version 19).
 - **Compatibility (2026-11-12, after `compat3`)**: Voyager 3.5.3 still resets the machine after a
   quit by its close gadget; the write is its own blit, still running when its own FreeBitMap frees
   its double-buffer bitmap (Amiberry's immediate blits: no reset), and that bitmap is made only on

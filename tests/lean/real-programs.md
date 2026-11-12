@@ -128,7 +128,7 @@ DizzyTorrent 20, YAM 2.10dev, IBrowse 3.0a, AmigaGPT, MQTTExplorer and TabGroup-
 | yam210 | YAM (mail) | 2.10dev (2026-07-26 nightly) | github.com/jens-maus/yam nightly builds | GPL | MUI 3.8+, uses MUI 4 features when there |
 | ibrowse30 | IBrowse (web) | 3.0a | ibrowse-dev.net | commercial, demo mode without a key | MUI 3.8, recommends 3.9+ |
 | dizzytorrent | DizzyTorrent (BitTorrent) | 2.22 | Aminet comm/tcp/dizzytorrent2.lha | BSD-style | MUI 3.9+, 68020, 8 MB fast |
-| amigagpt | AmigaGPT (AI chat) | 3.4.0 | Aminet util/misc/AmigaGPT.lha | MIT | MUI 3, "MUI 5 recommended for all features"; Aboutbox, Guigfx, ActionTextEditor, AudioPlayer |
+| amigagpt | AmigaGPT (AI chat) | 3.4.0 | Aminet util/misc/AmigaGPT.lha | MIT | MUI 3, "MUI 5 recommended for all features"; Aboutbox, Guigfx, ActionTextEditor, AudioPlayer. Asks for muimaster.library version 19 (2026-11-12), so under Automatic it is a MUI 3.8 program on OpenMUI (590x255) and a MUI 5 one on MUI 5 (576x230): its line in "Behave as" would give it MUI 5 |
 | mqttexplorer | MQTTExplorer | 0.3 | Aminet comm/net/MQTTExplorer.lha | freeware | MUI 3.8+/4.x, Listtree |
 | mui5-aboutbox ... mui5-title (15) | MUI 5's own demos that MUI 3.8 does not have: Aboutbox, Animals, Calltips, Class4, Clock, ElidedText, EmbeddedImages, GIFAnim, Hyperlink, LayGroup, List1, MenuImages, Pointers, Textdata, Title | MUI 5.0-20210831 | github.com/amiga-mui/muidev releases, MUI-5.0-20210831-os3.lha (`MUI/Demos`; `SDK/MUI` has their sources and the autodocs) | MUI 5's (free download) | MUI 5 classes and features: Aboutbox, Calltips, Clock, Hyperlink, LayGroup, GIFAnim, Process, Pixmap/Rawimage (bzip2, Z), elided text, editable and sortable lists, menu images, pointer types, Textdata, Title (draggable tabs) |
 | passpocket | PassPocket (passwords) | 1.1 | Aminet util/misc/PassPocket.lha | freeware, source included | MUI 3.9+ (resets MUI 3.8 at quit), 68020, TextEditor |
@@ -268,7 +268,7 @@ the demo itself needs something the test machines lack (an argument, a file, a l
 | tipofday-demo | tipboard, tipwindow | 15.8 | dev/mui/MCC_TipOfDay.lha | freeware | the tip window; ~~its title stays "Tip of the day..."~~ the custom title shows since 2026-11-12 (Window's OM_GET stored 0 for tipwindow's MUIA_Tip_WindowObject), its list scroller gone since 2026-11-12 (a List on its own has none on MUI 3.8; the window min 365x121 on both) |
 | transferanim-demo | TransferAnim | 1.5 | dev/mui/MCC_TransferAn.lha | freeware | no window everywhere (imagepool.library) |
 | minimailer-demo | MiniMailer | 20.1 | dev/mui/MCC_MiniMailer.lha | freeware | same |
-| htmltext-demo | HTMLtext | 14.8 | dev/mui/MCC_HTMLtext.lha | freeware | an untitled 85x71 window against 143x83 (and 1 = did not end at quit, everywhere) |
+| htmltext-demo | HTMLtext | 14.8 | dev/mui/MCC_HTMLtext.lha | freeware | an untitled 85x71 window against 143x83 (and 1 = did not end at quit, everywhere); 2026-11-12: HTMLtext's own layout hook reports a measured 54x12/max 58 on OpenMUI and its fixed 28x24/no maximum on MUI 3.8 at MUILM_MINMAX, the scrollers in the window border (tests/lean/probe/virtsize.c: a Virtgroup with a hook measures the same on both) |
 | settingswindow-demo | SettingsWindow | 1.01 | dev/mui/MCC_SettingsWi.lha | freeware | no window everywhere |
 | mysticview-demo | MysticView | 13.1 | dev/mui/MCC_MysticView.lha | freeware | ends at once everywhere (wants a picture) |
 | icon-demo | Icon | 1.1 | dev/mui/MCCIcon_1_1.lha | freeware | same |

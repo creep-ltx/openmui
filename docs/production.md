@@ -9,11 +9,11 @@ into gates that can be checked. OpenMUI 1.0 ships when every gate is green; unti
 | Gate | Measured by | Today |
 |---|---|---|
 | Every MUI 3 program in the suite that runs on real MUI 3.8 runs on OpenMUI, same windows and sizes | `suite.sh` group mui3 against MUI 3.8 (Amiberry) | as round 2 (35 of 36 old, 36 of 48 new alike) plus 14 of 16 new alike |
-| Every MUI 4/5 program in the suite behaves as on real MUI 5 | group mui5 against MUI 5 | 24 of 24 status (one freeze under load rerun), known size differences |
+| Every MUI 4/5 program in the suite behaves as on real MUI 5 | group mui5 against MUI 5 | 24 of 24 status, known size differences; MUI 4/5 programs now get MUI 5's bar titles, fonts, List scroller and Busy size (round 4), but most of them ask for version 19 and so get MUI 3.8 under Automatic (AmigaGPT) |
 | Every add-on class demo that runs on MUI 3.8 runs on OpenMUI | group mcc against MUI 3.8 | 40 of 49 alike (Busy demo now), 9 of 11 new alike |
-| MUI's own demos pixel-identical to MUI 3.8 at default settings | `demopix.sh` | 19 of 27 |
-| No known compatibility bug open without a decision | roadmap "Bugs found from outside", README "Left open" | open with a decision: Voyager (its own blit, freed too early; a lead kept); NFS-GUI 1 px, TinyMeterPrefs default height |
-| The suite covers what people use: at least 120 programs and 60 class demos | `real-programs.md` tables | 132 programs, 60 demos (2026-11-12 02:00-02:20, Amiberry, nine instances side by side) |
+| MUI's own demos pixel-identical to MUI 3.8 at default settings | `demopix.sh` | 19 of 27 (17 in round 4's run: ShowHide and InputHandler on MUI 3.8's side, OpenMUI's shots byte-identical to round 3's) |
+| No known compatibility bug open without a decision | roadmap "Bugs found from outside", README "Left open" | open with a decision: Voyager (its own blit, freed too early; its own set, decided by its content List); the group spare-pixel rule (measured, not found), NFS-GUI 1 px, TinyMeterPrefs default height; found and fixed in round 4: a program's identity lost after another program had used a class library (roadmap bug 4) |
+| The suite covers what people use: at least 120 programs and 60 class demos | `real-programs.md` tables | 132 programs, 60 demos (2026-11-12 03:33-04:26, round 4's final run: 173 of 181 as round 3, the rest reruns or MUI 5-ward sizes) |
 
 ## 2. Stability
 
