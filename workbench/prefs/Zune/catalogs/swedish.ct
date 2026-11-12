@@ -547,31 +547,31 @@ Bandbilder
 ; Tape Images
 ;
 MSG_TAPE_PLAY
-Band spela
+Spela upp
 ; Tape play
 ;
 MSG_TAPE_PLAYBACK
-Band uppspelning
+Spela bakåt
 ; Tape playback
 ;
 MSG_TAPE_PAUSE
-Band paus
+Paus
 ; Tape pause
 ;
 MSG_TAPE_STOP
-Band stopp
+Stopp
 ; Tape stop
 ;
 MSG_TAPE_RECORD
-Band inspelning
+Spela in
 ; Tape record
 ;
 MSG_TAPE_UP
-Band upp
+Upp
 ; Tape up
 ;
 MSG_TAPE_DOWN
-Band ner
+Ner
 ; Tape down
 ;
 MSG_STRING_FRAME
@@ -881,4 +881,39 @@ Första bubbla:
 MSG_NEXT_BUBBLE
 Nästa bubbla:
 ; Next Bubble:
+;
+;
+; systemp.c, MUI version group (OpenMUI)
+;----------
+MSG_MUI_VERSION
+MUI-version
+; MUI version
+;
+MSG_BEHAVE_AS
+Uppträd som:
+; Behave as:
+;
+MSG_BEHAVE_AUTOMATIC
+Automatiskt
+; Automatic
+;
+MSG_BEHAVE_HELP
+Vilken MUI programmen ser och OpenMUI uppför sig som.\nAutomatiskt: den som varje program ber om\n(MUI 3-program får MUI 3.8, MUI 4- och\nMUI 5-program MUI 4 och 5).\nEller en för alla program. Ett program i\nlistan nedan får den som anges där.\nGäller program som startas efter sparning.
+; The MUI programs see and OpenMUI behaves as.\nAutomatic: the one each program asks for\n(MUI 3 programs get MUI 3.8, MUI 4 and 5\nprograms MUI 4 and 5).\nOr one for all programs. A program in the\nlist below gets the one given there.\nFor programs started after saving.
+;
+MSG_PROGRAM_LIST_HELP
+Program som får en egen MUI,\nefter programfilens namn.
+; Programs that get a MUI of their own,\nby the name of the program's file.
+;
+MSG_PROGRAM
+Program:
+; Program:
+;
+MSG_PROGRAM_ADD
+_Lägg till
+; _Add
+;
+MSG_PROGRAM_REMOVE
+_Ta bort
+; _Remove
 ;

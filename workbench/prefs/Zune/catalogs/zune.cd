@@ -697,3 +697,30 @@ First Bubble:
 MSG_NEXT_BUBBLE (//)
 Next Bubble:
 ;
+;
+; systemp.c, MUI version group (OpenMUI)
+;----------
+MSG_MUI_VERSION (//)
+MUI version
+;
+MSG_BEHAVE_AS (//)
+Behave as:
+;
+MSG_BEHAVE_AUTOMATIC (//)
+Automatic
+;
+MSG_BEHAVE_HELP (//)
+The MUI programs see and OpenMUI behaves as.\nAutomatic: the one each program asks for\n(MUI 3 programs get MUI 3.8, MUI 4 and 5\nprograms MUI 4 and 5).\nOr one for all programs. A program in the\nlist below gets the one given there.\nFor programs started after saving.
+;
+MSG_PROGRAM_LIST_HELP (//)
+Programs that get a MUI of their own,\nby the name of the program's file.
+;
+MSG_PROGRAM (//)
+Program:
+;
+MSG_PROGRAM_ADD (//)
+_Add
+;
+MSG_PROGRAM_REMOVE (//)
+_Remove
+;

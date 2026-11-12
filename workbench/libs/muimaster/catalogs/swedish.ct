@@ -63,7 +63,7 @@ Vänster
 ; Left
 ;
 MSG_FRAMEADJUST_TOP
-Toppen
+Överkant
 ; Top
 ;
 MSG_FRAMEADJUST_RIGHT
@@ -71,7 +71,7 @@ Höger
 ; Right
 ;
 MSG_FRAMEADJUST_BOTTOM
-Botten
+Nederkant
 ; Bottom
 ;
 MSG_FRAMEADJUST_ENABLE
@@ -111,7 +111,7 @@ Vektor
 ; Vector
 ;
 MSG_IMAGEADJUST_COLOR
-Color
+Färg
 ; Color
 ;
 MSG_IMAGEADJUST_EXTERNAL
@@ -211,7 +211,7 @@ Fyllning
 ; Fill
 ;
 MSG_PENADJUST_MARK
-Bit på
+Markering
 ; Mark
 ;
 MSG_VOLUMELIST_NAME

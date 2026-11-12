@@ -312,7 +312,7 @@ static IPTR ExecuteScreenInspectorFunc(struct Hook *hook, Object *caller, void *
  * for. The per-program lines win over the setting for all. A line of
  * the list is the line of the variable: "MUI5 YAM". */
 static CONST_STRPTR identity_labels[] = {
-    "Automatic", "MUI 3.8", "MUI 4", "MUI 5", NULL };
+    NULL, "MUI 3.8", "MUI 4", "MUI 5", NULL };  /* [0]: the catalog's */
 static CONST_STRPTR program_labels[] = { "MUI 3.8", "MUI 4", "MUI 5", NULL };
 static CONST_STRPTR const identity_words[] = { "Auto", "MUI3.8", "MUI4", "MUI5" };
 
@@ -405,6 +405,8 @@ static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
     if (!ensure_BubbleSlider_CLASS() || !ensure_PopPublicScreen_CLASS())
         return (IPTR)NULL;
 
+    identity_labels[0] = _(MSG_BEHAVE_AUTOMATIC);
+
     obj = (Object *) DoSuperNewTags
     (
         cl, obj, NULL,
@@ -489,17 +491,11 @@ static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                 End,
 
             Child, (IPTR) VGroup,
-                GroupFrameT("MUI version"),
+                GroupFrameT(_(MSG_MUI_VERSION)),
                 Child, (IPTR) HGroup,
-                    Child, (IPTR) Label1("Behave as:"),
-                    Child, (IPTR) (d.identity_cycle = MakeCycle("Behave as:", identity_labels)),
-                    MUIA_ShortHelp, (IPTR) "The MUI programs see and OpenMUI behaves as.\n"
-                        "Automatic: the one each program asks for\n"
-                        "(MUI 3 programs get MUI 3.8, MUI 4 and 5\n"
-                        "programs MUI 4 and 5).\n"
-                        "Or one for all programs. A program in the\n"
-                        "list below gets the one given there.\n"
-                        "For programs started after saving.",
+                    Child, (IPTR) Label1(_(MSG_BEHAVE_AS)),
+                    Child, (IPTR) (d.identity_cycle = MakeCycle(_(MSG_BEHAVE_AS), identity_labels)),
+                    MUIA_ShortHelp, (IPTR) _(MSG_BEHAVE_HELP),
                     End,
                 Child, (IPTR) ListviewObject,
                     MUIA_Listview_List, (IPTR) (d.program_list = ListObject,
@@ -507,17 +503,16 @@ static IPTR SystemP_New(struct IClass *cl, Object *obj, struct opSet *msg)
                         MUIA_List_ConstructHook, MUIV_List_ConstructHook_String,
                         MUIA_List_DestructHook, MUIV_List_DestructHook_String,
                         End),
-                    MUIA_ShortHelp, (IPTR) "Programs that get a MUI of their own,\n"
-                        "by the name of the program's file.",
+                    MUIA_ShortHelp, (IPTR) _(MSG_PROGRAM_LIST_HELP),
                     End,
                 Child, (IPTR) HGroup,
-                    Child, (IPTR) Label2("Program:"),
+                    Child, (IPTR) Label2(_(MSG_PROGRAM)),
                     Child, (IPTR) (d.program_string = MakeString()),
                     End,
                 Child, (IPTR) HGroup,
                     Child, (IPTR) (d.program_cycle = MakeCycle(NULL, program_labels)),
-                    Child, (IPTR) (d.program_add = SimpleButton("_Add")),
-                    Child, (IPTR) (d.program_remove = SimpleButton("_Remove")),
+                    Child, (IPTR) (d.program_add = SimpleButton(_(MSG_PROGRAM_ADD))),
+                    Child, (IPTR) (d.program_remove = SimpleButton(_(MSG_PROGRAM_REMOVE))),
                     End,
                 End,
             End,
