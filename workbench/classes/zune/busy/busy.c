@@ -298,10 +298,10 @@ IPTR Busy__MUIM_AskMinMax(Class *cl, Object *obj, struct MUIP_AskMinMax *msg)
 {
     DoSuperMethodA(cl, obj, (Msg)msg);
     
-    msg->MinMaxInfo->MinWidth  += 50;
-    msg->MinMaxInfo->MinHeight += 4;
-    msg->MinMaxInfo->DefWidth  += 50;
-    msg->MinMaxInfo->DefHeight += 4;
+    msg->MinMaxInfo->MinWidth  += 8 + 4;   /* Busy 2.4 on MUI 3.8 (its demo dumped): a bar of 8x4 at least, 24x8 by default, in a thin recessed frame with a pixel beside it */
+    msg->MinMaxInfo->MinHeight += 4 + 2;
+    msg->MinMaxInfo->DefWidth  += 24 + 4;
+    msg->MinMaxInfo->DefHeight += 8 + 2;
     msg->MinMaxInfo->MaxWidth   = MUI_MAXMAX;
     msg->MinMaxInfo->MaxHeight  = MUI_MAXMAX;
 
@@ -313,7 +313,7 @@ IPTR Busy__MUIM_AskMinMax(Class *cl, Object *obj, struct MUIP_AskMinMax *msg)
 static void draw_cell(Object *obj, struct Busy_DATA *data, WORD x0, WORD x1, WORD level, WORD levels)
 {
     struct RastPort *rp = _rp(obj);
-    WORD top = _mtop(obj), bot = _mbottom(obj), h = bot - top + 1, bh, f = data->frame;
+    WORD top = _mtop(obj) + 1, bot = _mbottom(obj) - 1, h = bot - top + 1, bh, f = data->frame;
 
     SetAPen(rp, data->pen[0]);
     RectFill(rp, x0, top, x1, bot);
@@ -328,12 +328,24 @@ static void draw_cell(Object *obj, struct Busy_DATA *data, WORD x0, WORD x1, WOR
 IPTR Busy__MUIM_Draw(Class *cl, Object *obj, struct MUIP_Draw *msg)
 {
     struct Busy_DATA *data = INST_DATA(cl, obj);
-    WORD              x, w = _mwidth(obj);
+    WORD              x, w = _mwidth(obj) - 4, left = _mleft(obj) + 2;
     IPTR              retval;
 
     retval = DoSuperMethodA(cl, obj, (Msg)msg);
 
     if (!(msg->flags & (MADF_DRAWOBJECT | MADF_DRAWUPDATE))) return 0;
+    if (w < 1 || _mheight(obj) < 3) return retval;
+    /* the thin recessed frame (Busy 2.4's default look) and the pixel beside the bar */
+    {
+        struct RastPort *rp = _rp(obj);
+        WORD l = _mleft(obj), t = _mtop(obj), r = _mright(obj), b = _mbottom(obj);
+        SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
+        RectFill(rp, l, t, r - 1, t); RectFill(rp, l, t, l, b - 1);
+        SetAPen(rp, _pens(obj)[MPEN_SHINE]);
+        RectFill(rp, l + 1, b, r, b); RectFill(rp, r, t + 1, r, b);
+        SetAPen(rp, data->pen[0]);
+        RectFill(rp, l + 1, t + 1, l + 1, b - 1); RectFill(rp, r - 1, t + 1, r - 1, b - 1);
+    }
 
     if (data->style == 0)
     {
@@ -347,7 +359,7 @@ IPTR Busy__MUIM_Draw(Class *cl, Object *obj, struct MUIP_Draw *msg)
 
             if (x + run > w) run = w - x;
             SetAPen(_rp(obj), data->pen[col ? 0 : 1]);
-            RectFill(_rp(obj), _mleft(obj) + x, _mtop(obj), _mleft(obj) + x + run - 1, _mbottom(obj));
+            RectFill(_rp(obj), left + x, _mtop(obj) + 1, left + x + run - 1, _mbottom(obj) - 1);
             x += run;
         }
     }
@@ -371,7 +383,7 @@ IPTR Busy__MUIM_Draw(Class *cl, Object *obj, struct MUIP_Draw *msg)
 
                 if (m < d) d = m;
             }
-            draw_cell(obj, data, _mleft(obj) + w * i / n, _mleft(obj) + w * (i + 1) / n - 1,
+            draw_cell(obj, data, left + w * i / n, left + w * (i + 1) / n - 1,
                 d < levels ? d : -1, levels);
         }
     }

@@ -365,8 +365,11 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     else
     {
         zune_text_get_bounds(data->ztext, obj);
-        msg->MinMaxInfo->MinWidth += data->ztext->width;
-        msg->MinMaxInfo->MinHeight += data->ztext->height;
+        /* MUI 3.8: a bar title is 12 pixels wider and 1 taller than its text
+         * (Busy 2.4's demo dumped: 84x9 for "Speed: 20" in topaz 8, Lamp's
+         * demo 40x10 with 3D titles; OpenMUI had 72x8 and 28x9) */
+        msg->MinMaxInfo->MinWidth += data->ztext->width + 12;
+        msg->MinMaxInfo->MinHeight += data->ztext->height + 1;
         D(bug("rect: minheight %ld\n", data->ztext->height));
         if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
             GROUP_TITLE_COLOR_3D)
