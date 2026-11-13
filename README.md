@@ -41,7 +41,7 @@ All figures, with exact values on hover and table views:
 [docs/stats/openmui-stats.html](docs/stats/openmui-stats.html) (download and open it in a browser).
 How each was measured: [docs/lean/measurements.md](docs/lean/measurements.md).
 
-**Version 0.1b1, a test build.** Betas are `X.YbN` until OpenMUI has been in
+**Version 0.1b2, a test build.** Betas are `X.YbN` until OpenMUI has been in
 daily use for a while. Every figure in these pages was measured in an emulator
 (FS-UAE), not on a real Amiga.
 
@@ -85,7 +85,7 @@ classes keep their own licences and notices (`LEGAL`, `ACKNOWLEDGEMENTS`).
 
 ## Install
 
-Download the archive `OpenMUI-0.1b1-YYYY.MM.DD-amigaos3-m68k.lha`, unpack it
+Download the archive `OpenMUI-0.1b2-YYYY.MM.DD-amigaos3-m68k.lha`, unpack it
 and double-click *Install* (Installer 43 or newer; on OS 3.1 use Installer
 43.3 from Aminet). The `ReadMe` inside has the details. An earlier Zune68k lean
 test build is removed first and your own files put back.
@@ -127,8 +127,9 @@ program gets its MUI, the roadmap. [dist/Compatibility](dist/Compatibility)
 describes the compatibility workloads; [tests/native/PERFORMANCE.md](tests/native/PERFORMANCE.md)
 the speed method.
 
-Tested with (in FS-UAE): MUI 3.8's 19 demos and real MUI programs such as YAM,
-AmIRC, AmFTP and IBrowse; 30 of 36 MUI 3 programs behave as with MUI 3.8 there.
+Tested in emulators against real MUI 3.8 and MUI 5: 184 real MUI programs and
+class demos, among them YAM, AmIRC, AmFTP, IBrowse, NList, TextEditor and TheBar
+(results in [tests/lean/real-programs.md](tests/lean/real-programs.md)).
 
 ![IBrowse 3.0 running with Zune68, next to Zune Prefs](iBrowse.png)
 

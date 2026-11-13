@@ -8,7 +8,22 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.1b2 (2026-11-13, the first public beta)
+
+The first OpenMUI archive published. It contains everything in 0.1b1 below
+(which went only to testers) and these changes.
+
 ### Added
+
+- **Spot's UP-MCC 1.0 is bundled**: eleven flat-look classes (UP-Button,
+  UP-Text, UP-Panel, UP-Tabs, UP-Balance, UP-Slider, UP-Progress, UP-Cycle,
+  UP-Field, UP-Scroller, UP-List), UP-MCC.mcp, `up-mcc.library`, the Inter
+  font and the Dark and Light themes, byte-identical to Spot's release
+  (github.com/spotUP/selecta; MIT, Lucide icons ISC, Inter SIL OFL 1.1). The
+  installer puts them in place only where you have no same or newer copy,
+  and writes no theme file of its own. Installer 2.4.
 
 - OpenMUISwitch has a catalog (`OpenMUISwitch.catalog`, Swedish included):
   its messages, requesters and gadget texts follow the user's language;
@@ -53,11 +68,27 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
   library grew 200 bytes; the first program (MUI-Demo, FS-UAE) takes
   460,176 bytes (459,992 before, MUI 3.8 460,296); no stack frame grew.
 - The Aminet pair is always `OpenMUI.lha` and `OpenMUI.readme`.
+- **Faster than MUI 5 in all 27 operations measured** (opbench, OS 3.2.1,
+  emulator), and as fast as MUI 3.8 in 24 of 26 (was 23): OpenMUI no longer
+  asks the operating system for tag lists and for objects' own state on hot
+  paths, a list scroll by one row draws one row, key releases are not
+  converted, a slider reuses its text buffer. Creating a program's windows is
+  now at MUI 3.8's speed.
 
-(No 0.1b1 archive or tag has been published at the time of writing;
-everything below is in the first beta.)
+### Fixed
 
-## 0.1b1 (first OpenMUI beta)
+- **A group paints the space between its items with its background**, also
+  when the program set `MUIA_FillArea` to FALSE, as MUI 3.8 and MUI 5 do
+  (UP-Panel's dark face was grey with a black box behind every label).
+- **Setting a group's spacing, direction, columns or rows no longer reaches
+  the groups inside it**, as on MUI 3.8 and MUI 5 (UP-Demo was far too tall).
+- **A text field's own background**: programs that get MUI 4/5 keep the
+  String's `MUIA_Background`, as on MUI 5; programs that get MUI 3.8 can
+  recolour the field through its gadget, as on MUI 3.8 (UP-Field's grey
+  field hid its grey placeholder text). The MUI 3.8 part loads only when a
+  program uses it; the three fixes cost 68 bytes of library.
+
+## 0.1b1 (test builds for testers, not published)
 
 OpenMUI is the lean edition of Zune68 (Stefan Reinauer's port of AROS's Zune
 to AmigaOS 3), renamed on 2026-11-11. Earlier test builds were called "Zune68k

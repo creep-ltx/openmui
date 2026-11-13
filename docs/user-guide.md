@@ -12,7 +12,7 @@ written for MUI 3, 4 and 5, and aims at the look and the memory use of MUI 3.8.
 > toolkit of AROS (The AROS Development Team), as ported to AmigaOS 3 by
 > Stefan Reinauer (Zune68).
 
-**This is a beta (0.1b1).** It has been tested in emulators, not yet on a
+**This is a beta (0.1b2).** It has been tested in emulators, not yet on a
 real Amiga. Please report what works and what does not (see
 [Reporting a problem](#reporting-a-problem)).
 
@@ -26,7 +26,7 @@ real Amiga. Please report what works and what does not (see
 
 ## Installing
 
-1. Unpack the archive `OpenMUI-0.1b1-YYYY.MM.DD-amigaos3-m68k.lha`.
+1. Unpack the archive `OpenMUI-0.1b2-YYYY.MM.DD-amigaos3-m68k.lha`.
 2. Double-click *Install*, or from a Shell in that drawer:
    `Installer Install MINUSER AVERAGE`.
 3. Reboot when it is done.

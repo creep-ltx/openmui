@@ -42,7 +42,7 @@
  * editions used LIBS:Zune, ENV:Zune and ENVARC:Zune (the installer and
  * OpenMUI prefs move the settings, the library reads the old ones while
  * there are no new ones). */
-#define ZUNE68_EDITION_NUMBER "0.1b1"
+#define ZUNE68_EDITION_NUMBER "0.1b2"
 #define ZUNE68_EDITION "OpenMUI " ZUNE68_EDITION_NUMBER
 #define ZUNE68_STRINGIFY_(x) #x
 #define ZUNE68_STRINGIFY(x) ZUNE68_STRINGIFY_(x)

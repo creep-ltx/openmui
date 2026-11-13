@@ -60,9 +60,9 @@
 })
 
 
-/* OpenMUI 0.1b1: the name the Version command shows; the beta number is in
+/* OpenMUI 0.1b2: the name the Version command shows; the beta number is in
  * the text after the date. */
-#define ZUNEVERSION "$VER: OpenMUI 0.1 (11.11.2026) 0.1b1, The AROS Dev Team and contributors"
+#define ZUNEVERSION "$VER: OpenMUI 0.1 (13.11.2026) 0.1b2, The AROS Dev Team and contributors"
 
 /* The catalogs (translations too) still say "Zune" in window titles and the
  * About menu item: show the same text with "OpenMUI" in its place. */

@@ -1,5 +1,5 @@
 Short:        Free alternative to MUI, OS 3 (test)
-Author:       The AROS Development Team, Stefan Reinauer (Zune68), OpenMUI contributors
+Author:       AROS Development Team, Stefan Reinauer, OpenMUI contributors
 Type:         util/libs
 Version:      [RELEASE] - [STAGE]
 Architecture: m68k-amigaos >= 3.1
@@ -22,7 +22,7 @@ Team. Zune68 is Stefan Reinauer's port of it to classic AmigaOS 3.
 OpenMUI is the lean edition of Zune68, with a memory and size diet and
 MUI 3.8's look. Earlier test builds of it were called Zune68k lean.
 
-This is a test build ([STAGE], [RELEASE]). Every figure below was
+This is a public beta ([STAGE], [RELEASE]). Every figure below was
 measured in an emulator (FS-UAE, A1200 with OS 3.1), not on a real Amiga.
 
 What is in it
@@ -89,19 +89,22 @@ SYS:OpenMUI/Data/OpenMUISwitch MUI|OPENMUI|UNINSTALL|STATUS.
 
 Status
 ------
-A test build. MUI 3.8's 19 demos and real MUI programs (YAM, AmIRC,
-AmFTP, IBrowse and others, see Compatibility) are tested against MUI 3.8
-in FS-UAE; 30 of 36 MUI 3 programs behave as with MUI 3.8 there. MUI-Demo
-on OS 3.1 with 4 MB fast RAM (FS-UAE): about 465 KB for the first program
-(MUI 3.8: 460 KB), about 205 KB for each further one (MUI 3.8: 211-219
-KB). Not yet measured on a real Amiga. Please report what works and what
-does not.
+A public beta, tested in emulators (FS-UAE, Amiberry), not yet on a
+real Amiga. 184 real MUI programs and class demos (YAM, AmIRC, AmFTP,
+IBrowse, NList, TextEditor, TheBar and many more) are tested against real
+MUI 3.8 and MUI 5. MUI-Demo on OS 3.1 with 4 MB fast RAM: 460 KB for the
+first program (MUI 3.8: 460 KB), 205 KB for each further one (MUI 3.8:
+211-219 KB, MUI 5: 427-435 KB). Speed (cycle-exact emulation): at least
+as fast as MUI 3.8 in 24 of 26 everyday operations, faster than MUI 5 in
+all 27. Please report what works and what does not:
+https://github.com/creep-ltx/openmui/issues
 
 Source and licences
 -------------------
 Source.tar.gz in the archive has the complete source.
-Zune68: https://github.com/reinauer/zune68
-AROS:   https://github.com/aros-development-team/AROS
+OpenMUI: https://github.com/creep-ltx/openmui
+Zune68:  https://github.com/reinauer/zune68
+AROS:    https://github.com/aros-development-team/AROS
 The core is under the AROS Public License (LICENSE). The bundled classes
 keep their own licences and copyright notices, included with the source;
 UP-MCC's (MIT; the Lucide icons ISC, the Inter font SIL OFL 1.1) are in

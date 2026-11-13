@@ -1,4 +1,4 @@
-; $VER: Install-OpenMUI 2.4 (13.11.2026) OpenMUI 0.1b1
+; $VER: Install-OpenMUI 2.4 (13.11.2026) OpenMUI 0.1b2
 ; Amiga Installer script, Installer 43 or newer (OS 3.1: Installer 43.3
 ; from Aminet; OS 3.2: SYS:System/Installer). tools/release.py fills in the
 ; lines marked COMPONENT_... when it builds the archive.
@@ -293,7 +293,7 @@
     )
 )
 
-(welcome "OpenMUI 0.1b1 (test build): a MUI-compatible user interface "
+(welcome "OpenMUI 0.1b2 (test build): a MUI-compatible user interface "
     "library for AmigaOS 3.x (68000 or better). Not MUI, and not affiliated "
     "with MUI's authors.")
 
@@ -580,7 +580,7 @@
 (if @pretend
     (message "Pretend mode: nothing was changed.\n\n"
         (P_ClassReport))
-    (message "OpenMUI 0.1b1 is installed: " #done " files"
+    (message "OpenMUI 0.1b2 is installed: " #done " files"
         (if (> #nb 0) (cat "; the " #nb " it replaced are kept in " #backup) "")
         ".\n\n"
         (P_ClassReport) "\n"
