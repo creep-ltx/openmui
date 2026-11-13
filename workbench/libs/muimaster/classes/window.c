@@ -1368,7 +1368,7 @@ static void __attribute__((noinline)) DisposeCustomFrames(struct MUI_RenderInfo 
     }
 }
 
-static void InitRenderInfoPens(Object *obj, struct MUI_RenderInfo *mri,
+static __attribute__((noinline)) void InitRenderInfoPens(Object *obj, struct MUI_RenderInfo *mri,
     struct MUI_WindowData *data)
 {
     static const UWORD fallback[MPEN_COUNT] = {
@@ -1385,12 +1385,11 @@ static void InitRenderInfoPens(Object *obj, struct MUI_RenderInfo *mri,
         mri->mri_PensStorage[i] = mri->mri_DrawInfo->dri_Pens[fallback[i]];
     }
     mri->mri_Pens = mri->mri_PensStorage;
-    GetRGB32(mri->mri_Colormap, mri->mri_DrawInfo->dri_Pens[SHINEPEN], 1,
-        rgbtable);
-    GetRGB32(mri->mri_Colormap, mri->mri_DrawInfo->dri_Pens[BACKGROUNDPEN],
-        1, rgbtable + 3);
-    GetRGB32(mri->mri_Colormap, mri->mri_DrawInfo->dri_Pens[SHADOWPEN], 1,
-        rgbtable + 6);
+    /* shine, background, shadow: the fallback's first, second, fifth */
+    for (i = 0; i < 9; i += 3)
+        GetRGB32(mri->mri_Colormap,
+            mri->mri_DrawInfo->dri_Pens[fallback[i == 6 ? 4 : i / 3]], 1,
+            rgbtable + i);
 
     for (i = 0; i < MPEN_COUNT; i++)
     {
@@ -1401,22 +1400,17 @@ static void InitRenderInfoPens(Object *obj, struct MUI_RenderInfo *mri,
         if (!spec->buf[0] &&
             (i == MPEN_HALFSHINE || i == MPEN_HALFSHADOW))
         {
-            ULONG r, g, b;
-            if (i == MPEN_HALFSHINE)
-            {
-                r = DoHalfshineGun(rgbtable[0], rgbtable[3]);
-                g = DoHalfshineGun(rgbtable[1], rgbtable[4]);
-                b = DoHalfshineGun(rgbtable[2], rgbtable[5]);
-            }
-            else
-            {
-                r = DoHalfshadowGun(rgbtable[6], rgbtable[3]);
-                g = DoHalfshadowGun(rgbtable[7], rgbtable[4]);
-                b = DoHalfshadowGun(rgbtable[8], rgbtable[5]);
-            }
+            ULONG gun[3];
+            int c;
+
+            for (c = 0; c < 3; c++)
+                gun[c] = i == MPEN_HALFSHINE
+                    ? DoHalfshineGun(rgbtable[c], rgbtable[3 + c])
+                    : DoHalfshadowGun(rgbtable[6 + c], rgbtable[3 + c]);
             /* ObtainPen parses the spec immediately; no heap copy is needed. */
             snprintf(derived.buf, sizeof(derived.buf), "r%08x,%08x,%08x",
-                (unsigned int)r, (unsigned int)g, (unsigned int)b);
+                (unsigned int)gun[0], (unsigned int)gun[1],
+                (unsigned int)gun[2]);
             spec = &derived;
         }
         pen = MUI_ObtainPen(mri, spec, 0);
@@ -1453,89 +1447,76 @@ static __attribute__((noinline)) void ReleaseRenderScreen(
 static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     struct MUI_RenderInfo *mri)
 {
-    Object *temp_obj;
-    IPTR val;
+    /* the system images by the border scrollers that need them,
+     * mri_LeftImage ... mri_SizeImage in this order (window.h) */
+    static const UBYTE which[5] = {
+        LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
+    static const UBYTE need[5] = {
+        MUIWF_USEBOTTOMSCROLLER >> 8, MUIWF_USEBOTTOMSCROLLER >> 8,
+        MUIWF_USERIGHTSCROLLER >> 8, MUIWF_USERIGHTSCROLLER >> 8,
+        (MUIWF_USEBOTTOMSCROLLER | MUIWF_USERIGHTSCROLLER) >> 8 };
+    struct MUI_GlobalInfo *mgi = muiGlobalInfo(obj);
+    struct ZunePrefsNew *prefs = mgi->mgi_Prefs;
+    struct Screen *scr;
+    Object **img, *temp_obj;
+    ULONG deep;
     int i;
 
     if (!mri->mri_Tail &&
         !(mri->mri_Tail = AllocVec(sizeof(*mri->mri_Tail), MEMF_ANY | MEMF_CLEAR)))
         return FALSE;
 
-    /* TODO: Move this whole screen locking/opening stuff into the
-     * application class by creating methods for this purpose  */
-
-    /* If no user screen has been specified try to open the application
-     * specific screen */
-    if (!data->wd_UserScreen)
+    /* The screen: the program's, else the settings' own screen mode
+     * (opened once for the application), else the program's public
+     * screen, else the settings' (opened through muiscreen.library if
+     * it is not there), else the default public screen. A locked public
+     * screen is unlocked at cleanup (MUIWF_SCREENLOCKED). */
+    if (!data->wd_UserScreen && prefs->screenmodeid != ~0)
     {
-        ULONG screenmodeid = muiGlobalInfo(obj)->mgi_Prefs->screenmodeid;
-
-        if (screenmodeid != ~0)
-        {
-            if (!muiGlobalInfo(obj)->mgi_CustomScreen)
-            {
-                muiGlobalInfo(obj)->mgi_CustomScreen = OpenScreenTags
-                    (NULL,
-                    SA_DisplayID, screenmodeid,
-                    SA_SharePens, TRUE,
-                    SA_FullPalette, TRUE, SA_LikeWorkbench, TRUE, TAG_DONE);
-                /* It's fine if this fails as there is a fallback case below */
-            }
-
-            data->wd_UserScreen = muiGlobalInfo(obj)->mgi_CustomScreen;
-        }
+        if (!mgi->mgi_CustomScreen)
+            /* It's fine if this fails as there is a fallback case below */
+            mgi->mgi_CustomScreen = OpenScreenTags(NULL,
+                SA_DisplayID, prefs->screenmodeid, SA_SharePens, TRUE,
+                SA_FullPalette, TRUE, SA_LikeWorkbench, TRUE, TAG_DONE);
+        data->wd_UserScreen = mgi->mgi_CustomScreen;
     }
-    if (data->wd_UserScreen)
+    if (!(scr = data->wd_UserScreen))
     {
-        mri->mri_Screen = data->wd_UserScreen;
-    }
-    else
-    {
+        CONST_STRPTR name = prefs->publicscreen_name;
+
         if (data->wd_UserPublicScreen)
+            scr = LockPubScreen(data->wd_UserPublicScreen);
+        else if (name && name[0])
         {
-            mri->mri_Screen = LockPubScreen(data->wd_UserPublicScreen);
-        }
-        else if (muiGlobalInfo(obj)->mgi_Prefs->publicscreen_name
-            && muiGlobalInfo(obj)->mgi_Prefs->publicscreen_name[0])
-        {
-            DPS(bug("[MUI:Window] %s: using public screen '%s'\n", __func__, muiGlobalInfo(obj)->mgi_Prefs->publicscreen_name);)
-            mri->mri_Screen =
-                LockPubScreen(muiGlobalInfo(obj)->mgi_Prefs->publicscreen_name);
-            if (!mri->mri_Screen && muiGlobalInfo(obj)->mgi_Configdata && MUIScreenBase) {
-                struct MUI_PubScreenDesc *desc  = (struct MUI_PubScreenDesc *)DoMethod(muiGlobalInfo(obj)->mgi_Configdata,
-                                        MUIM_Configdata_GetPubScrnDesc,
-                                        muiGlobalInfo(obj)->mgi_Prefs->publicscreen_name);
-                DPS(bug("[MUI:Window] %s: public screen descriptor @ 0x%p\n", __func__, desc);)
-                if (desc) {
+            if (!(scr = LockPubScreen(name)) && mgi->mgi_Configdata
+                && MUIScreenBase)
+            {
+                struct MUI_PubScreenDesc *desc = (struct MUI_PubScreenDesc *)
+                    DoMethod(mgi->mgi_Configdata,
+                        MUIM_Configdata_GetPubScrnDesc, name);
+                if (desc)
+                {
                     MUIS_OpenPubScreen(desc);
-                mri->mri_Screen =
-                    LockPubScreen(muiGlobalInfo(obj)->mgi_Prefs->publicscreen_name);
+                    scr = LockPubScreen(name);
                 }
             }
         }
-
-        if (mri->mri_Screen == NULL)
-        {
-            DPS(bug("[MUI:Window] %s: using default public screen\n", __func__);)
-            mri->mri_Screen = LockPubScreen(NULL);
-            if (mri->mri_Screen == NULL)
-            {
-                return FALSE;
-            }
-        }
+        if (!scr && !(scr = LockPubScreen(NULL)))
+            return FALSE;
         data->wd_Flags |= MUIWF_SCREENLOCKED;
     }
+    mri->mri_Screen = scr;
 
-    struct Screen *scr = mri->mri_Screen;
     if (!(mri->mri_DrawInfo = GetScreenDrawInfo(scr)))
     {
         ReleaseRenderScreen(data, mri);
         return FALSE;
     }
 
+    deep = GetBitMapAttr(scr->RastPort.BitMap, BMA_DEPTH) >= 15;
 #ifdef ZUNE68_GCC_NATIVE
     /* Planar windows never load or allocate RTG support. */
-    if (GetBitMapAttr(scr->RastPort.BitMap, BMA_DEPTH) >= 15)
+    if (deep)
         ZuneOpenCyberGfx();
 #endif
     InitCustomFrames(obj, mri);
@@ -1544,90 +1525,49 @@ static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_Wi
     /* MUI 3.8 opens every later window of an application in the stage
      * one of its windows had to be fitted into the screen in (measured:
      * MUI_Request's window after a 17-button column needed helvetica) */
-    mri->mri_Fallback = MGI_FALLBACK(muiGlobalInfo(obj));
+    mri->mri_Fallback = MGI_FALLBACK(mgi);
 
     /* Decided again at every setup: the window may open on another
      * screen. MUI 3.8's frame thickness "auto" is thick when the screen
      * is at least twice as wide as tall (its size, not the display mode:
      * 640x320 thick, 640x321 thin, lores 320x256 thin). */
     mri->mri_Flags &= ~(MUIMRI_THINFRAMES | MUIMRI_TRUECOLOR);
-    switch (muiGlobalInfo(obj)->mgi_Prefs->frame_thickness)
-    {
-    case FRAME_THICKNESS_THICK:
-        break;
-    case FRAME_THICKNESS_THIN:
+    if (prefs->frame_thickness == FRAME_THICKNESS_THIN
+        || (prefs->frame_thickness != FRAME_THICKNESS_THICK
+            && scr->Width < 2 * scr->Height))
         mri->mri_Flags |= MUIMRI_THINFRAMES;
-        break;
-    default:
-        if (scr->Width < 2 * scr->Height)
-            mri->mri_Flags |= MUIMRI_THINFRAMES;
-    }
-
-    if (GetBitMapAttr(scr->RastPort.BitMap, BMA_DEPTH) >= 15)
-    {
+    if (deep)
         mri->mri_Flags |= MUIMRI_TRUECOLOR;
-    }
 
     InitRenderInfoPens(obj, mri, data);
 
     for (i = 0; i < -MUIV_Font_NegCount; i++)
-    {
         mri->mri_Fonts[i] = NULL;
-    }
 
-    if (data->wd_Flags & MUIWF_USEBOTTOMSCROLLER)
-    {
-        mri->mri_LeftImage = CreateSysimage(mri->mri_DrawInfo, LEFTIMAGE);
-        mri->mri_RightImage = CreateSysimage(mri->mri_DrawInfo, RIGHTIMAGE);
-    }
-    else
-    {
-        mri->mri_LeftImage = mri->mri_RightImage = NULL;
-    }
+    img = &mri->mri_LeftImage;
+    for (i = 0; i < 5; i++)
+        img[i] = ((data->wd_Flags >> 8) & need[i])
+            ? CreateSysimage(mri->mri_DrawInfo, which[i]) : NULL;
 
-    if (data->wd_Flags & MUIWF_USERIGHTSCROLLER)
-    {
-        mri->mri_UpImage = CreateSysimage(mri->mri_DrawInfo, UPIMAGE);
-        mri->mri_DownImage = CreateSysimage(mri->mri_DrawInfo, DOWNIMAGE);
-    }
-    else
-    {
-        mri->mri_UpImage = mri->mri_DownImage = NULL;
-    }
-
-    if ((data->wd_Flags & MUIWF_USEBOTTOMSCROLLER) ||
-        (data->wd_Flags & MUIWF_USERIGHTSCROLLER))
-        mri->mri_SizeImage = CreateSysimage(mri->mri_DrawInfo, SIZEIMAGE);
-    else
-        mri->mri_SizeImage = NULL;
-
-    if (data->wd_CrtFlags & WFLG_BORDERLESS)
-    {
-        /* In fact borderless windows could also have borders (e.g. if they
-         * have a window title) but since they look ugly anyway we ignore it
-         * for now */
-        mri->mri_BorderLeft = 0;
-        mri->mri_BorderRight = 0;
-        mri->mri_BorderTop = 0;
+    /* In fact borderless windows could also have borders (e.g. if they
+     * have a window title) but since they look ugly anyway we ignore it
+     * for now */
+    mri->mri_BorderLeft = mri->mri_BorderRight = mri->mri_BorderTop =
         mri->mri_BorderBottom = 0;
-    }
-    else
+    if (!(data->wd_CrtFlags & WFLG_BORDERLESS))
     {
         mri->mri_BorderLeft = scr->WBorLeft;
         mri->mri_BorderRight = scr->WBorRight;
-        mri->mri_BorderTop =
-            scr->WBorTop + scr->Font->ta_YSize + 1;
-        temp_obj =
-            NewObject(NULL, "sysiclass", SYSIA_DrawInfo,
-            (IPTR) mri->mri_DrawInfo, SYSIA_Which, SIZEIMAGE, TAG_DONE);
-        if (temp_obj)
+        mri->mri_BorderTop = scr->WBorTop + scr->Font->ta_YSize + 1;
+        mri->mri_BorderBottom = scr->WBorBottom;
+        if ((temp_obj = CreateSysimage(mri->mri_DrawInfo, SIZEIMAGE)))
         {
+            IPTR val;
+
             GetAttr(IA_Height, temp_obj, &val);
             DisposeObject(temp_obj);
             mri->mri_BorderBottom = val;
         }
-        else
-            mri->mri_BorderBottom = scr->WBorBottom;
     }
 
     return TRUE;
@@ -1808,7 +1748,7 @@ static void ChangeEvents(struct MUI_WindowData *data, ULONG new_events)
     }
 }
 
-static void CalcWindowPosition(Object *obj, struct MUI_WindowData *data,
+static __attribute__((noinline)) void CalcWindowPosition(Object *obj, struct MUI_WindowData *data,
     ULONG flags);
 static void CreateWindowScrollbars(Object *obj,
     struct MUI_WindowData *data);
@@ -2381,7 +2321,7 @@ static VOID RefreshWindow(Object *oWin, struct MUI_WindowData *data)
  * uses the borders the window will really get: mri_BorderBottom assumes a
  * size gadget, which fixed-size windows (IBrowse's requesters) do not
  * have, and MUI 3.9 centres those on their actual height. */
-static void CalcWindowPosition(Object *obj, struct MUI_WindowData *data,
+static __attribute__((noinline)) void CalcWindowPosition(Object *obj, struct MUI_WindowData *data,
     ULONG flags)
 {
     struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
@@ -2408,69 +2348,56 @@ static void CalcWindowPosition(Object *obj, struct MUI_WindowData *data,
         bottom = IM(mri->mri_LeftImage)->Height;
     width = mri->mri_BorderLeft + data->wd_Width + right;
     height = top + data->wd_Height + bottom;
-    ULONG refw = 0, refx = 0, refh = 0, refy = 0;
+    /* the reference window's outer box: left, top, width, height
+     * (unsigned, as before: a reference narrower than the window puts
+     * it far left, which Intuition's WA_AutoAdjust brings back) */
+    ULONG ref[4] = { 0, 0, 0, 0 };
+    Object *refwin = data->wd_RefWindow;
+    LONG x = data->wd_ReqX, y = data->wd_ReqY;
 
-    data->wd_X = data->wd_ReqX;
-    data->wd_Y = data->wd_ReqY;
-
-    /* Get dimensions of reference window */
-    if (data->wd_RefWindow != NULL)
+    if (refwin)
     {
-        struct Window *ref = NULL;
+        static const ULONG attrs[4] = { MUIA_Window_LeftEdge,
+            MUIA_Window_TopEdge, MUIA_Window_Width, MUIA_Window_Height };
+        struct Window *w = NULL;
+        int i;
 
         /* MUI 3.9 centres on the reference window's outer box (YAM's
          * Configuration Warning over its Configuration window) */
-        get(data->wd_RefWindow, MUIA_Window_Window, &ref);
-        if (ref)
+        get(refwin, MUIA_Window_Window, &w);
+        if (w)
         {
-            refx = ref->LeftEdge;
-            refy = ref->TopEdge;
-            refw = ref->Width;
-            refh = ref->Height;
+            ref[0] = w->LeftEdge;
+            ref[1] = w->TopEdge;
+            ref[2] = w->Width;
+            ref[3] = w->Height;
         }
         else
-        {
-            get(data->wd_RefWindow, MUIA_Window_LeftEdge, &refx);
-            get(data->wd_RefWindow, MUIA_Window_Width, &refw);
-            get(data->wd_RefWindow, MUIA_Window_TopEdge, &refy);
-            get(data->wd_RefWindow, MUIA_Window_Height, &refh);
-        }
+            for (i = 0; i < 4; i++)
+                get(refwin, attrs[i], &ref[i]);
     }
 
-    /* Adjust X */
-    if (data->wd_X == MUIV_Window_LeftEdge_Centered)
-    {
-        if (data->wd_RefWindow != NULL)
-            data->wd_X = refx + (refw - width) / 2;
-        else
-            data->wd_X = (scr->ViewPort.DWidth - width) / 2;
-    }
-    else if (data->wd_X == MUIV_Window_LeftEdge_Moused)
-        data->wd_X = scr->MouseX - width / 2;
-    else if (data->wd_RefWindow != NULL)
-        data->wd_X += refx;
+    if (x == MUIV_Window_LeftEdge_Centered)
+        x = refwin ? ref[0] + (ref[2] - width) / 2
+            : (scr->ViewPort.DWidth - width) / 2;
+    else if (x == MUIV_Window_LeftEdge_Moused)
+        x = scr->MouseX - width / 2;
+    else if (refwin)
+        x += ref[0];
 
-    /* Adjust Y */
-    if (data->wd_Y == MUIV_Window_TopEdge_Centered)
-    {
-        if (data->wd_RefWindow != NULL)
-            data->wd_Y = refy + (refh - height) / 2;
-        else
-            data->wd_Y = (scr->ViewPort.DHeight - height) / 2;
-    }
-    else if (data->wd_Y == MUIV_Window_TopEdge_Moused)
-        data->wd_Y = scr->MouseY - height / 2;
-    else if (data->wd_Y <= MUIV_Window_TopEdge_Delta(0)
-        && data->wd_Y > MUIV_Window_TopEdge_Delta(7))
-    {
-        data->wd_Y = MUIV_Window_TopEdge_Delta(0) - data->wd_Y;
-        if (data->wd_RefWindow != NULL)
-            data->wd_Y += refy + mri->mri_BorderTop;
-        else
-            data->wd_Y += scr->BarHeight + 1;
-    }
-    else if (data->wd_RefWindow != NULL)
-        data->wd_Y += refy;
+    if (y == MUIV_Window_TopEdge_Centered)
+        y = refwin ? ref[1] + (ref[3] - height) / 2
+            : (scr->ViewPort.DHeight - height) / 2;
+    else if (y == MUIV_Window_TopEdge_Moused)
+        y = scr->MouseY - height / 2;
+    else if (y <= MUIV_Window_TopEdge_Delta(0)
+        && y > MUIV_Window_TopEdge_Delta(7))
+        y = MUIV_Window_TopEdge_Delta(0) - y + (refwin
+            ? ref[1] + mri->mri_BorderTop : scr->BarHeight + 1);
+    else if (refwin)
+        y += ref[1];
+    data->wd_X = x;
+    data->wd_Y = y;
 }
 
 /* Initialize alternative dimensions for DisplayWindow */
