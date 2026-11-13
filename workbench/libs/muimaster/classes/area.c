@@ -43,6 +43,9 @@ extern struct Library *MUIMasterBase;
 #include "support_classes.h"
 #include "modules.h"
 #include "imspec_intern.h"
+#if !defined(ZUNE68_GCC_NATIVE)
+#include "areadrag.c"
+#endif
 #include "penspec.h"
 
 //  #define MYDEBUG 1
@@ -1119,63 +1122,39 @@ static void cleanup_control_char(struct MUI_AreaData *data, Object *obj);
 // static void setup_cycle_chain (struct MUI_AreaData *data, Object *obj);
 // static void cleanup_cycle_chain (struct MUI_AreaData *data, Object *obj);
 
-#define ZUNE_FOCUS_TYPE_ACTIVE_OBJ 0
-#define ZUNE_FOCUS_TYPE_DROP_OBJ 1
-
-/* Draw a keyboard or drop outline for a drawable live Area with a non-
- * Window parent; skip NULL/undrawable/root targets. Borrow the RastPort and
- * pens, restoring only the line pattern after drawing. Keyboard outline
- * extends one pixel outside bounds; drop outline uses the bounds. Return no
- * status.
- */
-static void _zune_focus_new(Object *obj, int type)
+/* The active object's outline: MUI 3.9 frames it with a solid line one
+ * pixel outside its box (tests/native/activeframe.c), MUI 3.8 the same, in
+ * the settings' "colour of active object" (shine by default; m5 drew it
+ * black, measured with tests/lean/setleft.c). Not for an object that
+ * cannot draw or is the window's root. The caller's draw mode, background
+ * pen and line pattern are kept: left in JAM2 with the shadow pen, text
+ * drawn later by classes that do not set the mode (TheBar's buttons in
+ * YAM) came out as black blocks. */
+static void area_active_outline(Object *obj)
 {
-    Object *parent;
     struct RastPort *rp;
+    Object *parent;
     UWORD oldDrPt;
     UBYTE oldDrMd, oldBPen;
+    LONG pen;
+    int x1, y1, x2, y2;
 
-    // bug("_zune_focus_new 1 %p\n", obj);
-
-    if (NULL == obj || !(_flags(obj) & MADF_CANDRAW))
+    if (!(_flags(obj) & MADF_CANDRAW) || !(parent = _parent(obj))
+        || parent == _win(obj))
         return;
-
-    parent = _parent(obj);
     rp = _rp(obj);
     oldDrPt = rp->LinePtrn;
-
-    int x1 = _left(obj);
-    int y1 = _top(obj);
-    int x2 = _left(obj) + _width(obj) - 1;
-    int y2 = _top(obj) + _height(obj) - 1;
-
-    if (!parent || parent == _win(obj))
-        return;
-
-    /* Keep the caller's draw mode and background pen: left in JAM2 with
-     * the shadow pen, text drawn later by classes that do not set the mode
-     * (TheBar's buttons in YAM) came out as black blocks. */
     oldDrMd = rp->DrawMode;
     oldBPen = rp->BgPen;
+    x1 = _left(obj) - 1;
+    y1 = _top(obj) - 1;
+    x2 = _right(obj) + 1;
+    y2 = _bottom(obj) + 1;
     SetABPenDrMd(rp, _pens(obj)[MPEN_SHINE], _pens(obj)[MPEN_SHADOW], JAM2);
-
-    if (type == ZUNE_FOCUS_TYPE_ACTIVE_OBJ) {
-        /* MUI 3.9 frames the active object with a solid shine line one
-         * pixel outside its box (tests/native/activeframe.c); MUI 3.8 the
-         * same, in the settings' "colour of active object" (shine by
-         * default; m5 drew it black, measured with tests/lean/setleft.c) */
-        LONG pen = muiRenderInfo(obj)->mri_Tail->ActivePen;
-        if (pen != -1)
-            SetAPen(rp, MUIPEN(pen));
-        SetDrPt(rp, 0xFFFF);
-        x1--;
-        y1--;
-        x2++;
-        y2++;
-    } else {
-        SetDrPt(rp, 0xF0F0);
-    }
-
+    pen = muiRenderInfo(obj)->mri_Tail->ActivePen;
+    if (pen != -1)
+        SetAPen(rp, MUIPEN(pen));
+    SetDrPt(rp, 0xFFFF);
     Move(rp, x1, y1);
     Draw(rp, x2, y1);
     Draw(rp, x2, y2);
@@ -1186,84 +1165,27 @@ static void _zune_focus_new(Object *obj, int type)
     SetDrMd(rp, oldDrMd);
 }
 
-/* Erase a drawable object outline. Keyboard focus repaints four strips
- * through the parent background. Drop focus redraws the object under an
- * edge clip region when available. Borrow live object/display resources;
- * release an installed clip through MUI_RemoveClipRegion. Clip
- * allocation/install failures are not fully reported and redraw may be
- * broader. Return no status.
- */
-static void _zune_focus_destroy(Object *obj, int type)
+/* The outline erased: four one-pixel strips of the parent's background
+ * (top, right, bottom, left) */
+static void area_active_erase(Object *obj)
 {
     Object *parent;
+    int x1, y1, x2, y2, width, height, i;
 
-    // bug("_zune_focus_destroy 1 %p\n", obj);
-
-    if (NULL == obj || !(_flags(obj) & MADF_CANDRAW))
+    if (!(_flags(obj) & MADF_CANDRAW) || !(parent = _parent(obj))
+        || parent == _win(obj))
         return;
+    x1 = _left(obj) - 1;
+    y1 = _top(obj) - 1;
+    x2 = _right(obj) + 1;
+    y2 = _bottom(obj) + 1;
+    width = x2 - x1 + 1;
+    height = y2 - y1 + 1;
+    for (i = 0; i < 4; i++) {
+        int x = i == 1 ? x2 : x1, y = i == 2 ? y2 : y1;
 
-    parent = _parent(obj);
-    int x1 = _left(obj);
-    int y1 = _top(obj);
-    int x2 = _left(obj) + _width(obj) - 1;
-    int y2 = _top(obj) + _height(obj) - 1;
-    int width;
-    int height;
-
-    if (type == ZUNE_FOCUS_TYPE_ACTIVE_OBJ) {
-        if (!parent || parent == _win(obj))
-            return;
-
-        x1--;
-        y1--;
-        x2++;
-        y2++;
-        width = x2 - x1 + 1;
-        height = y2 - y1 + 1;
-
-        /* the four strips: top, right, bottom, left */
-        {
-            int i;
-
-            for (i = 0; i < 4; i++) {
-                int x = i == 1 ? x2 : x1, y = i == 2 ? y2 : y1;
-
-                zune_draw_background(parent, x, y, i & 1 ? 1 : width,
-                    i & 1 ? height : 1, x, y, 0);
-            }
-        }
-    } else {
-        struct Region *region;
-        struct Rectangle rect;
-        APTR clip = NULL;
-
-        region = NewRegion();
-        if (region) {
-            /* the four edges, one pixel wide: top, right, bottom, left;
-             * a bit per corner: x1 (1), y1 (2), x2 (4), y2 (8) choose
-             * right or bottom instead of left or top */
-            static const UBYTE edge[4] = {4, 1 | 4 | 8, 2 | 4 | 8, 8};
-            WORD xs[2] = {_left(obj), _right(obj)};
-            WORD ys[2] = {_top(obj), _bottom(obj)};
-            int i;
-
-            for (i = 0; i < 4; i++) {
-                UBYTE e = edge[i];
-
-                rect.MinX = xs[e & 1];
-                rect.MinY = ys[(e >> 1) & 1];
-                rect.MaxX = xs[(e >> 2) & 1];
-                rect.MaxY = ys[e >> 3];
-                OrRectRegion(region, &rect);
-            }
-            clip = MUI_AddClipRegion(muiRenderInfo(obj), region);
-        }
-
-        MUI_Redraw(obj, MADF_DRAWOBJECT | MADF_DRAWFRAME);
-
-        if (region) {
-            MUI_RemoveClipRegion(muiRenderInfo(obj), clip);
-        }
+        zune_draw_background(parent, x, y, i & 1 ? 1 : width,
+            i & 1 ? height : 1, x, y, 0);
     }
 }
 
@@ -3326,29 +3248,6 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
  * parent fallback or selected-background choice is made. Require valid
  * render resources and writable destination RastPort.
  */
-static IPTR
-Area__MUIM_DrawBackgroundBuffered(struct IClass *cl, Object *obj,
-                                  struct MUIP_DrawBackgroundBuffered *msg)
-{
-    struct MUI_AreaData *data = INST_DATA(cl, obj);
-    struct MUI_ImageSpec_intern *bg;
-    LONG state = 0;
-
-    if (!(data->mad_Flags & MADF_CANDRAW)) /* not between show/hide */
-        return FALSE;
-
-    bg = data->mad_Background;
-
-    /*      D(bug("Area_DrawBackground(%p): draw bg\n", obj)); */
-    zune_imspec_drawbuffered(bg, msg->rp, data->mad_RenderInfo, msg->left,
-                             msg->top, msg->width, msg->height,
-                             msg->xoffset + msg->left, msg->yoffset + msg->top,
-                             state, msg->left, msg->top, 1, _mleft(obj),
-                             _mtop(obj), _mright(obj), _mbottom(obj));
-
-    return TRUE;
-}
-
 /* Perverting the EventHandlerNode structure to specify a shortcut.
  */
 /* Register the embedded borrowed control-character node with Window when a
@@ -3824,8 +3723,7 @@ static IPTR Area__MUIM_Hide(struct IClass *cl, Object *obj,
 static IPTR Area__MUIM_GoActive(struct IClass *cl, Object *obj, Msg msg)
 {
     // bug("Area_GoActive %p\n", obj);
-    if (_flags(obj) & MADF_CANDRAW)
-        _zune_focus_new(obj, ZUNE_FOCUS_TYPE_ACTIVE_OBJ);
+    area_active_outline(obj);
     return TRUE;
 }
 
@@ -3855,8 +3753,7 @@ static IPTR Area__MUIM_GoActive(struct IClass *cl, Object *obj, Msg msg)
 static IPTR Area__MUIM_GoInactive(struct IClass *cl, Object *obj, Msg msg)
 {
     // bug("Area_GoInactive %p\n", obj);
-    if (_flags(obj) & MADF_CANDRAW)
-        _zune_focus_destroy(obj, ZUNE_FOCUS_TYPE_ACTIVE_OBJ);
+    area_active_erase(obj);
     return TRUE;
 }
 
@@ -4596,21 +4493,6 @@ static IPTR Area__MUIM_Timer(struct IClass *cl, Object *obj, Msg msg)
 *       active.
 *
 */
-static IPTR Area__MUIM_DoDrag(struct IClass *cl, Object *obj,
-                              struct MUIP_DoDrag *msg)
-{
-    LONG touchx = msg->touchx;
-    LONG touchy = msg->touchy;
-    if (touchx == 0x80000000)
-        touchx = _window(obj)->MouseX - _left(obj);
-    if (touchy == 0x80000000)
-        touchy = _window(obj)->MouseY - _top(obj);
-
-    DoMethod(_win(obj), MUIM_Window_DragObject, (IPTR)obj, touchx, touchy,
-             msg->flags);
-    return 0;
-}
-
 /****** Area.mui/MUIM_CreateDragImage ************
 *
 *   NAME
@@ -4647,44 +4529,6 @@ static IPTR Area__MUIM_DoDrag(struct IClass *cl, Object *obj,
 *       rerendered.
 *
 */
-static __attribute__((noinline)) IPTR Area__MUIM_CreateDragImage(struct IClass *cl, Object *obj,
-                                       struct MUIP_CreateDragImage *msg)
-{
-    struct MUI_DragImage *img = (struct MUI_DragImage *)AllocVec(
-                                    sizeof(struct MUI_DragImage), MEMF_CLEAR);
-    if (img) {
-        const struct ZuneFrameGfx *zframe;
-        LONG depth = GetBitMapAttr(_screen(obj)->RastPort.BitMap, BMA_DEPTH);
-
-        zframe = zune_zframe_get(
-                     obj, &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Drag]);
-
-        img->width = _width(obj) + zframe->ileft + zframe->iright;
-        img->height = _height(obj) + zframe->itop + zframe->ibottom;
-
-        if ((img->bm = AllocBitMap(img->width, img->height, depth, BMF_MINPLANES,
-                                   _screen(obj)->RastPort.BitMap))) {
-            /* Render the stuff now */
-            struct RastPort *rp_save = muiRenderInfo(obj)->mri_RastPort;
-            struct RastPort temprp;
-            InitRastPort(&temprp);
-            temprp.BitMap = img->bm;
-            ClipBlit(_rp(obj), _left(obj), _top(obj), &temprp, zframe->ileft,
-                     zframe->itop, _width(obj), _height(obj), 0xc0);
-
-            muiRenderInfo(obj)->mri_RastPort = &temprp;
-            zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0, img->width,
-                         img->height, 0, 0, img->width, img->height);
-            muiRenderInfo(obj)->mri_RastPort = rp_save;
-        }
-
-        img->touchx = msg->touchx;
-        img->touchy = msg->touchy;
-        img->flags = 0;
-    }
-    return (IPTR)img;
-}
-
 /****** Area.mui/MUIM_DeleteDragImage ************
 *
 *   NAME
@@ -4708,17 +4552,6 @@ static __attribute__((noinline)) IPTR Area__MUIM_CreateDragImage(struct IClass *
 *       provide a matching deletion implementation. A NULL bitmap is accepted.
 *
 */
-static IPTR Area__MUIM_DeleteDragImage(struct IClass *cl, Object *obj,
-                                       struct MUIP_DeleteDragImage *msg)
-{
-    if (msg->di) {
-        if (msg->di->bm)
-            FreeBitMap(msg->di->bm);
-        FreeVec(msg->di);
-    }
-    return 0;
-}
-
 /* Private MUIM_DragQueryExtended: if Dropable and inclusive window-relative
  * x/y hit the object, call DragQuery for borrowed msg->obj. Return this
  * borrowed object only for exact Accept, otherwise zero. No child search,
@@ -4764,14 +4597,6 @@ static IPTR Area__MUIM_DragQueryExtended(struct IClass *cl, Object *obj,
 *       Window children.
 *
 */
-static IPTR Area__MUIM_DragBegin(struct IClass *cl, Object *obj,
-                                 struct MUIP_DragBegin *msg)
-{
-    // struct MUI_AreaData *data = INST_DATA(cl, obj);
-    _zune_focus_new(obj, ZUNE_FOCUS_TYPE_DROP_OBJ);
-    return 0;
-}
-
 /****** Area.mui/MUIM_DragFinish ************
 *
 *   NAME
@@ -4796,14 +4621,6 @@ static IPTR Area__MUIM_DragBegin(struct IClass *cl, Object *obj,
 *       when allocation succeeds; without it the redraw is broader.
 *
 */
-static IPTR Area__MUIM_DragFinish(struct IClass *cl, Object *obj,
-                                  struct MUIP_DragFinish *msg)
-{
-    // struct MUI_AreaData *data = INST_DATA(cl, obj);
-    _zune_focus_destroy(obj, ZUNE_FOCUS_TYPE_DROP_OBJ);
-    return 0;
-}
-
 /*
  * Calculates addleft, addtop, subwidth, subheight from current settings.
  * If frame phantom, ignore horizontal frame components.
@@ -4938,28 +4755,6 @@ static IPTR Area__MUIM_FindAreaObject(struct IClass *cl, Object *obj,
 *       pixels. Keep output storage valid through the synchronous call.
 *
 */
-static IPTR Area__MUIM_QueryFrameCharacteristics(
-    struct IClass *cl, Object *obj,
-    struct MUIP_QueryFrameCharacteristics *msg)
-{
-    struct MUI_AreaData *data = INST_DATA(cl, obj);
-    const struct MUI_FrameSpec_intern *frame;
-    struct MUI_FrameSpec_intern tempframe;
-
-    if (!msg->characteristics)
-        return FALSE;
-
-    if (!(data->mad_Flags & MADF_SETUP))
-        return FALSE;
-
-    frame = get_intframe(obj, data, &tempframe);
-
-    msg->characteristics->border_width = frame->border_width;
-    msg->characteristics->border_radius = frame->border_radius;
-    msg->characteristics->has_rounded_corners = frame->border_radius > 0;
-    return TRUE;
-}
-
 /****** Area.mui/MUIM_CreateFrameClippingRegion ************
 *
 *   NAME
@@ -4997,39 +4792,6 @@ static IPTR Area__MUIM_QueryFrameCharacteristics(
 *       or filled.
 *
 */
-static IPTR Area__MUIM_CreateFrameClippingRegion(
-    struct IClass *cl, Object *obj,
-    struct MUIP_CreateFrameClippingRegion *msg)
-{
-    struct MUI_AreaData *data = INST_DATA(cl, obj);
-    const struct MUI_FrameSpec_intern *frame;
-    struct MUI_FrameSpec_intern tempframe;
-
-    if (!msg->clipinfo)
-        return FALSE;
-
-    if (!(data->mad_Flags & MADF_SETUP))
-        return FALSE;
-
-    frame = get_intframe(obj, data, &tempframe);
-    struct MUI_FrameCharacteristics characteristics;
-
-    if (!zune_frame_get_characteristics(obj, frame, &characteristics)) {
-        return FALSE;
-    }
-
-    if (characteristics.has_rounded_corners) {
-        msg->clipinfo = zune_frame_create_clip_region(
-                            msg->left, msg->top, msg->width, msg->height,
-                            characteristics.border_radius);
-
-        if (!msg->clipinfo) {
-            return FALSE;
-        }
-    }
-    return TRUE;
-}
-
 IPTR Area__MUIM_Layout(struct IClass *cl, Object *obj,
     struct MUIP_Layout *msg)
 {
@@ -5196,8 +4958,6 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case MUIM_Draw: return Area__MUIM_Draw(cl, obj, (APTR)msg);
     case MUIM_DrawBackground: return Area__MUIM_DrawBackground(cl, obj, (APTR)msg);
     case MUIM_CustomBackfill: method = (APTR)Area__MUIM_CustomBackfill; break;
-    case MUIM_DrawBackgroundBuffered:
-        method = (APTR)Area__MUIM_DrawBackgroundBuffered; break;
     case MUIM_DrawParentBackground: return Area__MUIM_DrawParentBackground(cl, obj, (APTR)msg);
     case MUIM_Setup: return Area__MUIM_Setup(cl, obj, (APTR)msg);
     case MUIM_Cleanup: return Area__MUIM_Cleanup(cl, obj, (APTR)msg);
@@ -5221,17 +4981,19 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case MUIM_UpdateInnerSizes: method = (APTR)Area__MUIM_UpdateInnerSizes; break;
     case MUIM_DragQuery:
         return MUIV_DragQuery_Refuse;
-    case MUIM_DragBegin: return Area__MUIM_DragBegin(cl, obj, (APTR)msg);
+    case MUIM_DragBegin:
     case MUIM_DragDrop:
         return FALSE;
     case MUIM_UnknownDropDestination:
         method = (APTR)Area__MUIM_UnknownDropDestination; break;
-    case MUIM_DragFinish: method = (APTR)Area__MUIM_DragFinish; break;
+    case MUIM_DragFinish:
     case MUIM_DragReport:
         return MUIV_DragReport_Continue; /* or MUIV_DragReport_Abort? */
-    case MUIM_DoDrag: method = (APTR)Area__MUIM_DoDrag; break;
-    case MUIM_CreateDragImage: method = (APTR)Area__MUIM_CreateDragImage; break;
-    case MUIM_DeleteDragImage: method = (APTR)Area__MUIM_DeleteDragImage; break;
+    case MUIM_DoDrag:
+    case MUIM_CreateDragImage:
+    case MUIM_DeleteDragImage:
+        /* in the drag and drop module, which a drag loads anyway */
+        method = (APTR)zune_area_drag; break;
     case MUIM_DragQueryExtended: method = (APTR)Area__MUIM_DragQueryExtended; break;
     case MUIM_HandleInput: method = (APTR)Area__MUIM_HandleInput; break;
     case MUIM_FindAreaObject: return Area__MUIM_FindAreaObject(cl, obj, (APTR)msg);
@@ -5239,10 +5001,12 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case MUIM_Export: method = (APTR)Area__MUIM_Export; break;
     case MUIM_Import: method = (APTR)Area__MUIM_Import; break;
 
+    case MUIM_DrawBackgroundBuffered:
     case MUIM_QueryFrameCharacteristics:
-        method = (APTR)Area__MUIM_QueryFrameCharacteristics; break;
     case MUIM_CreateFrameClippingRegion:
-        method = (APTR)Area__MUIM_CreateFrameClippingRegion; break;
+        /* AROS's own methods, which no MUI program sends: in the MUI 4/5
+         * module */
+        method = (APTR)zune_area_aros45; break;
     default:
         return DoSuperMethodA(cl, obj, msg);
     }

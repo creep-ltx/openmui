@@ -131,7 +131,12 @@ struct ZuneDragDropModule
     IPTR (*drag_begin)(struct ZuneDrag *, Object *, LONG, LONG, ULONG,
         struct Screen *);
     BOOL (*drag_event)(Object *, struct ZuneDrag *, struct IntuiMessage *);
+    IPTR (*area_drag)(struct IClass *, Object *, Msg);
 };
+/* area_drag: Area's MUIM_DoDrag, MUIM_CreateDragImage,
+ * MUIM_DeleteDragImage, MUIM_DragBegin and MUIM_DragFinish (areadrag.c);
+ * 0 without the module */
+IPTR zune_area_drag(struct IClass *cl, Object *obj, Msg msg);
 
 struct ZuneRequestModule
 {
@@ -264,7 +269,12 @@ struct ZuneMui45Module
     Object *(*image_button)(CONST_STRPTR, CONST_STRPTR, struct TextFont *);
     BOOL (*case_shortcut)(Object *, struct Menu *, ULONG);
     BOOL (*menu_verify)(Object *, Object *, struct IntuiMessage *);
+    IPTR (*area_aros)(struct IClass *, Object *, Msg);
 };
+/* area_aros: Area's MUIM_DrawBackgroundBuffered,
+ * MUIM_QueryFrameCharacteristics and MUIM_CreateFrameClippingRegion
+ * (mui45.c), which only AROS programs send; 0 without the module */
+IPTR zune_area_aros45(struct IClass *cl, Object *obj, Msg msg);
 /* menu_verify: Window's IDCMP_MENUVERIFY (mui45.c); FALSE without the
  * module: the message is not answered then */
 BOOL zune_window_menu_verify(Object *win, Object *strip,

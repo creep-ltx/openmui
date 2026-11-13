@@ -6,6 +6,7 @@
  * modules.c under the names modules.h gives them. */
 
 #define zune_area_mui45 zmod_area_mui45
+#define zune_area_aros45 zmod_area_aros45
 #define zune_string_mui45 zmod_string_mui45
 #define zune_string_draw45 zmod_string_draw45
 #define zune_string_pos_at zmod_string_pos_at
@@ -28,7 +29,8 @@ static const struct ZuneMui45Module mui45_module = {
     zmod_area_mui45, zmod_string_mui45, zmod_string_draw45,
     zmod_string_pos_at, zmod_string_textinput, zmod_pointer_image,
     zmod_text_shortened45, zmod_text_mark, zmod_text_copy, zmod_text_argb,
-    zmod_image_button, zmod_window_case_shortcut, zmod_window_menu_verify
+    zmod_image_button, zmod_window_case_shortcut, zmod_window_menu_verify,
+    zmod_area_aros45
 };
 
 BOOPSI_DISPATCHER(IPTR, Zmui45_Dispatcher, cl, obj, msg)

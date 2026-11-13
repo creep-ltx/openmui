@@ -21,6 +21,8 @@
 #include "muimaster_intern.h"
 #include "support.h"
 #include "modules.h"
+#include "frame.h"
+#include "imspec.h"
 #include "classes/string_private.h"
 
 extern struct Library *MUIMasterBase;
@@ -52,6 +54,63 @@ IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store)
     if (visible && (_flags(obj) & MADF_CANDRAW))
         MUI_Redraw(obj, MADF_DRAWOBJECT | MADF_DRAWFRAME);
     return TRUE;
+}
+
+/* Area's methods of AROS's Zune, which no MUI 3, 4 or 5 program sends
+ * (MUIB_Area): MUIM_DrawBackgroundBuffered (the object's own background
+ * into another RastPort, within its inner box), MUIM_QueryFrameCharacteristics
+ * and MUIM_CreateFrameClippingRegion (the rounded frames' corner region,
+ * into the message). Without the module they answer 0. */
+IPTR zune_area_aros45(struct IClass *cl, Object *obj, Msg msg)
+{
+    struct MUI_AreaData *data = muiAreaData(obj);
+    struct MUI_FrameSpec_intern tempframe;
+    const struct MUI_FrameSpec_intern *frame;
+
+    if (msg->MethodID == MUIM_DrawBackgroundBuffered)
+    {
+        struct MUIP_DrawBackgroundBuffered *m = (APTR)msg;
+
+        if (!(data->mad_Flags & MADF_CANDRAW))
+            return FALSE;
+        zune_imspec_drawbuffered(data->mad_Background, m->rp,
+            data->mad_RenderInfo, m->left, m->top, m->width, m->height,
+            m->xoffset + m->left, m->yoffset + m->top, 0, m->left, m->top, 1,
+            _mleft(obj), _mtop(obj), _mright(obj), _mbottom(obj));
+        return TRUE;
+    }
+    if (!(data->mad_Flags & MADF_SETUP))
+        return FALSE;
+    frame = &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_None];
+    if (data->mad_Frame <= 100)
+        frame = &muiGlobalInfo(obj)->mgi_Prefs->frames[data->mad_Frame];
+    else if (zune_frame_spec_to_intern((CONST_STRPTR)data->mad_Frame,
+        &tempframe))
+        frame = &tempframe;
+    if (msg->MethodID == MUIM_QueryFrameCharacteristics)
+    {
+        struct MUI_FrameCharacteristics *c =
+            ((struct MUIP_QueryFrameCharacteristics *)msg)->characteristics;
+
+        if (!c)
+            return FALSE;
+        c->border_width = frame->border_width;
+        c->border_radius = frame->border_radius;
+        c->has_rounded_corners = frame->border_radius > 0;
+        return TRUE;
+    }
+    {
+        struct MUIP_CreateFrameClippingRegion *m = (APTR)msg;
+        struct MUI_FrameCharacteristics c;
+
+        if (!m->clipinfo || !zune_frame_get_characteristics(obj, frame, &c))
+            return FALSE;
+        if (c.has_rounded_corners
+            && !(m->clipinfo = zune_frame_create_clip_region(m->left,
+                m->top, m->width, m->height, c.border_radius)))
+            return FALSE;
+        return TRUE;
+    }
 }
 
 /* String's 64-bit integer (MUIA_String_Integer64, MUI 4/5), in decimal

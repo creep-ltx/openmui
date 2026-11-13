@@ -228,6 +228,8 @@ ZMC_CHECK(ZuneDragDropModule, attach_node, 32);
 ZMC_CHECK(ZuneDragDropModule, detach_node, 36);
 ZMC_CHECK(ZuneDragDropModule, drag_begin, 40);
 ZMC_CHECK(ZuneDragDropModule, drag_event, 44);
+#define ZMC_OFS_ZuneDragDropModule_area_drag 48
+ZMC_CHECK(ZuneDragDropModule, area_drag, 48);
 
 #define ZMC_OFS_ZuneRequestModule_alloc_asl 0
 #define ZMC_OFS_ZuneRequestModule_asl 4
@@ -306,6 +308,8 @@ ZMC_CHECK(ZuneMui45Module, text_argb, 36);
 ZMC_CHECK(ZuneMui45Module, image_button, 40);
 ZMC_CHECK(ZuneMui45Module, case_shortcut, 44);
 ZMC_CHECK(ZuneMui45Module, menu_verify, 48);
+#define ZMC_OFS_ZuneMui45Module_area_aros 52
+ZMC_CHECK(ZuneMui45Module, area_aros, 52);
 
 #define ZMC_OFS_ZunePrefsModule_configdata_set 0
 ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
@@ -381,6 +385,7 @@ void zune_boopsi_image_close(struct Library *base, Object *obj)
 ZMC(CreateDragNDropA, ZMOD_DRAGDROP, ZuneDragDropModule, create, 1, 0);
 ZMC(zune_drag_begin, ZMOD_DRAGDROP, ZuneDragDropModule, drag_begin, 6, 0);
 ZMC(zune_drag_event, ZMOD_DRAGDROP, ZuneDragDropModule, drag_event, 3, 1);
+ZMC(zune_area_drag, ZMOD_DRAGDROP, ZuneDragDropModule, area_drag, 3, 0);
 ZMC(DeleteDragNDrop, ZMOD_DRAGDROP, ZuneDragDropModule, delete, 1, 0);
 ZMC(PrepareDragNDrop, ZMOD_DRAGDROP, ZuneDragDropModule, prepare, 2, 0);
 ZMC(FinishDragNDrop, ZMOD_DRAGDROP, ZuneDragDropModule, finish, 1, 0);
@@ -539,6 +544,7 @@ ZMC(zune_list_format_mui45, ZMOD_LIST, ZuneListModule, format_mui45, 2, 0);
 /* MUI 4/5 attributes of the core classes (mui45.c): only programs that
  * use them call these */
 ZMC(zune_area_mui45, ZMOD_MUI45, ZuneMui45Module, area, 4, 0);
+ZMC(zune_area_aros45, ZMOD_MUI45, ZuneMui45Module, area_aros, 3, 0);
 ZMC(zune_string_mui45, ZMOD_MUI45, ZuneMui45Module, string, 5, 0);
 ZMC(zune_string_draw45, ZMOD_MUI45, ZuneMui45Module, string_draw, 6, 0);
 ZMC(zune_string_pos_at, ZMOD_MUI45, ZuneMui45Module, string_pos_at, 4, 0);
