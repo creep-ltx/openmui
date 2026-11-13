@@ -334,17 +334,17 @@ const static struct def_strval DefStrValues[] = {
  * (constants, found by address) and the saved ones (a copy of the
  * string, found by its text: a global.prefs gives every application the
  * same 24). Freed at expunge (zune_keycache_free). */
-#define KEYCACHE 32
-static struct { CONST_STRPTR str; IX ix; LONG well; } keycache[KEYCACHE];
+#define KEYCACHE 48
+static struct { CONST_STRPTR str; IX ix; UWORD field; UBYTE well, owned; }
+    keycache[KEYCACHE];
 static int keycache_count;
-static UBYTE keycache_owned[KEYCACHE];
 
 void zune_keycache_free(void)
 {
     int i;
 
     for (i = 0; i < keycache_count; i++)
-        if (keycache_owned[i])
+        if (keycache[i].owned)
             FreeVec((APTR)keycache[i].str);
     keycache_count = 0;
 }
@@ -361,7 +361,7 @@ static BOOL is_default_string(CONST_STRPTR val)
 
 /* A parsed binding into the cache; a saved one's text copied */
 static __attribute__((noinline)) void keycache_add(CONST_STRPTR val,
-    ZuneKeySpec *key)
+    ZuneKeySpec *key, UWORD field)
 {
     UBYTE owned = !is_default_string(val);
     CONST_STRPTR str = owned ? (CONST_STRPTR)StrDup(val) : val;
@@ -374,7 +374,8 @@ static __attribute__((noinline)) void keycache_add(CONST_STRPTR val,
         keycache[keycache_count].str = str;
         keycache[keycache_count].ix = key->ix;
         keycache[keycache_count].well = key->ix_well;
-        keycache_owned[keycache_count] = owned;
+        keycache[keycache_count].owned = owned;
+        keycache[keycache_count].field = field;
         keycache_count++;
         str = NULL;
     }
@@ -383,27 +384,41 @@ static __attribute__((noinline)) void keycache_add(CONST_STRPTR val,
         FreeVec((APTR)str);
 }
 
-static void Configdata__SetKey(ZuneKeySpec *key, CONST_STRPTR val)
+/* The cache's entry of binding field with the text val, or NULL: a
+ * cached text is compared only for its own binding (one strcmp, not one
+ * per cached binding) */
+static __attribute__((noinline)) APTR keycache_find(
+    register CONST_STRPTR val __asm("a0"), register UWORD field __asm("d0"))
 {
-    int i, count;
+    int i, count = keycache_count;
+
+    for (i = 0; i < count; i++)
+        if (keycache[i].field == field && (keycache[i].str == val
+            || (keycache[i].owned && !strcmp(keycache[i].str, val))))
+            return &keycache[i];
+    return NULL;
+}
+
+static __attribute__((noinline)) void Configdata__SetKey(ZuneKeySpec *key,
+    CONST_STRPTR val,
+    UWORD field)
+{
+    typeof(&keycache[0]) hit;
 
     if ((key->readable_hotkey = val) == NULL)
     {
         key->ix_well = 0;
         return;
     }
-    count = keycache_count;
-    for (i = 0; i < count; i++)
-        if (keycache[i].str == val
-            || (keycache_owned[i] && !strcmp(keycache[i].str, val)))
-        {
-            key->ix = keycache[i].ix;
-            key->ix_well = keycache[i].well;
-            return;
-        }
+    if ((hit = keycache_find(val, field)))
+    {
+        key->ix = hit->ix;
+        key->ix_well = hit->well;
+        return;
+    }
     key->ix_well = ZUNE_CX() && !ParseIX(key->readable_hotkey, &key->ix);
     if (keycache_count < KEYCACHE)
-        keycache_add(val, key);
+        keycache_add(val, key, field);
 }
 
 /* Assign a !persistent! string stored in the dataspace (or a default) to
@@ -416,7 +431,7 @@ static void Configdata_StoreField(struct MUI_ConfigdataData *data,
     if (field == NOFIELD)
         return;
     if (field & KEYFIELD)
-        Configdata__SetKey(at, val);
+        Configdata__SetKey(at, val, field);
     else
         *(CONST_STRPTR *)at = val;
 }
