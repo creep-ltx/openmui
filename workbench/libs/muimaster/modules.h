@@ -166,6 +166,7 @@ struct ZuneWintitleModule
         Class **);
     int (*menu)(struct Window *, struct DrawInfo *, struct Gadget *, BOOL);
     Object *(*scrollwrap)(Object *, ULONG);
+    void (*save_snapshot)(Object *, ULONG, BOOL);
 };
 void zune_wintitle_create(struct Window *win, ULONG buttons, LONG right,
     struct Gadget **gadgets, Class **clp);
@@ -183,6 +184,10 @@ int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
 #define ZUNE_SW_UNWRAP 1
 #define ZUNE_SW_PEEK 2
 Object *zune_window_scrollwrap(Object *obj, ULONG op);
+/* MUIM_Window_Snapshot: edit window id's record in the application's
+ * saved settings (ENV: and ENVARC:), remember = its position from the
+ * application's table, else forget it (in the title gadget module) */
+void zune_window_save_snapshot(Object *obj, ULONG id, BOOL remember);
 /* in classes/window.c: is the window object asleep (MUIA_Window_Sleep) */
 BOOL zune_window_sleeping(Object *win);
 Object *ZuneWindowActiveObject(Object *win);

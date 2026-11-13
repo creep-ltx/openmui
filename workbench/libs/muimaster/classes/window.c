@@ -6636,77 +6636,6 @@ void ZuneRememberWindowPosition(Object *obj)
     set(_app(obj), MUIA_Application_SetWinPos, &pos);
 }
 
-#ifdef ZUNE68_GCC_NATIVE
-/* Edit only this ID in each saved position table. In particular, Save must
- * not copy session-only appearance preferences from ENV into ENVARC. */
-static void SaveWindowSnapshot(Object *obj, ULONG id, BOOL remember)
-{
-    Object *app = _app(obj), *config;
-    CONST_STRPTR base = NULL;
-    struct windowpos *current = NULL;
-    struct {
-        ULONG size;
-        struct windowpos entries[MAXWINS];
-    } *positions;
-    int file;
-    get(app, MUIA_Application_Base, &base);
-    if (!base || !*base) return;
-    set(app, MUIA_Application_SearchWinId, id);
-    get(app, MUIA_Application_GetWinPos, &current);
-    if (remember && !current) return;
-    positions = AllocVec(sizeof(*positions), MEMF_PUBLIC | MEMF_CLEAR);
-    config = MUI_NewObject(MUIC_Configdata, TAG_DONE);
-    if (!positions || !config) goto done;
-    for (file = 0; file < 2; file++)
-    {
-        char path[256];
-        ULONG *saved, bytes = 0, count = 0, i;
-        if (snprintf(path, sizeof(path), "%s:OpenMUI/%s.prefs",
-                file ? "ENVARC" : "ENV", base) >= sizeof(path)) continue;
-        BPTR existing = Lock(path, SHARED_LOCK);
-        if (existing) UnLock(existing);
-        DoMethod(config, MUIM_Dataspace_Clear);
-        if (!DoMethod(config, MUIM_Configdata_Load, path) && existing)
-            continue; /* Never replace an existing file that could not be read. */
-        saved = (ULONG *)DoMethod(config, MUIM_Dataspace_Get,
-            MUICFG_WindowPos, &bytes);
-        if (saved)
-        {
-            if (bytes < sizeof(ULONG) || bytes > sizeof(*positions) ||
-                *saved != bytes ||
-                (bytes - sizeof(ULONG)) % sizeof(struct windowpos))
-                continue; /* Preserve malformed data rather than reading past it. */
-            count = (bytes - sizeof(ULONG)) / sizeof(struct windowpos);
-            CopyMem(saved + 1, positions->entries,
-                count * sizeof(struct windowpos));
-        }
-        for (i = 0; i < count; i++)
-            if (positions->entries[i].id == id) break;
-        if (remember)
-        {
-            if (i == count && count >= MAXWINS - 1) continue;
-            positions->entries[i] = *current;
-            if (i == count) count++;
-        }
-        else if (i < count)
-        {
-            memmove(&positions->entries[i], &positions->entries[i + 1],
-                (count - i - 1) * sizeof(struct windowpos));
-            count--;
-        }
-        positions->size = sizeof(ULONG) + count * sizeof(struct windowpos);
-        if (count)
-            DoMethod(config, MUIM_Dataspace_Add, positions, positions->size,
-                MUICFG_WindowPos);
-        else
-            DoMethod(config, MUIM_Dataspace_Remove, MUICFG_WindowPos);
-        DoMethod(config, MUIM_Configdata_Save, path);
-    }
-done:
-    if (config) MUI_DisposeObject(config);
-    FreeVec(positions);
-}
-#endif
 
 /****** Window.mui/MUIM_Window_Snapshot ************
 *
@@ -6742,7 +6671,7 @@ IPTR Window__MUIM_Snapshot(struct IClass *cl, Object *obj,
         set(_app(obj), MUIA_Application_SetWinPos, &empty);
     }
 #ifdef ZUNE68_GCC_NATIVE
-    SaveWindowSnapshot(obj, data->wd_ID, msg->flags != 0);
+    zune_window_save_snapshot(obj, data->wd_ID, msg->flags != 0);
 #endif
     return TRUE;
 }
