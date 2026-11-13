@@ -4045,68 +4045,49 @@ static void WindowRealBorders(struct MUI_WindowData *data, LONG *rightp,
  * calculate real dimensions from programmer requirements.
  * may be overridden by user settings if MUIA_Window_ID is set.
  */
-static void WindowSelectDimensions(struct MUI_WindowData *data)
+/* One of the requested inner sizes (a = 0: the width, 1: the height; the
+ * same rules and values for both: window.h): a pixel size or a screen
+ * percentage less the borders, the default, a share between minimum and
+ * maximum; without a rule that applies the size stays */
+static __attribute__((noinline)) void SelectDimension(
+    struct MUI_WindowData *data, int a, LONG borders)
+{
+    LONG *dim = a ? &data->wd_Height : &data->wd_Width;
+    LONG req = a ? data->wd_ReqHeight : data->wd_ReqWidth;
+    WORD *mm = &data->wd_MinMax.MinWidth + a;  /* min, max +2, def +4 */
+    LONG size = a ? data->wd_RenderInfo.mri_Screen->Height
+        : data->wd_RenderInfo.mri_Screen->Width;
+
+    if (req > 0)
+        *dim = req - borders;
+    else if (req == MUIV_Window_Width_Default)
+        *dim = mm[4];
+    else if (_between(MUIV_Window_Width_MinMax(100), req,
+            MUIV_Window_Width_MinMax(0)))
+        *dim = mm[0] - (req * (mm[2] - mm[0])) / 100;
+    else if (_between(MUIV_Window_Width_Screen(100), req,
+            MUIV_Window_Width_Screen(0)))
+        *dim = size * (-(req + 200)) / 100 - borders;
+    else if (_between(MUIV_Window_Width_Visible(100), req,
+            MUIV_Window_Width_Visible(0)))
+        *dim = size * (-(req + 100)) / 100 - borders;
+}
+
+/* (no deferred pops: the three calls' arguments would pile up on the
+ * frame) */
+static __attribute__((optimize("no-defer-pop"))) void WindowSelectDimensions(
+    struct MUI_WindowData *data)
 {
     if (!data->wd_Width)
     {
-        struct Screen *scr = data->wd_RenderInfo.mri_Screen;
         /* Pixel sizes and screen percentages give the outer window size
          * in MUI 3.8/3.9 (a 400 pixel MUIA_Window_Width opens a window 400
          * wide), while wd_Width/wd_Height are inner dimensions. */
-        LONG right, bottom, hborders, vborders;
+        LONG right, bottom;
 
         WindowRealBorders(data, &right, &bottom);
-        hborders = data->wd_RenderInfo.mri_BorderLeft + right;
-        vborders = data->wd_RenderInfo.mri_BorderTop + bottom;
-
-        if (data->wd_ReqWidth > 0)
-            data->wd_Width = data->wd_ReqWidth - hborders;
-        else if (data->wd_ReqWidth == MUIV_Window_Width_Default)
-            data->wd_Width = data->wd_MinMax.DefWidth;
-        else if (_between(MUIV_Window_Width_MinMax(100),
-                data->wd_ReqWidth, MUIV_Window_Width_MinMax(0)))
-        {
-            data->wd_Width = data->wd_MinMax.MinWidth
-                - (data->wd_ReqWidth
-                * (data->wd_MinMax.MaxWidth - data->wd_MinMax.MinWidth)) / 100;
-        }
-        else if (_between(MUIV_Window_Width_Screen(100),
-                data->wd_ReqWidth, MUIV_Window_Width_Screen(0)))
-        {
-            data->wd_Width = scr->Width
-                * (-(data->wd_ReqWidth + 200)) / 100 - hborders;
-        }
-        else if (_between(MUIV_Window_Width_Visible(100),
-                data->wd_ReqWidth, MUIV_Window_Width_Visible(0)))
-        {
-            data->wd_Width = scr->Width
-                * (-(data->wd_ReqWidth + 100)) / 100 - hborders;
-        }
-
-        if (data->wd_ReqHeight > 0)
-            data->wd_Height = data->wd_ReqHeight - vborders;
-        else if (data->wd_ReqHeight == MUIV_Window_Height_Default)
-            data->wd_Height = data->wd_MinMax.DefHeight;
-        else if (_between(MUIV_Window_Height_MinMax(100),
-                data->wd_ReqHeight, MUIV_Window_Height_MinMax(0)))
-        {
-            data->wd_Height = data->wd_MinMax.MinHeight
-                - (data->wd_ReqHeight
-                * (data->wd_MinMax.MaxHeight - data->wd_MinMax.MinHeight))
-                / 100;
-        }
-        else if (_between(MUIV_Window_Height_Screen(100),
-                data->wd_ReqHeight, MUIV_Window_Height_Screen(0)))
-        {
-            data->wd_Height = scr->Height
-                * (-(data->wd_ReqHeight + 200)) / 100 - vborders;
-        }
-        else if (_between(MUIV_Window_Height_Visible(100),
-                data->wd_ReqHeight, MUIV_Window_Height_Visible(0)))
-        {
-            data->wd_Height = scr->Height
-                * (-(data->wd_ReqHeight + 100)) / 100 - vborders;
-        }
+        SelectDimension(data, 0, data->wd_RenderInfo.mri_BorderLeft + right);
+        SelectDimension(data, 1, data->wd_RenderInfo.mri_BorderTop + bottom);
 
         /* scaled */
         if (data->wd_ReqWidth == MUIV_Window_Width_Scaled)
@@ -4126,7 +4107,7 @@ static void WindowSelectDimensions(struct MUI_WindowData *data)
 /* The window's flag attributes: which flag word (1: the creation flags,
  * 0: wd_Flags) and which bit, for OM_NEW (OM_SET has its own cases for
  * the last three; through a call they made its frame 4 bytes larger) */
-static const struct { ULONG tag; ULONG bit; UWORD crt; } window_bool_tags[] =
+static const struct WindowBoolTag { ULONG tag; ULONG bit; UWORD crt; } window_bool_tags[] =
 {
     { MUIA_Window_CloseGadget, WFLG_CLOSEGADGET, 1 },
     { MUIA_Window_SizeGadget, WFLG_SIZEGADGET, 1 },
@@ -4143,26 +4124,29 @@ static const struct { ULONG tag; ULONG bit; UWORD crt; } window_bool_tags[] =
     { MUIA_Window_UseRightBorderScroller, MUIWF_USERIGHTSCROLLER, 0 },
 };
 
-/* OM_NEW's flag and plain attributes (from its default label), stored as
- * OM_SET stores them; the instance data is zero there, so the size's
- * "forget the current one" changes nothing. */
+/* The flag and plain attributes, from OM_NEW's and OM_SET's default
+ * label; first: the first flag entry the method takes (OM_NEW all,
+ * OM_SET from IsSubWindow on: the others are for the creation only). At
+ * OM_NEW the instance data is zero, so the size's "forget the current
+ * one" changes nothing. */
+#define WINDOW_SET_FLAGS 10     /* window_bool_tags' IsSubWindow */
 static __attribute__((noinline)) void Window_SetPlain(
-    struct MUI_WindowData *data, struct TagItem *tag)
+    struct MUI_WindowData *data, struct TagItem *tag, int first)
 {
     IPTR v = tag->ti_Data;
-    int i;
+    const struct WindowBoolTag *b = &window_bool_tags[first];
 
-    for (i = 0; i < sizeof(window_bool_tags) / sizeof(window_bool_tags[0]);
-        i++)
+    do
     {
-        if (window_bool_tags[i].tag == tag->ti_Tag)
+        if (b->tag == tag->ti_Tag)
         {
-            ULONG *flags = window_bool_tags[i].crt ? &data->wd_CrtFlags
-                : &data->wd_Flags;
-            _handle_bool_tag(*flags, v, window_bool_tags[i].bit);
+            ULONG *flags = b->crt ? &data->wd_CrtFlags : &data->wd_Flags;
+            _handle_bool_tag(*flags, v, b->bit);
             return;
         }
     }
+    while (++b < &window_bool_tags[sizeof(window_bool_tags)
+        / sizeof(window_bool_tags[0])]);
 
     switch (tag->ti_Tag)
     {
@@ -4321,7 +4305,7 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         default:
-            Window_SetPlain(data, tag);
+            Window_SetPlain(data, tag, 0);
             break;
 
         }
@@ -4446,11 +4430,6 @@ IPTR Window__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             data->wd_ID = tag->ti_Data;
             break;
 
-        case MUIA_Window_IsSubWindow:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data,
-                MUIWF_ISSUBWINDOW);
-            break;
-
         case MUIA_Window_Open:
             if (tag->ti_Data)
             {
@@ -4530,51 +4509,6 @@ IPTR Window__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             }
             break;
 
-        case MUIA_Window_UseBottomBorderScroller:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data,
-                MUIWF_USEBOTTOMSCROLLER);
-            break;
-
-        case MUIA_Window_UseRightBorderScroller:
-            _handle_bool_tag(data->wd_Flags, tag->ti_Data,
-                MUIWF_USERIGHTSCROLLER);
-            break;
-
-        case MUIA_Window_DisableKeys:
-            data->wd_DisabledKeys = tag->ti_Data;
-            break;
-
-        case MUIA_Window_RefWindow:
-            data->wd_RefWindow = (Object *) tag->ti_Data;
-            break;
-
-        case MUIA_Window_LeftEdge:
-            data->wd_ReqX = tag->ti_Data;
-            break;
-
-        case MUIA_Window_TopEdge:
-            data->wd_ReqY = tag->ti_Data;
-            break;
-
-        case MUIA_Window_Width:
-            data->wd_ReqWidth = (LONG) tag->ti_Data;
-            data->wd_Width = 0; /* otherwise windowselectdimensions()
-                                 * ignores ReqWidth */
-            break;
-
-        case MUIA_Window_Height:
-            data->wd_ReqHeight = (LONG) tag->ti_Data;
-            data->wd_Height = 0;
-            break;
-
-        case MUIA_Window_Screen:
-            data->wd_UserScreen = (struct Screen *)tag->ti_Data;
-            break;
-
-        case MUIA_Window_PublicScreen:
-            data->wd_UserPublicScreen = (STRPTR) tag->ti_Data;
-            break;
-
         case MUIA_Window_Opacity:
             /* OS3 has no window compositor; retain the public setting. */
             data->wd_Opacity = MIN(tag->ti_Data, 255);
@@ -4639,6 +4573,9 @@ IPTR Window__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             }
             break;
 
+        default:
+            Window_SetPlain(data, tag, WINDOW_SET_FLAGS);
+            break;
         }
     }
 
