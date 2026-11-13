@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from check_notifications import NotifyHarness
 from check_class_lifetime import INTUITION
+import group_layout as G
 
 OBJECT, GFX, LAYERS = 0x71000, 0x79000, 0x79800
 MRI, RP, LAYER = 0x7a000, 0x7b000, 0x7c000
@@ -100,9 +101,9 @@ def check_virtual_paint(path):
         h = ClipHarness(path)
         cl = 0x70000
         h.mem.w16(cl + 32, 262)
-        # Lean edition: a virtual group's state is a block of its own,
-        # pointed to from offset 44 of Group's data
-        h.mem.w32(OBJECT + 262 + 44, h.blob(bytes(68)))
+        # A virtual group's state is in its extra block (group_layout.py)
+        h.mem.w32(OBJECT + 262 + G.FLAGS, G.GROUP_VIRTUAL | G.GROUP_XFULL)
+        h.mem.w32(OBJECT + 262 + G.EXTRA, h.blob(bytes(G.EXTRA_SIZE)))
         outer = h.blob(bytes(12))
         h.mem.w32(LAYER + 126, outer)
         h.fail_region = failure == 'region'
@@ -147,10 +148,12 @@ def check_virtual_paint(path):
             h.mem.w16(cl + 32, 262)
             h.mem.w_block(OBJECT + 52, struct.pack('>4h', 10, 20, 100, 80))
             h.mem.w_block(OBJECT + 60, bytes([3, 4, 8, 10]))
-            # update is a byte; the offsets are in the virtual block
-            virt = h.blob(bytes(68))
-            h.mem.w32(data + 44, virt)
-            h.mem.w8(data + 42, update)
+            # update 2 is a flag; the offsets are in the extra block
+            extra = h.blob(bytes(G.EXTRA_SIZE))
+            virt = extra + G.VIRT
+            h.mem.w32(data + G.EXTRA, extra)
+            h.mem.w32(data + G.FLAGS, G.GROUP_VIRTUAL | G.GROUP_XFULL
+                | (G.GROUP_UPDATE_SCROLL if update == 2 else 0))
             h.mem.w32(virt + 24, (100 + dx) & 0xffffffff)
             h.mem.w32(virt + 28, (100 + dy) & 0xffffffff)
             h.mem.w32(virt + 32, 100)

@@ -6,6 +6,7 @@ from check_notifications import NotifyHarness
 from check_class_lifetime import EXEC, INTUITION
 
 import window_layout as W
+import group_layout as G
 # DATA: the window's render info, 4 bytes into its data (wd_AreaRenderInfo first)
 CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71044
 INST = OBJECT + 64
@@ -95,23 +96,22 @@ def check(path):
     assert len(h.events) == 1
     parent = h.blob(bytes(400))
     h.mem.w32(OBJECT + 16, parent)
-    # Group's flags: a ULONG at offset 4 of its data (GROUP_CHANGING)
-    h.mem.w32(parent + 272 + 4, 1 << 4)
+    # Group's flags: a ULONG in its data (GROUP_CHANGING)
+    h.mem.w32(parent + 272 + G.FLAGS, G.GROUP_CHANGING)
     h.call('Group__MUIM_ExitChange', CLASS, OBJECT, h.words(0))
     assert len(h.events) == 1
-    h.mem.w32(parent + 272 + 4, 0)
+    h.mem.w32(parent + 272 + G.FLAGS, 0)
     h.call('Group__MUIM_ExitChange', CLASS, OBJECT, h.words(0))
     assert len(h.events) == 2
     # A custom layout hook receives the live child list and inner geometry.
-    # Lean edition: Group keeps its children itself, a MinList at offset
-    # 52 of its data (upstream asked its Family object); the layout hook
-    # is its first field.
-    children = OBJECT + 272 + 52
+    # Lean edition: Group keeps its children itself, a MinList in its data
+    # (upstream asked its Family object)
+    children = OBJECT + 272 + G.CHILDLIST
     hook, entry = h.blob(bytes(20)), h.blob(bytes(4))
     h.mem.w32(children, children + 4)
     h.mem.w32(children + 4, 0)
     h.mem.w32(children + 8, children)
-    h.mem.w32(OBJECT + 272, hook)
+    h.mem.w32(OBJECT + 272 + G.LAYOUT_HOOK, hook)
     h.mem.w32(hook + 8, entry)
     h.mem.w16(OBJECT + 28 + 28, 100)  # mad_Box.Width
     h.mem.w16(OBJECT + 28 + 30, 50)
@@ -138,10 +138,9 @@ def check(path):
     # A custom virtual layout may shrink its requested content extent,
     # but its public virtual dimensions must still cover the viewport.
     # This follows the grow/shrink sequence in native/relayout.c.
-    h.mem.w32(OBJECT + 272 + 4, 1 << 6)  # GROUP_VIRTUAL
-    # Lean edition: a virtual group's state is a block of its own (68
-    # bytes), made at OM_NEW; its pointer is at offset 44 of Group's data.
-    h.mem.w32(OBJECT + 272 + 44, h.blob(bytes(68)))
+    h.mem.w32(OBJECT + 272 + G.FLAGS, G.GROUP_VIRTUAL | G.GROUP_XFULL)
+    # A virtual group's state is in its extra block, made at OM_NEW.
+    h.mem.w32(OBJECT + 272 + G.EXTRA, h.blob(bytes(G.EXTRA_SIZE)))
     requested = [20, 10]
     def virtual_layout():
         msg = h.cpu.r_reg(9)

@@ -6125,6 +6125,17 @@ BOOL zune_window_background_is_position_free(Object *win)
     return data && zune_imspec_is_position_free(data->wd_Background);
 }
 
+/* The pen of a window background fill when it is a plain RectFill (a pen
+ * background, the window open: Window__MUIM_DrawBackground's pen path) */
+BOOL zune_window_background_fill_pen(Object *win, LONG *pen)
+{
+    struct MUI_WindowData *data = window_data(win);
+
+    return data && data->wd_RenderInfo.mri_Window
+        && zune_imspec_fill_pen(data->wd_Background, &data->wd_RenderInfo,
+            pen);
+}
+
 /* TRUE when the window background is a plain fill with MUI pen muipen */
 BOOL zune_window_background_is_pen(Object *win, LONG muipen)
 {

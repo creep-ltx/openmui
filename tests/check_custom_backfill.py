@@ -67,9 +67,10 @@ class BackfillHarness(Harness):
 def check_group(path):
     h = BackfillHarness(path)
     h.mem.w16(CLASS + 32, 262)
-    # Lean edition: Group keeps its children itself, a MinList at offset
-    # 52 of its data (upstream asked its Family object).
-    childlist, node, child = OBJECT + 262 + 52, 0x75100, 0x7510c
+    # Lean edition: Group keeps its children itself, a MinList in its data
+    # (upstream asked its Family object).
+    import group_layout as G
+    childlist, node, child = OBJECT + 262 + G.CHILDLIST, 0x75100, 0x7510c
     h.mem.w32(childlist, node)
     h.mem.w32(node, childlist + 4)
     h.mem.w32(childlist + 4, 0)

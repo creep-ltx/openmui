@@ -3,9 +3,16 @@
     Copyright (C) 1999, David Le Corfec.
     All rights reserved.
 
+    Rewritten for the 68000 in 2026 (OpenMUI, round rw-group,
+    docs/lean/README.md "Rewrite: Group"): one layout and one minmax
+    function for both directions (the axis an index), the children walked
+    by their nodes, the dispatcher a sorted table, the rarely used state
+    (title group, grid, virtual area) in a block of its own, the gaps of a
+    group painted with one pen when its background is one.
 */
 
 #include <exec/types.h>
+#include <stddef.h>
 
 #include <clib/alib_protos.h>
 #include <proto/exec.h>
@@ -25,39 +32,17 @@ extern struct Library *MUIMasterBase;
 /*  #define MYDEBUG 1 */
 #include "debug.h"
 
-#define ROUND(x) ((int)(x + 0.5))
-#define IS_HIDDEN(obj) (! (_flags(obj) & MADF_SHOWME) \
- || (_flags(obj) & (MADF_BORDERGADGET | MADF_DISAPPEARED)))
+/* A child that takes no place in the layout: not shown, a window border
+ * gadget, or one that disappeared (MUIA_*Disappear) */
+#define IS_HIDDEN(obj) ((_flags(obj) & (MADF_SHOWME | MADF_BORDERGADGET \
+    | MADF_DISAPPEARED)) != MADF_SHOWME)
 
-/* Attributes filtered out in OM_SET, before OM_SET gets passed to children.
-   Tested with MUI under UAE/AOS.
-
-    notifyclass:
-    
-    MUIA_HelpLine
-    MUIA_HelpNode
-    MUIA_ObjectID
-    MUIA_UserData
-   
-    areaclass:
-     
-    MUIA_ContextMenu
-    MUIA_ContextMenuTrigger
-    MUIA_ControlChar
-    MUIA_CycleChain
-    MUIA_Draggable
-    MUIA_FillArea
-    MUIA_Frame
-    MUIA_FrameTitle
-    MUIA_HorizWeight
-    MUIA_Pressed
-    MUIA_Selected is not explicitly filtered by Group.
-    MUIA_ShortHelp
-    MUIA_ShowMe
-    MUIA_VertWeight
-    MUIA_Weight
-    
-*/
+/* Every child in the list's order. The node's successor is read before the
+ * body runs, so the body may take its child out of the list (as
+ * NextObject() allows); no call per child, the node in a register. */
+#define FOR_CHILD(list, n, child) \
+    for (n = (list)->mlh_Head; n->mln_Succ \
+        && ((child = BASEOBJECT(n)), (n = n->mln_Succ), 1); )
 
 /* Private attribute/method definitions */
 #define MUIM_Group_Insert      (MUIB_MUI|0x00424d34)    /* MUI: V20 */
@@ -68,7 +53,11 @@ struct MUIP_Group_Insert
     STACKED Object *pred;
 };
 
-
+/* Private MUI virtual-group painting protocol. These method IDs are used
+ * by existing subclasses to prepare and release their content clipping.
+ * MUI 3.9 calls neither method for an ordinary Group or Area. */
+#define MUIM_Virtgroup_BeginPaint 0x80425b5cUL
+#define MUIM_Virtgroup_EndPaint   0x8042da52UL
 
 struct layout2d_elem
 {
@@ -78,156 +67,86 @@ struct layout2d_elem
     ULONG weight;
 };
 
-
-/* Only virtual groups have this (MUIA_Group_Virtual at OM_NEW): the other
- * groups, most of them, save 64 bytes each */
+/* A virtual group's state (MUIA_Group_Virtual at OM_NEW) */
 struct GroupVirtual
 {
     struct MUI_EventHandlerNode ehn;
     LONG virt_offx, virt_offy;  /* diplay offsets */
     LONG old_virt_offx, old_virt_offy;  /* Saved virtual positions,
-                                         * used for update == 2 */
+                                         * used for a scroll update */
     LONG virt_mwidth, virt_mheight;     /* The complete width */
     LONG told_mwidth, told_mheight;     /* Size last notified */
     LONG saved_minwidth, saved_minheight;
     APTR paint_clip;            /* previous clipping during virtual painting */
 };
 
-static const struct GroupVirtual group_novirt;
-#define GV(data) ((data)->virt ? (data)->virt \
-    : (struct GroupVirtual *)&group_novirt)
+/* What few groups need, in a block of their own (NULL for the others,
+ * nearly all): a title group (MUI 4's tabs), a grid (Columns, Rows) and
+ * a virtual area. A virtual group's block holds its GroupVirtual too
+ * (made at OM_NEW); the others end before it. */
+struct GroupExtra
+{
+    Object *titlegroup;
+    UWORD columns, rows;        /* 1 and 1: no grid */
+    UWORD row_cap, col_cap;     /* entries the arrays have room for */
+    struct layout2d_elem *row_infos, *col_infos;
+    ULONG horiz_weight_sum, vert_weight_sum;    /* the grid's */
+    struct GroupVirtual virt;
+};
+#define GROUP_EXTRA_SMALL offsetof(struct GroupExtra, virt)
 
-/* Every group, list, listview and scrollbar carries this: 68 bytes, so
- * that with Area's 108 a group object is 216 bytes (was 96 and 256).
- * Counts, spacings and sizes are WORDs (MUI's sizes are, MUI_MAXMAX is
- * 10000); the weight sums stay LONGs (weights can be large). */
+/* Every group, list, listview and scrollbar carries this: 38 bytes (68
+ * before the 68000 rewrite, MUI 3.8's 42). The fields read on every
+ * child walk and every draw sit on longword boundaries of the object
+ * (Group's data starts 2 bytes past one: hence active_page first). Counts,
+ * spacings and sizes are WORDs (MUI's sizes are, MUI_MAXMAX is 10000).
+ * horiz_spacing and vert_spacing are indexed by the axis. */
 struct MUI_GroupData
 {
-    struct Hook *layout_hook;
-    ULONG flags;                /* GROUP_* (a UWORD costs stack in the recursive methods) */
-    UWORD columns;
-    UWORD rows;
     WORD active_page;
-    struct layout2d_elem *row_infos;
-    struct layout2d_elem *col_infos;
+    /* The children. MUI keeps them in the group itself (no Family
+     * object); the Family methods below work on the list as Family's
+     * did (family.c). */
+    struct MinList childlist;
+    struct Hook *layout_hook;
+    ULONG flags;                /* GROUP_* (a UWORD costs stack in the
+                                 * recursive methods) */
     WORD horiz_spacing;         /* -1 until setup, unless set */
     WORD vert_spacing;
     UWORD num_children;
     UWORD num_visible_children; /* for horiz/vert group only */
-    ULONG horiz_weight_sum;
-    ULONG vert_weight_sum;
-    WORD samesize_maxmin_horiz;
-    WORD samesize_maxmin_vert;
-    UBYTE update;               /* for MUI_Redraw() 1 - do not redraw the frame
-                                 * 2 - the virtual pos has changed */
-    UBYTE dont_forward_get:1;   /* Set temporarily to 1 so that the get method
-                                 * is not forwarded */
-    UBYTE dont_forward_methods:1; /* Set temporarily to 1, meaning that the
-                                 * methods are not forwarded to the group's
-                                 * children */
-    /* A virtual group's state, NULL for the others: read it through
-     * GV(data), which gives them zeroes */
-    struct GroupVirtual *virt;
-    /* MUI4 group with tabs */
-    Object *titlegroup;
-    /* The children. MUI keeps them in the group itself; Zune kept them in
-     * a Family object of its own per group (54 bytes and a dispatch per
-     * child operation). The list and the Family methods below work as
-     * Family's did (family.c). */
-    struct MinList childlist;
-    /* Entries row_infos and col_infos have room for: kept between
-     * AskMinMax passes, which reallocated both every time */
-    UWORD row_cap, col_cap;
+    ULONG weight_sum;           /* a horiz/vert group's, along its axis */
+    struct GroupExtra *x;       /* NULL unless titled, a grid or virtual */
 };
 
-/* *infos with room for n entries, cleared; NULL without memory */
-static struct layout2d_elem *group_infos(struct layout2d_elem **infos,
-    UWORD *cap, ULONG n)
-{
-    if (*infos && *cap >= n)
-    {
-        memset(*infos, 0, n * sizeof(**infos));
-        return *infos;
-    }
-    if (*infos)
-        mui_free(*infos);
-    *infos = mui_alloc(n * sizeof(**infos));
-    *cap = *infos ? n : 0;
-    return *infos;
-}
-
-static inline struct MinList *group_children(struct MUI_GroupData *data)
-{
-    struct MinList *list = &data->childlist;
-
-    /* The list is taken as a pointer of its own, as when the group kept
-     * one to it: GCC otherwise keeps both the data and the list live in
-     * the child walks, 4 more bytes of stack per nesting level */
-    __asm__("" : "+a"(list));
-    return list;
-}
-
-/* Family's AddHead/AddTail/Insert on the group's own list. Family's parent
- * pointer and ConnectParent are not needed: the caller sets the group as
- * parent and connects the child itself. */
-static void group_family_add(struct MUI_GroupData *data, Msg msg)
-{
-    struct MUIP_Family_Insert *m = (struct MUIP_Family_Insert *)msg;
-    struct List *list = (struct List *)&data->childlist;
-
-    if (!m->obj)
-        return;
-    if (msg->MethodID == MUIM_Family_AddHead)
-        AddHead(list, (struct Node *)_OBJECT(m->obj));
-    else if (msg->MethodID == MUIM_Family_Insert)
-        Insert(list, (struct Node *)_OBJECT(m->obj),
-            (struct Node *)_OBJECT(m->pred));
-    else
-        DoMethod(m->obj, OM_ADDTAIL, (IPTR)list);
-}
-
-/* Family_Reorder: move the NULL-terminated array behind after (NULL: to
- * the front, -1: to the end), links only. FALSE for a stranger or a
- * duplicate. */
-static BOOL group_contains(struct MinList *list, Object *obj)
-{
-    Object *state = (Object *)list->mlh_Head, *child;
-
-    while ((child = NextObject(&state)))
-        if (child == obj) return TRUE;
-    return FALSE;
-}
-
-static IPTR group_reorder(struct MUI_GroupData *data, Object *after,
-    Object **array)
-{
-    struct List *list = (struct List *)&data->childlist;
-    struct Node *at;
-    ULONG i, j;
-
-    if (after && after != (Object *)-1 &&
-        !group_contains(&data->childlist, after)) return FALSE;
-    for (i = 0; array[i]; i++)
-    {
-        if (array[i] == after ||
-            !group_contains(&data->childlist, array[i])) return FALSE;
-        for (j = 0; j < i; j++)
-            if (array[i] == array[j]) return FALSE;
-    }
-    for (i = 0; array[i]; i++)
-        Remove((struct Node *)_OBJECT(array[i]));
-    at = after == (Object *)-1 ? list->lh_TailPred :
-        after ? (struct Node *)_OBJECT(after) : NULL;
-    for (i = 0; array[i]; i++)
-    {
-        struct Node *node = (struct Node *)_OBJECT(array[i]);
-        Insert(list, node, at);
-        /* MUI keeps a fixed insertion point except when appending. */
-        if (after == (Object *)-1) at = node;
-    }
-    return TRUE;
-}
-
+/* The fields of an Area's data by axis (0 horizontal, 1 vertical), as
+ * WORD offsets from its minimum width: one pointer per child reaches its
+ * minimum, maximum, default, size, weight and disappear level along
+ * either axis */
+#define AX_FIELD(f) ((offsetof(struct MUI_AreaData, f) \
+    - offsetof(struct MUI_AreaData, mad_MinMax.MinWidth)) / sizeof(WORD))
+#define AX_MIN 0
+#define AX_MAX AX_FIELD(mad_MinMax.MaxWidth)
+#define AX_DEF AX_FIELD(mad_MinMax.DefWidth)
+#define AX_SIZE AX_FIELD(mad_Box.Width)
+#define AX_WEIGHT AX_FIELD(mad_HorizWeight)
+#define AX_DISAPPEAR AX_FIELD(mad_HorizDisappear)
+_Static_assert(offsetof(struct MUI_MinMax, MinHeight)
+    == offsetof(struct MUI_MinMax, MinWidth) + 2
+    && offsetof(struct MUI_MinMax, MaxHeight)
+    == offsetof(struct MUI_MinMax, MaxWidth) + 2
+    && offsetof(struct MUI_MinMax, DefHeight)
+    == offsetof(struct MUI_MinMax, DefWidth) + 2
+    && offsetof(struct IBox, Height) == offsetof(struct IBox, Width) + 2
+    && offsetof(struct MUI_AreaData, mad_VertWeight)
+    == offsetof(struct MUI_AreaData, mad_HorizWeight) + 2
+    && offsetof(struct MUI_AreaData, mad_VertDisappear)
+    == offsetof(struct MUI_AreaData, mad_HorizDisappear) + 2
+    && offsetof(struct MUI_GroupData, vert_spacing)
+    == offsetof(struct MUI_GroupData, horiz_spacing) + 2,
+    "the axis fields follow each other");
+/* The child's fields, from AX_MIN on, along axis a */
+#define AXP(child, a) (&_minwidth(child) + (a))
 
 /* Note:
  * The MUI4 feature of group with tabs is implemented based on behaviour of
@@ -240,29 +159,105 @@ static IPTR group_reorder(struct MUI_GroupData *data, Object *after,
  */
 
 #define GROUP_HORIZ       (1<<1)
-#define GROUP_SAME_WIDTH  (1<<2)
+#define GROUP_SAME_WIDTH  (1<<2)    /* << 1: SAME_HEIGHT (by axis) */
 #define GROUP_SAME_HEIGHT (1<<3)
 #define GROUP_CHANGING    (1<<4)
 #define GROUP_PAGEMODE    (1<<5)
 #define GROUP_VIRTUAL     (1<<6)
-#define GROUP_HSPACING    (1<<7)
+#define GROUP_HSPACING    (1<<7)    /* << 1: VSPACING (by axis) */
 #define GROUP_VSPACING    (1<<8)
 #define GROUP_CHANGED     (1<<9)
 #define GROUP_PAINTING    (1<<10)
+#define GROUP_UPDATE_PAGE (1<<11)   /* MUI_Redraw(): a page switch, no frame */
+#define GROUP_UPDATE_SCROLL (1<<12) /* MUI_Redraw(): the virtual offsets moved */
+#define GROUP_NOFWD_GET   (1<<13)   /* OM_GET is not passed to the children */
+#define GROUP_NOFWD       (1<<14)   /* methods are not passed to the children */
+#define GROUP_XFULL       (1<<15)   /* x has room for the GroupVirtual */
+#define GROUP_UPDATE      (GROUP_UPDATE_PAGE | GROUP_UPDATE_SCROLL)
 
+#define GROUP_SET_UPDATE(data, u) \
+    ((data)->flags = ((data)->flags & ~GROUP_UPDATE) | (u))
 
-/* During minmax calculations objects with a weight of 0 shall
-   be treated like they had identical min/def/max size, ie. fixed size.
-   
-   During layout objects with 0 weight must be treated like fixed-sized
-   too, but for hgroups only in x direction, and for vgroups only in
-   y direction. I think ... */
+static const struct GroupVirtual group_novirt;
+/* A virtual group's state, zeroes for the others */
+#define GV(data) (((data)->flags & GROUP_VIRTUAL) ? &(data)->x->virt \
+    : (struct GroupVirtual *)&group_novirt)
+/* Only for a virtual group */
+#define VX(data) (&(data)->x->virt)
 
-#define w0_defwidth(x) (_hweight(x) ? _defwidth(x) : _minwidth(x))
-#define w0_maxwidth(x) (_hweight(x) ? _maxwidth(x) : _minwidth(x))
+/* The instance data as a pointer of its own: with its fields at small
+ * offsets GCC otherwise keeps the instance offset in a register for
+ * (d8,An,Xn) addressing (List's round: a frame +4) */
+static inline struct MUI_GroupData *GDATA_(APTR p)
+{
+    __asm__("" : "+a"(p));
+    return p;
+}
+#define GDATA(cl, obj) GDATA_(INST_DATA(cl, obj))
 
-#define w0_defheight(x) (_vweight(x) ? _defheight(x) : _minheight(x))
-#define w0_maxheight(x) (_vweight(x) ? _maxheight(x) : _minheight(x))
+static inline __attribute__((always_inline)) Object *group_title(struct MUI_GroupData *data)
+{
+    return data->x ? data->x->titlegroup : NULL;
+}
+
+/* A grid: Columns or Rows given (and not resolved to one cell) */
+static inline __attribute__((always_inline)) BOOL group_grid(struct MUI_GroupData *data)
+{
+    struct GroupExtra *x = data->x;
+
+    return x && (x->columns != 1 || x->rows != 1);
+}
+
+/* The group's extra block, made on first need (with room for the
+ * virtual state once the group is virtual); NULL without memory */
+static __attribute__((noinline)) struct GroupExtra *group_extra(
+    struct MUI_GroupData *data)
+{
+    struct GroupExtra *x = data->x;
+    ULONG full = data->flags & GROUP_VIRTUAL;
+
+    if (x && (!full || (data->flags & GROUP_XFULL)))
+        return x;
+    if (!(x = AllocVec(full ? sizeof(*x) : GROUP_EXTRA_SMALL, MEMF_CLEAR)))
+        return NULL;
+    if (data->x)
+    {
+        CopyMem(data->x, x, GROUP_EXTRA_SMALL);
+        FreeVec(data->x);
+    }
+    else
+        x->columns = x->rows = 1;
+    if (full)
+        data->flags |= GROUP_XFULL;
+    return data->x = x;
+}
+
+/* *infos with room for n entries, cleared; NULL without memory */
+static struct layout2d_elem *group_infos(struct layout2d_elem **infos,
+    UWORD *cap, ULONG n)
+{
+    if (*infos && *cap >= n)
+    {
+        memset(*infos, 0, n * sizeof(**infos));
+        return *infos;
+    }
+    if (*infos)
+        FreeVec(*infos);
+    *infos = AllocVec(n * sizeof(**infos), MEMF_CLEAR);
+    *cap = *infos ? n : 0;
+    return *infos;
+}
+
+static inline struct MinList *group_children(struct MUI_GroupData *data)
+{
+    struct MinList *list = &data->childlist;
+
+    /* The list is taken as a pointer of its own, as when the group kept
+     * one to it: GCC otherwise keeps both the data and the list live in
+     * the child walks, more bytes of stack per nesting level */
+    __asm__("" : "+a"(list));
+    return list;
+}
 
 /****** Group.mui/MUIC_Group ************
 *
@@ -754,38 +749,285 @@ static IPTR group_reorder(struct MUI_GroupData *data, Object *after,
 *       are stored unclamped and shift its children until the next layout.
 *
 */
+/****** Group.mui/MUIM_Group_AddTail ************
+*
+*   NAME
+*       MUIM_Group_AddTail
+*
+*   SYNOPSIS
+*       IPTR result = DoMethod(obj, MUIM_Group_AddTail, (IPTR)child);
+*
+*   FUNCTION
+*       Insert a child at the end of the child list and increase the stored
+*       count. Set its parent to this Group, connect it when application
+*       information exists, and set it up immediately when the Group is set up.
+*
+*   INPUTS
+*       child - Non-NULL live Area-compatible object, not already owned or
+*       linked elsewhere. Ownership transfers through attachment.
+*
+*   RESULT
+*       Always TRUE; child connection and child Setup results are
+*       ignored.
+*
+*   NOTES
+*       For live structural changes, bracket the operations with
+*       InitChange/ExitChange. Addition alone does not show or lay out the
+*       child. If the group is disabled, the added child receives a no-notify
+*       NestedDisabled increment and Disabled=TRUE. OM_ADDMEMBER uses the
+*       AddTail path.
+*
+*   BUGS
+*       No NULL/membership validation is provided by the Group helper; it
+*       dereferences child even for a NULL child. A reported TRUE
+*       does not establish successful setup. Subsequent removal does not undo
+*       inherited disabled state.
+*
+*/
+/****** Group.mui/MUIM_Group_AddHead ************
+*
+*   NAME
+*       MUIM_Group_AddHead
+*
+*   SYNOPSIS
+*       IPTR result = DoMethod(obj, MUIM_Group_AddHead, (IPTR)child);
+*
+*   FUNCTION
+*       Insert a child at the beginning of the child list and increase the
+*       stored count. Set its parent to this Group, connect it when application
+*       information exists, and set it up immediately when the Group is set up.
+*
+*   INPUTS
+*       child - Non-NULL live Area-compatible object, not already owned or
+*       linked elsewhere. Ownership transfers through attachment.
+*
+*   RESULT
+*       Always TRUE; child connection and child Setup results are
+*       ignored.
+*
+*   NOTES
+*       For live structural changes, bracket the operations with
+*       InitChange/ExitChange. Addition alone does not show or lay out the
+*       child. If the group is disabled, the added child receives a no-notify
+*       NestedDisabled increment and Disabled=TRUE. OM_ADDMEMBER uses the
+*       AddTail path.
+*
+*   BUGS
+*       No NULL/membership validation is provided by the Group helper; it
+*       dereferences child even for a NULL child. A reported TRUE
+*       does not establish successful setup. Subsequent removal does not undo
+*       inherited disabled state.
+*
+*/
+/****** Group.mui/MUIM_Group_Remove ************
+*
+*   NAME
+*       MUIM_Group_Remove
+*
+*   SYNOPSIS
+*       IPTR result = DoMethod(obj, MUIM_Group_Remove, (IPTR)child);
+*
+*   FUNCTION
+*       Hide the child when the Group is drawable, clean it when the Group is
+*       set up, disconnect it, decrement the stored count and remove it from
+*       the child list.
+*
+*   INPUTS
+*       child - Non-NULL live child currently attached to this Group.
+*
+*   RESULT
+*       Always TRUE; child results are ignored.
+*
+*   NOTES
+*       The child is not disposed; the caller resumes responsibility for its
+*       lifetime. OM_REMMEMBER uses this path. Use InitChange/ExitChange for
+*       live removal. As with Zune's former Family object, the removal also
+*       disconnects the child, so the connected path can send
+*       DisconnectParent twice. The final removal clears the parent pointer.
+*
+*   BUGS
+*       No membership/count validation occurs. Passing an unrelated child can
+*       corrupt ownership/counts. The active page is not repaired. Removal
+*       leaves any disabled state previously imposed on the child intact.
+*
+*/
+/****** Group.mui/MUIM_Group_InitChange ************
+*
+*   NAME
+*       MUIM_Group_InitChange
+*
+*   SYNOPSIS
+*       IPTR result = DoMethod(obj, MUIM_Group_InitChange);
+*
+*   FUNCTION
+*       Clear the changed marker and set the changing flag. Drawing returns
+*       FALSE while that flag is set.
+*
+*   INPUTS
+*       No arguments beyond MethodID. Keep the group and application alive
+*       throughout the change sequence.
+*
+*   RESULT
+*       Always TRUE.
+*
+*   NOTES
+*       Pair with ExitChange around live add/remove or layout changes. This
+*       begins neither a lock nor a rollback transaction. It does not hide
+*       children or defer their connection/setup/cleanup.
+*
+*   BUGS
+*       There is one flag, not a nesting counter. Calling InitChange twice on
+*       the same object does not require two exits and clears the prior changed
+*       marker.
+*
+*/
+/****** Group.mui/MUIM_Group_ExitChange ************
+*
+*   NAME
+*       MUIM_Group_ExitChange
+*
+*   SYNOPSIS
+*       IPTR result = DoMethod(obj, MUIM_Group_ExitChange);
+*
+*   FUNCTION
+*       Clear changing/changed flags and request Window recalculation when set
+*       up, unless an ancestor group is still changing.
+*
+*   INPUTS
+*       No arguments beyond MethodID. Requires a valid connected Group ancestor
+*       chain for live recalculation.
+*
+*   RESULT
+*       Always TRUE, including when recalculation is skipped or its result
+*       ignored.
+*
+*   NOTES
+*       Recalculation is attempted even without a recorded structural change;
+*       the changed-only guard is disabled. An outer group's later exit is
+*       responsible for updating a nested change. This is not a commit-success
+*       report or a restoration of failed operations.
+*
+*/
+/****** Group.mui/MUIM_Group_Sort ************
+*
+*   NAME
+*       MUIM_Group_Sort
+*
+*   SYNOPSIS
+*       IPTR result = DoMethod(obj, MUIM_Group_Sort, (IPTR)first, ... ,
+*       (IPTR)NULL);
+*
+*   FUNCTION
+*       Replace the child order with the supplied NULL-terminated
+*       sequence, as Family_Sort does.
+*
+*   INPUTS
+*       first, ... - Every currently attached child exactly once in the desired
+*       order, followed by NULL. A retained method message must be writable.
+*
+*   RESULT
+*       Always TRUE.
+*
+*   NOTES
+*       This is explicit ordering, not a comparison callback sort. It does not
+*       update the stored child count, reconnect children, change active
+*       page/titlegroup, mark a change or relayout. Use InitChange/ExitChange
+*       for a live reorder.
+*
+*   BUGS
+*       The implementation resets the list without validating completeness,
+*       uniqueness or membership. Omitting a child detaches its list node
+*       without cleanup/disposal/count repair; duplicates or foreign objects can
+*       corrupt the list.
+*
+*/
+/****** Group.mui/MUIM_Group_DoMethodNoForward ************
+*
+*   NAME
+*       MUIM_Group_DoMethodNoForward
+*
+*   SYNOPSIS
+*       IPTR result = DoMethod(obj, MUIM_Group_DoMethodNoForward, methodid,
+*       ...);
+*
+*   FUNCTION
+*       Set the private no-forward flag, dispatch the embedded method on this
+*       object and clear the flag before returning.
+*
+*   INPUTS
+*       methodid - ULONG MethodID beginning the embedded message.
+*       ... - Its correctly laid-out argument fields. Keep the Group alive
+*       through the call.
+*
+*   RESULT
+*       The embedded method's result.
+*
+*   NOTES
+*       This suppresses Group_DispatchMsg broadcasts and OM_GET fallback to
+*       children. It does not suppress explicit loops in Setup/Cleanup,
+*       Import/Export, user-data searches or the Group Notify override. It is
+*       therefore not a universal self-only execution mechanism.
+*
+*   BUGS
+*       The flag is set to one and later reset to zero rather than
+*       saved/restored. Nested use can clear an outer suppression early. The
+*       implementation passes the address of the declared ULONG DoMethodID field
+*       as a message; use the ABI-defined structure layout for direct messages,
+*       not an invented IPTR-array layout on every target.
+*
+*/
 
 #include "native_version.h"
 
-/*
- * If message is non-NULL, show Area first and ignore its result. Page mode
- * shows title and selected page without ShowMe filtering; ordinary mode
- * checks ShowMe and virtual visibility. Ignore child results, return TRUE.
- * NULL message is an internal child-only path; requires valid drawable
- * geometry.
- */
 IPTR Group__MUIM_Show(struct IClass *cl, Object *obj,
     struct MUIP_Show *msg);
-/*
- * Hide title/selected page in page mode or drawable children otherwise.
- * Call Area only for non-NULL message, returning its result, otherwise one.
- * Requires stable list and valid shown state. Does not cleanup or release
- * children; NULL message is the internal child-only path.
- */
 IPTR Group__MUIM_Hide(struct IClass *cl, Object *obj,
     struct MUIP_Hide *msg);
-
-/*****************************************************************************/
-/*****************************************************************************/
-
-
-/*
- * Broadcast the borrowed message to every child unless dontforwardmethods
- * is set. Requires stable membership and writable message when recipients
- * mutate it. Discard every child result and return zero; no ownership
- * transfer. Explicit traversal methods do not use this suppression helper.
- */
 static ULONG Group_DispatchMsg(struct IClass *cl, Object *obj, Msg msg);
+extern const struct __MUIBuiltinClass _MUI_Group_desc;
+
+/* Family_Reorder: move the NULL-terminated array behind after (NULL: to
+ * the front, -1: to the end), links only. FALSE for a stranger or a
+ * duplicate. */
+static BOOL group_contains(struct MinList *list, Object *obj)
+{
+    struct MinNode *n;
+    Object *child;
+
+    FOR_CHILD(list, n, child)
+        if (child == obj) return TRUE;
+    return FALSE;
+}
+
+static IPTR group_reorder(struct MUI_GroupData *data, Object *after,
+    Object **array)
+{
+    struct List *list = (struct List *)&data->childlist;
+    struct Node *at;
+    Object **p, **q;
+
+    if (after && after != (Object *)-1 &&
+        !group_contains(&data->childlist, after)) return FALSE;
+    for (p = array; *p; p++)
+    {
+        if (*p == after || !group_contains(&data->childlist, *p))
+            return FALSE;
+        for (q = array; q < p; q++)
+            if (*p == *q) return FALSE;
+    }
+    for (p = array; *p; p++)
+        Remove((struct Node *)_OBJECT(*p));
+    at = after == (Object *)-1 ? list->lh_TailPred :
+        after ? (struct Node *)_OBJECT(after) : NULL;
+    for (p = array; *p; p++)
+    {
+        struct Node *node = (struct Node *)_OBJECT(*p);
+        Insert(list, node, at);
+        /* MUI keeps a fixed insertion point except when appending. */
+        if (after == (Object *)-1) at = node;
+    }
+    return TRUE;
+}
 
 /* Whether the page a switch shows already has the box the page layout
  * (group_layout_pagemode) gives it: every layout of a page group lays out
@@ -796,16 +1038,14 @@ static ULONG Group_DispatchMsg(struct IClass *cl, Object *obj, Msg msg);
  * opbench). Only for an object of the Group class itself (a subclass may
  * act on the layout: Register selects its tab there) without a title or a
  * virtual area; any other, or a box that differs, is laid out as before. */
-extern const struct __MUIBuiltinClass _MUI_Group_desc;
-
 static __attribute__((noinline)) BOOL group_page_laid_out(Object *obj,
     struct MUI_GroupData *data)
 {
-    APTR cstate = group_children(data)->mlh_Head;
-    Object *child;
-    LONG i = 0, w, h;
+    struct MinNode *n;
+    Object *child = NULL;
+    LONG i = data->active_page, w, h;
 
-    if ((data->flags & GROUP_VIRTUAL) || data->titlegroup
+    if ((data->flags & GROUP_VIRTUAL) || group_title(data)
 #if defined(__MAXON__) || defined(__amigaos4__)
         || OCLASS(obj)->cl_Dispatcher.h_Entry
 #else
@@ -813,8 +1053,12 @@ static __attribute__((noinline)) BOOL group_page_laid_out(Object *obj,
 #endif
             != (HOOKFUNC)_MUI_Group_desc.dispatcher)
         return FALSE;
-    while ((child = NextObject(&cstate)) && i++ < data->active_page)
-        continue;
+    for (n = data->childlist.mlh_Head; n->mln_Succ; n = n->mln_Succ)
+        if (--i < 0)
+        {
+            child = BASEOBJECT(n);
+            break;
+        }
     if (!child)
         return FALSE;
     w = MIN(_mwidth(obj), _maxwidth(child));
@@ -834,15 +1078,12 @@ static __attribute__((noinline)) BOOL group_page_laid_out(Object *obj,
  */
 static void change_active_page(struct IClass *cl, Object *obj, LONG page)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    LONG newpage, num_children = data->num_children;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    LONG newpage, num_children;
 
     if (!(data->flags & GROUP_PAGEMODE))
         return;
-
-    if (data->titlegroup != NULL)
-        num_children--;
-
+    num_children = data->num_children - (group_title(data) != NULL);
     if (num_children <= 0)
     {
         data->active_page = 0;
@@ -883,96 +1124,71 @@ static void change_active_page(struct IClass *cl, Object *obj, LONG page)
             if (!group_page_laid_out(obj, data))
                 DoLayoutMethod(obj);
             Group__MUIM_Show(cl, obj, NULL);
-            data->update = 1;
+            GROUP_SET_UPDATE(data, GROUP_UPDATE_PAGE);
             MUI_Redraw(obj, MADF_DRAWUPDATE);
         }
 
-        if (data->titlegroup)
-            set(data->titlegroup, MUIA_Group_ActivePage, newpage);
+        if (group_title(data))
+            set(group_title(data), MUIA_Group_ActivePage, newpage);
     }
 }
 
-/**************************************************************************
- Returns the number of visible children. Visible children are all children
- that have MADF_SHOWME and not MADF_BORDERGADGET set.
-**************************************************************************/
-/*
- * Start with the stored child count and subtract hidden or border-gadget
- * children found in the borrowed list. Return the resulting integer; an
- * inconsistent stored count remains inconsistent. Requires stable
- * membership and valid child flags; no allocation or ownership transfer.
- */
-static int Group_GetNumVisibleChildren(struct MUI_GroupData *data,
-    struct MinList *children)
+/* Make child the group's title group (and the group a page group): a
+ * Title object added first, or the first child of a group with a Register
+ * frame */
+static void group_set_title(struct MUI_GroupData *data, Object *child)
 {
-    int num_visible_children = data->num_children;
-    APTR cstate;
-    Object *child;
+    struct GroupExtra *x;
 
-    /* As there can be invisible children we have to subtract those from
-     * the total number of children */
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (IS_HIDDEN(child))
-            num_visible_children--;
-    }
-    return num_visible_children;
+    if ((x = group_extra(data)))
+        x->titlegroup = child;
 }
 
-/**************************************************************************
- Handles insertion of objects - works based on fact that IDs of all methods
- that use it are the same for Group and Family and that struct share obj at
- same offset.
-**************************************************************************/
-struct MUIP_StructWithObj
-{
-    STACKED ULONG MethodID;
-    STACKED Object *obj;
-};
-
 /*
- * Shared private insertion path for AddHead/AddTail/Insert. Requires a
- * valid unowned Area child and valid predecessor for Insert. List
- * insertion, connection and Setup results are ignored; count increases
- * unconditionally. Attach parent/virtual state and propagate disabled
- * nesting. Return TRUE, not verified insertion/setup success.
+ * The insertion of AddHead, AddTail, OM_ADDMEMBER and Insert (msg->obj,
+ * Insert's pred after it: the methods' messages agree). Requires a valid
+ * unowned Area child and a valid predecessor for Insert. Connection and
+ * Setup results are ignored; the count increases. Attach parent/virtual
+ * state and propagate disabled nesting. Return TRUE, not verified
+ * insertion/setup success; a NULL child is ignored.
  */
-static IPTR Group__MUIM_AddObject(struct IClass *cl, Object *obj, Msg msg)
+static IPTR group_add(struct IClass *cl, Object *obj, Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct MUIP_StructWithObj *msgint = (struct MUIP_StructWithObj *)msg;
-    struct TagItem nestedDisableAttrs[4] = {
-        { MUIA_NoNotify,        TRUE    },
-        { MUIA_NestedDisabled,  TRUE    },
-        { MUIA_Disabled,        FALSE   },
-        { TAG_DONE                      }
-    };
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    Object *child = ((struct MUIP_Group_Insert *)msg)->obj;
+    struct List *list = (struct List *)&data->childlist;
 
-    group_family_add(data, msg);
-    data->num_children++;
-    if (data->num_children == 1 &&
-        (muiAreaData(msgint->obj)->mad_Flags2 & MADF2_ISTITLE))
+    if (!child)
+        return TRUE;
+    /* Family's AddHead/AddTail/Insert on the group's own list (rootclass's
+     * OM_ADDTAIL is this AddTail, without a dispatch through every class
+     * of the child) */
+    if (msg->MethodID == MUIM_Group_AddHead)
+        AddHead(list, (struct Node *)_OBJECT(child));
+    else if (msg->MethodID == MUIM_Group_Insert)
+        Insert(list, (struct Node *)_OBJECT(child),
+            (struct Node *)_OBJECT(((struct MUIP_Group_Insert *)msg)->pred));
+    else
+        AddTail(list, (struct Node *)_OBJECT(child));
+
+    if (++data->num_children == 1 &&
+        (muiAreaData(child)->mad_Flags2 & MADF2_ISTITLE))
     {
-        data->titlegroup = msgint->obj;
+        group_set_title(data, child);
         data->flags |= GROUP_PAGEMODE;
     }
 
-    if ((data->flags & GROUP_CHANGING) != 0)
+    if (data->flags & GROUP_CHANGING)
         data->flags |= GROUP_CHANGED;
 
     /* if we are in an application tree, propagate pointers */
     if (muiNotifyData(obj)->mnd_GlobalInfo)
     {
         /* Only children of groups can have parents */
-
         if ((_flags(obj) & MADF_INVIRTUALGROUP)
             || (data->flags & GROUP_VIRTUAL))
-        {
-            _flags(msgint->obj) |= MADF_INVIRTUALGROUP;
-        }
-
-        DoMethod(msgint->obj, MUIM_ConnectParent, (IPTR) obj);
+            _flags(child) |= MADF_INVIRTUALGROUP;
+        DoMethod(child, MUIM_ConnectParent, (IPTR) obj);
     }
 
     /* Ensure new children are disabled if their parent is. The group's
@@ -980,22 +1196,15 @@ static IPTR Group__MUIM_AddObject(struct IClass *cl, Object *obj, Msg msg)
      * intuition and every class: 145 GetAttr calls per opbench "app+windows
      * create" (MUI 3.8 makes 15 in all) */
     if (muiAreaData(obj)->mad_DisableCount)
-    {
-        nestedDisableAttrs[2].ti_Data = TRUE;
-        SetAttrsA(msgint->obj, nestedDisableAttrs);
-    }
+        SetAttrs(child, MUIA_NoNotify, TRUE, MUIA_NestedDisabled, TRUE,
+            MUIA_Disabled, TRUE, TAG_DONE);
 
     /* Some apps (Odyssey) expect _parent() will work before group tree is
      * added to application tree */
-    muiNotifyData(msgint->obj)->mnd_ParentObject = obj;
+    muiNotifyData(child)->mnd_ParentObject = obj;
 
     if (_flags(obj) & MADF_SETUP)
-    {
-        DoSetupMethod(msgint->obj, muiRenderInfo(obj));
-    }
-/*      if (_flags(obj) & MADF_CANDRAW) */
-/*          DoShowMethod(msg->opam_Object); */
-
+        DoSetupMethod(child, muiRenderInfo(obj));
     return TRUE;
 }
 
@@ -1013,10 +1222,7 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct MUI_GroupData *data;
     struct TagItem *tags, *tag;
-    BOOL bad_children = FALSE;
-    IPTR frame = MUIV_Frame_None;
-
-    D(bug("[group.mui] OM_NEW, object 0x%p\n", obj));
+    BOOL bad = FALSE;
 
     obj = (Object *) DoSuperMethodA(cl, obj, (Msg) msg);
     if (!obj)
@@ -1027,144 +1233,136 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     muiAreaData(obj)->mad_Flags2 |= MADF2_ISGROUP;
 
-    /* Initial local instance data */
     data = INST_DATA(cl, obj);
-
     NewList((struct List *)&data->childlist);
-
     data->horiz_spacing = -1;
     data->vert_spacing = -1;
-    data->columns = 1;
-    data->rows = 1;
-    data->active_page = 0;
-    get(obj, MUIA_Frame, &frame);
 
-    /* parse initial taglist */
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
     {
+        IPTR v = tag->ti_Data;
+
         switch (tag->ti_Tag)
         {
         case MUIA_Group_Child:
-            D(bug("[group.mui] Adding child 0x%p\n", tag->ti_Data));
-            if (tag->ti_Data)
+            if (v)
             {
                 /* Group's own insertion, not OM_ADDMEMBER through the
                  * object's class: MUI 3.8 and MUI 5 do not send the
                  * initial children to a subclass (TabGroup.mcc forwards
                  * OM_ADDMEMBER to a page group that does not exist yet
                  * and lost every child on Zune) */
-                CoerceMethod(cl, obj, OM_ADDMEMBER, tag->ti_Data);
-                /* Set first child as group title */
-                if ((frame == MUIV_Frame_Register)
-                    && (data->titlegroup == NULL))
-                    data->titlegroup = (Object *) tag->ti_Data;
+                /* the tag item {MUIA_Group_Child, child} is a message
+                 * for group_add's AddTail path ({method, child}) */
+                group_add(cl, obj, (Msg)tag);
+                /* The first child of a group with a Register frame is its
+                 * title (Area keeps the frame asked for: no OM_GET through
+                 * every class of the object) */
+                if (muiAreaData(obj)->mad_Frame == MUIV_Frame_Register
+                    && !group_title(data))
+                    group_set_title(data, (Object *)v);
             }
             else
-                bad_children = TRUE;
+                bad = TRUE;
             break;
 
         case MUIA_Group_ActivePage:
-            change_active_page(cl, obj, (LONG) tag->ti_Data);
+            change_active_page(cl, obj, (LONG) v);
             break;
 
         case MUIA_Group_Columns:
-            data->columns = (tag->ti_Data) > 1 ? tag->ti_Data : 1;
-            data->rows = 0;
+        case MUIA_Group_Rows:
+        {
+            struct GroupExtra *x = group_extra(data);
+
+            if (x)
+            {
+                v = MAX((ULONG) v, 1);
+                if (tag->ti_Tag == MUIA_Group_Columns)
+                    x->columns = v, x->rows = 0;
+                else
+                    x->rows = v, x->columns = 0;
+            }
             break;
+        }
 
         case MUIA_Group_Horiz:
-            _handle_bool_tag(data->flags, tag->ti_Data, GROUP_HORIZ);
+            _handle_bool_tag(data->flags, v, GROUP_HORIZ);
             break;
 
         case MUIA_Group_HorizSpacing:
             data->flags |= GROUP_HSPACING;
-            data->horiz_spacing = tag->ti_Data;
+            data->horiz_spacing = v;
             break;
 
         case MUIA_Group_LayoutHook:
-            data->layout_hook = (struct Hook *)tag->ti_Data;
+            data->layout_hook = (struct Hook *)v;
             break;
 
         case MUIA_Group_PageMode:
-            _handle_bool_tag(data->flags, tag->ti_Data, GROUP_PAGEMODE);
-            break;
-
-        case MUIA_Group_Rows:
-            data->rows = MAX((ULONG) tag->ti_Data, 1);
-            data->columns = 0;
+            _handle_bool_tag(data->flags, v, GROUP_PAGEMODE);
             break;
 
         case MUIA_Group_SameHeight:
-            _handle_bool_tag(data->flags, tag->ti_Data, GROUP_SAME_HEIGHT);
+            _handle_bool_tag(data->flags, v, GROUP_SAME_HEIGHT);
             break;
 
         case MUIA_Group_SameSize:
-            _handle_bool_tag(data->flags, tag->ti_Data, GROUP_SAME_HEIGHT);
-            _handle_bool_tag(data->flags, tag->ti_Data, GROUP_SAME_WIDTH);
+            _handle_bool_tag(data->flags, v,
+                GROUP_SAME_HEIGHT | GROUP_SAME_WIDTH);
             break;
 
         case MUIA_Group_SameWidth:
-            _handle_bool_tag(data->flags, tag->ti_Data, GROUP_SAME_WIDTH);
+            _handle_bool_tag(data->flags, v, GROUP_SAME_WIDTH);
             break;
 
         case MUIA_Group_Spacing:
             data->flags |= (GROUP_HSPACING | GROUP_VSPACING);
-            data->horiz_spacing = tag->ti_Data;
-            data->vert_spacing = tag->ti_Data;
+            data->horiz_spacing = v;
+            data->vert_spacing = v;
             break;
 
         case MUIA_Group_VertSpacing:
             data->flags |= GROUP_VSPACING;
-            data->vert_spacing = tag->ti_Data;
+            data->vert_spacing = v;
             break;
 
         case MUIA_Group_Virtual:
-            _handle_bool_tag(data->flags, tag->ti_Data, GROUP_VIRTUAL);
+            _handle_bool_tag(data->flags, v, GROUP_VIRTUAL);
             break;
         }
     }
 
-    if (bad_children)
+    if (data->flags & GROUP_VIRTUAL)
+    {
+        struct GroupExtra *x;
+
+        if (bad || !(x = group_extra(data)))
+            bad = TRUE;
+        else
+        {
+            /* This is only used for virtual groups */
+            x->virt.ehn.ehn_Events = IDCMP_MOUSEBUTTONS;  /* filled on demand */
+            x->virt.ehn.ehn_Priority = 10;  /* hears the click before all
+                                             * other normal objects */
+            x->virt.ehn.ehn_Flags = MUI_EHF_GUIMODE;
+            x->virt.ehn.ehn_Object = obj;
+            x->virt.ehn.ehn_Class = cl;
+            /* MUI_Redraw() installs a clip region for it, MUI_Layout()
+             * adds its offsets */
+            _flags(obj) |= MADF_ISVIRTUALGROUP;
+        }
+    }
+    else if (OCLASS(obj) == cl)
+        /* A plain group passes its parent's background on while it has
+         * none of its own: Group_PassesBackground() */
+        muiAreaData(obj)->mad_Flags2 |= MADF2_PLAINGROUP;
+
+    if (bad)
     {
         CoerceMethod(cl, obj, OM_DISPOSE);
         return 0;
     }
-
-/*      D(bug("Group_New(0x%p)\n",obj)); */
-
-    if (data->flags & GROUP_VIRTUAL)
-    {
-        if (!(data->virt = mui_alloc_struct(struct GroupVirtual)))
-        {
-            CoerceMethod(cl, obj, OM_DISPOSE);
-            return 0;
-        }
-        /* This is only used for virtual groups */
-        data->virt->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;  /* Will be filled on demand */
-        data->virt->ehn.ehn_Priority = 10;        /* Will hear the click before all
-                                                   * other normal objects */
-        data->virt->ehn.ehn_Flags = MUI_EHF_GUIMODE;
-        data->virt->ehn.ehn_Object = obj;
-        data->virt->ehn.ehn_Class = cl;
-        /* This is used by MUI_Render() to determine if group is virtual.
-         * It then installs a clip region.
-         * Also MUI_Layout() uses this. Probably for speed up reason  */
-        _flags(obj) |= MADF_ISVIRTUALGROUP;
-    }
-
-#if (0)
-    // kalamatee : disabled as unnecessary.
-    // Object is created before children are added, so MUIA_Disabled is set
-    // and OM_ADDMEMBER (called on the children) already does this.
-
-    /* will forward MUIA_Disabled to children */
-    get(obj, MUIA_Disabled, &disabled);
-    if (disabled)
-    {
-        set(obj, MUIA_Disabled, TRUE);
-    }
-#endif
-
     return (IPTR) obj;
 }
 
@@ -1179,22 +1377,19 @@ IPTR Group__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
  */
 IPTR Group__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct GroupExtra *x = data->x;
+    struct MinNode *n;
+    Object *child;
 
-    if (data->row_infos != NULL)
-        mui_free(data->row_infos);
-    if (data->col_infos != NULL)
-        mui_free(data->col_infos);
-    if (data->virt)
-        mui_free(data->virt);
-    if (data->childlist.mlh_Head)
+    if (x)
     {
-        Object *cstate = (Object *)data->childlist.mlh_Head;
-        Object *child;
-
-        while ((child = NextObject(&cstate)))
-            MUI_DisposeObject(child);
+        FreeVec(x->row_infos);
+        FreeVec(x->col_infos);
+        FreeVec(x);
     }
+    FOR_CHILD(&data->childlist, n, child)
+        MUI_DisposeObject(child);
     return DoSuperMethodA(cl, obj, msg);
 }
 
@@ -1204,16 +1399,11 @@ IPTR Group__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 static void Group_ShiftChildren(struct IClass *cl, Object *obj,
     LONG dx, LONG dy)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct MinList *children = NULL;
-    APTR state;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
 
-    children = group_children(data);
-    if (!children)
-        return;
-    state = children->mlh_Head;
-    while ((child = NextObject(&state)))
+    FOR_CHILD(&data->childlist, n, child)
     {
         struct IClass *childclass = OCLASS(child);
 
@@ -1227,14 +1417,6 @@ static void Group_ShiftChildren(struct IClass *cl, Object *obj,
     }
 }
 
-/*
- * Group__OM_SET's forwarding: turn the tags the children must not see into
- * TAG_IGNORE, put MUIA_NestedDisabled in front (nestedAttrs) for a
- * MUIA_Disabled. TRUE when a tag is left to pass on: a set of the active
- * page alone (a Cycle's every change) sent every page an OM_SET of ignored
- * tags (opbench "cycle set"). Not inlined: Group__OM_SET's frame is on the
- * stack once per nesting level.
- */
 /* The attributes a set on a group keeps to itself, not passed on to its
  * children: the low words of their IDs (all MUIA 0x8042xxxx), sorted for
  * a binary search; a table instead of a switch saves about 200 bytes.
@@ -1296,6 +1478,14 @@ _Static_assert(GROUP_OWN_LT(MUIA_UserData, MUIA_CustomBackfill)
     && GROUP_OWN_LT(MUIA_Group_VertSpacing, MUIA_Group_Columns),
     "group_own_attrs: MUIA 0x8042xxxx, sorted");
 
+/*
+ * Group__OM_SET's forwarding: turn the tags the children must not see into
+ * TAG_IGNORE, put MUIA_NestedDisabled in front (nestedAttrs) for a
+ * MUIA_Disabled. TRUE when a tag is left to pass on: a set of the active
+ * page alone (a Cycle's every change) sent every page an OM_SET of ignored
+ * tags (opbench "cycle set"). Not inlined: Group__OM_SET's frame is on the
+ * stack once per nesting level.
+ */
 static __attribute__((noinline)) BOOL group_forward_filter(struct opSet *msg,
     struct TagItem *nestedAttrs)
 {
@@ -1335,6 +1525,33 @@ static __attribute__((noinline)) BOOL group_forward_filter(struct opSet *msg,
     return left;
 }
 
+/* A virtual group's offsets as OM_SET asks for them (x, y, clamped to its
+ * area): its children shifted, shown again and drawn */
+static __attribute__((noinline)) void group_virt_scroll(struct IClass *cl,
+    Object *obj, LONG x, LONG y)
+{
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct GroupVirtual *v = VX(data);
+
+    x = CLAMP(x, 0, MAX(0, v->virt_mwidth - _mwidth(obj)));
+    y = CLAMP(y, 0, MAX(0, v->virt_mheight - _mheight(obj)));
+
+    if (x == v->virt_offx && y == v->virt_offy)
+        return;
+    x -= v->virt_offx;
+    y -= v->virt_offy;
+    v->virt_offx += x;
+    v->virt_offy += y;
+    Group_ShiftChildren(cl, obj, x, y);
+    if (_flags(obj) & MADF_CANDRAW)
+    {
+        Group__MUIM_Hide(cl, obj, NULL);
+        Group__MUIM_Show(cl, obj, NULL);
+        GROUP_SET_UPDATE(data, GROUP_UPDATE_SCROLL);
+        MUI_Redraw(obj, MADF_DRAWOBJECT);
+    }
+}
+
 /**************************************************************************
  OM_SET
 **************************************************************************/
@@ -1348,31 +1565,22 @@ static __attribute__((noinline)) BOOL group_forward_filter(struct opSet *msg,
  */
 IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
     struct TagItem *tags = msg->ops_AttrList;
     struct TagItem *disableTag = NULL;
     struct TagItem *tag;
     BOOL forward = TRUE;
     BOOL need_recalc = FALSE;
     IPTR retval;
+    LONG virt_offx = GV(data)->virt_offx, virt_offy = GV(data)->virt_offy;
 
-    int virt_offx = GV(data)->virt_offx, virt_offy = GV(data)->virt_offy;
-
-    /* There are many ways to find out what tag items provided by set()
-     ** we do know. The best way should be using NextTagItem() and simply
-     ** browsing through the list.
-     */
-
-    /* Parse group attributes before calling DoSuperMethodA(),
-     ** otherwise if an app for example sets up a notification
-     ** on MUIA_Group_ActivePage which calls a hook, and then
-     ** the hook function calls get(obj, MUIA_Group_ActivePage),
-     ** it would get returned the old active page instead of the new
-     ** active page
-     */
-
+    /* Group attributes before DoSuperMethodA(): a notification on
+     * MUIA_Group_ActivePage whose hook gets the attribute sees the new
+     * page */
     while ((tag = NextTagItem(&tags)) != NULL)
     {
+        IPTR v = tag->ti_Data;
+
         switch (tag->ti_Tag)
         {
         case MUIA_Disabled:
@@ -1380,74 +1588,71 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             tag->ti_Tag = TAG_IGNORE;
             break;
         case MUIA_Group_Columns:
-            data->columns = MAX((ULONG) tag->ti_Data, 1);
-            data->rows = 0;
-            need_recalc = TRUE;
+        case MUIA_Group_Rows:
+        {
+            struct GroupExtra *x = group_extra(data);
+
+            if (x)
+            {
+                v = MAX((ULONG) v, 1);
+                if (tag->ti_Tag == MUIA_Group_Columns)
+                    x->columns = v, x->rows = 0;
+                else
+                    x->rows = v, x->columns = 0;
+                need_recalc = TRUE;
+            }
             break;
+        }
         case MUIA_Group_Horiz:
             /* MUI 3.8 also takes this after OM_NEW although its autodoc
              * says [I..]: TheBar's demo3 sets it on its Radio objects
              * (a row of radio buttons; Zune stacked them). */
-            if (!(data->flags & GROUP_HORIZ) != !tag->ti_Data)
+            if (!(data->flags & GROUP_HORIZ) != !v)
             {
-                _handle_bool_tag(data->flags, tag->ti_Data, GROUP_HORIZ);
+                data->flags ^= GROUP_HORIZ;
                 need_recalc = TRUE;
             }
             break;
         case MUIA_Group_ActivePage:
-            change_active_page(cl, obj, (LONG) tag->ti_Data);
+            change_active_page(cl, obj, (LONG) v);
             break;
         case MUIA_Group_Forward:
-            forward = tag->ti_Data;
+            forward = v;
             break;
         case MUIA_Group_HorizSpacing:
             data->flags |= GROUP_HSPACING;
-            data->horiz_spacing = tag->ti_Data;
-            break;
-        case MUIA_Group_Rows:
-            data->rows = MAX((ULONG) tag->ti_Data, 1);
-            data->columns = 0;
-            need_recalc = TRUE;
+            data->horiz_spacing = v;
             break;
         case MUIA_Group_Spacing:
             data->flags |= (GROUP_HSPACING | GROUP_VSPACING);
-            data->horiz_spacing = tag->ti_Data;
-            data->vert_spacing = tag->ti_Data;
+            data->horiz_spacing = v;
+            data->vert_spacing = v;
             break;
         case MUIA_Group_VertSpacing:
             data->flags |= GROUP_VSPACING;
-            data->vert_spacing = tag->ti_Data;
+            data->vert_spacing = v;
             break;
-        case MUIA_Virtgroup_Left:
-            //kprintf("set virtgroup_left: %d\n", tag->ti_Data);
-            virt_offx = tag->ti_Data;
-            break;
-
         case MUIA_Group_LayoutHook:
-            /*
-               [ach] Seems like MUI supports setting this attribute after
-               initialization, even though the documentation states
-               otherwise. At least some programs use it...
-             */
-            data->layout_hook = (struct Hook *)tag->ti_Data;
+            /* [ach] MUI takes this after OM_NEW too, although its
+             * autodoc says otherwise; programs use it */
+            data->layout_hook = (struct Hook *)v;
             break;
-
+        /* only a virtual group scrolls its children */
+        case MUIA_Virtgroup_Left:
+            virt_offx = v;
+            break;
         case MUIA_Virtgroup_Top:
-            //kprintf("set virtgroup_top: %d\n", tag->ti_Data);
-            virt_offy = tag->ti_Data;
+            virt_offy = v;
             break;
         }
-
     }
 
-    if (muiRenderInfo(obj) && need_recalc)
+    if (need_recalc && muiRenderInfo(obj))
         DoMethod(_win(obj), MUIM_Window_RecalcDisplay, (IPTR) obj);
 
     retval = DoSuperMethodA(cl, obj, (Msg) msg);
     if (disableTag)
         disableTag->ti_Tag = MUIA_Disabled;
-
-    /* seems to be the documented behaviour, however it should be slow! */
 
     if (forward)
     {
@@ -1464,46 +1669,22 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
     if (disableTag)
     {
+        struct TagItem *origTags = msg->ops_AttrList;
         struct TagItem disableAttrs[2] = {
             { MUIA_Disabled,  disableTag->ti_Data },
             { TAG_DONE, 		0}
         };
-        struct TagItem *origTags = msg->ops_AttrList;
+
         msg->ops_AttrList = disableAttrs;
         DoSuperMethodA(cl, obj, (Msg) msg);
         msg->ops_AttrList = origTags;
     }
 
     if (data->flags & GROUP_VIRTUAL)
-    {
-        virt_offx = CLAMP(virt_offx, 0,
-            MAX(0, GV(data)->virt_mwidth - _mwidth(obj)));
-        virt_offy = CLAMP(virt_offy, 0,
-            MAX(0, GV(data)->virt_mheight - _mheight(obj)));
-    }
-    /* only a virtual group scrolls its children */
-    if (data->virt
-        && (virt_offx != GV(data)->virt_offx || virt_offy != GV(data)->virt_offy))
-    {
-        BOOL shown = (_flags(obj) & MADF_CANDRAW) != 0;
-        LONG dx = virt_offx - GV(data)->virt_offx;
-        LONG dy = virt_offy - GV(data)->virt_offy;
-
-        data->virt->virt_offx = virt_offx;
-        data->virt->virt_offy = virt_offy;
-        Group_ShiftChildren(cl, obj, dx, dy);
-        if (shown)
-        {
-            Group__MUIM_Hide(cl, obj, NULL);
-            Group__MUIM_Show(cl, obj, NULL);
-            data->update = 2;
-            MUI_Redraw(obj, MADF_DRAWOBJECT);
-        }
-    }
+        group_virt_scroll(cl, obj, virt_offx, virt_offy);
 
     return retval;
 }
-
 
 /**************************************************************************
  OM_GET
@@ -1517,10 +1698,8 @@ IPTR Group__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
  */
 IPTR Group__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 {
-/* small macro to simplify return value storage */
-#define STORE *(msg->opg_Storage)
-
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    IPTR v;
 
     switch (msg->opg_AttrID)
     {
@@ -1528,361 +1707,162 @@ IPTR Group__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
     case MUIA_Revision:
         /* Notify reports the version of the object's class library. */
         return DoSuperMethodA(cl, obj, (Msg)msg);
-    case MUIA_Group_ActivePage:
-        STORE = data->active_page;
-        return 1;
-    case MUIA_Group_ChildList:
-        *msg->opg_Storage = (IPTR) group_children(data);
-        return TRUE;
-    case MUIA_Group_Horiz:
-        STORE = (data->flags & GROUP_HORIZ);
-        return 1;
-    case MUIA_Group_HorizSpacing:
-        STORE = data->horiz_spacing;
-        return 1;
-    case MUIA_Group_VertSpacing:
-        STORE = data->vert_spacing;
-        return 1;
-    case MUIA_Group_ChildCount:
-        STORE = data->num_children;
-        return 1;
-    case MUIA_Virtgroup_Left:
-        STORE = GV(data)->virt_offx;
-        return 1;
-    case MUIA_Virtgroup_Top:
-        STORE = GV(data)->virt_offy;
-        return 1;
-    case MUIA_Virtgroup_Width:
-        STORE = GV(data)->virt_mwidth;
-        return 1;
-    case MUIA_Virtgroup_Height:
-        STORE = GV(data)->virt_mheight;
-        return 1;
-    case MUIA_Virtgroup_MinWidth:
-        STORE = GV(data)->saved_minwidth;
-        return 1;
-    case MUIA_Virtgroup_MinHeight:
-        STORE = GV(data)->saved_minheight;
-        return 1;
+    case MUIA_Group_ActivePage: v = data->active_page; break;
+    case MUIA_Group_ChildList: v = (IPTR)&data->childlist; break;
+    case MUIA_Group_Horiz: v = data->flags & GROUP_HORIZ; break;
+    case MUIA_Group_HorizSpacing: v = data->horiz_spacing; break;
+    case MUIA_Group_VertSpacing: v = data->vert_spacing; break;
+    case MUIA_Group_ChildCount: v = data->num_children; break;
+    case MUIA_Virtgroup_Left: v = GV(data)->virt_offx; break;
+    case MUIA_Virtgroup_Top: v = GV(data)->virt_offy; break;
+    case MUIA_Virtgroup_Width: v = GV(data)->virt_mwidth; break;
+    case MUIA_Virtgroup_Height: v = GV(data)->virt_mheight; break;
+    case MUIA_Virtgroup_MinWidth: v = GV(data)->saved_minwidth; break;
+    case MUIA_Virtgroup_MinHeight: v = GV(data)->saved_minheight; break;
+    default:
+        /* our handler didn't understand the attribute: the superclass,
+         * then the children */
+        if (DoSuperMethodA(cl, obj, (Msg) msg))
+            return 1;
+        if (!(data->flags & (GROUP_NOFWD_GET | GROUP_NOFWD)))
+        {
+            struct MinNode *n;
+            Object *child;
+
+            FOR_CHILD(&data->childlist, n, child)
+                if (DoMethodA(child, (Msg) msg))
+                    return 1;
+        }
+        return 0;
     }
-
-    /* our handler didn't understand the attribute, we simply pass
-     ** it to our superclass now
-     */
-    if (DoSuperMethodA(cl, obj, (Msg) msg))
-        return 1;
-
-    /* seems to be the documented behaviour, however it should be slow! */
-    if (!data->dont_forward_get && !data->dont_forward_methods)
-    {
-        APTR cstate;
-        Object *child;
-        struct MinList *ChildList = NULL;
-
-        ChildList = group_children(data);
-        cstate = ChildList->mlh_Head;
-        while ((child = NextObject(&cstate)))
-            if (DoMethodA(child, (Msg) msg))
-                return 1;
-    }
-    return 0;
-#undef STORE
+    *msg->opg_Storage = v;
+    return 1;
 }
 
+/* MUIM_Group_AddTail, MUIM_Group_AddHead, OM_ADDMEMBER and the private
+ * MUIM_Group_Insert (msg->pred after msg->obj: a current child, not
+ * NULL): group_add */
 
-/**************************************************************************
- MUIM_AddTail
-**************************************************************************/
-/****** Group.mui/MUIM_Group_AddTail ************
-*
-*   NAME
-*       MUIM_Group_AddTail
-*
-*   SYNOPSIS
-*       IPTR result = DoMethod(obj, MUIM_Group_AddTail, (IPTR)child);
-*
-*   FUNCTION
-*       Insert a child at the end of the child list and increase the stored
-*       count. Set its parent to this Group, connect it when application
-*       information exists, and set it up immediately when the Group is set up.
-*
-*   INPUTS
-*       child - Non-NULL live Area-compatible object, not already owned or
-*       linked elsewhere. Ownership transfers through attachment.
-*
-*   RESULT
-*       Always TRUE; child connection and child Setup results are
-*       ignored.
-*
-*   NOTES
-*       For live structural changes, bracket the operations with
-*       InitChange/ExitChange. Addition alone does not show or lay out the
-*       child. If the group is disabled, the added child receives a no-notify
-*       NestedDisabled increment and Disabled=TRUE. OM_ADDMEMBER uses the
-*       AddTail path.
-*
-*   BUGS
-*       No NULL/membership validation is provided by the Group helper; it
-*       dereferences child even for a NULL child. A reported TRUE
-*       does not establish successful setup. Subsequent removal does not undo
-*       inherited disabled state.
-*
-*/
-IPTR Group__MUIM_AddTail(struct IClass *cl, Object *obj,
-    struct MUIP_Group_AddTail *msg)
-{
-    return Group__MUIM_AddObject(cl, obj, (Msg) msg);
-}
-
-/**************************************************************************
- MUIM_AddHead
-**************************************************************************/
-/****** Group.mui/MUIM_Group_AddHead ************
-*
-*   NAME
-*       MUIM_Group_AddHead
-*
-*   SYNOPSIS
-*       IPTR result = DoMethod(obj, MUIM_Group_AddHead, (IPTR)child);
-*
-*   FUNCTION
-*       Insert a child at the beginning of the child list and increase the
-*       stored count. Set its parent to this Group, connect it when application
-*       information exists, and set it up immediately when the Group is set up.
-*
-*   INPUTS
-*       child - Non-NULL live Area-compatible object, not already owned or
-*       linked elsewhere. Ownership transfers through attachment.
-*
-*   RESULT
-*       Always TRUE; child connection and child Setup results are
-*       ignored.
-*
-*   NOTES
-*       For live structural changes, bracket the operations with
-*       InitChange/ExitChange. Addition alone does not show or lay out the
-*       child. If the group is disabled, the added child receives a no-notify
-*       NestedDisabled increment and Disabled=TRUE. OM_ADDMEMBER uses the
-*       AddTail path.
-*
-*   BUGS
-*       No NULL/membership validation is provided by the Group helper; it
-*       dereferences child even for a NULL child. A reported TRUE
-*       does not establish successful setup. Subsequent removal does not undo
-*       inherited disabled state.
-*
-*/
-IPTR Group__MUIM_AddHead(struct IClass *cl, Object *obj,
-    struct MUIP_Group_AddHead *msg)
-{
-    return Group__MUIM_AddObject(cl, obj, (Msg) msg);
-}
-
-/**************************************************************************
- MUIM_Insert
-**************************************************************************/
-/*
- * Private source-local MUIM_Group_Insert forwards to the shared insertion
- * helper. Message carries child and predecessor; predecessor must be a
- * current child. It is converted with _OBJECT without a NULL guard; do
- * not assume NULL safely requests head insertion. Adopts child and returns
- * TRUE without checking setup results. This is not a public header
- * interface.
- */
-IPTR Group__MUIM_Insert(struct IClass *cl, Object *obj,
-    struct MUIP_Group_Insert *msg)
-{
-    return Group__MUIM_AddObject(cl, obj, (Msg) msg);
-}
-
-/**************************************************************************
- MUIM_Remove
-**************************************************************************/
-/****** Group.mui/MUIM_Group_Remove ************
-*
-*   NAME
-*       MUIM_Group_Remove
-*
-*   SYNOPSIS
-*       IPTR result = DoMethod(obj, MUIM_Group_Remove, (IPTR)child);
-*
-*   FUNCTION
-*       Hide the child when the Group is drawable, clean it when the Group is
-*       set up, disconnect it, decrement the stored count and remove it from
-*       the child list.
-*
-*   INPUTS
-*       child - Non-NULL live child currently attached to this Group.
-*
-*   RESULT
-*       Always TRUE; child results are ignored.
-*
-*   NOTES
-*       The child is not disposed; the caller resumes responsibility for its
-*       lifetime. OM_REMMEMBER uses this path. Use InitChange/ExitChange for
-*       live removal. As with Zune's former Family object, the removal also
-*       disconnects the child, so the connected path can send
-*       DisconnectParent twice. The final removal clears the parent pointer.
-*
-*   BUGS
-*       No membership/count validation occurs. Passing an unrelated child can
-*       corrupt ownership/counts. The active page is not repaired. Removal
-*       leaves any disabled state previously imposed on the child intact.
-*
-*/
 IPTR Group__MUIM_Remove(struct IClass *cl, Object *obj,
     struct MUIP_Group_Remove *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    Object *child = msg->obj;
 
-    if (msg->obj == data->titlegroup) data->titlegroup = NULL;
+    if (!child)
+        return TRUE;
+    if (child == group_title(data))
+        data->x->titlegroup = NULL;
     if (_flags(obj) & MADF_CANDRAW)
-        DoHideMethod(msg->obj);
+        DoHideMethod(child);
     if (_flags(obj) & MADF_SETUP)
-        DoMethod(msg->obj, MUIM_Cleanup);
+        DoMethod(child, MUIM_Cleanup);
     if (muiNotifyData(obj)->mnd_GlobalInfo)
     {
-        DoMethod(msg->obj, MUIM_DisconnectParent);
-        muiNotifyData(msg->obj)->mnd_ParentObject = NULL;
-
-        _flags(msg->obj) &= ~MADF_INVIRTUALGROUP;
+        DoMethod(child, MUIM_DisconnectParent);
+        muiNotifyData(child)->mnd_ParentObject = NULL;
+        _flags(child) &= ~MADF_INVIRTUALGROUP;
     }
 
-    if ((data->flags & GROUP_CHANGING) != 0)
+    if (data->flags & GROUP_CHANGING)
         data->flags |= GROUP_CHANGED;
     data->num_children--;
-    /* What Family_Remove did after the group's part */
-    if (msg->obj)
-    {
-        DoMethod(msg->obj, MUIM_DisconnectParent);
-        muiNotifyData(msg->obj)->mnd_ParentObject = NULL;
-        DoMethod(msg->obj, OM_REMOVE);
-    }
-
+    /* What Family_Remove did after the group's part; rootclass's OM_REMOVE
+     * is this Remove() */
+    DoMethod(child, MUIM_DisconnectParent);
+    muiNotifyData(child)->mnd_ParentObject = NULL;
+    Remove((struct Node *)_OBJECT(child));
     return TRUE;
 }
 
-/**************************************************************************
- MUIM_Family_GetChild
-**************************************************************************/
 /*
  * Find a child by number or relative to ref, as Family_GetChild does.
- * The returned child is borrowed; index/selectors and failure behavior
- * belong to Family_GetChild. Requires an intact Family and stable list.
+ * The returned child is borrowed.
  */
 IPTR Group__MUIM_Family_GetChild(struct IClass *cl, Object *obj,
-    struct MUIP_Group_Remove *msg)
+    struct MUIP_Family_GetChild *m)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct MUIP_Family_GetChild *m = (struct MUIP_Family_GetChild *)msg;
-    Object *cstate = (Object *)data->childlist.mlh_Head;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child, *prev = NULL;
-    LONG counter = 0;
+    LONG nr = m->nr, counter = 0;
 
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
     {
-        if ((m->nr >= 0) && (m->nr == counter))
+        if (nr >= 0 && nr == counter)
             return (IPTR) child;
-        if ((m->ref != NULL) && (m->ref == child))
+        if (m->ref && m->ref == child)
         {
-            if (m->nr == MUIV_Family_GetChild_Next)
-                return (IPTR) NextObject(&cstate);
-            if (m->nr == MUIV_Family_GetChild_Previous)
+            if (nr == MUIV_Family_GetChild_Next)
+                return n->mln_Succ ? (IPTR) BASEOBJECT(n) : 0;
+            if (nr == MUIV_Family_GetChild_Previous)
                 return (IPTR) prev;
         }
-        if (m->nr == MUIV_Family_GetChild_First)
+        if (nr == MUIV_Family_GetChild_First)
             return (IPTR) child;
         prev = child;
         counter++;
     }
-    if (m->nr == MUIV_Family_GetChild_Last)
+    if (nr == MUIV_Family_GetChild_Last)
         return (IPTR) prev;
-    return (IPTR) NULL;
+    return 0;
 }
 
-/**************************************************************************
- MUIM_ConnectParent
-**************************************************************************/
 /*
- * Connect Area first, then each child to this Group, assigning parent and
- * inherited virtual flags. Requires a valid connected parent and stable
- * child list. Ignore superclass/child results and return TRUE.
+ * MUIM_ConnectParent and MUIM_GlobalSetup (MUI private): Area first, then
+ * each child becomes ours (parent and inherited virtual flag) and gets the
+ * method (ConnectParent with this group as the parent). Return TRUE.
  */
-IPTR Group__MUIM_ConnectParent(struct IClass *cl, Object *obj,
-    struct MUIP_ConnectParent *msg)
+static IPTR Group__MUIM_ConnectParent(struct IClass *cl, Object *obj,
+    Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
 
-    DoSuperMethodA(cl, obj, (Msg) msg);
-
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    DoSuperMethodA(cl, obj, msg);
+    FOR_CHILD(&data->childlist, n, child)
     {
         if ((_flags(obj) & MADF_INVIRTUALGROUP)
             || (data->flags & GROUP_VIRTUAL))
-        {
             _flags(child) |= MADF_INVIRTUALGROUP;
-        }
-
-        /* Only children of groups can have parents */
         muiNotifyData(child)->mnd_ParentObject = obj;
-
         DoMethod(child, MUIM_ConnectParent, (IPTR) obj);
     }
     return TRUE;
 }
 
-/**************************************************************************
- MUIM_GlobalSetup (MUI private): the children become ours and get the
- global info too, as they do through MUIM_ConnectParent
-**************************************************************************/
 static IPTR Group__MUIM_GlobalSetup(struct IClass *cl, Object *obj,
-    struct MUIP_GlobalSetup *msg)
+    Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
 
-    DoSuperMethodA(cl, obj, (Msg) msg);
-
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    DoSuperMethodA(cl, obj, msg);
+    FOR_CHILD(&data->childlist, n, child)
     {
         if ((_flags(obj) & MADF_INVIRTUALGROUP)
             || (data->flags & GROUP_VIRTUAL))
             _flags(child) |= MADF_INVIRTUALGROUP;
         muiNotifyData(child)->mnd_ParentObject = obj;
-        DoMethodA(child, (Msg) msg);
+        DoMethodA(child, msg);
     }
     return TRUE;
 }
 
-/**************************************************************************
- MUIM_DisconnectParent
-**************************************************************************/
 /*
  * Disconnect every child, clear its parent and inherited virtual flag, then
- * disconnect Area. Requires stable live children and ended display
- * lifecycle. Return TRUE regardless of delegated results; do not dispose
- * children.
+ * disconnect Area. Return TRUE; the children are not disposed.
  */
 IPTR Group__MUIM_DisconnectParent(struct IClass *cl, Object *obj,
     struct MUIP_ConnectParent *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
 
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
     {
         /* _parent() is the group link, set on adding and cleared on
          * removal. Voyager removes a view from its parent after removing
@@ -1897,179 +1877,52 @@ IPTR Group__MUIM_DisconnectParent(struct IClass *cl, Object *obj,
 /*
  * Put group in exchange state
  */
-/****** Group.mui/MUIM_Group_InitChange ************
-*
-*   NAME
-*       MUIM_Group_InitChange
-*
-*   SYNOPSIS
-*       IPTR result = DoMethod(obj, MUIM_Group_InitChange);
-*
-*   FUNCTION
-*       Clear the changed marker and set the changing flag. Drawing returns
-*       FALSE while that flag is set.
-*
-*   INPUTS
-*       No arguments beyond MethodID. Keep the group and application alive
-*       throughout the change sequence.
-*
-*   RESULT
-*       Always TRUE.
-*
-*   NOTES
-*       Pair with ExitChange around live add/remove or layout changes. This
-*       begins neither a lock nor a rollback transaction. It does not hide
-*       children or defer their connection/setup/cleanup.
-*
-*   BUGS
-*       There is one flag, not a nesting counter. Calling InitChange twice on
-*       the same object does not require two exits and clears the prior changed
-*       marker.
-*
-*/
 IPTR Group__MUIM_InitChange(struct IClass *cl, Object *obj,
     struct MUIP_Group_InitChange *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
 
     data->flags &= ~GROUP_CHANGED;
     data->flags |= GROUP_CHANGING;
     return TRUE;
 }
 
-
 /*
- * Will recalculate display after dynamic adding/removing
+ * MUIM_Group_ExitChange always (MUI 3.8 and MUI 4.0 on m68k lay out again
+ * each time), the private MUIM_Group_ExitChange2 only while changing:
+ * leave the change state and, when set up, recalculate the window unless
+ * a parent group is changing (Zune's prefs program changes pages inside
+ * NList's own InitChange/ExitChange). Return TRUE.
  */
-/****** Group.mui/MUIM_Group_ExitChange ************
-*
-*   NAME
-*       MUIM_Group_ExitChange
-*
-*   SYNOPSIS
-*       IPTR result = DoMethod(obj, MUIM_Group_ExitChange);
-*
-*   FUNCTION
-*       Clear changing/changed flags and request Window recalculation when set
-*       up, unless an ancestor group is still changing.
-*
-*   INPUTS
-*       No arguments beyond MethodID. Requires a valid connected Group ancestor
-*       chain for live recalculation.
-*
-*   RESULT
-*       Always TRUE, including when recalculation is skipped or its result
-*       ignored.
-*
-*   NOTES
-*       Recalculation is attempted even without a recorded structural change;
-*       the changed-only guard is disabled. An outer group's later exit is
-*       responsible for updating a nested change. This is not a commit-success
-*       report or a restoration of failed operations.
-*
-*/
-IPTR Group__MUIM_ExitChange(struct IClass *cl, Object *obj,
-    struct MUIP_Group_ExitChange *msg)
+static __attribute__((noinline)) IPTR group_exit_change(struct IClass *cl,
+    Object *obj)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    Object *win, *parent = obj;
 
-    data->flags &= ~GROUP_CHANGING;
-
-#if 0
-    /* Code is invalid. ExitChange needs to re-layout each time (tested
-     * with MUI 3.8 and MUI 4.0 on m68k).
-     * This is temporary change until proper implementaion is in place. */
-    if (data->flags & GROUP_CHANGED)
-#endif
-    {
-        data->flags &= ~GROUP_CHANGED;
-
-        if ((_flags(obj) & MADF_SETUP) && _win(obj))
-        {
-            Object *win = _win(obj);
-            Object *parent = obj;
-
-            /* CHECKME: Don't call RecalcDisplay if one of our parents is
-               in GROUP_CHANGING state to prevent  crash with Zune prefs
-               program NListtree page because NList/NListtree when
-               killing tree images in MUIM_Cleanup uses InitChange/
-               ExitChange. Zune prefs program uses InitChange/ExitChange
-               when switching page -> nesting -> mess. */
-
-            while ((parent = _parent(parent)))
-            {
-                struct MUI_GroupData *pdata = INST_DATA(cl, parent);
-
-                if (parent == win)
-                    break;
-
-                if (pdata->flags & GROUP_CHANGING)
-                {
-                    return TRUE;
-                }
-
-            }
-
-            DoMethod(win, MUIM_Window_RecalcDisplay, (IPTR) obj);
-        }
-    }
-
+    ((struct MUI_GroupData *)INST_DATA(cl, obj))->flags
+        &= ~(GROUP_CHANGING | GROUP_CHANGED);
+    if (!(_flags(obj) & MADF_SETUP) || !(win = _win(obj)))
+        return TRUE;
+    while ((parent = _parent(parent)) && parent != win)
+        if (((struct MUI_GroupData *)INST_DATA(cl, parent))->flags
+            & GROUP_CHANGING)
+            return TRUE;
+    DoMethod(win, MUIM_Window_RecalcDisplay, (IPTR) obj);
     return TRUE;
 }
 
-
-/*
- * Will recalculate display after dynamic adding/removing
- */
-/*
- * Private header method: only leave change state when currently changing.
- * Ignore message flags, clear change markers and, when set up, request
- * Window recalculation unless an ancestor Group is changing. Requires valid
- * ancestor chain. Return TRUE regardless of skipped/failed recalculation;
- * not a nesting counter.
- */
-IPTR Group__MUIM_ExitChange2(struct IClass *cl, Object *obj,
-    struct MUIP_Group_ExitChange2 *msg)
+IPTR Group__MUIM_ExitChange(struct IClass *cl, Object *obj, Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-
-    if (data->flags & GROUP_CHANGING)
-    {
-        data->flags &= ~(GROUP_CHANGING | GROUP_CHANGED);
-
-        if ((_flags(obj) & MADF_SETUP) && _win(obj))
-        {
-            Object *win = _win(obj);
-            Object *parent = obj;
-
-            /* CHECKME: Don't call RecalcDisplay if one of our parents is
-               in GROUP_CHANGING state to prevent  crash with Zune prefs
-               program NListtree page because NList/NListtree when
-               killing tree images in MUIM_Cleanup uses InitChange/
-               ExitChange. Zune prefs program uses InitChange/ExitChange
-               when switching page -> nesting -> mess. */
-
-            while ((parent = _parent(parent)))
-            {
-                struct MUI_GroupData *pdata = INST_DATA(cl, parent);
-
-                if (parent == win)
-                    break;
-
-                if (pdata->flags & GROUP_CHANGING)
-                {
-                    return TRUE;
-                }
-
-            }
-
-            DoMethod(win, MUIM_Window_RecalcDisplay, (IPTR) obj);
-        }
-    }
-
-    return TRUE;
+    return group_exit_change(cl, obj);
 }
 
+static IPTR Group__MUIM_ExitChange2(struct IClass *cl, Object *obj, Msg msg)
+{
+    if (!(((struct MUI_GroupData *)INST_DATA(cl, obj))->flags
+        & GROUP_CHANGING))
+        return TRUE;
+    return group_exit_change(cl, obj);
+}
 
 /*
  * Sort the family
@@ -2077,14 +1930,13 @@ IPTR Group__MUIM_ExitChange2(struct IClass *cl, Object *obj,
 static IPTR GroupMoveMember(struct IClass *cl, Object *obj,
     struct MUIP_Group_MoveMember *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct List *list;
-    Object *state, *child, *after = NULL;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
+    Object *child, *after = NULL, *array[2];
     LONG remaining = 0, pos;
     BOOL found = FALSE;
-    list = (struct List *) group_children(data);
-    state = (Object *)list->lh_Head;
-    while ((child = NextObject(&state)))
+
+    FOR_CHILD(&data->childlist, n, child)
         if (child == msg->o) found = TRUE;
         else remaining++;
     if (!found) return FALSE;
@@ -2092,70 +1944,30 @@ static IPTR GroupMoveMember(struct IClass *cl, Object *obj,
     if (pos < 0) pos = remaining + pos + 1;
     if (pos < 0) pos = 0;
     if (pos > remaining) pos = remaining;
-    state = (Object *)list->lh_Head;
-    while (pos && (child = NextObject(&state)))
-        if (child != msg->o) { after = child; pos--; }
-    {
-        Object *array[2];
-
-        array[0] = msg->o;
-        array[1] = NULL;
-        return group_reorder(data, after, array);
-    }
+    for (n = data->childlist.mlh_Head; pos && n->mln_Succ; n = n->mln_Succ)
+        if ((child = BASEOBJECT(n)) != msg->o) { after = child; pos--; }
+    array[0] = msg->o;
+    array[1] = NULL;
+    return group_reorder(data, after, array);
 }
+
 static IPTR GroupReorder(struct IClass *cl, Object *obj,
     struct MUIP_Group_Reorder *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct MUIP_Family_Reorder *m = (struct MUIP_Family_Reorder *)msg;
-
-    return group_reorder(data, m->after, m->array);
+    return group_reorder(INST_DATA(cl, obj), msg->after, msg->array);
 }
 
-/****** Group.mui/MUIM_Group_Sort ************
-*
-*   NAME
-*       MUIM_Group_Sort
-*
-*   SYNOPSIS
-*       IPTR result = DoMethod(obj, MUIM_Group_Sort, (IPTR)first, ... ,
-*       (IPTR)NULL);
-*
-*   FUNCTION
-*       Replace the child order with the supplied NULL-terminated
-*       sequence, as Family_Sort does.
-*
-*   INPUTS
-*       first, ... - Every currently attached child exactly once in the desired
-*       order, followed by NULL. A retained method message must be writable.
-*
-*   RESULT
-*       Always TRUE.
-*
-*   NOTES
-*       This is explicit ordering, not a comparison callback sort. It does not
-*       update the stored child count, reconnect children, change active
-*       page/titlegroup, mark a change or relayout. Use InitChange/ExitChange
-*       for a live reorder.
-*
-*   BUGS
-*       The implementation resets the list without validating completeness,
-*       uniqueness or membership. Omitting a child detaches its list node
-*       without cleanup/disposal/count repair; duplicates or foreign objects can
-*       corrupt the list.
-*
-*/
 IPTR Group__MUIM_Sort(struct IClass *cl, Object *obj,
     struct MUIP_Group_Sort *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    int i;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    Object **p;
 
     /* Family_Sort: the list becomes the array, in its order */
     NewList((struct List *)&data->childlist);
-    for (i = 0; msg->obj[i]; i++)
+    for (p = msg->obj; *p; p++)
         AddTail((struct List *)&data->childlist,
-            (struct Node *)_OBJECT(msg->obj[i]));
+            (struct Node *)_OBJECT(*p));
     return TRUE;
 }
 
@@ -2164,115 +1976,70 @@ IPTR Group__MUIM_Sort(struct IClass *cl, Object *obj,
 
  Executes the given method but does not forward it to the children
 **************************************************************************/
-/****** Group.mui/MUIM_Group_DoMethodNoForward ************
-*
-*   NAME
-*       MUIM_Group_DoMethodNoForward
-*
-*   SYNOPSIS
-*       IPTR result = DoMethod(obj, MUIM_Group_DoMethodNoForward, methodid,
-*       ...);
-*
-*   FUNCTION
-*       Set the private no-forward flag, dispatch the embedded method on this
-*       object and clear the flag before returning.
-*
-*   INPUTS
-*       methodid - ULONG MethodID beginning the embedded message.
-*       ... - Its correctly laid-out argument fields. Keep the Group alive
-*       through the call.
-*
-*   RESULT
-*       The embedded method's result.
-*
-*   NOTES
-*       This suppresses Group_DispatchMsg broadcasts and OM_GET fallback to
-*       children. It does not suppress explicit loops in Setup/Cleanup,
-*       Import/Export, user-data searches or the Group Notify override. It is
-*       therefore not a universal self-only execution mechanism.
-*
-*   BUGS
-*       The flag is set to one and later reset to zero rather than
-*       saved/restored. Nested use can clear an outer suppression early. The
-*       implementation passes the address of the declared ULONG DoMethodID field
-*       as a message; use the ABI-defined structure layout for direct messages,
-*       not an invented IPTR-array layout on every target.
-*
-*/
 IPTR Group__MUIM_DoMethodNoForward(struct IClass *cl, Object *obj,
     struct MUIP_Group_DoMethodNoForward *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
     IPTR rc;
-    data->dont_forward_methods = 1;     /* disable forwarding */
-    rc = DoMethodA(obj, (Msg) & msg->DoMethodID);
-        /* Probably doesn't work correctly on AROS? */
 
-    data->dont_forward_methods = 0;
+    data->flags |= GROUP_NOFWD;
+    rc = DoMethodA(obj, (Msg) & msg->DoMethodID);
+    data->flags &= ~GROUP_NOFWD;
     return rc;
 }
 
 /*
- * Propagate a method to group children.
- */
-/*
- * Broadcast the borrowed message to every child unless dontforwardmethods
- * is set. Requires stable membership and writable message when recipients
- * mutate it. Discard every child result and return zero; no ownership
- * transfer. Explicit traversal methods do not use this suppression helper.
+ * Broadcast the borrowed message to every child unless the forwarding is
+ * off (DoMethodNoForward). Discard every child result and return TRUE.
+ * Explicit traversal methods do not use this suppression helper.
  */
 static ULONG Group_DispatchMsg(struct IClass *cl, Object *obj, Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
 
-    if (data->dont_forward_methods)
-        return TRUE;
-
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        DoMethodA(child, (Msg) msg);
-    }
+    if (!(data->flags & GROUP_NOFWD))
+        FOR_CHILD(&data->childlist, n, child)
+            DoMethodA(child, msg);
     return TRUE;
 }
 
+/* A method the group does not answer: to the children, then Area */
+static IPTR Group_Forward(struct IClass *cl, Object *obj, Msg msg)
+{
+    Group_DispatchMsg(cl, obj, msg);
+    return DoSuperMethodA(cl, obj, msg);
+}
 
 /**************************************************************************
  MUIM_Setup
 **************************************************************************/
 /*
  * Set up Area then all children including hidden children. Return FALSE on
- * superclass or child failure; on child failure clean only earlier
- * successful children, not Area or the failing child. Resolve unspecified
- * spacing from preferences. Register virtual mouse handler only after all
- * succeed. Return TRUE on completion.
+ * superclass or child failure; on child failure clean the earlier
+ * children and Area again. Resolve unspecified spacing from preferences.
+ * Register virtual mouse handler only after all succeed.
  */
 IPTR Group__MUIM_Setup(struct IClass *cl, Object *obj,
     struct MUIP_Setup *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct ZunePrefsNew *prefs;
+    struct MinNode *n;
     Object *child;
-    Object *childFailed;
-    struct MinList *ChildList = NULL;
 
     if (!DoSuperMethodA(cl, obj, (Msg) msg))
         return FALSE;
 
-    ASSERT_VALID_PTR(muiGlobalInfo(obj));
-
+    prefs = muiGlobalInfo(obj)->mgi_Prefs;
     if (!(data->flags & GROUP_HSPACING))
-        data->horiz_spacing = muiGlobalInfo(obj)->mgi_Prefs->group_hspacing;
+        data->horiz_spacing = prefs->group_hspacing;
     if (!(data->flags & GROUP_VSPACING))
-        data->vert_spacing = muiGlobalInfo(obj)->mgi_Prefs->group_vspacing;
+        data->vert_spacing = prefs->group_vspacing;
     /* MUI 3.8 puts 2 pixels beside and 1 pixel between rows of objects
-     * in every stage of fitting a window into the screen (measured: a
-     * row of three buttons, a column of texts) from the third stage of
-     * fitting a window into the screen */
+     * (measured: a row of three buttons, a column of texts) from the third
+     * stage of fitting a window into the screen */
     if (muiRenderInfo(obj)->mri_Fallback >= FALLBACK_SPACING)
     {
         if (!(data->flags & GROUP_HSPACING))
@@ -2280,27 +2047,17 @@ IPTR Group__MUIM_Setup(struct IClass *cl, Object *obj,
         if (!(data->flags & GROUP_VSPACING))
             data->vert_spacing = MIN(data->vert_spacing, 1);
     }
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
     {
-#if 0                           /* SHOWME affects only show/hide */
-        if (!(_flags(child) & MADF_SHOWME))
-            continue;
-#endif
-
         if (!DoSetupMethod(child, msg->RenderInfo))
         {
-            /* Send MUIM_Cleanup to all objects that received MUIM_Setup.
-             */
-            childFailed = child;
-            cstate = ChildList->mlh_Head;
-            while ((child = NextObject(&cstate)) && (child != childFailed))
+            /* MUIM_Cleanup to all objects that received MUIM_Setup */
+            Object *failed = child;
+
+            FOR_CHILD(&data->childlist, n, child)
             {
-#if 0                           /* SHOWME affects only show/hide */
-                if (!(_flags(child) & MADF_SHOWME))
-                    continue;
-#endif
+                if (child == failed)
+                    break;
                 DoMethod(child, MUIM_Cleanup);
             }
             /* And undo our own (Area's) setup: a failed MUIM_Setup leaves
@@ -2315,48 +2072,35 @@ IPTR Group__MUIM_Setup(struct IClass *cl, Object *obj,
     }
 
     if (data->flags & GROUP_VIRTUAL)
-    {
         DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-            (IPTR) &data->virt->ehn);
-    }
-
+            (IPTR) &VX(data)->ehn);
     return TRUE;
 }
-
 
 /**************************************************************************
  MUIM_Cleanup
 **************************************************************************/
 /*
  * Remove virtual event handler, clean every child, then clean Area and
- * return its result. Requires the matching live setup state. Child results
- * are ignored; no disposal or membership changes.
+ * return its result.
  */
 IPTR Group__MUIM_Cleanup(struct IClass *cl, Object *obj, Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
 
     if (data->flags & GROUP_VIRTUAL)
-    {
         DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-            (IPTR) &data->virt->ehn);
-    }
-
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-#if 0                           /* SHOWME affects only show/hide */
-        if (!(_flags(child) & MADF_SHOWME))
-            continue;
-#endif
-        DoMethodA(child, (Msg) msg);
-    }
-    return DoSuperMethodA(cl, obj, (Msg) msg);
+            (IPTR) &VX(data)->ehn);
+    FOR_CHILD(&data->childlist, n, child)
+        DoMethodA(child, msg);
+    return DoSuperMethodA(cl, obj, msg);
 }
+
+/**************************************************************************
+ MUIM_Draw - draw the group
+**************************************************************************/
 
 /*
  * Allocate a Region covering the group minus drawable child rectangles
@@ -2366,93 +2110,267 @@ IPTR Group__MUIM_Cleanup(struct IClass *cl, Object *obj, Msg msg)
  * Requires live geometry; page counting includes hidden children.
  */
 static struct Region *group_children_clip_region(struct IClass *cl,
+    Object *obj);
+
+/* The children a group's gaps leave out, at most max: each visible one's
+ * box clipped to the group's inner box (of a page group the title group
+ * and the active page). The count, or -1 when there are more. */
+static int group_collect_children(struct IClass *cl, Object *obj,
+    struct Rectangle *kids, int max)
+{
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    Object *title = group_title(data);
+    struct MinNode *n;
+    Object *child;
+    WORD l = _mleft(obj), t = _mtop(obj), r = _mright(obj),
+        b = _mbottom(obj);
+    LONG page = data->active_page + 1;
+    int count = 0;
+
+    FOR_CHILD(&data->childlist, n, child)
+    {
+        WORD x0, y0, x1, y1;
+
+        if (child != title)
+        {
+            if ((data->flags & GROUP_PAGEMODE) && --page)
+                continue;
+        }
+        if (!(_flags(child) & MADF_CANDRAW)
+            || _width(child) <= 0 || _height(child) <= 0)
+            continue;
+        x0 = MAX(_left(child), l);
+        y0 = MAX(_top(child), t);
+        x1 = MIN(_right(child), r);
+        y1 = MIN(_bottom(child), b);
+        if (x1 < x0 || y1 < y0)
+            continue;
+        if (count == max)
+            return -1;
+        kids->MinX = x0;
+        kids->MinY = y0;
+        kids->MaxX = x1;
+        kids->MaxY = y1;
+        kids++;
+        count++;
+    }
+    return count;
+}
+
+/* Paint the group background only where no child covers the inner box,
+ * in bands (every child edge starts one) instead of under a clip region:
+ * region clipping allocated temporary regions and rebuilt the layer clip
+ * for every group drawn. Gaps of consecutive bands with the same
+ * horizontal extent are painted as one rectangle when the background
+ * gives the same pixels however it is cut (a fill costs about the same
+ * whatever its height; a margin beside a column of children is cut at
+ * every child edge). When the background is a plain pen, all through to
+ * the window's, the gaps are RectFills of that pen: no MUIM_DrawBackground
+ * walk up the parents per gap. kids is sorted here. More children than
+ * GROUP_GAP_CHILDREN: the arrays in one block of memory. */
+#define GROUP_GAP_CHILDREN 32
+struct gap { WORD x0, x1, y0, y1; };
+
+static void group_paint_gap(Object *obj, const struct gap *g, LONG pen,
+    ULONG flags)
+{
+    if (pen >= 0)
+        RectFill(_rp(obj), g->x0, g->y0, g->x1, g->y1);
+    else
+        zune_draw_background(obj, g->x0, g->y0, g->x1 - g->x0 + 1,
+            g->y1 - g->y0 + 1, g->x0, g->y0, flags);
+}
+
+static __attribute__((noinline)) void group_fill_gaps(Object *obj,
+    struct Rectangle *kids, int n, ULONG flags)
+{
+    WORD ysbuf[2 * GROUP_GAP_CHILDREN + 2];
+    struct gap gbuf[2 * (GROUP_GAP_CHILDREN + 1)];
+    WORD *ys = ysbuf, *y;
+    struct gap *pend = gbuf, *cur = gbuf + GROUP_GAP_CHILDREN + 1, *g, *p;
+    struct Rectangle *k, *end = kids + n;
+    APTR heap = NULL;
+    WORD left = _mleft(obj), right = _mright(obj);
+    LONG pen;
+    BOOL merge;
+    int npend = 0;
+
+    if (n > GROUP_GAP_CHILDREN)
+    {
+        if (!(heap = AllocVec(2 * (n + 1) * sizeof(struct gap)
+                + (2 * n + 2) * sizeof(WORD), MEMF_ANY)))
+            return;
+        pend = heap;
+        cur = pend + n + 1;
+        ys = (WORD *)(cur + n + 1);
+    }
+    if (zune_background_fill_pen(obj, &pen) && pen >= 0)
+    {
+        merge = TRUE;
+        if (_rp(obj)->FgPen != (BYTE) pen)
+            SetAPen(_rp(obj), pen);
+    }
+    else
+    {
+        pen = -1;
+        merge = zune_background_is_position_free(obj);
+    }
+
+    /* the band edges, sorted (few and nearly in order); the children by
+     * their left edge, so that each band's gaps come out in order */
+    y = ys;
+    *y++ = _mtop(obj);
+    *y++ = _mbottom(obj) + 1;
+    for (k = kids; k < end; k++)
+    {
+        WORD *s;
+        struct Rectangle r = *k, *m;
+
+        for (m = k; m > kids && m[-1].MinX > r.MinX; m--)
+            *m = m[-1];
+        *m = r;
+        *y = r.MinY;
+        for (s = y++; s > ys && s[-1] > s[0]; s--)
+        {
+            WORD t = s[0]; s[0] = s[-1]; s[-1] = t;
+        }
+        *y = r.MaxY + 1;
+        for (s = y++; s > ys && s[-1] > s[0]; s--)
+        {
+            WORD t = s[0]; s[0] = s[-1]; s[-1] = t;
+        }
+    }
+    for (; ys + 1 < y; ys++)
+    {
+        WORD y0 = ys[0], y1 = ys[1] - 1, x = left;
+        int ncur;
+
+        if (y0 > y1)
+            continue;
+        /* Bands split at every child edge, so a child covers a band fully
+         * or not at all */
+        g = cur;
+        for (k = kids; k < end; k++)
+            if (k->MinY <= y0 && k->MaxY >= y1)
+            {
+                if (k->MinX > x)
+                {
+                    g->x0 = x;
+                    g->x1 = k->MinX - 1;
+                    g->y0 = y0;
+                    g->y1 = y1;
+                    g++;
+                }
+                if (k->MaxX >= x)
+                    x = k->MaxX + 1;
+            }
+        if (right >= x)
+        {
+            g->x0 = x;
+            g->x1 = right;
+            g->y0 = y0;
+            g->y1 = y1;
+            g++;
+        }
+        ncur = g - cur;
+        /* Pending gaps this band extends continue; the others are painted
+         * (both lists in order of x) */
+        g = cur;
+        for (p = pend; p < pend + npend; p++)
+        {
+            if (merge)
+            {
+                while (g < cur + ncur && g->x0 < p->x0)
+                    g++;
+                if (g < cur + ncur && g->x0 == p->x0 && g->x1 == p->x1)
+                {
+                    g->y0 = p->y0;
+                    continue;
+                }
+            }
+            group_paint_gap(obj, p, pen, flags);
+        }
+        g = pend;
+        pend = cur;
+        cur = g;
+        npend = ncur;
+    }
+    for (p = pend; p < pend + npend; p++)
+        group_paint_gap(obj, p, pen, flags);
+    if (heap)
+        FreeVec(heap);
+}
+
+static struct Region *group_children_clip_region(struct IClass *cl,
     Object *obj)
 {
-    struct Region *region = NULL;
+    struct Region *region = NewRegion();
 
-    region = NewRegion();
     if (region)
     {
-        struct MUI_GroupData *data = INST_DATA(cl, obj);
+        struct MUI_GroupData *data = GDATA(cl, obj);
         struct Rectangle rect;
-        LONG page = -1;
-        struct MinList *ChildList = NULL;
-        APTR cstate;
+        LONG page = data->active_page + 1;
+        struct MinNode *n;
         Object *child;
 
         rect.MinX = _left(obj);
         rect.MinY = _top(obj);
         rect.MaxX = _right(obj);
         rect.MaxY = _bottom(obj);
-
         OrRectRegion(region, &rect);
-        ChildList = group_children(data);
-        cstate = ChildList->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(&data->childlist, n, child)
         {
-            if (child != data->titlegroup)
-                ++page;
-
-            if ((data->flags & GROUP_PAGEMODE) && (page != data->active_page)
-                && (child != data->titlegroup))
+            if ((data->flags & GROUP_PAGEMODE)
+                && child != group_title(data) && --page)
                 continue;
-
-            if ((muiAreaData(child)->mad_Flags & MADF_CANDRAW)
+            if ((_flags(child) & MADF_CANDRAW)
                 && (_width(child) > 0) && (_height(child) > 0))
             {
                 rect.MinX = MAX(_left(child), _mleft(obj));
                 rect.MinY = MAX(_top(child), _mtop(obj));
                 rect.MaxX = MIN(_right(child), _mright(obj));
                 rect.MaxY = MIN(_bottom(child), _mbottom(obj));
-
                 if ((rect.MaxX >= rect.MinX) && (rect.MaxY >= rect.MinY))
-                {
                     ClearRectRegion(region, &rect);
-                }
             }
         }
     }
-
     return region;
 }
 
-/*
- * A page switch in "redraw without clear" mode paints the background of
- * the inner box under group_children_clip_region's clip. When the new
- * page alone (no title group) covers the inner box, that clip is empty
- * and nothing is painted: TRUE then, so the region, the two clip
- * installs and the background call are skipped (opbench "cycle set",
- * a Cycle being a page group of Texts).
- */
-static BOOL group_page_covers(struct IClass *cl, Object *obj)
+/* A page switch (Group__MUIM_Draw, a page update): the background of the
+ * inner box, in redraw-without-clear mode only where no child paints. Not
+ * inlined: Group__MUIM_Draw's frame is on the stack once per nesting
+ * level. When the new page alone (no title group) covers the inner box,
+ * nothing is painted (opbench "cycle set", a Cycle being a page group of
+ * Texts). Otherwise, for a background that gives the same pixels however
+ * it is cut (zune_background_is_position_free), as group_fill_gaps' bands
+ * with no clip region: installing one and taking it away again costs
+ * about 2 ms on OS 3.1 (tests/native/drawcost.c), several fills a
+ * fraction of that; the region paints it from the inner box's corner. */
+/* The active page alone (no title group) covers the inner box: the clip
+ * would hide all of the background */
+static BOOL group_page_covers(struct MUI_GroupData *data, Object *obj)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    Object *child;
+    struct MinNode *n;
+    LONG i = data->active_page;
 
-    if (!(data->flags & GROUP_PAGEMODE) || data->titlegroup)
+    if (group_title(data))
         return FALSE;
-    child = (Object *)DoMethod(obj, MUIM_Family_GetChild, data->active_page);
-    return child && (_flags(child) & MADF_CANDRAW)
-        && _left(child) <= _mleft(obj) && _top(child) <= _mtop(obj)
-        && _right(child) >= _mright(obj) && _bottom(child) >= _mbottom(obj);
+    for (n = data->childlist.mlh_Head; n->mln_Succ; n = n->mln_Succ)
+        if (--i < 0)
+        {
+            Object *child = BASEOBJECT(n);
+
+            return (_flags(child) & MADF_CANDRAW)
+                && _left(child) <= _mleft(obj) && _top(child) <= _mtop(obj)
+                && _right(child) >= _mright(obj)
+                && _bottom(child) >= _mbottom(obj);
+        }
+    return FALSE;
 }
 
-/* A page switch (Group__MUIM_Draw, update 1): the background of the inner
- * box, in redraw-without-clear mode only where no child paints. Not
- * inlined: Group__MUIM_Draw's frame is on the stack once per nesting
- * level. */
-#define GROUP_GAP_CHILDREN 32
-static int group_collect_children(struct IClass *cl, Object *obj,
-    struct Rectangle *kids, int max);
-static void group_fill_gaps_ool(Object *obj, const struct Rectangle *kids,
-    int n, ULONG flags);
-
-/* The page switch's background as group_fill_gaps' bands, with no clip
- * region: installing one and taking it away again costs about 2 ms on OS
- * 3.1 (tests/native/drawcost.c), several fills a fraction of that. Only
- * for a background that gives the same pixels however it is cut
- * (zune_background_is_position_free): the region painted it from the
- * inner box's corner. FALSE when not done. */
 static __attribute__((noinline)) BOOL group_page_gaps(struct IClass *cl,
     Object *obj)
 {
@@ -2463,7 +2381,7 @@ static __attribute__((noinline)) BOOL group_page_gaps(struct IClass *cl,
         || (n = group_collect_children(cl, obj, kids,
             GROUP_GAP_CHILDREN)) < 0)
         return FALSE;
-    group_fill_gaps_ool(obj, kids, n, 0);
+    group_fill_gaps(obj, kids, n, 0);
     return TRUE;
 }
 
@@ -2476,201 +2394,19 @@ static __attribute__((noinline)) void group_draw_page_background(
     if (muiGlobalInfo(obj)->mgi_Prefs->window_redraw
         == WINDOW_REDRAW_WITHOUT_CLEAR)
     {
-        if (group_page_covers(cl, obj))
-            return;     /* the clip would hide all of it */
-        if (group_page_gaps(cl, obj))
+        if (group_page_covers(GDATA(cl, obj), obj)
+            || group_page_gaps(cl, obj))
             return;
         r = group_children_clip_region(cl, obj);
     }
 
     if (r)
         c = MUI_AddClipRegion(muiRenderInfo(obj), r);
-
-    /*
-     * update is set when changing active page of a page group
-     * need to redraw background ourself
-     */
-    zune_draw_background(obj, _mleft(obj), _mtop(obj), _mwidth(obj), _mheight(obj),
-        _mleft(obj), _mtop(obj), 0);
-
+    zune_draw_background(obj, _mleft(obj), _mtop(obj), _mwidth(obj),
+        _mheight(obj), _mleft(obj), _mtop(obj), 0);
     if (r)
         MUI_RemoveClipRegion(muiRenderInfo(obj), c);
 }
-
-
-/* Collect the visible children of a group clipped to its inner box.
- * Returns the count, or -1 when there are too many for the gap painter. */
-static int group_collect_children(struct IClass *cl, Object *obj,
-    struct Rectangle *kids, int max)
-{
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct MinList *ChildList = NULL;
-    APTR cstate;
-    Object *child;
-    LONG page = -1;
-    int n = 0;
-
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        struct Rectangle rect;
-
-        if (child != data->titlegroup)
-            ++page;
-        if ((data->flags & GROUP_PAGEMODE) && (page != data->active_page)
-            && (child != data->titlegroup))
-            continue;
-        if (!(muiAreaData(child)->mad_Flags & MADF_CANDRAW)
-            || _width(child) <= 0 || _height(child) <= 0)
-            continue;
-
-        rect.MinX = MAX(_left(child), _mleft(obj));
-        rect.MinY = MAX(_top(child), _mtop(obj));
-        rect.MaxX = MIN(_right(child), _mright(obj));
-        rect.MaxY = MIN(_bottom(child), _mbottom(obj));
-        if (rect.MaxX < rect.MinX || rect.MaxY < rect.MinY)
-            continue;
-        if (n == max)
-            return -1;
-        kids[n++] = rect;
-    }
-    return n;
-}
-
-/* Paint the group background only where no child covers the inner box,
- * using a band sweep instead of a clip region. Region clipping allocated
- * temporary regions and rebuilt the layer clip for every group drawn. */
-static inline __attribute__((always_inline)) void group_fill_gaps(
-    Object *obj, const struct Rectangle *kids, int n, ULONG flags,
-    const int many)
-{
-    WORD ysbuf[2 * GROUP_GAP_CHILDREN + 2], xsbuf[GROUP_GAP_CHILDREN][2];
-    WORD *ys = ysbuf, (*xs)[2] = xsbuf;
-    struct gap { WORD x0, x1, y0, y1; } pendbuf[GROUP_GAP_CHILDREN + 1],
-        curbuf[GROUP_GAP_CHILDREN + 1], *pend = pendbuf, *cur = curbuf;
-    APTR heap = NULL;
-    WORD left = _mleft(obj), right = _mright(obj);
-    int ny = 0, i, j, k;
-
-    /* More children than the arrays on the stack hold: one block (many
-     * is a constant: the inlined copy for at most GROUP_GAP_CHILDREN has
-     * none of this) */
-    if (many && n > GROUP_GAP_CHILDREN)
-    {
-        if (!(heap = AllocVec((2 * n + 2) * sizeof(WORD)
-                + n * 2 * sizeof(WORD) + 2 * (n + 1) * sizeof(struct gap),
-                MEMF_ANY)))
-            return;
-        pend = heap;
-        cur = pend + n + 1;
-        xs = (WORD (*)[2])(cur + n + 1);
-        ys = (WORD *)(xs + n);
-    }
-
-    ys[ny++] = _mtop(obj);
-    ys[ny++] = _mbottom(obj) + 1;
-    for (i = 0; i < n; i++)
-    {
-        ys[ny++] = kids[i].MinY;
-        ys[ny++] = kids[i].MaxY + 1;
-    }
-    for (i = 1; i < ny; i++)        /* insertion sort, small n */
-        for (j = i; j > 0 && ys[j - 1] > ys[j]; j--)
-        {
-            WORD t = ys[j]; ys[j] = ys[j - 1]; ys[j - 1] = t;
-        }
-
-    /* Gaps of consecutive bands with the same horizontal extent are
-     * painted as one rectangle: a fill costs about the same per call
-     * whatever its height, and the band sweep splits a margin beside a
-     * column of children at every child edge. The pending gaps are kept
-     * sorted by x like each band's gaps. */
-    {
-        int npend = 0, ncur, p, c;
-        BOOL merge = zune_background_is_position_free(obj);
-
-        for (i = 0; i + 1 < ny; i++)
-        {
-            WORD y0 = ys[i], y1 = ys[i + 1] - 1, x = left;
-            int nx = 0;
-
-            if (y0 > y1 || y0 < _mtop(obj) || y1 > _mbottom(obj))
-                continue;
-            /* Bands split at every child edge, so a child covers a band
-             * fully or not at all */
-            for (j = 0; j < n; j++)
-                if (kids[j].MinY <= y0 && kids[j].MaxY >= y1)
-                {
-                    for (k = nx++; k > 0 && xs[k - 1][0] > kids[j].MinX; k--)
-                    {
-                        xs[k][0] = xs[k - 1][0];
-                        xs[k][1] = xs[k - 1][1];
-                    }
-                    xs[k][0] = kids[j].MinX;
-                    xs[k][1] = kids[j].MaxX;
-                }
-            ncur = 0;
-            for (j = 0; j <= nx; j++)
-            {
-                WORD gap_end = (j < nx) ? xs[j][0] - 1 : right;
-
-                if (gap_end >= x)
-                {
-                    cur[ncur].x0 = x;
-                    cur[ncur].x1 = gap_end;
-                    cur[ncur].y0 = y0;
-                    cur[ncur].y1 = y1;
-                    ncur++;
-                }
-                if (j < nx && xs[j][1] + 1 > x)
-                    x = xs[j][1] + 1;
-            }
-            /* Continue pending gaps this band extends; paint the others */
-            for (p = 0; p < npend; p++)
-            {
-                for (c = 0; merge && c < ncur; c++)
-                    if (cur[c].x0 == pend[p].x0 && cur[c].x1 == pend[p].x1
-                        && cur[c].y0 == pend[p].y1 + 1)
-                        break;
-                if (!merge)
-                    c = ncur;
-                if (c < ncur)
-                    cur[c].y0 = pend[p].y0;
-                else
-                    zune_draw_background(obj, pend[p].x0, pend[p].y0,
-                        pend[p].x1 - pend[p].x0 + 1,
-                        pend[p].y1 - pend[p].y0 + 1, pend[p].x0, pend[p].y0,
-                        flags);
-            }
-            for (c = 0; c < ncur; c++)
-                pend[c] = cur[c];
-            npend = ncur;
-        }
-        for (p = 0; p < npend; p++)
-            zune_draw_background(obj, pend[p].x0, pend[p].y0,
-                pend[p].x1 - pend[p].x0 + 1, pend[p].y1 - pend[p].y0 + 1,
-                pend[p].x0, pend[p].y0, flags);
-    }
-    if (many && heap)
-        FreeVec(heap);
-}
-
-/* The bands out of line: for the page switch and the many-children case,
- * whose callers are not on the drawing's every level (inlined into
- * group_draw_frame_and_gaps, as before, for the common draw) */
-static __attribute__((noinline)) void group_fill_gaps_ool(Object *obj,
-    const struct Rectangle *kids, int n, ULONG flags)
-{
-    group_fill_gaps(obj, kids, n, flags, 1);
-}
-
-/* Private MUI virtual-group painting protocol. These method IDs are used
- * by existing subclasses to prepare and release their content clipping.
- * MUI 3.9 calls neither method for an ordinary Group or Area.
- */
-#define MUIM_Virtgroup_BeginPaint 0x80425b5cUL
-#define MUIM_Virtgroup_EndPaint   0x8042da52UL
 
 /* Establish the outer virtual clip before a subclass installs its own.
  * MUI clipping handles represent the previous region, which can be NULL.
@@ -2678,57 +2414,59 @@ static __attribute__((noinline)) void group_fill_gaps_ool(Object *obj,
  */
 IPTR Group__MUIM_Virtgroup_BeginPaint(struct IClass *cl, Object *obj)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct GroupVirtual *v;
     struct Region *region;
     struct Rectangle rect;
 
-    if ((data->flags & GROUP_PAINTING) || !data->virt)
+    if ((data->flags & (GROUP_PAINTING | GROUP_VIRTUAL)) != GROUP_VIRTUAL)
         return FALSE;
-    region = NewRegion();
-    if (!region)
+    v = VX(data);
+    if (!(region = NewRegion()))
         return FALSE;
     rect.MinX = _mleft(obj);
     rect.MinY = _mtop(obj);
     rect.MaxX = _mright(obj);
     rect.MaxY = _mbottom(obj);
-    if (data->update == 2 && _mwidth(obj) > 0 && _mheight(obj) > 0)
+    if (_mwidth(obj) > 0 && _mheight(obj) > 0)
     {
-        LONG dx = GV(data)->virt_offx - GV(data)->old_virt_offx;
-        LONG dy = GV(data)->virt_offy - GV(data)->old_virt_offy;
-        struct Rectangle exposed = rect;
         BOOL okay = TRUE;
 
-        if (dx)
+        if (data->flags & GROUP_UPDATE_SCROLL)
         {
-            if (dx > 0)
-                exposed.MinX = MAX(rect.MinX, rect.MaxX - dx + 1);
-            else
-                exposed.MaxX = MIN(rect.MaxX, rect.MinX - dx - 1);
-            okay = OrRectRegion(region, &exposed);
+            /* only what the scroll uncovered */
+            LONG dx = v->virt_offx - v->old_virt_offx;
+            LONG dy = v->virt_offy - v->old_virt_offy;
+            struct Rectangle exposed = rect;
+
+            if (dx)
+            {
+                if (dx > 0)
+                    exposed.MinX = MAX(rect.MinX, rect.MaxX - dx + 1);
+                else
+                    exposed.MaxX = MIN(rect.MaxX, rect.MinX - dx - 1);
+                okay = OrRectRegion(region, &exposed);
+            }
+            if (okay && dy)
+            {
+                exposed = rect;
+                if (dy > 0)
+                    exposed.MinY = MAX(rect.MinY, rect.MaxY - dy + 1);
+                else
+                    exposed.MaxY = MIN(rect.MaxY, rect.MinY - dy - 1);
+                okay = OrRectRegion(region, &exposed);
+            }
         }
-        if (okay && dy)
-        {
-            exposed = rect;
-            if (dy > 0)
-                exposed.MinY = MAX(rect.MinY, rect.MaxY - dy + 1);
-            else
-                exposed.MaxY = MIN(rect.MaxY, rect.MinY - dy - 1);
-            okay = OrRectRegion(region, &exposed);
-        }
+        else
+            okay = OrRectRegion(region, &rect);
         if (!okay)
         {
             DisposeRegion(region);
             return FALSE;
         }
     }
-    else if (_mwidth(obj) > 0 && _mheight(obj) > 0 &&
-        !OrRectRegion(region, &rect))
-    {
-        DisposeRegion(region);
-        return FALSE;
-    }
-    data->virt->paint_clip = MUI_AddClipRegion(muiRenderInfo(obj), region);
-    if (GV(data)->paint_clip == (APTR)-1)
+    v->paint_clip = MUI_AddClipRegion(muiRenderInfo(obj), region);
+    if (v->paint_clip == (APTR)-1)
         return FALSE;
     data->flags |= GROUP_PAINTING;
     return TRUE;
@@ -2736,20 +2474,93 @@ IPTR Group__MUIM_Virtgroup_BeginPaint(struct IClass *cl, Object *obj)
 
 IPTR Group__MUIM_Virtgroup_EndPaint(struct IClass *cl, Object *obj)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
 
     if (data->flags & GROUP_PAINTING)
     {
-        MUI_RemoveClipping(muiRenderInfo(obj), GV(data)->paint_clip);
-        data->virt->paint_clip = (APTR)-1;
+        MUI_RemoveClipping(muiRenderInfo(obj), VX(data)->paint_clip);
+        VX(data)->paint_clip = (APTR)-1;
         data->flags &= ~GROUP_PAINTING;
     }
     return 0;
 }
 
-/**************************************************************************
- MUIM_Draw - draw the group
-**************************************************************************/
+/* TRUE when the group's gaps show the window background (no group up to
+ * the window has one of its own) and the window has just been painted
+ * with it (mri_BgFresh): its gaps need no fill then */
+static BOOL group_on_fresh_background(Object *obj)
+{
+    Object *p = obj;
+
+    if (!muiRenderInfo(obj)->mri_BgFresh)
+        return FALSE;
+    while (p && Group_PassesBackground(p))
+        p = _parent(p);
+    return !p && zune_window_background_is_position_free(_win(obj));
+}
+
+/* Area's draw for a group in "redraw without clear" mode: the frame, and
+ * the background only where no child will paint. Kept out of
+ * Group__MUIM_Draw: its buffers would otherwise sit on the stack once for
+ * every nesting level while the children draw. A group with more
+ * children than group_fill_gaps' stack arrays: the rectangles on the heap
+ * too (the clip region it took before, group_children_clip_region, costs a
+ * ClearRectRegion per child, each walking and allocating the region's
+ * rectangles: 2.8 s per 8-pixel scroll of a Virtgroup of 80 buttons on a
+ * 68020, against MUI 3.8's 73 ms, round draw1, tests/lean/sgstep.c); the
+ * region when memory is short. A custom backfill keeps one call for the
+ * whole inner box; an update (a page switch) or a frame alone paints no
+ * background, so no gaps either: the children are not collected then. */
+static __attribute__((noinline)) void group_draw_frame_and_gaps(
+    struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
+{
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct Rectangle kbuf[GROUP_GAP_CHILDREN], *kids = kbuf;
+    struct Region *r = NULL;
+    APTR c = (APTR)-1;
+    int n;
+
+    if (!(_flags(obj) & MADF_FILLAREA))
+    {
+        /* Area paints only outside the inner box (a virtual group's frame
+         * ring) */
+        DoSuperMethodA(cl, obj, (Msg) msg);
+        return;
+    }
+    if (!(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
+    {
+        if (!(_flags(obj) & (MADF_DRAWOBJECT | MADF_DRAWALL)))
+        {
+            DoSuperMethodA(cl, obj, (Msg) msg);
+            return;
+        }
+        if (data->num_children <= GROUP_GAP_CHILDREN
+            || (kids = AllocVec(data->num_children * sizeof(*kids),
+                MEMF_ANY)))
+        {
+            n = group_collect_children(cl, obj, kids,
+                kids != kbuf ? data->num_children : GROUP_GAP_CHILDREN);
+            /* Area paints the frame and its surround; the group fills the
+             * uncovered parts of its inner box itself */
+            _flags(obj) &= ~MADF_FILLAREA;
+            DoSuperMethodA(cl, obj, (Msg) msg);
+            _flags(obj) |= MADF_FILLAREA;
+            if ((msg->flags & MADF_DRAWOBJECT)
+                && !group_on_fresh_background(obj))
+                group_fill_gaps(obj, kids, n, _flags(obj));
+            if (kids != kbuf)
+                FreeVec(kids);
+            return;
+        }
+    }
+    /* In refresh mode each clip costs two refresh cycles */
+    if ((r = group_children_clip_region(cl, obj)))
+        c = MUI_AddClipRegion(muiRenderInfo(obj), r);
+    DoSuperMethodA(cl, obj, (Msg) msg);
+    if (r)
+        MUI_RemoveClipRegion(muiRenderInfo(obj), c);
+}
+
 /* Paint the background of an object's box outside its inner box */
 static void group_clear_ring(Object *obj)
 {
@@ -2770,560 +2581,335 @@ static void group_clear_ring(Object *obj)
             mr + 1, mt, 0);
 }
 
-/*
- * Draw Area and children under temporary regions, with separate page-switch
- * and virtual-scroll update paths. Return FALSE during InitChange,
- * otherwise normally TRUE; ignore child draw results. Requires drawable
- * render state and stable membership. Scroll path updates old offsets.
- * Nonvirtual use of virtual offset updates can leave a clip installed
- * because final removal is virtual-only.
- */
-/* Area's draw for a group in "redraw without clear" mode: the frame, and
- * the background only where no child will paint. Kept out of
- * Group__MUIM_Draw: its buffers (about 900 bytes) would otherwise sit on
- * the stack once for every nesting level while the children draw. */
-/* A group with more children than group_fill_gaps' stack arrays: the
- * rectangles and the band sweep's arrays on the heap. The clip region it
- * took before (group_children_clip_region) costs a ClearRectRegion per
- * child, each walking and allocating the region's rectangles: 2.8 s per
- * 8-pixel scroll of a Virtgroup of 80 buttons on a 68020, against MUI
- * 3.8's 73 ms (round draw1, tests/lean/sgstep.c). Area's frame first, as
- * group_draw_frame_and_gaps does; the region when memory is short. */
-static BOOL group_on_fresh_background(Object *obj);
-static __attribute__((noinline)) void group_gaps_many(struct IClass *cl,
+/* A virtual group's draw before its children (Group__MUIM_Draw): the
+ * scroll moves the pixels there are, then Area draws the frame, and the
+ * contents are painted inside the paint pair. 1 to draw the children; 0
+ * when a scroll has nothing to move (the draw ends there, TRUE); -1 when
+ * the subclass declines to paint (the scroll is then done, FALSE). */
+static __attribute__((noinline)) LONG group_virtual_draw(struct IClass *cl,
     Object *obj, struct MUIP_Draw *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct Rectangle *kids;
-    int n;
-
-    if (!(kids = AllocVec(data->num_children * sizeof(*kids), MEMF_ANY)))
-    {
-        struct Region *r = group_children_clip_region(cl, obj);
-        APTR c = (APTR)-1;
-
-        if (r)
-            c = MUI_AddClipRegion(muiRenderInfo(obj), r);
-        DoSuperMethodA(cl, obj, (Msg) msg);
-        if (r)
-            MUI_RemoveClipRegion(muiRenderInfo(obj), c);
-        return;
-    }
-    n = group_collect_children(cl, obj, kids, data->num_children + 1);
-    _flags(obj) &= ~MADF_FILLAREA;
-    DoSuperMethodA(cl, obj, (Msg) msg);
-    _flags(obj) |= MADF_FILLAREA;
-    if ((msg->flags & MADF_DRAWOBJECT) && (!muiRenderInfo(obj)->mri_BgFresh
-            || !group_on_fresh_background(obj)))
-        group_fill_gaps_ool(obj, kids, n, _flags(obj));
-    FreeVec(kids);
-}
-
-/* TRUE when the group's gaps show the window background (no group up to
- * the window has one of its own) and the window has just been painted
- * with it (mri_BgFresh): its gaps need no fill then */
-static __attribute__((noinline)) BOOL group_on_fresh_background(Object *obj)
-{
-    Object *p = obj;
-
-    if (!muiRenderInfo(obj)->mri_BgFresh)
-        return FALSE;
-    while (p && Group_PassesBackground(p))
-        p = _parent(p);
-    return !p && zune_window_background_is_position_free(_win(obj));
-}
-
-static __attribute__((noinline)) void group_draw_frame_and_gaps(
-    struct IClass *cl, Object *obj, struct MUIP_Draw *msg, BOOL virtual)
-{
-    struct Rectangle kids[GROUP_GAP_CHILDREN];
-    int nkids = -1;
-
-    /* Custom backfill hooks keep one call for the whole inner box. An
-     * update (a page switch) or a frame alone paints no background, so
-     * no gaps either: the children are not collected then */
-    if (!virtual && (_flags(obj) & MADF_FILLAREA)
-        && !(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
-    {
-        if (!(_flags(obj) & (MADF_DRAWOBJECT | MADF_DRAWALL)))
-        {
-            DoSuperMethodA(cl, obj, (Msg) msg);
-            return;
-        }
-        /* more children than the bands' arrays here: a call in tail
-         * position, so this function's frame is gone while it paints */
-        if (((struct MUI_GroupData *)INST_DATA(cl, obj))->num_children
-                > GROUP_GAP_CHILDREN)
-        {
-            group_gaps_many(cl, obj, msg);
-            return;
-        }
-        nkids = group_collect_children(cl, obj, kids, GROUP_GAP_CHILDREN);
-    }
-
-    if (nkids >= 0)
-    {
-        /* Area paints the frame and its surround; the group fills
-         * the uncovered parts of its inner box itself */
-        _flags(obj) &= ~MADF_FILLAREA;
-        DoSuperMethodA(cl, obj, (Msg) msg);
-        _flags(obj) |= MADF_FILLAREA;
-        if ((msg->flags & MADF_DRAWOBJECT) && (!muiRenderInfo(obj)->mri_BgFresh
-            || !group_on_fresh_background(obj)))
-            group_fill_gaps(obj, kids, nkids, _flags(obj), 0);
-    }
-    else
-    {
-        /* Without FILLAREA, Area paints only outside the inner box,
-         * where the clip excludes nothing. In refresh mode each clip
-         * costs two refresh cycles, so skip it. */
-        struct Region *r = (_flags(obj) & MADF_FILLAREA)
-            ? group_children_clip_region(cl, obj) : NULL;
-        APTR c = (APTR)-1;
-        if (r)
-            c = MUI_AddClipRegion(muiRenderInfo(obj), r);
-
-        DoSuperMethodA(cl, obj, (Msg) msg);
-
-        if (r)
-            MUI_RemoveClipRegion(muiRenderInfo(obj), c);
-    }
-}
-
-IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
-    struct MUIP_Draw *msg)
-{
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    struct MinList *ChildList = NULL;
-    struct Rectangle group_rect;        /* child_rect; */
-    int page;
-    BOOL virtual = (data->flags & GROUP_VIRTUAL) != 0;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct GroupVirtual *v = VX(data);
     ULONG fill = _flags(obj) & MADF_FILLAREA;
-
-    if (data->flags & GROUP_CHANGING)
-        return FALSE;
 
     /* Move existing pixels before BeginPaint lets a subclass restrict the
      * drawing region. Layout hooks must retain their previous scroll state
      * until that callback computes the newly exposed content. */
-    if (virtual && data->update == 2)
+    if (data->flags & GROUP_UPDATE_SCROLL)
     {
-        LONG dx = GV(data)->virt_offx - GV(data)->old_virt_offx;
-        LONG dy = GV(data)->virt_offy - GV(data)->old_virt_offy;
+        LONG dx = v->virt_offx - v->old_virt_offx;
+        LONG dy = v->virt_offy - v->old_virt_offy;
         struct Rectangle *bounds = &muiRenderInfo(obj)->mri_ClipRect;
         LONG left = MAX(_mleft(obj), bounds->MinX);
         LONG top = MAX(_mtop(obj), bounds->MinY);
         LONG right = MIN(_mright(obj), bounds->MaxX);
         LONG bottom = MIN(_mbottom(obj), bounds->MaxY);
 
-        if (!dx && !dy)
-            return TRUE;
-        if (right < left || bottom < top)
-            return TRUE;
-
+        if ((!dx && !dy) || right < left || bottom < top)
+            return 0;
         ScrollWindowRaster(_window(obj), dx, dy, left, top, right, bottom);
     }
 
-    /* Area draws the frame; virtual contents belong inside the paint pair. */
-    if (virtual)
-    {
-        _flags(obj) &= ~MADF_FILLAREA;
-        /* The spacing between the frame and the contents is not part of
-         * the paint pair, so clear it before Area puts the frame on top;
-         * a page switch otherwise left the previous page's pixels there
-         * (xSysInfo's Hardware page) */
-        /* Area moves the draw flags into the message only below */
-        if ((_flags(obj) & MADF_DRAWOBJECT)
-            && !(_flags(obj) & MADF_DRAWUPDATE))
-            group_clear_ring(obj);
-    }
-
-    /* MUI 3.8 and MUI 5 paint a group's gaps whatever its MUIA_FillArea
-     * (FALSE only keeps the box under a child that paints nothing:
-     * tests/lean/probe/bgfill.c); UP-MCC's panels have FALSE and show
-     * their face that way */
-    else if (!(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
-        _flags(obj) |= MADF_FILLAREA;
-
+    _flags(obj) &= ~MADF_FILLAREA;
+    /* The spacing between the frame and the contents is not part of
+     * the paint pair, so clear it before Area puts the frame on top;
+     * a page switch otherwise left the previous page's pixels there
+     * (xSysInfo's Hardware page). Area moves the draw flags into the
+     * message only below. */
+    if ((_flags(obj) & MADF_DRAWOBJECT) && !(_flags(obj) & MADF_DRAWUPDATE))
+        group_clear_ring(obj);
     if (muiGlobalInfo(obj)->mgi_Prefs->window_redraw
         == WINDOW_REDRAW_WITHOUT_CLEAR)
-        group_draw_frame_and_gaps(cl, obj, msg, virtual);
+        group_draw_frame_and_gaps(cl, obj, msg);
     else
-    {
         DoSuperMethodA(cl, obj, (Msg) msg);
-    }
-    _flags(obj) = (_flags(obj) & ~MADF_FILLAREA) | fill;
+    _flags(obj) |= fill;
 
-    if (virtual)
+    if (!DoMethod(obj, MUIM_Virtgroup_BeginPaint))
     {
-        if (!DoMethod(obj, MUIM_Virtgroup_BeginPaint))
-        {
-            /* The raster has already moved, even if the client declines
-             * painting. Never apply that same scroll delta twice. */
-            data->virt->old_virt_offx = GV(data)->virt_offx;
-            data->virt->old_virt_offy = GV(data)->virt_offy;
-            data->update = 0;
-            return FALSE;
-        }
+        /* The raster has already moved, even if the client declines
+         * painting. Never apply that same scroll delta twice. */
+        v->old_virt_offx = v->virt_offx;
+        v->old_virt_offy = v->virt_offy;
+        GROUP_SET_UPDATE(data, 0);
+        return -1;
     }
-
     /* Custom backfills receive the full logical viewport. The exposed
      * region limits actual painting, including on partial scrolls. */
-    if (virtual && (msg->flags & MADF_DRAWOBJECT) &&
-        !(msg->flags & MADF_DRAWUPDATE))
-        zune_draw_background(obj, _mleft(obj), _mtop(obj), _mwidth(obj), _mheight(obj),
-            _mleft(obj), _mtop(obj), 0);
+    if ((msg->flags & MADF_DRAWOBJECT) && !(msg->flags & MADF_DRAWUPDATE))
+        zune_draw_background(obj, _mleft(obj), _mtop(obj), _mwidth(obj),
+            _mheight(obj), _mleft(obj), _mtop(obj), 0);
+    return 1;
+}
 
-    if ((msg->flags & MADF_DRAWUPDATE) && data->update == 1)
+/*
+ * Draw Area and children, with separate page-switch and virtual-scroll
+ * update paths. Return FALSE during InitChange, otherwise normally TRUE;
+ * ignore child draw results. Requires drawable render state and stable
+ * membership.
+ */
+IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
+    struct MUIP_Draw *msg)
+{
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct Rectangle group_rect;
+    struct MinNode *n;
+    Object *child, *title;
+    LONG page;
+
+    if (data->flags & GROUP_CHANGING)
+        return FALSE;
+
+    if (data->flags & GROUP_VIRTUAL)
+    {
+        LONG go = group_virtual_draw(cl, obj, msg);
+
+        if (go <= 0)
+            return go == 0;
+    }
+    else
+    {
+        ULONG fill = _flags(obj) & MADF_FILLAREA;
+
+        /* MUI 3.8 and MUI 5 paint a group's gaps whatever its
+         * MUIA_FillArea (FALSE only keeps the box under a child that
+         * paints nothing: tests/lean/probe/bgfill.c); UP-MCC's panels
+         * have FALSE and show their face that way */
+        if (!(muiAreaData(obj)->mad_Flags2 & MADF2_CUSTOMBACKFILL))
+            _flags(obj) |= MADF_FILLAREA;
+        if (muiGlobalInfo(obj)->mgi_Prefs->window_redraw
+            == WINDOW_REDRAW_WITHOUT_CLEAR)
+            group_draw_frame_and_gaps(cl, obj, msg);
+        else
+            DoSuperMethodA(cl, obj, (Msg) msg);
+        _flags(obj) = (_flags(obj) & ~MADF_FILLAREA) | fill;
+    }
+
+    if ((msg->flags & MADF_DRAWUPDATE) && (data->flags & GROUP_UPDATE_PAGE))
         group_draw_page_background(cl, obj);
     else if (!(msg->flags & (MADF_DRAWOBJECT | MADF_DRAWALL)))
         goto finish;
 
+    title = group_title(data);
     group_rect = muiRenderInfo(obj)->mri_ClipRect;
-    page = -1;
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    page = data->active_page + 1;
+    FOR_CHILD(&data->childlist, n, child)
     {
         if (!(_flags(child) & MADF_SHOWME))
             continue;
-
-        if (child != data->titlegroup)
-            ++page;
-
+        if (child != title)
+        {
+            /* not the active page */
+            if ((data->flags & GROUP_PAGEMODE) && --page)
+                continue;
+        }
+        /* Do not issue a re-draw to title group during page switch:
+         * it redraws itself through its MUIA_Group_ActivePage */
+        else if ((data->flags & GROUP_PAGEMODE)
+            && (msg->flags & MADF_DRAWUPDATE)
+            && (data->flags & GROUP_UPDATE_PAGE))
+            continue;
         /* a window border scroller (Scrollgroup's UseWinBorder) is shown
          * but has no place in the group: intuition draws it */
         if (_flags(child) & (MADF_DISAPPEARED | MADF_BORDERGADGET))
             continue;
-
-        if ((data->flags & GROUP_PAGEMODE) && ((page != data->active_page)
-            && (child != data->titlegroup)))
-        {
-            continue;
-        }
-
-        if ((data->flags & GROUP_PAGEMODE) && (child == data->titlegroup)
-            && (msg->flags & MADF_DRAWUPDATE) && (data->update == 1))
-        {
-            /* Do not issue a re-draw to title group during page switch.
-             * The group will re-draw itself due to setting of
-             * MUIA_Group_ActivePage attribute.
-             */
-            continue;
-        }
-
         MUI_Redraw(child, MADF_DRAWOBJECT | MADF_DRAWFRAME);
         muiRenderInfo(obj)->mri_ClipRect = group_rect;
     }
 
 finish:
-    if (virtual)
-        DoMethod(obj, MUIM_Virtgroup_EndPaint);
-
-    if (data->virt)
+    if (data->flags & GROUP_VIRTUAL)
     {
-        data->virt->old_virt_offx = GV(data)->virt_offx;
-        data->virt->old_virt_offy = GV(data)->virt_offy;
+        DoMethod(obj, MUIM_Virtgroup_EndPaint);
+        VX(data)->old_virt_offx = VX(data)->virt_offx;
+        VX(data)->old_virt_offy = VX(data)->virt_offy;
     }
-    data->update = 0;
-
+    GROUP_SET_UPDATE(data, 0);
     return TRUE;
 }
 
+/**************************************************************************
+ MUIM_AskMinMax
+**************************************************************************/
 
-#define END_MINMAX() \
-    tmp.MaxHeight = MAX(tmp.MaxHeight, tmp.MinHeight); \
-    tmp.MaxWidth = MAX(tmp.MaxWidth, tmp.MinWidth); \
-    tmp.DefHeight = CLAMP(tmp.DefHeight, tmp.MinHeight, tmp.MaxHeight); \
-    tmp.DefWidth = CLAMP(tmp.DefWidth, tmp.MinWidth, tmp.MaxWidth); \
-    msg->MinMaxInfo->MinWidth += tmp.MinWidth; \
-    msg->MinMaxInfo->MinHeight += tmp.MinHeight; \
-    msg->MinMaxInfo->MaxWidth += tmp.MaxWidth; \
-    msg->MinMaxInfo->MaxHeight += tmp.MaxHeight; \
-    msg->MinMaxInfo->DefWidth += tmp.DefWidth; \
-    msg->MinMaxInfo->DefHeight += tmp.DefHeight;
-
-/*
- * MinMax calculation function. When this is called,
- * the children of your group have already been asked
- * about their min/max dimension so you can use their
- * dimensions to calculate yours.
- *
- * Notes:
- * - Init minwidth and maxwidth with size needed for total child spacing.
- * - 1st pass to find maximum minimum width, to set minwidth of each child
- * if they should have the same width (for a row of buttons ...)
- * - Adjust minwidth w/o making object bigger than their max size.
- */
-/*
- * Accumulate visible non-border children horizontally, using spacing, same-
- * width minimum and child limits/weights. Add normalized content limits to
- * caller MinMaxInfo and cache weight sums. Requires finalized child sizes;
- * no allocation or status. Zero weights constrain maxima to minima;
- * arithmetic is not overflow-checked.
- */
-static void group_minmax_horiz(struct IClass *cl, Object *obj,
-    struct MinList *children, struct MUIP_AskMinMax *msg)
+/* Normalize t (maxima at least the minima, defaults within) and add it to
+ * the group's own (Area's frame and spacing) */
+static void group_add_minmax(struct MUI_MinMax *mi, struct MUI_MinMax *t)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    struct MUI_MinMax tmp;
-    WORD maxminwidth = 0;
-    BOOL found_nonzero_vweight = FALSE, counted = FALSE;
+    t->MaxHeight = MAX(t->MaxHeight, t->MinHeight);
+    t->MaxWidth = MAX(t->MaxWidth, t->MinWidth);
+    t->DefHeight = CLAMP(t->DefHeight, t->MinHeight, t->MaxHeight);
+    t->DefWidth = CLAMP(t->DefWidth, t->MinWidth, t->MaxWidth);
+    mi->MinWidth += t->MinWidth;
+    mi->MinHeight += t->MinHeight;
+    mi->MaxWidth += t->MaxWidth;
+    mi->MaxHeight += t->MaxHeight;
+    mi->DefWidth += t->DefWidth;
+    mi->DefHeight += t->DefHeight;
+}
 
-    tmp.MinHeight = 0;
-    tmp.DefHeight = 0;
-    tmp.MaxHeight = MUI_MAXMAX;
-    if (data->num_visible_children > 0)
+/* A horizontal (a 0) or vertical (a 1) group: its children along the axis,
+ * with the spacing between them; across it the largest minimum and
+ * default and the smallest maximum. A child of weight 0 counts its
+ * minimum as its maximum along the axis. The weight sum is kept for the
+ * layout. The two directions differ where MUI 3.8 does (measured): a
+ * horizontal group adds its children's default widths, also of weight 0,
+ * and SameWidth raises the minimum it counts; a vertical group adds the
+ * minimum height of a child of weight 0, and SameHeight sets the
+ * children's minimum heights. */
+static void group_minmax_1d(struct MUI_GroupData *data,
+    struct MinList *children, struct MUI_MinMax *mi)
+{
+    struct MUI_MinMax tmp;
+    WORD *t = &tmp.MinWidth;    /* t[a]: min, t[a + 2]: max, t[a + 4]: def */
+    struct MinNode *n;
+    Object *child;
+    LONG a = (data->flags & GROUP_HORIZ) ? 0 : 1, b = 1 - a;
+    WORD sp = (&data->horiz_spacing)[a], maxmin = 0;
+    UWORD nvis = data->num_children;
+    ULONG wsum = 0;
+    BOOL same = (data->flags & (GROUP_SAME_WIDTH << a)) != 0;
+    BOOL counted = FALSE, crossweight = FALSE;
+
+    FOR_CHILD(children, n, child)
     {
-        tmp.MinWidth = tmp.DefWidth =
-            (data->num_visible_children - 1) * data->horiz_spacing;
+        if (IS_HIDDEN(child))
+            nvis--;
+        else if (same)
+            maxmin = MAX(maxmin, AXP(child, a)[AX_MIN]);
+    }
+    data->num_visible_children = nvis;
+
+    t[b] = t[b + 4] = 0;
+    t[b + 2] = MUI_MAXMAX;
+    if (nvis > 0)
+    {
+        t[a] = t[a + 4] = (nvis - 1) * sp;
         /* MUI 3.9 adds spacing and each child's maximum, itself at most
          * MUI_MAXMAX, until the sum reaches MUI_MAXMAX, without clamping
          * the sum (tests/native/demolayout.c, widgetsizes.c) */
-        tmp.MaxWidth = -data->horiz_spacing;
+        t[a + 2] = -sp;
     }
     else
     {
-        tmp.MinWidth = tmp.DefWidth = 0;
-        tmp.MaxWidth = MUI_MAXMAX;
+        t[a] = t[a + 4] = 0;
+        t[a + 2] = MUI_MAXMAX;
     }
 
-    if (data->flags & GROUP_SAME_WIDTH)
+    FOR_CHILD(children, n, child)
     {
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
-        {
-            if (IS_HIDDEN(child))
-                continue;
-            maxminwidth = MAX(maxminwidth, _minwidth(child));
-        }
-    }
-
-    data->samesize_maxmin_horiz = maxminwidth;
-/*    D(bug("group_minmax_horiz(%p) : maxminwidth=%d\n", obj, maxminwidth)); */
-
-    data->horiz_weight_sum = 0;
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        WORD minwidth;
+        WORD *m = AXP(child, a), *c = AXP(child, b), min;
 
         if (IS_HIDDEN(child))
             continue;
-        if (data->flags & GROUP_SAME_WIDTH)
-        {
-            minwidth = MAX(maxminwidth, _minwidth(child));
-            minwidth = MIN(minwidth, _maxwidth(child));
-        }
+        if (!a)
+            min = same ? MIN(MAX(maxmin, m[AX_MIN]), m[AX_MAX]) : m[AX_MIN];
         else
-            minwidth = _minwidth(child);
+        {
+            if (same)
+                m[AX_MIN] = MIN(maxmin,
+                    m[AX_WEIGHT] ? m[AX_MAX] : m[AX_MIN]);
+            min = m[AX_MIN];
+        }
         /* MUI 3.9 leaves children that may disappear, and their spacing,
          * out of the minimum and default (tests/native/disappear.c) */
-        if (muiAreaData(child)->mad_HorizDisappear > 0)
+        if (m[AX_DISAPPEAR] > 0)
         {
-            tmp.MinWidth -= data->horiz_spacing;
-            tmp.DefWidth -= data->horiz_spacing;
+            t[a] -= sp;
+            t[a + 4] -= sp;
         }
         else
         {
             /* a child whose own children may all disappear has a
              * negative minimum; MUI 3.9 counts it as 0 here */
-            tmp.MinWidth += MAX(minwidth, 0);
+            t[a] += MAX(min, 0);
             /* MUI 3.8 counts the default width of a child of horizontal
              * weight 0 too (measured: a string of weight 0 beside a
              * button, 112 + 6 + 32), although the child stays at its
              * minimum in the layout; a vertical group counts the
              * minimum height of a child of vertical weight 0 */
-            tmp.DefWidth += MAX(_defwidth(child), 0);
+            min = (!a || m[AX_WEIGHT]) ? m[AX_DEF] : m[AX_MIN];
+            t[a + 4] += MAX(min, 0);
         }
-        if (tmp.MaxWidth < MUI_MAXMAX)
-            tmp.MaxWidth += data->horiz_spacing
-                + MIN(w0_maxwidth(child), MUI_MAXMAX);
-        tmp.MinHeight = MAX(tmp.MinHeight, _minheight(child));
-        tmp.DefHeight = MAX(tmp.DefHeight, _defheight(child));
-        /*
-           if all children have null weight then maxheight=minheight
-           if all but some children have null weights, the maxheight
-           is the min of all maxheights
-         */
-        tmp.MaxHeight = MIN(tmp.MaxHeight, _maxheight(child));
-        data->horiz_weight_sum += _hweight(child);
+        if (t[a + 2] < MUI_MAXMAX)
+            t[a + 2] += sp + MIN(m[AX_WEIGHT] ? m[AX_MAX] : m[AX_MIN],
+                MUI_MAXMAX);
+        t[b] = MAX(t[b], c[AX_MIN]);
+        t[b + 4] = MAX(t[b + 4], c[AX_DEF]);
+        /* if all children have null weight then maxheight=minheight; if
+         * some do, the maxheight is the min of all maxheights */
+        t[b + 2] = MIN(t[b + 2], c[AX_MAX]);
+        wsum += (UWORD)m[AX_WEIGHT];
         counted = TRUE;
-        if (_vweight(child) > 0)
-        {
-            found_nonzero_vweight = TRUE;
-        }
+        if ((UWORD)c[AX_WEIGHT] > 0)
+            crossweight = TRUE;
     }
     /* an empty group keeps its full maximum, so MUIA_FixWidth and
      * MUIA_FixHeight size it, as in MUI 3.9 (tests/native/emptyfixprobe.c) */
-    if (counted && !found_nonzero_vweight)
-    {
-        tmp.MaxHeight = tmp.MinHeight;
-    }
-
-    //if (data->flags & GROUP_VIRTUAL)
-    //{
-    //kprintf("# min %d x %d  def %d x %d  max %d x %d\n",
-    //                tmp.MinWidth, tmp.MinHeight,
-    //                tmp.DefWidth, tmp.DefHeight,
-    //                tmp.MaxWidth, tmp.MaxHeight);
-    //}
-
-    END_MINMAX();
+    if (counted && !crossweight)
+        t[b + 2] = t[b];
+    data->weight_sum = wsum;
+    group_add_minmax(mi, &tmp);
 }
 
-/* minmax calculation for vertical groups (see group_minmax_horiz)
-*/
-/*
- * Accumulate visible non-border children vertically and cache weights.
- * SameHeight can mutate child minimum heights within their limits. Add
- * normalized content limits to caller MinMaxInfo. Requires finalized child
- * sizes and valid writable message; no status or overflow checking.
- */
-static void group_minmax_vert(struct IClass *cl, Object *obj,
-    struct MinList *children, struct MUIP_AskMinMax *msg)
+/* The rows (row-major order) and columns of a grid. SameHeight/SameWidth
+ * adjust child minima/defaults subject to zero-weight maxima. A row or
+ * column is weighed by its children's average weight (MUI 3.9). */
+static void minmax_2d_rows_pass(struct GroupExtra *x,
+    struct MinList *children, struct MUI_MinMax *req, BOOL same,
+    WORD maxmin_height, WORD maxdef_height)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    struct MUI_MinMax tmp;
-    WORD maxminheight = 0;
-    BOOL found_nonzero_hweight = FALSE, counted = FALSE;
-
-    tmp.MinWidth = 0;
-    tmp.DefWidth = 0;
-    tmp.MaxWidth = MUI_MAXMAX;
-    if (data->num_visible_children > 0)
-    {
-        tmp.MinHeight = tmp.DefHeight =
-            (data->num_visible_children - 1) * data->vert_spacing;
-        tmp.MaxHeight = -data->vert_spacing;
-    }
-    else
-    {
-        tmp.MinHeight = tmp.DefHeight = 0;
-        tmp.MaxHeight = MUI_MAXMAX;
-    }
-
-    if (data->flags & GROUP_SAME_HEIGHT)
-    {
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
-        {
-            if (IS_HIDDEN(child))
-                continue;
-            maxminheight = MAX(maxminheight, _minheight(child));
-        }
-    }
-
-    data->samesize_maxmin_vert = maxminheight;
-    data->vert_weight_sum = 0;
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (IS_HIDDEN(child))
-            continue;
-
-        if (data->flags & GROUP_SAME_HEIGHT)
-            _minheight(child) = MIN(maxminheight, w0_maxheight(child));
-        if (muiAreaData(child)->mad_VertDisappear > 0)
-        {
-            tmp.MinHeight -= data->vert_spacing;
-            tmp.DefHeight -= data->vert_spacing;
-        }
-        else
-        {
-            tmp.MinHeight += MAX(_minheight(child), 0);
-            tmp.DefHeight += MAX(w0_defheight(child), 0);
-        }
-        if (tmp.MaxHeight < MUI_MAXMAX)
-            tmp.MaxHeight += data->vert_spacing
-                + MIN(w0_maxheight(child), MUI_MAXMAX);
-        tmp.MinWidth = MAX(tmp.MinWidth, _minwidth(child));
-        tmp.DefWidth = MAX(tmp.DefWidth, _defwidth(child));
-        tmp.MaxWidth = MIN(tmp.MaxWidth, _maxwidth(child));
-        data->vert_weight_sum += _vweight(child);
-        counted = TRUE;
-        if (_hweight(child) > 0)
-        {
-            found_nonzero_hweight = TRUE;
-        }
-    }
-    /* see group_minmax_horiz */
-    if (counted && !found_nonzero_hweight)
-    {
-        tmp.MaxWidth = tmp.MinWidth;
-    }
-
-    END_MINMAX();
-}
-
-
-/*
- * Update allocated row constraints from visible non-border children in row-
- * major order. SameHeight adjusts child minima/defaults subject to zero-
- * weight maxima. Requires arrays/dimensions established by grid
- * calculation. Mutates child size data and row records; no allocation or
- * result.
- */
-static void
-minmax_2d_rows_pass(struct MUI_GroupData *data, struct MinList *children,
-    struct MUI_MinMax *req, WORD maxmin_height, WORD maxdef_height)
-{
-    int i, j;
-    APTR cstate;
-    Object *child;
+    struct MinNode *n = children->mlh_Head;
+    struct layout2d_elem *row = x->row_infos;
+    int i;
 
     /* do not rewind after the while, to process line by line */
-    cstate = children->mlh_Head;
-    /* for each row */
-    for (i = 0; i < data->rows; i++)
+    for (i = 0; i < x->rows; i++, row++)
     {
         /* calculate min and max height of this row */
-        int min_h = 0, def_h = 0, max_h = MUI_MAXMAX;
+        int min_h = 0, def_h = 0, max_h = MUI_MAXMAX, j = 0;
         BOOL found_nonzero_vweight = FALSE;
 
-        data->row_infos[i].weight = 0;
-
-        j = 0;
-        while ((child = NextObject(&cstate)))
+        row->weight = 0;
+        while (n->mln_Succ)
         {
+            Object *child = BASEOBJECT(n);
+
+            n = n->mln_Succ;
             if (IS_HIDDEN(child))
                 continue;
-            if (data->flags & GROUP_SAME_HEIGHT)
+            if (same)
             {
-                _minheight(child) = MIN(maxmin_height, w0_maxheight(child));
-                _defheight(child) = MIN(maxdef_height, w0_maxheight(child));
+                WORD w0max = _vweight(child) ? _maxheight(child)
+                    : _minheight(child);
+
+                _minheight(child) = MIN(maxmin_height, w0max);
+                w0max = _vweight(child) ? _maxheight(child)
+                    : _minheight(child);
+                _defheight(child) = MIN(maxdef_height, w0max);
             }
             min_h = MAX(min_h, _minheight(child));
-            def_h = MAX(def_h, w0_defheight(child));
+            def_h = MAX(def_h, _vweight(child) ? _defheight(child)
+                : _minheight(child));
             max_h = MIN(max_h, _maxheight(child));
             if (_vweight(child) > 0)
             {
                 found_nonzero_vweight = TRUE;
-                data->row_infos[i].weight += _vweight(child);
+                row->weight += _vweight(child);
             }
-            ++j;
-            if ((j % data->columns) == 0)
+            if ((++j % x->columns) == 0)
                 break;
         }
         if (!found_nonzero_vweight)
             max_h = min_h;
         else
             max_h = MAX(max_h, min_h);
-        /* ... and a row by the average over its columns */
-        if (data->columns > 0)
-            data->row_infos[i].weight /= data->columns;
-/*          D(bug("row %d : min_h=%d max_h=%d\n", i, min_h, max_h)); */
-
-        data->row_infos[i].min = min_h;
-        data->row_infos[i].max = max_h;
-        data->vert_weight_sum += data->row_infos[i].weight;
-
+        if (x->columns > 0)
+            row->weight /= x->columns;
+        row->min = min_h;
+        row->max = max_h;
+        x->vert_weight_sum += row->weight;
         req->MinHeight += min_h;
         req->DefHeight += def_h;
         req->MaxHeight += max_h;
@@ -3332,56 +2918,49 @@ minmax_2d_rows_pass(struct MUI_GroupData *data, struct MinList *children,
     }
 }
 
-
-/*
- * Accumulate column constraints by child position modulo the column count,
- * skipping hidden/border children. SameWidth adjusts child minima/defaults
- * subject to zero-weight maxima. Requires valid nonzero dimensions and
- * allocated arrays. Mutates records and child limits; no result.
- */
-static void
-minmax_2d_columns_pass(struct MUI_GroupData *data, struct MinList *children,
-    struct MUI_MinMax *req, WORD maxmin_width, WORD maxdef_width)
+static void minmax_2d_columns_pass(struct GroupExtra *x,
+    struct MinList *children, struct MUI_MinMax *req, BOOL same,
+    WORD maxmin_width, WORD maxdef_width)
 {
-    int i, j;
-    APTR cstate;
-    Object *child;
+    struct layout2d_elem *col = x->col_infos;
+    int i;
 
-    for (i = 0; i < data->columns; i++)
+    for (i = 0; i < x->columns; i++, col++)
     {
         /* calculate min and max width of this column */
-        int min_w = 0, def_w = 0, max_w = MUI_MAXMAX;
+        int min_w = 0, def_w = 0, max_w = MUI_MAXMAX, j = 0;
         BOOL found_nonzero_hweight = FALSE;
+        struct MinNode *n;
+        Object *child;
 
-        data->col_infos[i].weight = 0;
-
-        j = 0;
+        col->weight = 0;
         /* process all children to get children on a column */
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(children, n, child)
         {
             if (IS_HIDDEN(child))
                 continue;
-            ++j;
-            if (((j - 1) % data->columns) != i)
+            if ((j++ % x->columns) != i)
                 continue;
-            if (data->flags & GROUP_SAME_WIDTH)
+            if (same)
             {
-                _minwidth(child) = MIN(maxmin_width, w0_maxwidth(child));
-                _defwidth(child) = MIN(maxdef_width, w0_maxwidth(child));
+                WORD w0max = _hweight(child) ? _maxwidth(child)
+                    : _minwidth(child);
+
+                _minwidth(child) = MIN(maxmin_width, w0max);
+                w0max = _hweight(child) ? _maxwidth(child)
+                    : _minwidth(child);
+                _defwidth(child) = MIN(maxdef_width, w0max);
             }
             min_w = MAX(min_w, _minwidth(child));
-            def_w = MAX(def_w, w0_defwidth(child));
-
-            /* this handles the case of null weight children, which limit
-             *  the max size if they're alone, but not if they are with
-             *  non-null weight obj
-             */
+            def_w = MAX(def_w, _hweight(child) ? _defwidth(child)
+                : _minwidth(child));
+            /* null weight children limit the max size if they're
+             * alone, but not if they are with non-null weight ones */
             max_w = MIN(max_w, _maxwidth(child));
             if (_hweight(child) > 0)
             {
                 found_nonzero_hweight = TRUE;
-                data->col_infos[i].weight += _hweight(child);
+                col->weight += _hweight(child);
             }
         }
         if (!found_nonzero_hweight)
@@ -3389,14 +2968,11 @@ minmax_2d_columns_pass(struct MUI_GroupData *data, struct MinList *children,
         else
             max_w = MAX(max_w, min_w);
         /* MUI 3.9 weighs a column by its children's average weight */
-        if (data->rows > 0)
-            data->col_infos[i].weight /= data->rows;
-/*          D(bug("col %d : min_w=%d max_w=%d\n", i, min_w, max_w)); */
-
-        data->col_infos[i].min = min_w;
-        data->col_infos[i].max = max_w;
-        data->horiz_weight_sum += data->col_infos[i].weight;
-
+        if (x->rows > 0)
+            col->weight /= x->rows;
+        col->min = min_w;
+        col->max = max_w;
+        x->horiz_weight_sum += col->weight;
         req->MinWidth += min_w;
         req->DefWidth += def_w;
         req->MaxWidth += max_w;
@@ -3406,313 +2982,227 @@ minmax_2d_columns_pass(struct MUI_GroupData *data, struct MinList *children,
 }
 
 /*
- * Derive grid dimensions from total child count, the last row filled as
- * far as the children go. Replace owned constraint arrays, scan child
- * limits and perform row/column passes. Add spacing and aggregate
- * constraints to message. Allocation failure returns early with no status
- * and can leave only one newly allocated array; later Layout must validate
- * state.
+ * A grid: its dimensions from the total child count, the last row filled
+ * as far as the children go (MUI 3.8; MultiRen: 26 objects in 4 columns,
+ * 7 rows). Given rows become the columns they need, then the rows those
+ * columns need, so that every pass agrees. Without memory for the arrays
+ * nothing is added and the layout does nothing.
  */
-static void
-group_minmax_2d(struct IClass *cl, Object *obj,
-    struct MinList *children, struct MUIP_AskMinMax *msg)
+static void group_minmax_2d(struct MUI_GroupData *data,
+    struct MinList *children, struct MUI_MinMax *mi)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct GroupExtra *x = data->x;
+    struct MinNode *n;
     Object *child;
     struct MUI_MinMax tmp;
-    WORD maxmin_width;
-    WORD maxmin_height;
-    WORD maxdef_width;
-    WORD maxdef_height;
+    WORD maxmin_width = 0, maxmin_height = 0;
+    WORD maxdef_width = 0, maxdef_height = 0;
 
-    /* MUI 3.8 fills a last row that is not full (MultiRen: 26 objects in
-     * 4 columns, 7 rows); Zune made one row of all children, 2168 pixels
-     * wide. Given rows become the columns they need, then the rows those
-     * columns need, so that every pass agrees. */
-    if (!data->columns)
-        data->columns = (data->num_children + data->rows - 1) / data->rows;
-    if (data->columns < 1)
-        data->columns = 1;
-    data->rows = (data->num_children + data->columns - 1) / data->columns;
+    if (!x->columns)
+        x->columns = (data->num_children + x->rows - 1) / x->rows;
+    if (x->columns < 1)
+        x->columns = 1;
+    x->rows = (data->num_children + x->columns - 1) / x->columns;
+    if (x->rows < 1)
+        x->rows = 1;
 
-    if (data->columns < 1)
-        data->columns = 1;
-    if (data->rows < 1)
-        data->rows = 1;
-
-    if (!group_infos(&data->row_infos, &data->row_cap, data->rows))
-        return;
-    if (!group_infos(&data->col_infos, &data->col_cap, data->columns))
+    if (!group_infos(&x->row_infos, &x->row_cap, x->rows)
+        || !group_infos(&x->col_infos, &x->col_cap, x->columns))
         return;
 
-    data->horiz_weight_sum = 0;
-    data->vert_weight_sum = 0;
+    x->horiz_weight_sum = 0;
+    x->vert_weight_sum = 0;
 
     tmp.MinHeight = tmp.DefHeight = tmp.MaxHeight =
-        (data->rows - 1) * data->vert_spacing;
+        (x->rows - 1) * data->vert_spacing;
     tmp.MinWidth = tmp.DefWidth = tmp.MaxWidth =
-        (data->columns - 1) * data->horiz_spacing;
-    /* get minimum dims if same dims for all children are needed */
-    maxmin_width = 0;
-    maxmin_height = 0;
-    maxdef_width = 0;
-    maxdef_height = 0;
+        (x->columns - 1) * data->horiz_spacing;
 
-    if ((data->flags & GROUP_SAME_WIDTH)
-        || (data->flags & GROUP_SAME_HEIGHT))
-    {
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+    /* get minimum dims if same dims for all children are needed */
+    if (data->flags & (GROUP_SAME_WIDTH | GROUP_SAME_HEIGHT))
+        FOR_CHILD(children, n, child)
         {
             if (!(_flags(child) & MADF_SHOWME))
                 continue;
             maxmin_width = MAX(maxmin_width, _minwidth(child));
             maxmin_height = MAX(maxmin_height, _minheight(child));
-            maxdef_width = MAX(maxdef_width, w0_defwidth(child));
-            maxdef_height = MAX(maxdef_height, w0_defheight(child));
+            maxdef_width = MAX(maxdef_width, _hweight(child)
+                ? _defwidth(child) : _minwidth(child));
+            maxdef_height = MAX(maxdef_height, _vweight(child)
+                ? _defheight(child) : _minheight(child));
         }
-/*        g_print("2d group: mminw=%d mminh=%d\n", */
-/*            maxmin_width, maxmin_height); */
-    }
-    if (data->flags & GROUP_SAME_HEIGHT)
-        data->samesize_maxmin_vert = maxmin_height;
-    else
-        data->samesize_maxmin_vert = 0;
 
-    if (data->flags & GROUP_SAME_WIDTH)
-        data->samesize_maxmin_horiz = maxmin_width;
-    else
-        data->samesize_maxmin_horiz = 0;
-
-    minmax_2d_rows_pass(data, children, &tmp, maxmin_height, maxdef_height);
-    minmax_2d_columns_pass(data, children, &tmp, maxmin_width,
-        maxdef_width);
-
-    END_MINMAX();
+    minmax_2d_rows_pass(x, children, &tmp,
+        (data->flags & GROUP_SAME_HEIGHT) != 0, maxmin_height, maxdef_height);
+    minmax_2d_columns_pass(x, children, &tmp,
+        (data->flags & GROUP_SAME_WIDTH) != 0, maxmin_width, maxdef_width);
+    group_add_minmax(mi, &tmp);
 }
 
-
 /*
- * Combine ShowMe content-page limits, excluding titlegroup; add title
- * minimum height but not title width. Normalize and add content constraints
- * to message. Requires finalized children and valid borrowed title pointer.
- * Does not allocate or return status; hidden pages do not contribute.
+ * A page group: the ShowMe pages' limits combined (MUI 3.9: it may grow as
+ * far as its largest page may, so a page of fixed height does not cap the
+ * others, xSysInfo), the title group's minimum height added above, its
+ * width only as another page's.
  */
-static void
-group_minmax_pagemode(struct IClass *cl, Object *obj,
-    struct MinList *children, struct MUIP_AskMinMax *msg)
+static void group_minmax_pagemode(struct MUI_GroupData *data,
+    struct MinList *children, struct MUI_MinMax *mi)
 {
-    APTR cstate;
-    Object *child;
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    /* MUI 3.9: a page group may grow as far as its largest page may,
-     * so a page of fixed height does not cap the others (xSysInfo) */
+    Object *title = group_title(data), *child;
+    struct MinNode *n;
     struct MUI_MinMax tmp = { 0, 0, 0, 0, 0, 0 };
 
-    cstate = children->mlh_Head;
-
-    D(bug("minmax_pagemode(0x%p) defw = %ld\n", obj, tmp.DefWidth));
-
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(children, n, child)
     {
-        if (!(_flags(child) & MADF_SHOWME))
-            continue;
+        WORD w0;
 
-        if (child == data->titlegroup)
+        if (!(_flags(child) & MADF_SHOWME) || child == title)
             continue;
-
         tmp.MinHeight = MAX(tmp.MinHeight, _minheight(child));
-        D(bug("minmax_pagemode(0x%p) minh child = %d tmpmin=%d\n", obj,
-                _minheight(child), tmp.MinHeight));
         tmp.MinWidth = MAX(tmp.MinWidth, _minwidth(child));
-        tmp.MaxHeight = MAX(tmp.MaxHeight, w0_maxheight(child));
-        tmp.MaxWidth = MAX(tmp.MaxWidth, w0_maxwidth(child));
-        tmp.DefHeight = MAX(tmp.DefHeight,
-            ((w0_defheight(child) <
-                    MUI_MAXMAX) ? w0_defheight(child) : tmp.DefHeight));
-        tmp.DefWidth =
-            MAX(tmp.DefWidth,
-            ((w0_defwidth(child) <
-                    MUI_MAXMAX) ? w0_defwidth(child) : tmp.DefWidth));
-        D(bug("minmax_pagemode(0x%p) defw = %ld\n", obj, tmp.DefWidth));
+        tmp.MaxHeight = MAX(tmp.MaxHeight,
+            _vweight(child) ? _maxheight(child) : _minheight(child));
+        tmp.MaxWidth = MAX(tmp.MaxWidth,
+            _hweight(child) ? _maxwidth(child) : _minwidth(child));
+        w0 = _vweight(child) ? _defheight(child) : _minheight(child);
+        if (w0 < MUI_MAXMAX)
+            tmp.DefHeight = MAX(tmp.DefHeight, w0);
+        w0 = _hweight(child) ? _defwidth(child) : _minwidth(child);
+        if (w0 < MUI_MAXMAX)
+            tmp.DefWidth = MAX(tmp.DefWidth, w0);
     }
 
     if (tmp.MaxWidth == 0 && tmp.MaxHeight == 0)
         tmp.MaxWidth = tmp.MaxHeight = MUI_MAXMAX;
 
-    if (data->titlegroup)
+    if (title)
     {
-        tmp.MinWidth = MAX(tmp.MinWidth, _minwidth(data->titlegroup));
-        tmp.DefWidth = MAX(tmp.DefWidth, _defwidth(data->titlegroup));
-        tmp.MaxWidth = MAX(tmp.MaxWidth, _maxwidth(data->titlegroup));
-        tmp.MinHeight += _minheight(data->titlegroup);
-        tmp.MaxHeight += w0_maxheight(data->titlegroup);
-        tmp.DefHeight += w0_defheight(data->titlegroup);
+        tmp.MinWidth = MAX(tmp.MinWidth, _minwidth(title));
+        tmp.DefWidth = MAX(tmp.DefWidth, _defwidth(title));
+        tmp.MaxWidth = MAX(tmp.MaxWidth, _maxwidth(title));
+        tmp.MinHeight += _minheight(title);
+        tmp.MaxHeight += _vweight(title) ? _maxheight(title)
+            : _minheight(title);
+        tmp.DefHeight += _vweight(title) ? _defheight(title)
+            : _minheight(title);
     }
-
-    END_MINMAX();
+    group_add_minmax(mi, &tmp);
 }
 
-/**************************************************************************
- MUIM_AskMinMax : ask children about min/max sizes, then
- either call a hook, or the builtin method, to calculate our minmax
-**************************************************************************/
+/* A layout hook's MUILM_MINMAX: what it fills (maxima and defaults raised
+ * to the minima) added to the group's own, maxima capped at MUI_MAXMAX.
+ * Its own function: the message is on the stack only here. */
+static __attribute__((noinline)) void group_minmax_hook(Object *obj,
+    struct MUI_GroupData *data, struct MUI_MinMax *mi)
+{
+    struct MUI_LayoutMsg lm;
+
+    lm.lm_Children = &data->childlist;
+    lm.lm_Type = MUILM_MINMAX;
+    CallHookPkt(data->layout_hook, obj, &lm);
+
+    if (lm.lm_MinMax.MaxHeight < lm.lm_MinMax.MinHeight)
+        lm.lm_MinMax.MaxHeight = lm.lm_MinMax.MinHeight;
+    if (lm.lm_MinMax.DefHeight < lm.lm_MinMax.MinHeight)
+        lm.lm_MinMax.DefHeight = lm.lm_MinMax.MinHeight;
+    if (lm.lm_MinMax.MaxWidth < lm.lm_MinMax.MinWidth)
+        lm.lm_MinMax.MaxWidth = lm.lm_MinMax.MinWidth;
+    if (lm.lm_MinMax.DefWidth < lm.lm_MinMax.MinWidth)
+        lm.lm_MinMax.DefWidth = lm.lm_MinMax.MinWidth;
+
+    mi->MinWidth += lm.lm_MinMax.MinWidth;
+    mi->MinHeight += lm.lm_MinMax.MinHeight;
+    mi->MaxWidth += lm.lm_MinMax.MaxWidth;
+    if (mi->MaxWidth > MUI_MAXMAX)
+        mi->MaxWidth = MUI_MAXMAX;
+    mi->MaxHeight += lm.lm_MinMax.MaxHeight;
+    if (mi->MaxHeight > MUI_MAXMAX)
+        mi->MaxHeight = MUI_MAXMAX;
+    mi->DefWidth += lm.lm_MinMax.DefWidth;
+    mi->DefHeight += lm.lm_MinMax.DefHeight;
+}
+
+/* Ask the children (those shown, every one for a layout hook: custom
+ * layout hooks see every child, as in MUI 3.8/3.9, so hidden children
+ * need valid dimensions too) and finish their sizes; every child counts
+ * again (the layout decides which disappear). Its own function: the
+ * message and the child's minmax are on the stack only here, not on every
+ * nesting level of the groups' AskMinMax. */
+static __attribute__((noinline)) void group_ask_children(
+    struct MinList *children, ULONG id, BOOL all)
+{
+    struct MUIP_AskMinMax m;
+    struct MUI_MinMax mm;
+    struct MinNode *n;
+    Object *child;
+
+    m.MethodID = id;
+    FOR_CHILD(children, n, child)
+    {
+        _flags(child) &= ~MADF_DISAPPEARED;
+        if (!(_flags(child) & MADF_SHOWME) && !all)
+            continue;
+        /* Area points the message at the child's own minmax */
+        m.MinMaxInfo = &mm;
+        DoMethodA(child, (Msg) &m);
+        __area_finish_minmax(child, m.MinMaxInfo);
+    }
+}
+
 /*
- * Ask Area and the ShowMe children (every child with a custom Hook),
- * finalize child limits, then select page, custom Hook or built-in
+ * Ask Area and the children, then select page, custom Hook or built-in
  * constraints. Hook must fill all six fields of its otherwise uninitialized
  * min/max message; its return is ignored. Virtual groups save full minima
- * but expose Area minima plus eight. Return zero even on helper failure;
- * needs valid preferences and stable membership.
+ * but expose Area minima plus eight. Return zero.
  */
 IPTR Group__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct MUI_LayoutMsg lm;
-    struct MUIP_AskMinMax childMsg;
-    struct MUI_MinMax childMinMax;
-    APTR cstate;
-    Object *child;
-    LONG super_minwidth, super_minheight;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MUI_MinMax *mi;
 
-    /*
-     * let our superclass first fill in its size with frame, inner spc etc ...
-     */
+    /* our superclass first fills in its size with frame, inner spacing
+     * etc. (and points the message at the group's own minmax) */
     DoSuperMethodA(cl, obj, (Msg) msg);
-    super_minwidth = msg->MinMaxInfo->MinWidth;
-    super_minheight = msg->MinMaxInfo->MinHeight;
-
-    /*
-     * Ask children
-     */
-    childMsg.MethodID = msg->MethodID;
-    childMsg.MinMaxInfo = &childMinMax;
-    lm.lm_Children = group_children(data);
-
-    /* every child counts again; the layout decides which disappear */
-    cstate = lm.lm_Children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-        _flags(child) &= ~MADF_DISAPPEARED;
-
-    cstate = lm.lm_Children->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    mi = msg->MinMaxInfo;
+    if (data->flags & GROUP_VIRTUAL)
     {
-        /* Custom layout hooks see every child, as in MUI 3.8/3.9, so
-         * hidden children need valid dimensions too */
-        if (!(_flags(child) & MADF_SHOWME) && !data->layout_hook)
-            /* BORDERGADGETs should handle this itself */
-            continue;
-        /*  Ask child; Area points the message at the child's minmax  */
-        childMsg.MinMaxInfo = &childMinMax;
-        DoMethodA(child, (Msg) & childMsg);
-        /*  D(bug("*** group 0x%p, child 0x%p min=%ld,%ld\n", */
-        /*      obj, child, childMinMax.MinWidth, childMinMax.MinHeight)); */
-        __area_finish_minmax(child, childMsg.MinMaxInfo);
+        VX(data)->saved_minwidth = mi->MinWidth;
+        VX(data)->saved_minheight = mi->MinHeight;
     }
 
-    /*
-     * Use children infos to calculate group size
-     */
+    group_ask_children(&data->childlist, msg->MethodID,
+        data->layout_hook != NULL);
+
     if (data->flags & GROUP_PAGEMODE)
-    {
-        D(bug("minmax_pagemode(%p) minh initial = %d\n", obj,
-                msg->MinMaxInfo->MinHeight));
-        group_minmax_pagemode(cl, obj, lm.lm_Children, msg);
-        D(bug("minmax_pagemode(%p) minh = %d\n", obj,
-                msg->MinMaxInfo->MinHeight));
-    }
+        group_minmax_pagemode(data, &data->childlist, mi);
     else if (data->layout_hook)
-    {
-        lm.lm_Type = MUILM_MINMAX;
-        CallHookPkt(data->layout_hook, obj, &lm);
-
-        if (lm.lm_MinMax.MaxHeight < lm.lm_MinMax.MinHeight)
-            lm.lm_MinMax.MaxHeight = lm.lm_MinMax.MinHeight;
-        if (lm.lm_MinMax.DefHeight < lm.lm_MinMax.MinHeight)
-            lm.lm_MinMax.DefHeight = lm.lm_MinMax.MinHeight;
-        if (lm.lm_MinMax.MaxWidth < lm.lm_MinMax.MinWidth)
-            lm.lm_MinMax.MaxWidth = lm.lm_MinMax.MinWidth;
-        if (lm.lm_MinMax.DefWidth < lm.lm_MinMax.MinWidth)
-            lm.lm_MinMax.DefWidth = lm.lm_MinMax.MinWidth;
-
-        //kprintf("### min %d x %d   def %d x %d  max %d x %d\n",
-        //    msg->MinMaxInfo->MinWidth,
-        //    msg->MinMaxInfo->MinHeight,
-        //    msg->MinMaxInfo->DefWidth,
-        //    msg->MinMaxInfo->DefHeight,
-        //    msg->MinMaxInfo->MaxWidth,
-        //    msg->MinMaxInfo->MaxHeight);
-
-        msg->MinMaxInfo->MinWidth += lm.lm_MinMax.MinWidth;
-        msg->MinMaxInfo->MinHeight += lm.lm_MinMax.MinHeight;
-        msg->MinMaxInfo->MaxWidth += lm.lm_MinMax.MaxWidth;
-        if (msg->MinMaxInfo->MaxWidth > MUI_MAXMAX)
-            msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
-        msg->MinMaxInfo->MaxHeight += lm.lm_MinMax.MaxHeight;
-        if (msg->MinMaxInfo->MaxHeight > MUI_MAXMAX)
-            msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
-        msg->MinMaxInfo->DefWidth += lm.lm_MinMax.DefWidth;
-        msg->MinMaxInfo->DefHeight += lm.lm_MinMax.DefHeight;
-
-        //kprintf("#### min %d x %d   def %d x %d  max %d x %d\n",
-        //    msg->MinMaxInfo->MinWidth,
-        //    msg->MinMaxInfo->MinHeight,
-        //    msg->MinMaxInfo->DefWidth,
-        //    msg->MinMaxInfo->DefHeight,
-        //    msg->MinMaxInfo->MaxWidth,
-        //    msg->MinMaxInfo->MaxHeight);
-
-    }
+        group_minmax_hook(obj, data, mi);
+    else if (!group_grid(data))
+        group_minmax_1d(data, &data->childlist, mi);
     else
-    {
-        if ((data->rows == 1) && (data->columns == 1))
-        {
-            data->num_visible_children =
-                Group_GetNumVisibleChildren(data, lm.lm_Children);
-            if (data->flags & GROUP_HORIZ)
-                group_minmax_horiz(cl, obj, lm.lm_Children, msg);
-            else
-                group_minmax_vert(cl, obj, lm.lm_Children, msg);
-        }
-        else
-        {
-            group_minmax_2d(cl, obj, lm.lm_Children, msg);
-        }
-    }
+        group_minmax_2d(data, &data->childlist, mi);
 
     if (data->flags & GROUP_VIRTUAL)
     {
-        data->virt->saved_minwidth = msg->MinMaxInfo->MinWidth;
-        data->virt->saved_minheight = msg->MinMaxInfo->MinHeight;
         /* MUI 3.8/3.9 keep eight pixels of virtual content visible */
-        msg->MinMaxInfo->MinWidth = super_minwidth + 8;
-        msg->MinMaxInfo->MinHeight = super_minheight + 8;
+        LONG w = VX(data)->saved_minwidth, h = VX(data)->saved_minheight;
 
-        //kprintf("## min %d x %d   def %d x %d  max %d x %d\n",
-        //    msg->MinMaxInfo->MinWidth,
-        //    msg->MinMaxInfo->MinHeight,
-        //    msg->MinMaxInfo->DefWidth,
-        //    msg->MinMaxInfo->DefHeight,
-        //    msg->MinMaxInfo->MaxWidth,
-        //    msg->MinMaxInfo->MaxHeight);
-
+        VX(data)->saved_minwidth = mi->MinWidth;
+        VX(data)->saved_minheight = mi->MinHeight;
+        mi->MinWidth = w + 8;
+        mi->MinHeight = h + 8;
     }
-
     return 0;
 }
 
+/**************************************************************************
+ Layout
+**************************************************************************/
 
-
-// enforce minmax constraint, but also update total growable/shrinkable weights
-// while we're at it
-/*
- * Clamp one writable size to supplied bounds while adjusting remainder,
- * grow/shrink sizes and weight totals through required pointers. Same-size
- * zero-weight handling precedes clamping. Caller owns all storage and
- * consistent totals; WORD arithmetic can overflow. No allocation or result.
- */
+/* Clamp one size to its bounds while adjusting the remainder, the
+ * grow/shrink sizes and weight totals. Same-size zero-weight handling
+ * precedes clamping. */
 static void Layout1D_minmax_constraint(WORD *sizep, WORD minsize,
     WORD maxsize, WORD *remainp, WORD *sizegrowp, WORD *sizeshrinkp,
     ULONG *weightgrowp, ULONG *weightshrinkp, UWORD weight, WORD samesize)
@@ -3720,12 +3210,9 @@ static void Layout1D_minmax_constraint(WORD *sizep, WORD minsize,
     WORD size = *sizep, remain = *remainp,
         sizegrow = *sizegrowp, sizeshrink = *sizeshrinkp;
     ULONG weightgrow = *weightgrowp, weightshrink = *weightshrinkp;
+    BOOL samefix = (samesize > 0) && (weight == 0);
 
-/*      D(bug("L1D_minmax_c size=%d min=%d max=%d w=%d ss=%d\n", */
-/*          size, minsize, maxsize, */
-/*          weight, samesize)); */
-
-    if ((samesize > 0) && (weight == 0))
+    if (samefix)
     {
         remain += size - samesize;
         size = samesize;
@@ -3748,7 +3235,7 @@ static void Layout1D_minmax_constraint(WORD *sizep, WORD minsize,
         sizegrow -= size;
     }
 
-    if (!((samesize > 0) && (weight == 0)))
+    if (!samefix)
     {
         if (size < maxsize)
             weightgrow += weight;
@@ -3764,16 +3251,9 @@ static void Layout1D_minmax_constraint(WORD *sizep, WORD minsize,
     *weightshrinkp = weightshrink;
 }
 
-
-// redistribute excess size to growable child, or reduce size of a shrinkable
-// child
-/*
- * Redistribute signed remaining space to one eligible weighted child,
- * updating size and all running totals through required pointers. Zero
- * weight returns without change. Caller must supply consistent nonzero
- * grow/shrink divisors when those branches execute. WORD arithmetic and
- * truncation are unchecked; no result.
- */
+/* Redistribute the remaining space to one weighted child (rounded down
+ * like MUI 3.9; the last child takes the rest), updating size and all
+ * running totals. Zero weight returns without change. */
 static void Layout1D_redistribution(WORD *sizep, WORD minsize,
     WORD maxsize, WORD *remainp, WORD *sizegrowp, WORD *sizeshrinkp,
     ULONG *weightgrowp, ULONG *weightshrinkp, UWORD weight)
@@ -3787,21 +3267,12 @@ static void Layout1D_redistribution(WORD *sizep, WORD minsize,
 
     if ((remain > 0) && (size < maxsize))
     {
-        LONG newsize;
+        LONG newsize = (sizegrow * weight) / weightgrow;
 
-        /* rounded down like MUI 3.9; the last child takes the rest */
-        newsize = (sizegrow * weight) / weightgrow;
-
-/*        D(bug("newsize=%ld == size_growa=%ld * w=%ld / weight_grow=%d\n", */
-/*                newsize, sizegrow, weight, weightgrow)); */
-
-        /* take care of off-by-1 errors that may toggle remainder sign
-         * by ensuring convergence to 0
-         */
+        /* off-by-1 errors that may toggle the remainder's sign: converge
+         * to 0 */
         if (remain - newsize + size < 0)
         {
-/*              D(bug("adding remainder=%d => size = %d\n", */
-/*                    remain, size + remain)); */
             size += remain;
             remain = 0;
         }
@@ -3815,18 +3286,10 @@ static void Layout1D_redistribution(WORD *sizep, WORD minsize,
     }
     else if ((remain < 0) && (size > minsize))
     {
-        LONG newsize;
-
-        newsize = (sizeshrink * weight) / weightshrink;
-
-/*        D(bug("newsize=%ld == size_shrinkables=%ld * w=%ld " */
-/*            "/ weight_shrinkables=%d\n", */
-/*            newsize, sizeshrink, weight, weightshrink)); */
+        LONG newsize = (sizeshrink * weight) / weightshrink;
 
         if (remain - newsize + size > 0)
         {
-/*              D(bug("adding remainder=%d => size = %d\n", */
-/*                    remain, size + remain)); */
             size += remain;
             remain = 0;
         }
@@ -3847,83 +3310,73 @@ static void Layout1D_redistribution(WORD *sizep, WORD minsize,
     *weightshrinkp = weightshrink;
 }
 
-
 /* Final settling pass: the two redistribution passes above can leave a
  * child outside its min/max range while others absorb the difference.
  * Clamp every child, then share any remainder by weight among children
  * that can still move, until no space is left or nothing can move. */
 static void Layout1D_settle(struct MinList *children, WORD remainder,
-    BOOL group_horiz)
+    LONG a)
 {
-    APTR cstate;
+    struct MinNode *n;
     Object *child;
     int round;
 
     for (round = 0; round < 32; round++)
     {
         ULONG weights = 0, movable = 0;
-        LONG share = remainder;
+        LONG share;
 
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(children, n, child)
         {
-            WORD *size, min, max;
+            WORD *m = AXP(child, a);
 
             if (IS_HIDDEN(child))
                 continue;
-            size = group_horiz ? &_width(child) : &_height(child);
-            min = group_horiz ? _minwidth(child) : _minheight(child);
-            max = group_horiz ? _maxwidth(child) : _maxheight(child);
-            if (*size < min)
+            if (m[AX_SIZE] < m[AX_MIN])
             {
-                remainder -= min - *size;
-                *size = min;
+                remainder -= m[AX_MIN] - m[AX_SIZE];
+                m[AX_SIZE] = m[AX_MIN];
             }
-            else if (*size > max)
+            else if (m[AX_SIZE] > m[AX_MAX])
             {
-                remainder += *size - max;
-                *size = max;
+                remainder += m[AX_SIZE] - m[AX_MAX];
+                m[AX_SIZE] = m[AX_MAX];
             }
         }
         if (remainder == 0)
             return;
 
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(children, n, child)
         {
-            WORD size, min, max;
+            WORD *m = AXP(child, a);
 
             if (IS_HIDDEN(child))
                 continue;
-            size = group_horiz ? _width(child) : _height(child);
-            min = group_horiz ? _minwidth(child) : _minheight(child);
-            max = group_horiz ? _maxwidth(child) : _maxheight(child);
-            if ((remainder > 0 && size < max) || (remainder < 0 && size > min))
+            if ((remainder > 0 && m[AX_SIZE] < m[AX_MAX])
+                || (remainder < 0 && m[AX_SIZE] > m[AX_MIN]))
             {
                 movable++;
-                weights += group_horiz ? _hweight(child) : _vweight(child);
+                weights += (UWORD)m[AX_WEIGHT];
             }
         }
         if (movable == 0)
             return;
 
         share = remainder;
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)) && remainder != 0)
+        for (n = children->mlh_Head; n->mln_Succ && remainder != 0;
+            n = n->mln_Succ)
         {
-            WORD *size, min, max;
+            WORD *m;
             LONG delta, weight;
 
+            child = BASEOBJECT(n);
             if (IS_HIDDEN(child))
                 continue;
-            size = group_horiz ? &_width(child) : &_height(child);
-            min = group_horiz ? _minwidth(child) : _minheight(child);
-            max = group_horiz ? _maxwidth(child) : _maxheight(child);
-            if (!((remainder > 0 && *size < max)
-                    || (remainder < 0 && *size > min)))
+            m = AXP(child, a);
+            if (!((remainder > 0 && m[AX_SIZE] < m[AX_MAX])
+                    || (remainder < 0 && m[AX_SIZE] > m[AX_MIN])))
                 continue;
-
-            weight = group_horiz ? _hweight(child) : _vweight(child);
+            weight = (UWORD)m[AX_WEIGHT];
             delta = weights ? share * weight / (LONG)weights
                 : share / (LONG)movable;
             if (delta == 0)
@@ -3931,28 +3384,23 @@ static void Layout1D_settle(struct MinList *children, WORD remainder,
             if ((delta > 0 && delta > remainder)
                 || (delta < 0 && delta < remainder))
                 delta = remainder;
-            if (*size + delta > max)
-                delta = max - *size;
-            if (*size + delta < min)
-                delta = min - *size;
-            *size += delta;
+            if (m[AX_SIZE] + delta > m[AX_MAX])
+                delta = m[AX_MAX] - m[AX_SIZE];
+            if (m[AX_SIZE] + delta < m[AX_MIN])
+                delta = m[AX_MIN] - m[AX_SIZE];
+            m[AX_SIZE] += delta;
             remainder -= delta;
         }
     }
 }
 
-/*
- * Run at most two clamp/redistribution passes over visible non-border
- * children using cached temporary sizes. Requires consistent weights, child
- * limits and stable list. Mutates child temporary dimensions; does not
- * report residual space or prove convergence for every input. No allocation
- * or result.
- */
-static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(struct MinList
-    *children, WORD total_size, WORD remainder, WORD samesize,
-    BOOL group_horiz)
+/* At most two clamp/redistribution passes over the visible children
+ * (along axis a), then the settling pass */
+static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(
+    struct MinList *children, WORD total_size, WORD remainder,
+    WORD samesize, LONG a)
 {
-    APTR cstate;
+    struct MinNode *n;
     Object *child;
     int i;
 
@@ -3963,74 +3411,111 @@ static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(
         ULONG weight_growables = 0;
         ULONG weight_shrinkables = 0;
 
-/*          D(bug("start : rem=%ld, A=%ld, size_growables=%ld, " */
-/*              "size_shrinkables=%ld\n", */
-/*              remainder, total_size, size_growables, size_shrinkables)); */
-
-        // minmax constraints
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(children, n, child)
         {
-            /* WORD old_size; */
+            WORD *m = AXP(child, a);
 
             if (IS_HIDDEN(child))
                 continue;
-
-            Layout1D_minmax_constraint(
-                group_horiz ? &_width(child) : &_height(child),
-                group_horiz ? _minwidth(child) : _minheight(child),
-                group_horiz ? _maxwidth(child) : _maxheight(child),
+            Layout1D_minmax_constraint(&m[AX_SIZE], m[AX_MIN], m[AX_MAX],
                 &remainder, &size_growables, &size_shrinkables,
-                &weight_growables, &weight_shrinkables,
-                group_horiz ? _hweight(child) : _vweight(child), samesize);
-        }                       // while child, minmax constraints
-
+                &weight_growables, &weight_shrinkables, m[AX_WEIGHT],
+                samesize);
+        }
         // mid-pass break
         if (remainder == 0)
             break;
-
-/*          D(bug("mid : rem=%d, A=%d, size_grow=%d, size_shrink=%d, " */
-/*                "wg=%ld, ws=%ld\n", remainder, total_size, size_growables, */
-/*                size_shrinkables, weight_growables, weight_shrinkables)); */
-
         // distribute remaining space to possible candidates
-        cstate = children->mlh_Head;
-        while (((child = NextObject(&cstate)) != NULL) && (remainder != 0))
+        for (n = children->mlh_Head; n->mln_Succ && remainder != 0;
+            n = n->mln_Succ)
         {
-/*            WORD old_size; */
+            WORD *m;
 
+            child = BASEOBJECT(n);
             if (IS_HIDDEN(child))
                 continue;
-
-            Layout1D_redistribution(
-                group_horiz ? &_width(child) : &_height(child),
-                group_horiz ? _minwidth(child) : _minheight(child),
-                group_horiz ? _maxwidth(child) : _maxheight(child),
+            m = AXP(child, a);
+            Layout1D_redistribution(&m[AX_SIZE], m[AX_MIN], m[AX_MAX],
                 &remainder, &size_growables, &size_shrinkables,
-                &weight_growables, &weight_shrinkables,
-                group_horiz ? _hweight(child) : _vweight(child));
-
-        }                       // while child, redistribution
-
-/*          if (remainder != 0) */
-/*          { */
-/*              D(bug("end : rem=%ld, A=%ld, size_grow=%ld, size_shrink=%ld\n", */
-/*                    remainder, total_size, size_growables, size_shrinkables)); */
-/*          } */
+                &weight_growables, &weight_shrinkables, m[AX_WEIGHT]);
+        }
         // dont break here if remainder == 0, some minmax constraints
         // may not be respected
-    }                           // end for
+    }
+    Layout1D_settle(children, remainder, a);
+}
 
-    Layout1D_settle(children, remainder, group_horiz);
+/* The rest of Layout1D_mui_redistrib's remainder, a pixel at a time to
+ * the movable children from the last one back, weighted children first */
+static __attribute__((noinline)) void Layout1D_rest(struct MinList *children,
+    LONG remainder, LONG a)
+{
+    struct MinNode *n;
+    Object *child;
 
-    // to easily spot layout bugs, nothing like a (division by zero) exception
-/*      if (remainder != 0) */
-/*      { */
-/*          ASSERT(remainder != 0); */
-/*          D(bug("gonna crash, remainder = %d\n", remainder)); */
-/*          remainder /= 0; */
-/*      } */
+    while (remainder != 0)
+    {
+        BOOL moved = FALSE;
+        int round;
 
+        for (round = 0; round < 2 && remainder != 0 && !moved; round++)
+            for (n = children->mlh_TailPred; n->mln_Pred && remainder != 0;
+                n = n->mln_Pred)
+            {
+                WORD *m;
+
+                child = BASEOBJECT(n);
+                if (IS_HIDDEN(child))
+                    continue;
+                m = AXP(child, a);
+                if (round == 0 && m[AX_WEIGHT] == 0)
+                    continue;
+                if (remainder > 0 && m[AX_SIZE] < m[AX_MAX])
+                {
+                    ++m[AX_SIZE];
+                    --remainder;
+                    moved = TRUE;
+                }
+                else if (remainder < 0 && m[AX_SIZE] > m[AX_MIN])
+                {
+                    --m[AX_SIZE];
+                    ++remainder;
+                    moved = TRUE;
+                }
+            }
+        if (!moved)
+            return;
+    }
+}
+
+/* One of Layout1D_mui_redistrib's passes: each child that can still move
+ * gets its weight's share of the remainder (over all children's weight,
+ * truncated). TRUE when one moved. */
+static __attribute__((noinline)) BOOL Layout1D_share(struct MinList *children,
+    LONG remainder, ULONG total_weight, LONG a)
+{
+    struct MinNode *n;
+    Object *child;
+    BOOL moved = FALSE;
+
+    FOR_CHILD(children, n, child)
+    {
+        WORD *m = AXP(child, a);
+        LONG delta;
+
+        if (IS_HIDDEN(child))
+            continue;
+        if ((remainder > 0 && m[AX_SIZE] >= m[AX_MAX])
+            || (remainder < 0 && m[AX_SIZE] <= m[AX_MIN]))
+            continue;
+        delta = remainder * (LONG)(UWORD)m[AX_WEIGHT] / (LONG)total_weight;
+        if (delta)
+        {
+            m[AX_SIZE] += delta;
+            moved = TRUE;
+        }
+    }
+    return moved;
 }
 
 /* MUI 3.9's redistribution (tests/native/hdist.c): after the weighted
@@ -4039,150 +3524,61 @@ static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(
  * remainder, taken from the weight of all children and truncated, so
  * clamped children keep their weight in the divisor. After eight
  * passes the rest goes one pixel at a time to the movable children from
- * the last one back. */
-static __attribute__((noinline)) void Layout1D_mui_redistrib(struct MinList *children, WORD total_size,
-    ULONG total_weight, BOOL group_horiz)
+ * the last one back, weighted children first. */
+static __attribute__((noinline)) void Layout1D_mui_redistrib(
+    struct MinList *children, WORD total_size, ULONG total_weight, LONG a)
 {
-    APTR cstate;
+    struct MinNode *n;
     Object *child;
     LONG remainder;
     int pass;
 
     for (pass = 0; pass <= 8; pass++)
     {
-        LONG start;
-        BOOL moved;
-
         remainder = total_size;
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(children, n, child)
         {
-            WORD *size;
+            WORD *m = AXP(child, a);
 
             if (IS_HIDDEN(child))
                 continue;
-            size = group_horiz ? &_width(child) : &_height(child);
-            *size = CLAMP(*size,
-                group_horiz ? _minwidth(child) : _minheight(child),
-                group_horiz ? _maxwidth(child) : _maxheight(child));
-            remainder -= *size;
+            m[AX_SIZE] = CLAMP(m[AX_SIZE], m[AX_MIN], m[AX_MAX]);
+            remainder -= m[AX_SIZE];
         }
         if (remainder == 0)
             return;
         if (pass == 8)
             break;
 
-        start = remainder;
-        moved = FALSE;
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
-        {
-            WORD *size, min, max;
-            LONG weight, delta;
-
-            if (IS_HIDDEN(child))
-                continue;
-            size = group_horiz ? &_width(child) : &_height(child);
-            min = group_horiz ? _minwidth(child) : _minheight(child);
-            max = group_horiz ? _maxwidth(child) : _maxheight(child);
-            weight = group_horiz ? _hweight(child) : _vweight(child);
-            if ((start > 0 && *size >= max) || (start < 0 && *size <= min))
-                continue;
-            delta = start * weight / (LONG)total_weight;
-            if (delta)
-            {
-                *size += delta;
-                moved = TRUE;
-            }
-        }
-        if (!moved)
+        if (!Layout1D_share(children, remainder, total_weight, a))
             break;
     }
 
-    /* the rest, a pixel at a time from the last child back, weighted
-     * children first */
-    while (remainder != 0)
-    {
-        BOOL moved = FALSE;
-        int round;
-
-        for (round = 0; round < 2 && remainder != 0 && !moved; round++)
-        {
-            struct MinNode *node;
-
-            for (node = children->mlh_TailPred;
-                node->mln_Pred && remainder != 0; node = node->mln_Pred)
-            {
-                Object *kid = BASEOBJECT((struct _Object *)node);
-                WORD *size, min, max;
-                LONG weight;
-
-                if (IS_HIDDEN(kid))
-                    continue;
-                size = group_horiz ? &_width(kid) : &_height(kid);
-                min = group_horiz ? _minwidth(kid) : _minheight(kid);
-                max = group_horiz ? _maxwidth(kid) : _maxheight(kid);
-                weight = group_horiz ? _hweight(kid) : _vweight(kid);
-                if (round == 0 && weight == 0)
-                    continue;
-                if (remainder > 0 && *size < max)
-                {
-                    ++*size;
-                    --remainder;
-                    moved = TRUE;
-                }
-                else if (remainder < 0 && *size > min)
-                {
-                    --*size;
-                    ++remainder;
-                    moved = TRUE;
-                }
-            }
-        }
-        if (!moved)
-            return;
-    }
+    Layout1D_rest(children, remainder, a);
 }
-
-/*
- * Assign initial weighted size from remaining totals, or minimum when no
- * weight remains. Update caller size/space/weight pointers in place.
- * Requires valid consistent totals and representable WORD arithmetic. No
- * allocation, ownership change or result.
- */
-static void Layout1D_weight_constraint(WORD *total_sizep,
-    WORD *total_init_sizep,
-    ULONG *total_weightp, WORD *sizep, UWORD weight, WORD minsize)
-{
-    if (*total_weightp > 0)
-        *sizep = (*total_sizep * weight) / *total_weightp;
-    else
-        *sizep = minsize;
-
-    *total_weightp -= weight;
-    *total_sizep -= *sizep;
-    *total_init_sizep += *sizep;
-}
-
 
 /* MUIA_Horiz/VertDisappear, like MUI 3.9 (tests/native/disappear.c):
  * while the minimum sizes of the remaining children do not fit, all
  * children of the lowest disappear level still present disappear. They
- * get their minimum size and are hidden; the others are laid out. */
-static __attribute__((noinline)) void group_disappear(Object *obj, struct MUI_GroupData *data,
-    struct MinList *children, BOOL horiz, WORD available)
+ * get their minimum size and are hidden (like MUI 3.9, the batch keeps
+ * boxes at its minimum size, one after the other behind the children
+ * still present); the others are laid out, and only they are counted and
+ * weighed. */
+static __attribute__((noinline)) void group_disappear(
+    struct MUI_GroupData *data, struct MinList *children, LONG a,
+    WORD available)
 {
-    WORD spacing = horiz ? data->horiz_spacing : data->vert_spacing;
+    WORD spacing = (&data->horiz_spacing)[a];
     BOOL any = FALSE;
-    APTR cstate;
+    struct MinNode *n;
     Object *child;
+    UWORD nvis = 0;
+    ULONG wsum = 0;
 
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(children, n, child)
     {
         _flags(child) &= ~MADF_DISAPPEARED;
-        if ((horiz ? muiAreaData(child)->mad_HorizDisappear
-            : muiAreaData(child)->mad_VertDisappear) > 0)
+        if (AXP(child, a)[AX_DISAPPEAR] > 0)
             any = TRUE;
     }
     if (!any)
@@ -4193,300 +3589,221 @@ static __attribute__((noinline)) void group_disappear(Object *obj, struct MUI_Gr
         LONG need = 0, level = 0, pos;
         WORD count = 0;
 
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(children, n, child)
         {
-            LONG l;
+            WORD *m = AXP(child, a);
 
             if (IS_HIDDEN(child))
                 continue;
-            need += horiz ? _minwidth(child) : _minheight(child);
+            need += m[AX_MIN];
             count++;
-            l = horiz ? muiAreaData(child)->mad_HorizDisappear
-                : muiAreaData(child)->mad_VertDisappear;
-            if (l > 0 && (level == 0 || l < level))
-                level = l;
+            if (m[AX_DISAPPEAR] > 0 && (level == 0 || m[AX_DISAPPEAR] < level))
+                level = m[AX_DISAPPEAR];
         }
         if (count > 0)
             need += (count - 1) * spacing;
         if (need <= available || level == 0)
             break;
-        /* like MUI 3.9, the batch keeps boxes at its minimum size, one
-         * after the other behind the children still present */
         pos = 0;
-        cstate = children->mlh_Head;
-        while ((child = NextObject(&cstate)))
+        FOR_CHILD(children, n, child)
         {
+            WORD *m = AXP(child, a);
+
             if (IS_HIDDEN(child))
                 continue;
-            if ((horiz ? muiAreaData(child)->mad_HorizDisappear
-                : muiAreaData(child)->mad_VertDisappear) == level)
+            if (m[AX_DISAPPEAR] == level)
             {
                 _flags(child) |= MADF_DISAPPEARED;
                 if (_flags(child) & MADF_CANDRAW)
                     DoHideMethod(child);
-                MUI_Layout(child, horiz ? pos : 0, horiz ? 0 : pos,
+                MUI_Layout(child, a ? 0 : pos, a ? pos : 0,
                     _minwidth(child), _minheight(child), 0);
             }
-            pos += (horiz ? _minwidth(child) : _minheight(child)) + spacing;
+            pos += m[AX_MIN] + spacing;
         }
     }
 
-    /* the layout counts and weighs only what is left */
-    data->num_visible_children = 0;
-    if (horiz)
-        data->horiz_weight_sum = 0;
-    else
-        data->vert_weight_sum = 0;
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(children, n, child)
     {
         if (IS_HIDDEN(child))
             continue;
-        data->num_visible_children++;
-        if (horiz)
-            data->horiz_weight_sum += _hweight(child);
-        else
-            data->vert_weight_sum += _vweight(child);
+        nvis++;
+        wsum += (UWORD)AXP(child, a)[AX_WEIGHT];
     }
+    data->num_visible_children = nvis;
+    data->weight_sum = wsum;
 }
 
 /* Show children that reappeared in a shown group, after their layout */
-static __attribute__((noinline)) void group_reappear(Object *obj, struct MinList *children)
+static __attribute__((noinline)) void group_reappear(Object *obj,
+    struct MinList *children)
 {
-    APTR cstate;
+    struct MinNode *n;
     Object *child;
 
     if (!(_flags(obj) & MADF_CANDRAW))
         return;
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(children, n, child)
         if (!IS_HIDDEN(child) && !(_flags(child) & MADF_CANDRAW))
             DoShowMethod(child);
 }
 
-/*
- * Compute vertical content dimensions, weighted child heights and centered
- * cross-axis widths; clamp/redistribute then call MUI_Layout on visible
- * non-border children. Requires prior min/max and setup. Virtual mode
- * expands content bounds. Helper failure has no reported status; MUI_Layout
- * currently returns TRUE regardless of child Layout result.
- */
-static void group_layout_1d(struct IClass *cl, Object *obj,
-    struct MinList *children)
+/* A virtual group's area: its inner box within the saved minimum and its
+ * maximum; the box the layouts below fill */
+static void group_virtual_area(Object *obj, struct GroupVirtual *v)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    /* read from the flags where used: one register less across the
-     * children's layout, which nests with the groups */
-#define horiz ((data->flags & GROUP_HORIZ) != 0)
-    APTR cstate;
+    v->virt_mwidth = CLAMP(_mwidth(obj), v->saved_minwidth - _subwidth(obj),
+        _maxwidth(obj) - _subwidth(obj));
+    v->virt_mheight = CLAMP(_mheight(obj),
+        v->saved_minheight - _subheight(obj),
+        _maxheight(obj) - _subheight(obj));
+}
+
+/* The sizes along axis a of a horizontal/vertical group's children, before
+ * they are placed: each child's weight's share of what the spacing leaves
+ * (its minimum without weights), then clamped and the rest shared out (by
+ * MUI 3.9's rule, Layout1D_mui_redistrib, unless SameWidth/SameHeight
+ * says otherwise or nothing has weight). Its own function, off the
+ * stack while the children are laid out. */
+static __attribute__((noinline)) void group_sizes_1d(
+    struct MUI_GroupData *data, struct MinList *children, LONG a,
+    WORD length)
+{
+    struct MinNode *n;
     Object *child;
-    ULONG total_weight;
-    WORD remainder;    /* must converge to 0 to successfully end layout */
-    WORD total_size;
-    WORD total_size_backup;
-    WORD total_init_size;       /* total size of the ideally sized children */
-    WORD pos = 0;
-    WORD layout_width;
-    WORD layout_height;
-    WORD length, breadth, spacing;
-    ULONG weight_sum;
+    ULONG weight_sum = data->weight_sum, total_weight;
+    WORD total_size, total_init_size = 0, remainder, samesize = 0;
+    WORD left;
 
-    if (data->flags & GROUP_VIRTUAL)
-    {
-        data->virt->virt_mwidth =
-            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
-            _maxwidth(obj) - _subwidth(obj));
-        data->virt->virt_mheight =
-            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
-            _maxheight(obj) - _subheight(obj));
-
-        layout_width = GV(data)->virt_mwidth;
-        layout_height = GV(data)->virt_mheight;
-    }
-    else
-    {
-        layout_width = _mwidth(obj);
-        layout_height = _mheight(obj);
-    }
-
-    /* the axis the children are placed along, and the other one */
-    if (horiz)
-    {
-        length = layout_width;
-        breadth = layout_height;
-        spacing = data->horiz_spacing;
-        weight_sum = data->horiz_weight_sum;
-    }
-    else
-    {
-        length = layout_height;
-        breadth = layout_width;
-        spacing = data->vert_spacing;
-        weight_sum = data->vert_weight_sum;
-    }
-
-    group_disappear(obj, data, children, horiz, length);
+    group_disappear(data, children, a, length);
     total_weight = weight_sum;
-    total_init_size = 0;
-    total_size = length - (data->num_visible_children - 1) * spacing;
-    total_size_backup = total_size;
+    total_size = length - (data->num_visible_children - 1)
+        * (&data->horiz_spacing)[a];
 
-    // weight constraints
-    // calculate ideal size for each object, and total ideal size
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    // weight constraints: the ideal size of each object, and their total
+    left = total_size;
+    FOR_CHILD(children, n, child)
     {
+        WORD *m = AXP(child, a);
+        UWORD weight = m[AX_WEIGHT];
+
         if (IS_HIDDEN(child))
             continue;
-
-        if (horiz)
-            Layout1D_weight_constraint(&total_size, &total_init_size,
-                &total_weight, &_width(child), _hweight(child),
-                _minwidth(child));
+        if (total_weight > 0)
+            m[AX_SIZE] = (left * weight) / total_weight;
         else
-            Layout1D_weight_constraint(&total_size, &total_init_size,
-                &total_weight, &_height(child), _vweight(child),
-                _minheight(child));
-    }                           // while child, weight constraints
+            m[AX_SIZE] = m[AX_MIN];
+        total_weight -= weight;
+        left -= m[AX_SIZE];
+        total_init_size += m[AX_SIZE];
+    }
 
-    total_size = total_size_backup;
     /* a horizontal group without weights has no remainder (as before) */
-    if (!horiz || weight_sum > 0)
+    if (a || weight_sum > 0)
         remainder = total_size - total_init_size;
     else
         remainder = 0;
 
+    /* This is also true for non virtual groups, but if this would be the
+     * case then there is a bug in the layout function */
+    if ((data->flags & GROUP_VIRTUAL) && total_size < 0)
+        total_size = 0;
+
+    if (data->flags & (GROUP_SAME_WIDTH << a))
+    {
+        /* the largest minimum of the children AskMinMax counted */
+        FOR_CHILD(children, n, child)
+            if ((_flags(child) & (MADF_SHOWME | MADF_BORDERGADGET))
+                == MADF_SHOWME)
+                samesize = MAX(samesize, AXP(child, a)[AX_MIN]);
+    }
+    else if (weight_sum > 0)
+    {
+        Layout1D_mui_redistrib(children, total_size, weight_sum, a);
+        return;
+    }
+    Layout1D_minmax_constraints_and_redistrib(children, total_size,
+        remainder, samesize, a);
+}
+
+/*
+ * A horizontal (a 0) or vertical (a 1) group: the children's sizes along
+ * the axis, then each placed after the one before it with the spacing
+ * between, across the axis centred at its size within its limits (the
+ * maximum wins over a larger minimum, as in MUI 3.9,
+ * tests/native/defclamp.c). A virtual group lays out its whole area.
+ */
+static void group_layout_1d(struct MUI_GroupData *data, Object *obj)
+{
+    struct MinList *children = &data->childlist;
+    struct MinNode *n;
+    Object *child;
+    LONG a = (data->flags & GROUP_HORIZ) ? 0 : 1;
+    WORD box[2], pos = 0;
+
     if (data->flags & GROUP_VIRTUAL)
     {
-        /* This is also true for non virtual groups, but if this would be the
-         ** case then there is a bug in the layout function
-         */
-        if (total_size < 0)
-            total_size = 0;
+        group_virtual_area(obj, VX(data));
+        box[0] = VX(data)->virt_mwidth;
+        box[1] = VX(data)->virt_mheight;
+    }
+    else
+    {
+        box[0] = _mwidth(obj);
+        box[1] = _mheight(obj);
     }
 
-    if (!(data->flags & (horiz ? GROUP_SAME_WIDTH : GROUP_SAME_HEIGHT))
-        && weight_sum > 0)
-        Layout1D_mui_redistrib(children, total_size, weight_sum, horiz);
-    else
-        Layout1D_minmax_constraints_and_redistrib(children,
-            total_size,
-            remainder,
-            (data->flags & (horiz ? GROUP_SAME_WIDTH : GROUP_SAME_HEIGHT)) ?
-                (horiz ? data->samesize_maxmin_horiz
-                    : data->samesize_maxmin_vert) : 0,
-            horiz);
+    group_sizes_1d(data, children, a, box[a]);
 
     // do the layout
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(children, n, child)
     {
-        WORD size, off;
-        BOOL ok;
+        WORD *m, size, off;
 
         if (IS_HIDDEN(child))
             continue;
-
-        /* the child's size across, centred: the maximum wins over a larger
-         * minimum, as in MUI 3.9 (tests/native/defclamp.c) */
-        if (horiz)
-        {
-            size = MIN(MAX(breadth, _minheight(child)), _maxheight(child));
-            off = (breadth - size) / 2;
-            ok = MUI_Layout(child, pos, off, _width(child), size, 0);
-            pos += data->horiz_spacing + _width(child);
-        }
-        else
-        {
-            size = MIN(MAX(breadth, _minwidth(child)), _maxwidth(child));
-            off = (breadth - size) / 2;
-            ok = MUI_Layout(child, off, pos, size, _height(child), 0);
-            pos += data->vert_spacing + _height(child);
-        }
-        if (!ok)
+        m = AXP(child, 1 - a);
+        size = MIN(MAX(box[1 - a], m[AX_MIN]), m[AX_MAX]);
+        off = (box[1 - a] - size) / 2;
+        m = AXP(child, a);
+        if (!(a ? MUI_Layout(child, off, pos, size, m[AX_SIZE], 0)
+            : MUI_Layout(child, pos, off, m[AX_SIZE], size, 0)))
             return;
+        pos += (&data->horiz_spacing)[a] + m[AX_SIZE];
     }
 
     if (!(data->flags & GROUP_VIRTUAL))
         group_reappear(obj, children);
 }
-#undef horiz
-
 
 /*
- * Initialize row and column dimensions proportionally to cached weights and
- * available content space. Mutate allocated grid records. Requires nonzero
- * established dimensions, arrays and consistent weight totals; WORD
- * arithmetic is unchecked. No allocation or status.
+ * Initialize row and column dimensions proportionally to the weights and
+ * the available content space.
  */
-static void Layout2D_weight_constraint(struct MUI_GroupData *data,
-    struct layout2d_elem *row_infos,
-    struct layout2d_elem *col_infos,
-    WORD total_size_height, WORD total_size_width,
-    WORD *total_init_height, WORD *total_init_width)
+static void Layout2D_weight_constraint(struct layout2d_elem *infos,
+    WORD n, ULONG total_weight, WORD total_size, WORD *total_init)
 {
-    int i;
-    ULONG total_weight_vert = data->vert_weight_sum;
-    ULONG total_weight_horiz = data->horiz_weight_sum;
-
-    *total_init_height = 0;
-    *total_init_width = 0;
-
-    /* calc row heights */
-    for (i = 0; i < data->rows; i++)
+    *total_init = 0;
+    for (; n > 0; n--, infos++)
     {
-        if (total_weight_vert > 0)
-            row_infos[i].dim =
-                (total_size_height * row_infos[i].weight)
-                / total_weight_vert;
+        if (total_weight > 0)
+            infos->dim = (total_size * infos->weight) / total_weight;
         else
-            row_infos[i].dim = row_infos[i].min;
-
-/*          D(bug("l2 row %d : ideal = %d with w=%d, A=%d, W=%d\n", */
-/*              i, row_infos[i].dim, */
-/*              row_infos[i].weight, total_size_height, total_weight_vert)); */
-
-        total_weight_vert -= row_infos[i].weight;
-        total_size_height -= row_infos[i].dim;
-        *total_init_height += row_infos[i].dim;
-    }
-
-    /* calc columns widths */
-    for (i = 0; i < data->columns; i++)
-    {
-        if (total_weight_horiz)
-            col_infos[i].dim =
-                (total_size_width * col_infos[i].weight)
-                / total_weight_horiz;
-        else
-            col_infos[i].dim = col_infos[i].min;
-
-/*          D(bug("l2 col %d : ideal = %d with w=%d, A=%d, W=%d\n", */
-/*              i, col_infos[i].dim, */
-/*              col_infos[i].weight, total_size_width, total_weight_horiz)); */
-
-        total_weight_horiz -= col_infos[i].weight;
-        total_size_width -= col_infos[i].dim;
-        *total_init_width += col_infos[i].dim;
+            infos->dim = infos->min;
+        total_weight -= infos->weight;
+        total_size -= infos->dim;
+        *total_init += infos->dim;
     }
 }
 
-
-
 /*
- * Run two passes over one allocated axis array, clamping dimensions and
- * redistributing remainder with shared 1D helpers. Requires valid count,
- * constraints and consistent totals. Mutates records and does not report
- * unresolved remainder or guarantee arithmetic safety.
+ * Run two passes over one axis' array, clamping dimensions and
+ * redistributing the remainder with the 1D helpers.
  */
 static void Layout2D_minmax_constraints_and_redistrib(struct layout2d_elem
     *infos, WORD nitems, WORD total_size, WORD samesize, WORD remainder)
 {
     int j;
-
-/*      D(bug("L2D mc&r n=%d A=%d ss=%d rem=%d\n", */
-/*          nitems, total_size, samesize, remainder)); */
 
     for (j = 0; j < 2; j++)
     {
@@ -4494,195 +3811,113 @@ static void Layout2D_minmax_constraints_and_redistrib(struct layout2d_elem
         WORD size_shrinkables = total_size;
         ULONG weight_growables = 0;
         ULONG weight_shrinkables = 0;
-/*        WORD old_size; */
         int i;
 
-        // minmax constraints
         for (i = 0; i < nitems; i++)
-        {
-/*                old_size = infos[i].dim; */
-
-/*              D(bug("bef loop1 on %d : size=%d, rem=%d, A=%d, " */
-/*                        "sizegrow=%d, sizeshrink=%d w=%d min=%d max=%d\n", */
-/*                        i, infos[i].dim, remainder, total_size, */
-/*                        size_growables, size_shrinkables, infos[i].weight, */
-/*                        infos[i].min, infos[i].max)); */
-
             Layout1D_minmax_constraint(&infos[i].dim, infos[i].min,
                 infos[i].max, &remainder, &size_growables,
                 &size_shrinkables, &weight_growables, &weight_shrinkables,
                 infos[i].weight, samesize);
-
-/*              D(bug("loop1 on %d : size=%d was %d, rem=%d, A=%d, " */
-/*                        "sizegrow=%d, sizeshrink=%d w=%d min=%d max=%d\n", */
-/*                        i, infos[i].dim, old_size, remainder, total_size, */
-/*                        size_growables, size_shrinkables, infos[i].weight, */
-/*                        infos[i].min, infos[i].max)); */
-        }
-
         if (remainder == 0)
             break;
-
         for (i = 0; i < nitems; i++)
-        {
-/*            old_size = infos[i].dim; */
-
-/*              D(bug("bef loop2 on %d : size=%d, rem=%d, A=%d, " */
-/*                        "size_grow=%d, size_shrink=%d\n", i, */
-/*                        infos[i].dim, remainder, total_size, */
-/*                        size_growables, size_shrinkables)); */
-
             Layout1D_redistribution(&infos[i].dim, infos[i].min,
                 infos[i].max, &remainder, &size_growables,
                 &size_shrinkables, &weight_growables, &weight_shrinkables,
                 infos[i].weight);
-
-/*              D(bug("loop2 on %d : size=%d was %d, rem=%d, A=%d, " */
-/*                        "size_grow=%d, size_shrink=%d\n", i, */
-/*                        infos[i].dim, old_size, remainder, total_size, */
-/*                        size_growables, size_shrinkables)); */
-        }
     }
 }
 
 /*
- * Place visible non-border children row-major using prepared row/column
- * dimensions and supplied starting coordinates. Clamp each child to its
- * min/max and center within its cell; advance by cell size plus spacing.
- * Requires valid arrays, nonzero columns and stable membership. Return
- * early if MUI_Layout reports FALSE, without an error result; that wrapper
- * currently always returns TRUE.
+ * A grid: the rows' heights and the columns' widths from their weights
+ * and limits, then the children placed row-major, each within its limits
+ * and centred in its cell. Nothing without valid dimensions and arrays.
  */
-static void
-layout_2d_distribute_space(struct MUI_GroupData *data,
-    struct layout2d_elem *row_infos,
-    struct layout2d_elem *col_infos,
-    struct MinList *children, LONG left_start, LONG top_start)
+static void group_layout_2d(struct MUI_GroupData *data, Object *obj)
 {
-    APTR cstate;
-    Object *child;
-    LONG left;
-    LONG top;
-    LONG col_width;
-    LONG row_height;
-    int i, j;
+    struct GroupExtra *x = data->x;
+    struct layout2d_elem *row, *col;
+    struct MinNode *n;
+    WORD layout_width, layout_height, total_h, total_w, init_h, init_w;
+    LONG top = 0;
+    int i;
 
-    /*
-     * pass 2 : distribute space
-     */
-    cstate = children->mlh_Head;
-    top = top_start;
-    /* for each row */
-    for (i = 0; i < data->rows; i++)
+    if (x->rows == 0 || x->columns == 0
+        || data->num_children > x->rows * x->columns
+        || x->row_infos == NULL || x->col_infos == NULL)
+        return;
+
+    if (data->flags & GROUP_VIRTUAL)
     {
-        /* left start for child layout in this row */
-        left = left_start;
+        group_virtual_area(obj, VX(data));
+        layout_width = VX(data)->virt_mwidth;
+        layout_height = VX(data)->virt_mheight;
+    }
+    else
+    {
+        layout_width = _mwidth(obj);
+        layout_height = _mheight(obj);
+    }
 
-        /* max height for children in this row */
-        row_height = row_infos[i].dim;
-        j = 0;
-        /* for each column */
-        while ((child = NextObject(&cstate)))
+    total_h = layout_height - (x->rows - 1) * data->vert_spacing;
+    total_w = layout_width - (x->columns - 1) * data->horiz_spacing;
+    Layout2D_weight_constraint(x->row_infos, x->rows, x->vert_weight_sum,
+        total_h, &init_h);
+    Layout2D_weight_constraint(x->col_infos, x->columns,
+        x->horiz_weight_sum, total_w, &init_w);
+    Layout2D_minmax_constraints_and_redistrib(x->row_infos, x->rows,
+        total_h, 0, total_h - init_h);
+    Layout2D_minmax_constraints_and_redistrib(x->col_infos, x->columns,
+        total_w, 0, total_w - init_w);
+
+    /* distribute space */
+    n = data->childlist.mlh_Head;
+    for (i = 0, row = x->row_infos; i < x->rows; i++, row++)
+    {
+        LONG left = 0;
+        int j = 0;
+
+        col = x->col_infos;
+        while (n->mln_Succ)
         {
-            LONG cleft;
-            LONG ctop;
-            LONG cwidth;
-            LONG cheight;
+            Object *child = BASEOBJECT(n);
+            LONG cw, ch;
 
+            n = n->mln_Succ;
             if (IS_HIDDEN(child))
                 continue;
-            /* max width for children in this column */
-            col_width = col_infos[j].dim;
-
-            /* center child if col width is bigger than child maxwidth */
-            cwidth = MIN(_maxwidth(child), col_width);
-            cwidth = MAX(cwidth, _minwidth(child));
-            cleft = left + (col_width - cwidth) / 2;
-
-            /* center child if row height is bigger than child maxheight */
-            cheight = MIN(_maxheight(child), row_height);
-            cheight = MAX(cheight, _minheight(child));
-            ctop = top + (row_height - cheight) / 2;
-
-/*          g_print("layout %d %d  %d %d\n", cleft, ctop, cwidth, cheight); */
-/*          D(bug("2DL/child %p -> layout %d x %d\n", */
-/*              child, cwidth, cheight)); */
-            if (!MUI_Layout(child, cleft, ctop, cwidth, cheight, 0))
+            /* centred if the cell is larger than the child's maximum */
+            cw = MAX(MIN(_maxwidth(child), col->dim), _minwidth(child));
+            ch = MAX(MIN(_maxheight(child), row->dim), _minheight(child));
+            if (!MUI_Layout(child, left + (col->dim - cw) / 2,
+                    top + (row->dim - ch) / 2, cw, ch, 0))
                 return;
-
-            left += data->horiz_spacing + col_width;
-
-            ++j;
-            if ((j % data->columns) == 0)
+            left += data->horiz_spacing + col->dim;
+            col++;
+            if ((++j % x->columns) == 0)
                 break;
         }
-
-        top += data->vert_spacing + row_height;
+        top += data->vert_spacing + row->dim;
     }
-
 }
 
-
 /*
- * all children in the same row have the same maximum height
- * all children in the same column have the same maximum height
- * if a child maximum size is smaller than the biggest minimum size,
- * the chid will be centered in the remaining space.
- *
- * for each row, determine its height allocation
- * weight ? the vertical weight of a row, if no fixed-height child
- *  in the row, is the sum of all vertical weights of children
- * row height is shared; individual child limits still apply
- *
- * for each column, determine its width allocation
- * column width is shared; individual child limits still apply
+ * A page group: every page laid out (hidden ones too), centred in the
+ * available width, the title group's minimum height reserved above the
+ * content (below it with MUIV_Title_Position_Bottom).
  */
-/* Write a proper hook function */
-/*
- * Validate nonzero compatible dimensions and both arrays; otherwise return
- * without layout or error status. Distribute space then place visible non-
- * border children row-major, centered within cell limits. Requires prior
- * min/max and render geometry. Calls MUI_Layout with no propagated child
- * result.
- */
-static void
-group_layout_2d(struct IClass *cl, Object *obj, struct MinList *children)
+static void group_layout_pagemode(struct MUI_GroupData *data, Object *obj)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    WORD left_start = 0;
-    WORD top_start = 0;
-    WORD total_size_height =
-        _mheight(obj) - (data->rows - 1) * data->vert_spacing;
-    WORD total_size_width =
-        _mwidth(obj) - (data->columns - 1) * data->horiz_spacing;
-    WORD total_init_height;
-    WORD total_init_width;
-    WORD remainder_height;
-    WORD remainder_width;
-    WORD layout_width;
-    WORD layout_height;
-
-    if (data->rows == 0 || data->columns == 0)
-        return;
-    if (data->num_children > data->rows * data->columns)
-        return;
-    if (data->row_infos == NULL || data->col_infos == NULL)
-        return;
-
-    //kprintf("group_layout_horiz: virtoff = %d,%d\n",
-    //    GV(data)->virt_offx, GV(data)->virt_offy);
+    Object *title = group_title(data), *child;
+    struct MinNode *n;
+    WORD layout_width, layout_height;
+    int yoffset = 0, ypage = 0, ytitle = 0;
 
     if (data->flags & GROUP_VIRTUAL)
     {
-        data->virt->virt_mwidth =
-            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
-            _maxwidth(obj) - _subwidth(obj));
-        data->virt->virt_mheight =
-            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
-            _maxheight(obj) - _subheight(obj));
-
-        layout_width = GV(data)->virt_mwidth;
-        layout_height = GV(data)->virt_mheight;
+        group_virtual_area(obj, VX(data));
+        layout_width = VX(data)->virt_mwidth;
+        layout_height = VX(data)->virt_mheight;
     }
     else
     {
@@ -4690,365 +3925,221 @@ group_layout_2d(struct IClass *cl, Object *obj, struct MinList *children)
         layout_height = _mheight(obj);
     }
 
-    total_size_height =
-        layout_height - (data->rows - 1) * data->vert_spacing;
-    total_size_width =
-        layout_width - (data->columns - 1) * data->horiz_spacing;
-
-    // fix left/top ?
-
-    // weight constraints
-    Layout2D_weight_constraint(data, data->row_infos, data->col_infos,
-        total_size_height, total_size_width,
-        &total_init_height, &total_init_width);
-
-    remainder_height = total_size_height - total_init_height;
-    remainder_width = total_size_width - total_init_width;
-
-    Layout2D_minmax_constraints_and_redistrib(data->row_infos,
-        data->rows, total_size_height,
-/*      (data->flags & GROUP_SAME_HEIGHT) ? data->samesize_maxmin_vert : 0, */
-        0, remainder_height);
-
-    Layout2D_minmax_constraints_and_redistrib(data->col_infos,
-        data->columns, total_size_width,
-/*      (data->flags & GROUP_SAME_WIDTH) ? data->samesize_maxmin_horiz : 0, */
-        0, remainder_width);
-
-    layout_2d_distribute_space(data, data->row_infos, data->col_infos,
-        children, left_start, top_start);
-}
-
-
-/* Write a proper hook function */
-/*
- * Lay out all pages, including hidden/inactive children, centered in the
- * available width with title minimum height reserved above content. Width
- * uses available space and maximum, not a minimum clamp. Requires valid
- * child limits/title pointer; ignores child layout results and returns no
- * status.
- */
-static void group_layout_pagemode(struct IClass *cl, Object *obj,
-    struct MinList *children)
-{
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    WORD layout_width;
-    WORD layout_height;
-    int w, h, yoffset = 0;
-
-    if (data->flags & GROUP_VIRTUAL)
+    if (title)
     {
-        data->virt->virt_mwidth =
-            CLAMP(_mwidth(obj), GV(data)->saved_minwidth - _subwidth(obj),
-            _maxwidth(obj) - _subwidth(obj));
-        data->virt->virt_mheight =
-            CLAMP(_mheight(obj), GV(data)->saved_minheight - _subheight(obj),
-            _maxheight(obj) - _subheight(obj));
+        IPTR position = 0;
 
-        layout_width = GV(data)->virt_mwidth;
-        layout_height = GV(data)->virt_mheight;
-    }
-    else
-    {
-        layout_width = _mwidth(obj);
-        layout_height = _mheight(obj);
-    }
-
-    if (data->titlegroup)
-    {
-        yoffset = _minheight(data->titlegroup);
+        ypage = yoffset = _minheight(title);
         layout_height -= yoffset;
+        get(title, MUIA_Title_Position, &position);
+        if (position == MUIV_Title_Position_Bottom)
+            ypage = 0, ytitle = layout_height;
     }
 
-    cstate = children->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
     {
-        w = MIN(layout_width, _maxwidth(child));
-        h = MIN(layout_height, _maxheight(child));
+        int w = MIN(layout_width, _maxwidth(child));
+        int h = MIN(layout_height, _maxheight(child));
 
-        if (child == data->titlegroup)
-        {
-            IPTR position = 0;
-            get(child, MUIA_Title_Position, &position);
+        if (child == title)
             MUI_Layout(child, (layout_width - w) / 2,
-                position == MUIV_Title_Position_Bottom ? layout_height : 0,
-                w, yoffset, 0);
-        }
+                ytitle, w, yoffset, 0);
         else
-        {
-            D(bug("PM/child %p -> layout %d x %d\n", child, w, h));
             MUI_Layout(child, (layout_width - w) / 2,
-                (data->titlegroup && XGET(data->titlegroup, MUIA_Title_Position) ==
-                    MUIV_Title_Position_Bottom ? 0 : yoffset) +
-                (layout_height - h) / 2, w, h, 0);
-        }
+                ypage + (layout_height - h) / 2, w, h, 0);
     }
 }
 
+/* A layout hook's MUILM_LAYOUT (the message cleared, the inner size in
+ * it); a virtual group's area at least its inner box. The hook's
+ * result. Its own function: the message is on the stack only here. */
+static __attribute__((noinline)) IPTR group_layout_hook(
+    struct MUI_GroupData *data, Object *obj)
+{
+    struct MUI_LayoutMsg lm = { 0 };
+    IPTR result;
+
+    lm.lm_Children = &data->childlist;
+    lm.lm_Type = MUILM_LAYOUT;
+    lm.lm_Layout.Width = _mwidth(obj);
+    lm.lm_Layout.Height = _mheight(obj);
+    result = CallHookPkt(data->layout_hook, obj, &lm);
+    if (data->flags & GROUP_VIRTUAL)
+    {
+        /* A layout hook may need less space than the viewport. Keep
+         * the virtual extent large enough to cover its visible area. */
+        VX(data)->virt_mwidth = MAX(lm.lm_Layout.Width, _mwidth(obj));
+        VX(data)->virt_mheight = MAX(lm.lm_Layout.Height, _mheight(obj));
+    }
+    return result;
+}
+
+/* After a virtual group's layout: its offsets within its new area, and a
+ * new area size told (a relayout of the virtual group alone, a layout
+ * hook reporting a new page size, must still reach a Scrollgroup's
+ * scrollers) */
+static __attribute__((noinline)) void group_layout_virtual(
+    struct MUI_GroupData *data, Object *obj)
+{
+    struct GroupVirtual *v = VX(data);
+    WORD x = v->virt_offx, y = v->virt_offy;
+
+    if (x + _mwidth(obj) > v->virt_mwidth)
+        x = v->virt_mwidth - _mwidth(obj);
+    if (x < 0)
+        x = 0;
+    if (y + _mheight(obj) > v->virt_mheight)
+        y = v->virt_mheight - _mheight(obj);
+    if (y < 0)
+        y = 0;
+    if (x != v->virt_offx)
+        nfset(obj, MUIA_Virtgroup_Left, x);
+    if (y != v->virt_offy)
+        nfset(obj, MUIA_Virtgroup_Top, y);
+    if (v->virt_mwidth != v->told_mwidth || v->virt_mheight != v->told_mheight)
+    {
+        v->told_mwidth = v->virt_mwidth;
+        v->told_mheight = v->virt_mheight;
+        SetAttrs(obj, MUIA_Group_Forward, FALSE,
+            MUIA_Virtgroup_Width, v->virt_mwidth,
+            MUIA_Virtgroup_Height, v->virt_mheight, TAG_DONE);
+    }
+}
 
 /**************************************************************************
  MUIM_Zune_Layout
  Either use a given layout hook, or the builtin method.
 **************************************************************************/
 /*
- * Select page, custom Hook or built-in layout. Hook receives a zeroed
- * temporary message with inner dimensions and borrowed list. Copy virtual
- * dimensions back, clamp WORD offsets and set them with child forwarding
- * disabled. Return the Hook's result, otherwise TRUE. Requires established
- * child min/max and valid lifecycle.
+ * Select page, custom Hook or built-in layout. Return the Hook's result,
+ * otherwise TRUE. Requires established child min/max and valid lifecycle.
  */
 IPTR Group__MUIM_Layout(struct IClass *cl, Object *obj,
     struct MUIP_Zune_Layout *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    struct MUI_LayoutMsg lm = { 0 };
+    struct MUI_GroupData *data = GDATA(cl, obj);
     IPTR result = TRUE;
 
-    lm.lm_Children = group_children(data);
     if (data->flags & GROUP_PAGEMODE)
-    {
-        group_layout_pagemode(cl, obj, lm.lm_Children);
-    }
+        group_layout_pagemode(data, obj);
     else if (data->layout_hook)
-    {
-        lm.lm_Type = MUILM_LAYOUT;
-        lm.lm_Layout.Width = _mwidth(obj);
-        lm.lm_Layout.Height = _mheight(obj);
-
-        result = CallHookPkt(data->layout_hook, obj, &lm);
-
-        if (data->flags & GROUP_VIRTUAL)
-        {
-            /* A layout hook may need less space than the viewport. Keep
-             * the virtual extent large enough to cover its visible area. */
-            data->virt->virt_mwidth = MAX(lm.lm_Layout.Width, _mwidth(obj));
-            data->virt->virt_mheight = MAX(lm.lm_Layout.Height, _mheight(obj));
-        }
-    }
+        result = group_layout_hook(data, obj);
+    else if (!group_grid(data))
+        group_layout_1d(data, obj);
     else
-    {
-        if ((data->rows == 1) && (data->columns == 1))
-        {
-            group_layout_1d(cl, obj, lm.lm_Children);
-        }
-        else
-            group_layout_2d(cl, obj, lm.lm_Children);
-    }
-
+        group_layout_2d(data, obj);
     if (data->flags & GROUP_VIRTUAL)
-    {
-        WORD new_virt_offx, new_virt_offy;
-
-        new_virt_offx = GV(data)->virt_offx;
-        new_virt_offy = GV(data)->virt_offy;
-
-        if (new_virt_offx + _mwidth(obj) > GV(data)->virt_mwidth)
-        {
-            new_virt_offx = GV(data)->virt_mwidth - _mwidth(obj);
-        }
-        if (new_virt_offx < 0)
-            new_virt_offx = 0;
-
-        if (new_virt_offy + _mheight(obj) > GV(data)->virt_mheight)
-        {
-            new_virt_offy = GV(data)->virt_mheight - _mheight(obj);
-        }
-        if (new_virt_offy < 0)
-            new_virt_offy = 0;
-
-        if (new_virt_offx != GV(data)->virt_offx)
-        {
-            nfset(obj, MUIA_Virtgroup_Left, new_virt_offx);
-        }
-
-        if (new_virt_offy != GV(data)->virt_offy)
-        {
-            nfset(obj, MUIA_Virtgroup_Top, new_virt_offy);
-        }
-
-        /* A relayout of the virtual group alone (a layout hook reporting
-         * a new page size) must still reach a Scrollgroup's scrollers. */
-        if (GV(data)->virt_mwidth != GV(data)->told_mwidth ||
-            GV(data)->virt_mheight != GV(data)->told_mheight)
-        {
-            data->virt->told_mwidth = GV(data)->virt_mwidth;
-            data->virt->told_mheight = GV(data)->virt_mheight;
-            SetAttrs(obj, MUIA_Group_Forward, FALSE,
-                MUIA_Virtgroup_Width, GV(data)->virt_mwidth,
-                MUIA_Virtgroup_Height, GV(data)->virt_mheight, TAG_DONE);
-        }
-    }
-
+        group_layout_virtual(data, obj);
     return result;
 }
 
 /**************************************************************************
- MUIM_Show
+ MUIM_Show, MUIM_Hide
 **************************************************************************/
 /*
- * If message is non-NULL, show Area first and ignore its result. Page mode
- * shows title and selected page without ShowMe filtering; ordinary mode
- * checks ShowMe and virtual visibility. Ignore child results, return TRUE.
- * NULL message is an internal child-only path; requires valid drawable
- * geometry.
+ * Show (hide) with a message: Area first (last); a NULL message is the
+ * group's own path for its children alone (a page switch, a scroll). A
+ * page group shows the title group and the active page without ShowMe
+ * filtering; others their ShowMe children that did not disappear (a
+ * virtual group only those inside its box). Hide hides the title and the
+ * active page, or every drawable child. Child results are ignored.
  */
 IPTR Group__MUIM_Show(struct IClass *cl, Object *obj,
     struct MUIP_Show *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
 
-    /* If msg is NULL, we won't want that the super method actually gets
-     * this call */
     if (msg)
         DoSuperMethodA(cl, obj, (Msg) msg);
 
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-
     if (data->flags & GROUP_PAGEMODE)
     {
-        int page = 0;
-        while ((child = NextObject(&cstate)))
-        {
-            if (child == data->titlegroup)
-            {
-                DoShowMethod(child);
-                continue;       /* Title group is not counted as page */
-            }
+        Object *title = group_title(data);
+        LONG page = data->active_page + 1;
 
-            if (page == data->active_page)
+        FOR_CHILD(&data->childlist, n, child)
+            if (child == title)
+                DoShowMethod(child);   /* not counted as a page */
+            else if (!--page)
             {
                 DoShowMethod(child);
                 break;
             }
-            page++;
-        }
     }
     else
-    {
-        while ((child = NextObject(&cstate)))
-        {
-            if (!(data->flags & GROUP_VIRTUAL) ||
-                IsObjectVisible(child, MUIMasterBase))
-            {
-                if ((_flags(child) & MADF_SHOWME)
-                    && !(_flags(child) & MADF_DISAPPEARED))
-                    DoShowMethod(child);
-            }
-        }
-    }
+        FOR_CHILD(&data->childlist, n, child)
+            if ((_flags(child) & (MADF_SHOWME | MADF_DISAPPEARED))
+                    == MADF_SHOWME
+                && (!(data->flags & GROUP_VIRTUAL)
+                    || IsObjectVisible(child, MUIMasterBase)))
+                DoShowMethod(child);
     return TRUE;
 }
 
-/**************************************************************************
- MUIM_Hide
-**************************************************************************/
-/*
- * Hide title/selected page in page mode or drawable children otherwise.
- * Call Area only for non-NULL message, returning its result, otherwise one.
- * Requires stable list and valid shown state. Does not cleanup or release
- * children; NULL message is the internal child-only path.
- */
 IPTR Group__MUIM_Hide(struct IClass *cl, Object *obj,
     struct MUIP_Hide *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
-
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
 
     if (data->flags & GROUP_PAGEMODE)
     {
-        int page = 0;
-        while ((child = NextObject(&cstate)))
-        {
-            if (child == data->titlegroup)
-            {
-                DoHideMethod(child);
-                continue;       /* Title group is not counted as page */
-            }
+        Object *title = group_title(data);
+        LONG page = data->active_page + 1;
 
-            if (page == data->active_page)
+        FOR_CHILD(&data->childlist, n, child)
+            if (child == title)
+                DoHideMethod(child);   /* not counted as a page */
+            else if (!--page)
             {
                 DoHideMethod(child);
                 break;
             }
-            page++;
-        }
     }
     else
-    {
-        while ((child = NextObject(&cstate)))
-        {
+        FOR_CHILD(&data->childlist, n, child)
             if (_flags(child) & MADF_CANDRAW)
                 DoHideMethod(child);
-        }
-    }
 
-    /* If msg is NULL, we won't want that the super method actually gets
-     * this call */
     if (msg)
         return DoSuperMethodA(cl, obj, (Msg) msg);
     return 1;
 }
 
 /*
- * MUIM_FindUData : tests if the MUIA_UserData of the object
- * contains the given <udata> and returns the object pointer in this case.
- */
-/*
- * Return this borrowed Group if UserData matches; otherwise ask the
- * children in order. Requires live objects and stable
- * traversal. Return zero when no child matches; do not dispose
- * returned objects.
+ * MUIM_FindUData, MUIM_FindObject: this group when it matches, else the
+ * first child's answer. MUIM_GetUData, MUIM_SetUDataOnce: this group when
+ * its MUIA_UserData matches (the attribute got or set), else the
+ * children until one answers. MUIM_SetUData: this group when it matches
+ * (a set it may pass on to the children itself), then every child.
  */
 IPTR Group__MUIM_FindUData(struct IClass *cl, Object *obj,
     struct MUIP_FindUData *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-
-    Object *cstate = (Object *)data->childlist.mlh_Head;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
 
     if (ZUNE_FIND_MATCH(obj, msg))
         return (IPTR) obj;
-
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
     {
-        Object *found = (Object *) DoMethodA(child, (Msg) msg);
+        IPTR found = DoMethodA(child, (Msg) msg);
 
         if (found)
-            return (IPTR) found;
+            return found;
     }
     return 0;
 }
 
-
-/*
- * MUIM_GetUData : This method tests if the MUIA_UserData of the object
- * contains the given <udata> and gets <attr> to <storage> for itself
- * in this case.
- */
-/*
- * Match Group first and invoke its getter into caller storage without
- * checking getter success; otherwise ask the children. Return match
- * status, not getter success. Requires storage suitable for requested
- * attribute and stable traversal.
- */
 IPTR Group__MUIM_GetUData(struct IClass *cl, Object *obj,
     struct MUIP_GetUData *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-
-    Object *cstate = (Object *)data->childlist.mlh_Head;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
 
     if (muiNotifyData(obj)->mnd_UserData == msg->udata)
@@ -5056,58 +4147,31 @@ IPTR Group__MUIM_GetUData(struct IClass *cl, Object *obj,
         get(obj, msg->attr, msg->storage);
         return TRUE;
     }
-
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
         if (DoMethodA(child, (Msg) msg))
             return TRUE;
     return FALSE;
 }
 
-
-/*
- * MUIM_SetUData : This method tests if the MUIA_UserData of the object
- * contains the given <udata> and sets <attr> to <val> for itself in this case.
- */
-/*
- * Set matching Group then visit every child. Group setter may
- * already broadcast to children before the explicit child walk, so
- * assignments can repeat. Requires writable valid setter arguments and
- * stable membership. Return TRUE; delegated results are ignored.
- */
 IPTR Group__MUIM_SetUData(struct IClass *cl, Object *obj,
     struct MUIP_SetUData *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-
-    Object *cstate = (Object *)data->childlist.mlh_Head;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
 
     if (muiNotifyData(obj)->mnd_UserData == msg->udata)
         set(obj, msg->attr, msg->val);
-
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
         DoMethodA(child, (Msg) msg);
     return TRUE;
 }
 
-
-/*
- * MUIM_SetUDataOnce : This method tests if the MUIA_UserData of the object
- * contains the given <udata> and sets <attr> to <val> for itself in this case.
- * Stop after the first udata found.
- */
-/*
- * Set Group and return TRUE when its UserData matches; otherwise return
- * the children's search result. A Group match can still propagate its setter to
- * children. Requires live compatible objects and valid setter arguments; no
- * ownership change.
- */
 IPTR Group__MUIM_SetUDataOnce(struct IClass *cl, Object *obj,
     struct MUIP_SetUData *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-
-    Object *cstate = (Object *)data->childlist.mlh_Head;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
 
     if (muiNotifyData(obj)->mnd_UserData == msg->udata)
@@ -5115,37 +4179,30 @@ IPTR Group__MUIM_SetUDataOnce(struct IClass *cl, Object *obj,
         set(obj, msg->attr, msg->val);
         return TRUE;
     }
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
         if (DoMethodA(child, (Msg) msg))
             return TRUE;
     return FALSE;
 }
 
 /**************************************************************************
- MUIM_DragQueryExtented
+ MUIM_DragQueryExtended
 **************************************************************************/
 /*
  * Ask drawable children in list order and return the first accepting
- * object/result; otherwise ask Area. Requires valid borrowed drag message
- * and live geometry. Does not transfer ownership or validate child callback
- * lifetime.
+ * object/result; otherwise ask Area.
  */
 IPTR Group__MUIM_DragQueryExtended(struct IClass *cl, Object *obj,
     struct MUIP_DragQueryExtended *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    Object *found_obj;
-    struct MinList *ChildList = NULL;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
+    Object *child, *found_obj;
 
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
     {
         if (!(_flags(child) & MADF_CANDRAW))
             continue;
-
         if ((found_obj = (Object *) DoMethodA(child, (Msg) msg)))
             return (IPTR) found_obj;
     }
@@ -5155,114 +4212,83 @@ IPTR Group__MUIM_DragQueryExtended(struct IClass *cl, Object *obj,
 /**************************************************************************
  MUIM_HandleEvent
 **************************************************************************/
+/* Its event handler in a virtual group's event mask, the mask changed */
+static void group_virt_events(Object *obj, struct GroupVirtual *v,
+    ULONG events)
+{
+    DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR) &v->ehn);
+    v->ehn.ehn_Events = events;
+    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) &v->ehn);
+}
+
 /*
  * Handle virtual-group mouse/tick autoscroll only; never delegate to Area
- * here. SELECTDOWN inside starts ticks; another button event removes them.
- * Ticks outside adjust/clamp offsets by four pixels and set them with
- * Forward FALSE. Requires valid IntuiMessage/window/setup. Return zero,
- * including unhandled events.
+ * here (a superclass with IDCMP_MOUSEBUTTONS handlers may call it without
+ * the group's handler). SELECTDOWN inside starts ticks; another button
+ * event removes them. Ticks outside adjust/clamp offsets by four pixels
+ * and set them with Forward FALSE. Return zero.
  */
 IPTR Group__MUIM_HandleEvent(struct IClass *cl, Object *obj,
     struct MUIP_HandleEvent *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct IntuiMessage *im = msg->imsg;
+    struct GroupVirtual *v;
+    BOOL inside;
 
-    /* check this, otherwise a superclass who has IDCMP_MOUSEBUTTONS
-       eventhandler might call DoSuperMethod, and this function gets
-       called even when he have not added any eventhandler */
-
-    if ((data->flags & GROUP_VIRTUAL) && msg->imsg)
+    if (!(data->flags & GROUP_VIRTUAL) || !im)
+        return 0;
+    v = VX(data);
+    inside = _between(_mleft(obj), im->MouseX, _mright(obj))
+        && _between(_mtop(obj), im->MouseY, _mbottom(obj));
+    switch (im->Class)
     {
-        switch (msg->imsg->Class)
+    case IDCMP_MOUSEBUTTONS:
+        if (im->Code == SELECTDOWN)
         {
-        case IDCMP_MOUSEBUTTONS:
-            /* For virtual groups */
-            if (msg->imsg->Code == SELECTDOWN)
-            {
-                if (_between(_mleft(obj), msg->imsg->MouseX, _mright(obj))
-                    && _between(_mtop(obj), msg->imsg->MouseY,
-                        _mbottom(obj)))
-                {
-                    DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                        (IPTR) &data->virt->ehn);
-                    data->virt->ehn.ehn_Events |= IDCMP_INTUITICKS;
-                    DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                        (IPTR) &data->virt->ehn);
-                }
-            }
-            else
-            {
-                if (GV(data)->ehn.ehn_Events & IDCMP_INTUITICKS)
-                {
-                    DoMethod(_win(obj), MUIM_Window_RemEventHandler,
-                        (IPTR) &data->virt->ehn);
-                    data->virt->ehn.ehn_Events &= ~IDCMP_INTUITICKS;
-                    DoMethod(_win(obj), MUIM_Window_AddEventHandler,
-                        (IPTR) &data->virt->ehn);
-                }
-            }
-            break;
-
-        case IDCMP_INTUITICKS:
-            if (!(GV(data)->ehn.ehn_Events & IDCMP_INTUITICKS))
-                break;
-
-            if (!(_between(_mleft(obj), msg->imsg->MouseX, _mright(obj))
-                    && _between(_mtop(obj), msg->imsg->MouseY,
-                        _mbottom(obj))))
-            {
-                LONG new_virt_offx = GV(data)->virt_offx;
-                LONG new_virt_offy = GV(data)->virt_offy;
-
-                if (msg->imsg->MouseX < _mleft(obj))
-                {
-                    /* scroll left */
-                    if (new_virt_offx >= 4)
-                        new_virt_offx -= 4;
-                    else
-                        new_virt_offx = 0;
-                }
-                else if (msg->imsg->MouseX > _mright(obj))
-                {
-                    /* scroll right */
-                    new_virt_offx += 4;
-                    if (new_virt_offx > GV(data)->virt_mwidth - _mwidth(obj))
-                        new_virt_offx = GV(data)->virt_mwidth - _mwidth(obj);
-                    if (new_virt_offx < 0)
-                        new_virt_offx = 0;
-                }
-
-                if (msg->imsg->MouseY < _mtop(obj))
-                {
-                    /* scroll top */
-                    if (new_virt_offy >= 4)
-                        new_virt_offy -= 4;
-                    else
-                        new_virt_offy = 0;
-                }
-                else if (msg->imsg->MouseY > _mbottom(obj))
-                {
-                    /* scroll bottom */
-                    new_virt_offy += 4;
-                    if (new_virt_offy > GV(data)->virt_mheight - _mheight(obj))
-                        new_virt_offy = GV(data)->virt_mheight - _mheight(obj);
-                    if (new_virt_offy < 0)
-                        new_virt_offy = 0;
-                }
-
-                if (new_virt_offx != GV(data)->virt_offx
-                    || new_virt_offy != GV(data)->virt_offy)
-                {
-                    SetAttrs(obj,
-                        MUIA_Virtgroup_Left, new_virt_offx,
-                        MUIA_Virtgroup_Top, new_virt_offy,
-                        MUIA_Group_Forward, FALSE, TAG_DONE);
-                }
-            }
-            break;
+            if (inside)
+                group_virt_events(obj, v,
+                    v->ehn.ehn_Events | IDCMP_INTUITICKS);
         }
-    }
+        else if (v->ehn.ehn_Events & IDCMP_INTUITICKS)
+            group_virt_events(obj, v,
+                v->ehn.ehn_Events & ~IDCMP_INTUITICKS);
+        break;
 
+    case IDCMP_INTUITICKS:
+        if ((v->ehn.ehn_Events & IDCMP_INTUITICKS) && !inside)
+        {
+            LONG x = v->virt_offx, y = v->virt_offy;
+
+            if (im->MouseX < _mleft(obj))
+                x = x >= 4 ? x - 4 : 0;     /* scroll left */
+            else if (im->MouseX > _mright(obj))
+            {
+                /* scroll right */
+                x += 4;
+                if (x > v->virt_mwidth - _mwidth(obj))
+                    x = v->virt_mwidth - _mwidth(obj);
+                if (x < 0)
+                    x = 0;
+            }
+            if (im->MouseY < _mtop(obj))
+                y = y >= 4 ? y - 4 : 0;     /* scroll up */
+            else if (im->MouseY > _mbottom(obj))
+            {
+                /* scroll down */
+                y += 4;
+                if (y > v->virt_mheight - _mheight(obj))
+                    y = v->virt_mheight - _mheight(obj);
+                if (y < 0)
+                    y = 0;
+            }
+            if (x != v->virt_offx || y != v->virt_offy)
+                SetAttrs(obj, MUIA_Virtgroup_Left, x,
+                    MUIA_Virtgroup_Top, y, MUIA_Group_Forward, FALSE,
+                    TAG_DONE);
+        }
+        break;
+    }
     return 0;
 }
 
@@ -5270,48 +4296,26 @@ IPTR Group__MUIM_HandleEvent(struct IClass *cl, Object *obj,
  MUIM_DrawBackground
 **************************************************************************/
 /*
- * For virtual groups copy the message and add virtual offsets to background
- * offsets before Area dispatch; otherwise forward original. Requires live
- * drawing state and valid message. Return superclass result; temporary copy
- * must not escape.
+ * A virtual group's background offsets moved by its virtual offsets;
+ * Area's result.
  */
 IPTR Group__MUIM_DrawBackground(struct IClass *cl, Object *obj,
     struct MUIP_DrawBackground *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    LONG dx, dy;
+    IPTR r;
 
-    if (data->flags & GROUP_VIRTUAL)
-    {
-        struct MUIP_DrawBackground msg2 = *msg;
-
-        msg2.xoffset += GV(data)->virt_offx;
-        msg2.yoffset += GV(data)->virt_offy;
-
-        return DoSuperMethodA(cl, obj, (Msg) & msg2);
-    }
-
-    return DoSuperMethodA(cl, obj, (Msg) msg);
-}
-
-/* TRUE when obj is a plain built-in Group whose MUIM_DrawBackground would
- * only hand the request on to its parent. Objects inheriting a background
- * skip such levels instead of making two method calls per level. */
-BOOL Group_PassesBackground(Object *obj)
-{
-    struct IClass *cl = OCLASS(obj);
-    struct MUI_AreaData *ad;
-
-#if defined(__MAXON__) || defined(__amigaos4__)
-    if (cl->cl_Dispatcher.h_Entry != (HOOKFUNC)_MUI_Group_desc.dispatcher)
-#else
-    if (cl->cl_Dispatcher.h_SubEntry != (HOOKFUNC)_MUI_Group_desc.dispatcher)
-#endif
-        return FALSE;
-    ad = muiAreaData(obj);
-    return (BOOL)(!(((struct MUI_GroupData *)INST_DATA(cl, obj))->flags
-        & GROUP_VIRTUAL) && (ad->mad_Flags & MADF_CANDRAW) &&
-        !ad->mad_Background && !AREA_SELBACK(ad) &&
-        !(ad->mad_Flags2 & MADF2_CUSTOMBACKFILL));
+    if (!(data->flags & GROUP_VIRTUAL))
+        return DoSuperMethodA(cl, obj, (Msg) msg);
+    /* the offsets moved in the message for the call (no copy of it on the
+     * stack) */
+    msg->xoffset += (dx = VX(data)->virt_offx);
+    msg->yoffset += (dy = VX(data)->virt_offy);
+    r = DoSuperMethodA(cl, obj, (Msg) msg);
+    msg->xoffset -= dx;
+    msg->yoffset -= dy;
+    return r;
 }
 
 /**************************************************************************
@@ -5320,148 +4324,47 @@ BOOL Group_PassesBackground(Object *obj)
 **************************************************************************/
 /*
  * Find this Group, then immediate child identities, then recursive child
- * matches. Return a borrowed object or zero. Requires stable live tree and
- * valid sought object identity; no allocation or ownership change.
+ * matches. Return a borrowed object or zero.
  */
 IPTR Group__MUIM_FindAreaObject(struct IClass *cl, Object *obj,
     struct MUIP_FindAreaObject *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
 
     // it's me ?
     if (msg->obj == obj)
         return (IPTR) obj;
-
     // it's one of my children ?
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (msg->obj == child)
-            return (IPTR) child;
-    }
-
+    if (group_contains(&data->childlist, msg->obj))
+        return (IPTR) msg->obj;
     // let the children find it
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
+    FOR_CHILD(&data->childlist, n, child)
     {
         Object *res = (Object *) DoMethodA(child, (Msg) msg);
+
         if (res != NULL)
             return (IPTR) res;
     }
-
-    return (IPTR) NULL;
-}
-
-/**************************************************************************
-MUIM_Export : to export an object's "contents" to a dataspace object.
-**************************************************************************/
-/*
- * Forward export to every child, ignoring results, then return zero.
- * Requires stable membership and valid borrowed Dataspace. Does not export
- * this Group through Area and does not transfer ownership.
- */
-static IPTR Group__MUIM_Export(struct IClass *cl, Object *obj,
-    struct MUIP_Export *msg)
-{
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    struct MinList *ChildList = NULL;
-
-    ChildList = group_children(data);
-    if (!ChildList)
-        return 0;
-
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        DoMethodA(child, (Msg) msg);
-    }
-
-    return 0;
-}
-
-
-/**************************************************************************
-MUIM_Import : to import an object's "contents" from a dataspace object.
-**************************************************************************/
-/*
- * Forward import to every child, ignoring results, then return zero.
- * Requires stable membership and valid borrowed Dataspace. Does not import
- * this Group through Area; callbacks can change child state.
- */
-static IPTR Group__MUIM_Import(struct IClass *cl, Object *obj,
-    struct MUIP_Import *msg)
-{
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
-    Object *child;
-    struct MinList *ChildList = NULL;
-
-    ChildList = group_children(data);
-    if (!ChildList)
-        return 0;
-
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        DoMethodA(child, (Msg) msg);
-    }
-
     return 0;
 }
 
 /**************************************************************************
- MUIM_Notify - disabled now because previous Zune versions had a OM_GET
- check in MUIM_Notify which is no longer the case
+ MUIM_Export, MUIM_Import: to every child (an object's "contents" to and
+ from a dataspace object), not to Area; zero.
 **************************************************************************/
-#if 0
-/*
- * Inactive #if 0 alternative; not compiled. Probes local Notify then
- * children and returns registration result. Its suppression flag is not
- * nested-safe. Retained for source history, not a runtime contract.
- */
-STATIC IPTR Group_Notify(struct IClass *cl, Object *obj,
-    struct MUIP_Notify *msg)
+static IPTR Group__MUIM_Export(struct IClass *cl, Object *obj, Msg msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList;
 
-    /* Try at first if understand the message our self
-     ** We disable the forwarding of the OM_GET message
-     ** as the MUIM_Notify otherwise would "think" that
-     ** the group class actually understands the attribute
-     ** although a child does this only
-     */
-    data->dont_forward_get = 1;
-    if (DoSuperMethodA(cl, obj, (Msg) msg))
-    {
-        data->dont_forward_get = 0;
-        return 1;
-    }
-
-    /* We ourselves didn't understand the notify tag so we try the
-     * children now */
-    data->dont_forward_get = 0;
-
-    ChildList = group_children(data);
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (DoMethodA(child, (Msg) msg))
-            return 1;
-    }
+    FOR_CHILD(&data->childlist, n, child)
+        DoMethodA(child, msg);
     return 0;
 }
-#endif
 
-#if 1
 /* Notes about Group_Notify() and echo notification problem:
 It was discovered that MUI seems to have some special handling for group class
 which will drop notifications on the children which are found to not
@@ -5485,138 +4388,190 @@ and future ones.
  * Probe trigger getter on Group with child-get forwarding disabled, then
  * register locally through Area if recognized. Otherwise probe each child
  * and register on supported getters, ignoring registration results and
- * returning TRUE even if none match. Requires stable children and getters
- * writing at most 30 IPTRs. Borrowed message; flag restoration is not
- * nested-safe.
+ * returning TRUE even if none match. Getters may write at most 30 IPTRs.
  */
-STATIC IPTR __attribute__((noinline)) Group_Notify(struct IClass *cl, Object *obj,
-    struct MUIP_Notify *msg)
+static IPTR __attribute__((noinline)) Group_Notify(struct IClass *cl,
+    Object *obj, struct MUIP_Notify *msg)
 {
-    struct MUI_GroupData *data = INST_DATA(cl, obj);
-    APTR cstate;
+    struct MUI_GroupData *data = GDATA(cl, obj);
+    struct MinNode *n;
     Object *child;
-    struct MinList *ChildList = NULL;
     IPTR attr[30];
 
-    data->dont_forward_get = 1;
-
+    data->flags |= GROUP_NOFWD_GET;
     if (GetAttr(msg->TrigAttr, obj, attr))
     {
-        data->dont_forward_get = 0;
+        data->flags &= ~GROUP_NOFWD_GET;
         return DoSuperMethodA(cl, obj, (Msg) msg);
     }
-    data->dont_forward_get = 0;
+    data->flags &= ~GROUP_NOFWD_GET;
 
-    /* the list directly: through group_children() GCC keeps one more
-     * register on this recursive path */
-    ChildList = &data->childlist;
-    cstate = ChildList->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-
+    FOR_CHILD(&data->childlist, n, child)
         if (GetAttr(msg->TrigAttr, child, attr))
-        {
-            DoMethodA(child, (Msg) msg);
-            /* No return here! */
-        }
-    }
+            DoMethodA(child, (Msg) msg);    /* No return here! */
     return TRUE;
 }
-#endif
+
+/* A plain group's MUIM_DrawBackground only hands the request on to its
+ * parent: Group_PassesBackground() (area.h) reads MADF2_PLAINGROUP, set at
+ * OM_NEW for an object of the Group class itself that is not virtual. */
 
 /*
- * Route explicit Group/Area overrides and utility exceptions; unknown
- * messages broadcast to children then reach Area. Return selected
- * handler/superclass result, not aggregate child success. Requires live
- * class/object and ABI-correct writable message where handlers mutate it.
- * Explicit routes can bypass no-forward suppression.
+ * The dispatcher. The methods Group answers, by MethodID (unsigned,
+ * ascending: halved to find one; the compiler checks the order). Those
+ * that belong to the group itself, not to every child, go to Area
+ * (DoSuperMethodA: the same arguments); any other method goes to every
+ * child, then to Area (Group_Forward). Return the handler's result, not
+ * the children's.
  */
+static const struct { ULONG id; APTR method; } group_methods[] =
+{
+    { OM_NEW, (APTR)Group__OM_NEW },
+    { OM_DISPOSE, (APTR)Group__OM_DISPOSE },
+    { OM_SET, (APTR)Group__OM_SET },
+    { OM_GET, (APTR)Group__OM_GET },
+    { OM_ADDTAIL, (APTR)DoSuperMethodA },
+    { OM_REMOVE, (APTR)DoSuperMethodA },
+    { OM_ADDMEMBER, (APTR)group_add },
+    { OM_REMMEMBER, (APTR)Group__MUIM_Remove },
+    { MUIM_DragQuery, (APTR)DoSuperMethodA },
+    { MUIM_FindObject, (APTR)Group__MUIM_FindUData },
+    { MUIM_Group_InitChange, (APTR)Group__MUIM_InitChange },
+    { MUIM_Export, (APTR)Group__MUIM_Export },
+    { MUIM_DeleteBubble, (APTR)DoSuperMethodA },
+    { MUIM_DoDrag, (APTR)DoSuperMethodA },
+    { MUIM_CreateBubble, (APTR)DoSuperMethodA },
+    { MUIM_GoInactive, (APTR)DoSuperMethodA },
+    { MUIM_DeleteDragImage, (APTR)DoSuperMethodA },
+    { MUIM_AskMinMax, (APTR)Group__MUIM_AskMinMax },
+    { MUIM_DrawBackground, (APTR)Group__MUIM_DrawBackground },
+    { MUIM_GoActive, (APTR)DoSuperMethodA },
+    { MUIM_Group_Insert, (APTR)group_add },
+    { MUIM_DragFinish, (APTR)DoSuperMethodA },
+    { MUIM_Set, (APTR)DoSuperMethodA },
+    { MUIM_Virtgroup_BeginPaint, (APTR)Group__MUIM_Virtgroup_BeginPaint },
+    { MUIM_Group_Reorder, (APTR)GroupReorder },
+    { MUIM_HandleEvent, (APTR)Group__MUIM_HandleEvent },
+    { MUIM_Draw, (APTR)Group__MUIM_Draw },
+    { MUIM_Group_Sort, (APTR)Group__MUIM_Sort },
+    { MUIM_Setup, (APTR)Group__MUIM_Setup },
+    { MUIM_Layout, (APTR)DoSuperMethodA },
+    { MUIM_CreateShortHelp, (APTR)DoSuperMethodA },
+    { MUIM_CallHook, (APTR)DoSuperMethodA },
+    { MUIM_DragBegin, (APTR)DoSuperMethodA },
+    { MUIM_FindUData, (APTR)Group__MUIM_FindUData },
+    { MUIM_DragDrop, (APTR)DoSuperMethodA },
+    { MUIM_Family_GetChild, (APTR)Group__MUIM_Family_GetChild },
+    { MUIM_SetUData, (APTR)Group__MUIM_SetUData },
+    { MUIM_Notify, (APTR)Group_Notify },
+    { MUIM_SetUDataOnce, (APTR)Group__MUIM_SetUDataOnce },
+    { MUIM_Show, (APTR)Group__MUIM_Show },
+    { MUIM_Import, (APTR)Group__MUIM_Export },
+    { MUIM_Group_ExitChange, (APTR)Group__MUIM_ExitChange },
+    { MUIM_MultiSet, (APTR)DoSuperMethodA },
+    { MUIM_DeleteShortHelp, (APTR)DoSuperMethodA },
+    { MUIM_GlobalSetup, (APTR)Group__MUIM_GlobalSetup },
+    { MUIM_Group_AddTail, (APTR)group_add },
+    { MUIM_Cleanup, (APTR)Group__MUIM_Cleanup },
+    { MUIM_Virtgroup_EndPaint, (APTR)Group__MUIM_Virtgroup_EndPaint },
+    { MUIM_Group_AddHead, (APTR)group_add },
+    { MUIM_Group_ExitChange2, (APTR)Group__MUIM_ExitChange2 },
+    { MUIM_CreateDragImage, (APTR)DoSuperMethodA },
+    { MUIM_GetUData, (APTR)Group__MUIM_GetUData },
+    { MUIM_Hide, (APTR)Group__MUIM_Hide },
+    { MUIM_Group_Remove, (APTR)Group__MUIM_Remove },
+    { MUIM_Group_MoveMember, (APTR)GroupMoveMember },
+    { MUIM_Zune_Layout, (APTR)Group__MUIM_Layout },
+    { MUIM_DrawParentBackground, (APTR)DoSuperMethodA },
+    { MUIM_DragQueryExtended, (APTR)Group__MUIM_DragQueryExtended },
+    { MUIM_FindAreaObject, (APTR)Group__MUIM_FindAreaObject },
+    { MUIM_Group_DoMethodNoForward, (APTR)Group__MUIM_DoMethodNoForward },
+    { MUIM_ConnectParent, (APTR)Group__MUIM_ConnectParent },
+    { MUIM_DisconnectParent, (APTR)Group__MUIM_DisconnectParent },
+};
+#define GM_LT(a, b) _Static_assert((ULONG)(a) < (ULONG)(b), "group_methods order")
+GM_LT(OM_NEW, OM_DISPOSE); GM_LT(OM_DISPOSE, OM_SET); GM_LT(OM_SET, OM_GET);
+GM_LT(OM_GET, OM_ADDTAIL); GM_LT(OM_ADDTAIL, OM_REMOVE);
+GM_LT(OM_REMOVE, OM_ADDMEMBER); GM_LT(OM_ADDMEMBER, OM_REMMEMBER);
+GM_LT(OM_REMMEMBER, MUIM_DragQuery); GM_LT(MUIM_DragQuery, MUIM_FindObject);
+GM_LT(MUIM_FindObject, MUIM_Group_InitChange);
+GM_LT(MUIM_Group_InitChange, MUIM_Export);
+GM_LT(MUIM_Export, MUIM_DeleteBubble); GM_LT(MUIM_DeleteBubble, MUIM_DoDrag);
+GM_LT(MUIM_DoDrag, MUIM_CreateBubble); GM_LT(MUIM_CreateBubble, MUIM_GoInactive);
+GM_LT(MUIM_GoInactive, MUIM_DeleteDragImage);
+GM_LT(MUIM_DeleteDragImage, MUIM_AskMinMax);
+GM_LT(MUIM_AskMinMax, MUIM_DrawBackground);
+GM_LT(MUIM_DrawBackground, MUIM_GoActive);
+GM_LT(MUIM_GoActive, MUIM_Group_Insert); GM_LT(MUIM_Group_Insert, MUIM_DragFinish);
+GM_LT(MUIM_DragFinish, MUIM_Set); GM_LT(MUIM_Set, MUIM_Virtgroup_BeginPaint);
+GM_LT(MUIM_Virtgroup_BeginPaint, MUIM_Group_Reorder);
+GM_LT(MUIM_Group_Reorder, MUIM_HandleEvent); GM_LT(MUIM_HandleEvent, MUIM_Draw);
+GM_LT(MUIM_Draw, MUIM_Group_Sort); GM_LT(MUIM_Group_Sort, MUIM_Setup);
+GM_LT(MUIM_Setup, MUIM_Layout); GM_LT(MUIM_Layout, MUIM_CreateShortHelp);
+GM_LT(MUIM_CreateShortHelp, MUIM_CallHook); GM_LT(MUIM_CallHook, MUIM_DragBegin);
+GM_LT(MUIM_DragBegin, MUIM_FindUData); GM_LT(MUIM_FindUData, MUIM_DragDrop);
+GM_LT(MUIM_DragDrop, MUIM_Family_GetChild);
+GM_LT(MUIM_Family_GetChild, MUIM_SetUData); GM_LT(MUIM_SetUData, MUIM_Notify);
+GM_LT(MUIM_Notify, MUIM_SetUDataOnce); GM_LT(MUIM_SetUDataOnce, MUIM_Show);
+GM_LT(MUIM_Show, MUIM_Import); GM_LT(MUIM_Import, MUIM_Group_ExitChange);
+GM_LT(MUIM_Group_ExitChange, MUIM_MultiSet);
+GM_LT(MUIM_MultiSet, MUIM_DeleteShortHelp);
+GM_LT(MUIM_DeleteShortHelp, MUIM_GlobalSetup);
+GM_LT(MUIM_GlobalSetup, MUIM_Group_AddTail);
+GM_LT(MUIM_Group_AddTail, MUIM_Cleanup);
+GM_LT(MUIM_Cleanup, MUIM_Virtgroup_EndPaint);
+GM_LT(MUIM_Virtgroup_EndPaint, MUIM_Group_AddHead);
+GM_LT(MUIM_Group_AddHead, MUIM_Group_ExitChange2);
+GM_LT(MUIM_Group_ExitChange2, MUIM_CreateDragImage);
+GM_LT(MUIM_CreateDragImage, MUIM_GetUData); GM_LT(MUIM_GetUData, MUIM_Hide);
+GM_LT(MUIM_Hide, MUIM_Group_Remove); GM_LT(MUIM_Group_Remove, MUIM_Group_MoveMember);
+GM_LT(MUIM_Group_MoveMember, MUIM_Zune_Layout);
+GM_LT(MUIM_Zune_Layout, MUIM_DrawParentBackground);
+GM_LT(MUIM_DrawParentBackground, MUIM_DragQueryExtended);
+GM_LT(MUIM_DragQueryExtended, MUIM_FindAreaObject);
+GM_LT(MUIM_FindAreaObject, MUIM_Group_DoMethodNoForward);
+GM_LT(MUIM_Group_DoMethodNoForward, MUIM_ConnectParent);
+GM_LT(MUIM_ConnectParent, MUIM_DisconnectParent);
+
+/* The function of a method: group_methods' or Group_Forward (a function of
+ * its own: its search is off the stack when the method runs) */
+static __attribute__((noinline)) APTR GroupMethod(ULONG id)
+{
+    const ULONG *lo = &group_methods[0].id,
+        *hi = &group_methods[sizeof(group_methods)
+            / sizeof(group_methods[0]) - 1].id, *p;
+
+    while (lo <= hi)
+    {
+        ULONG m;
+
+        p = lo + (((hi - lo) >> 2) << 1);
+        if ((m = *p) == id)
+            return (APTR)p[1];
+        if (m < id)
+            lo = p + 2;
+        else
+            hi = p - 2;
+    }
+    return (APTR)Group_Forward;
+}
+
 BOOPSI_DISPATCHER(IPTR, Group_Dispatcher, cl, obj, msg)
 {
-    IPTR (*method)(struct IClass *, Object *, APTR);
+    IPTR (*method)(struct IClass *, Object *, Msg);
 
+    /* the methods sent most: a draw of every group on every redraw, the
+     * sets and gets of every subclass (List, Cycle, Radio, ...) */
     switch (msg->MethodID)
     {
-    case OM_NEW: method = (APTR)Group__OM_NEW; break;
-    case OM_DISPOSE: method = (APTR)Group__OM_DISPOSE; break;
-    case OM_SET: method = (APTR)Group__OM_SET; break;
-    case OM_GET: method = (APTR)Group__OM_GET; break;
-    case OM_ADDMEMBER:
-    case MUIM_Group_AddTail: method = (APTR)Group__MUIM_AddTail; break;
-    case MUIM_Group_AddHead: method = (APTR)Group__MUIM_AddHead; break;
-    case MUIM_Group_Insert: method = (APTR)Group__MUIM_Insert; break;
-    case OM_REMMEMBER:
-    case MUIM_Group_Remove: method = (APTR)Group__MUIM_Remove; break;
-    case MUIM_Family_GetChild: method = (APTR)Group__MUIM_Family_GetChild; break;
-    case MUIM_AskMinMax: method = (APTR)Group__MUIM_AskMinMax; break;
-    case MUIM_Group_ExitChange: method = (APTR)Group__MUIM_ExitChange; break;
-    case MUIM_Group_ExitChange2: method = (APTR)Group__MUIM_ExitChange2; break;
-    case MUIM_Group_InitChange: method = (APTR)Group__MUIM_InitChange; break;
-    case MUIM_Group_MoveMember: method = (APTR)GroupMoveMember; break;
-    case MUIM_Group_Reorder: method = (APTR)GroupReorder; break;
-    case MUIM_Group_Sort: method = (APTR)Group__MUIM_Sort; break;
-    case MUIM_Group_DoMethodNoForward: method = (APTR)Group__MUIM_DoMethodNoForward; break;
-    case MUIM_ConnectParent: method = (APTR)Group__MUIM_ConnectParent; break;
-    case MUIM_GlobalSetup: method = (APTR)Group__MUIM_GlobalSetup; break;
-    case MUIM_DisconnectParent: method = (APTR)Group__MUIM_DisconnectParent; break;
-    case MUIM_Zune_Layout: method = (APTR)Group__MUIM_Layout; break;
-    case MUIM_Setup: method = (APTR)Group__MUIM_Setup; break;
-    case MUIM_Cleanup: method = (APTR)Group__MUIM_Cleanup; break;
-    case MUIM_Virtgroup_BeginPaint: method = (APTR)Group__MUIM_Virtgroup_BeginPaint; break;
-    case MUIM_Virtgroup_EndPaint: method = (APTR)Group__MUIM_Virtgroup_EndPaint; break;
-    case MUIM_Draw: method = (APTR)Group__MUIM_Draw; break;
-
-    case MUIM_FindUData:
-    case MUIM_FindObject: method = (APTR)Group__MUIM_FindUData; break;
-    case MUIM_GetUData: method = (APTR)Group__MUIM_GetUData; break;
-    case MUIM_SetUData: method = (APTR)Group__MUIM_SetUData; break;
-    case MUIM_SetUDataOnce: method = (APTR)Group__MUIM_SetUDataOnce; break;
-    case MUIM_Show: method = (APTR)Group__MUIM_Show; break;
-    case MUIM_Hide: method = (APTR)Group__MUIM_Hide; break;
-    case MUIM_HandleEvent: method = (APTR)Group__MUIM_HandleEvent; break;
-    case MUIM_DrawBackground: method = (APTR)Group__MUIM_DrawBackground; break;
-    case MUIM_DragQueryExtended: method = (APTR)Group__MUIM_DragQueryExtended; break;
-    case MUIM_FindAreaObject: method = (APTR)Group__MUIM_FindAreaObject; break;
-    case MUIM_Export: method = (APTR)Group__MUIM_Export; break;
-    case MUIM_Import: method = (APTR)Group__MUIM_Import; break;
-
-//#if 0
-#if 1
-        /* Active getter-probing notification override. */
-    case MUIM_Notify: method = (APTR)Group_Notify; break;
-#endif
-    /* Geometry belongs to this group, not to every child. */
-    case MUIM_Layout:
-    case MUIM_Set:
-    case MUIM_MultiSet:
-    case MUIM_CallHook:
-    case MUIM_DrawParentBackground:
-    case MUIM_DragBegin:
-    case MUIM_DragDrop:
-    case MUIM_DragQuery:
-    case MUIM_DragFinish:
-    case MUIM_DoDrag:
-    case MUIM_CreateDragImage:
-    case MUIM_DeleteDragImage:
-    case MUIM_GoActive:
-    case MUIM_GoInactive:
-    case MUIM_CreateBubble:
-    case MUIM_DeleteBubble:
-    case MUIM_CreateShortHelp:
-    case MUIM_DeleteShortHelp:
-    case OM_ADDTAIL:
-    case OM_REMOVE:
-        return DoSuperMethodA(cl, obj, (APTR) msg);
-            /* Needs not to be forwarded? */
-    default:
-        /* sometimes you want to call a superclass method,
-         * but not dispatching to child.
-         * But what to do with list methods in a listview ?
-         */
-        Group_DispatchMsg(cl, obj, (APTR) msg);
-        return DoSuperMethodA(cl, obj, msg);
+    case MUIM_Draw:
+        return Group__MUIM_Draw(cl, obj, (struct MUIP_Draw *)msg);
+    case OM_SET:
+        return Group__OM_SET(cl, obj, (struct opSet *)msg);
+    case OM_GET:
+        return Group__OM_GET(cl, obj, (struct opGet *)msg);
     }
-
+    method = GroupMethod(msg->MethodID);
     return method(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END

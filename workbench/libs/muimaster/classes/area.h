@@ -684,6 +684,7 @@ struct MUI_AreaData
 #define MADF2_KNOWSDISABLED    (1UL << 6) /* MUIA_KnowsDisabled: do not ghost */
 #define MADF2_FRAMEHIDDEN      (1UL << 7) /* MUIA_FrameVisible FALSE (MUI 4/5) */
 #define MADF2_FRAMEDYNAMIC     (1UL << 8) /* MUIA_FrameDynamic (MUI 4/5): kept only */
+#define MADF2_PLAINGROUP       (1UL << 9) /* PRIV: of the Group class itself, not virtual */
 /* mad_DisableCount's MUIA_Disabled bit (the field is a UWORD: (1 << 31)
  * fell off it, so no object was ever disabled by MUIA_Disabled) */
 #define AREA_DISABLED_SELF     0x8000
@@ -800,6 +801,8 @@ extern const struct __MUIBuiltinClass _MUI_Area_desc;   /* PRIV */
 IPTR zune_draw_background(Object *obj, LONG left, LONG top, LONG width, LONG height, LONG xoffset, LONG yoffset, ULONG flags); /* PRIV: MUIM_DrawBackground without the dispatch when no class could intercept it */
 BOOL zune_window_background_is_pen(Object *win, LONG muipen); /* PRIV */
 BOOL zune_window_background_is_position_free(Object *win); /* PRIV */
+BOOL zune_window_background_fill_pen(Object *win, LONG *pen); /* PRIV */
+BOOL zune_background_fill_pen(Object *obj, LONG *pen); /* PRIV: classes/area.c */
 BOOL zune_background_is_position_free(Object *obj); /* PRIV: classes/area.c */
 IPTR zune_window_draw_background(Object *win, LONG left, LONG top, LONG width, LONG height, LONG xoffset, LONG yoffset, ULONG flags); /* PRIV: MUIM_Window_DrawBackground likewise */
 

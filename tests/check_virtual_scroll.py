@@ -14,25 +14,23 @@ GROUP_OFFSET = 246
 DATA = OBJECT + GROUP_OFFSET
 LEFT, TOP, FORWARD = 0x80429371, 0x80425200, 0x80421422
 CANDRAW, SHOWME = 1 << 14, 1 << 9
-GROUP_VIRTUAL = 1 << 6
-# Lean edition: a virtual group's state is a block of its own (68 bytes),
-# pointed to from offset 44 of Group's data; the offsets are in that block.
-# Group's update field (offset 42) is a byte, its flags (offset 4) a ULONG,
-# its child list a MinList at offset 52.
-VIRT_POINTER = 44
-UPDATE = 42
-CHILDLIST = 52
-OFFX, OFFY, OLDX, OLDY, EXTW, EXTH = 24, 28, 32, 36, 40, 44
+import group_layout as G
+GROUP_VIRTUAL = G.GROUP_VIRTUAL
+# A virtual group's state is in its extra block (pointer G.EXTRA in Group's
+# data), at G.VIRT; the update state a flag; offsets in group_layout.py.
+CHILDLIST = G.CHILDLIST
+OFFX, OFFY, OLDX, OLDY, EXTW, EXTH = G.OFFX, G.OFFY, G.OLDX, G.OLDY, G.EXTW, G.EXTH
 
 
 class ScrollHarness(BackfillHarness):
     def __init__(self, path):
         super().__init__(path)
         self.mem.w16(CLASS + 32, GROUP_OFFSET)
-        self.mem.w32(DATA + 4, GROUP_VIRTUAL)
-        self.virt = 0x76800
-        self.mem.w_block(self.virt, bytes(68))
-        self.mem.w32(DATA + VIRT_POINTER, self.virt)
+        self.mem.w32(DATA + G.FLAGS, GROUP_VIRTUAL | G.GROUP_XFULL)
+        self.extra = 0x76800
+        self.mem.w_block(self.extra, bytes(G.EXTRA_SIZE))
+        self.mem.w32(DATA + G.EXTRA, self.extra)
+        self.virt = self.extra + G.VIRT
         self.mem.w16(OBJECT + 56, 100)
         self.mem.w16(OBJECT + 58, 80)
         for offset, value in ((OFFX, 20), (OFFY, 30), (OLDX, 20),
@@ -114,19 +112,19 @@ def check(path):
                         ('show', h.children[0]), ('show', h.children[1]),
                         ('draw', OBJECT, 1)]
     assert h.hidden_boxes == [(70, 80), (80, 90)]
-    assert h.mem.r8(DATA + UPDATE) == 2
+    assert h.mem.r32(DATA + G.FLAGS) & G.GROUP_UPDATE_SCROLL
     assert h.mem.r32(h.virt + OLDX) == 20 and h.mem.r32(h.virt + OLDY) == 30
     h.events.clear()
     h.scroll(50, 70)
     assert not h.events  # No geometry or drawing work for unchanged offsets.
 
     h.mem.w32(OBJECT + 64, 0)
-    h.mem.w8(DATA + UPDATE, 0)
+    h.mem.w32(DATA + G.FLAGS, h.mem.r32(DATA + G.FLAGS) & ~G.GROUP_UPDATE_SCROLL)
     h.scroll(10000, -5)
     assert h.mem.r32(h.virt + OFFX) == 200 and h.mem.r32(h.virt + OFFY) == 0
     assert h.boxes() == [(x - 180, y + 30, w, v) for x, y, w, v in initial]
     assert not h.events  # Hidden parent still moves every descendant.
-    assert not h.mem.r8(DATA + UPDATE)
+    assert not h.mem.r32(DATA + G.FLAGS) & G.GROUP_UPDATE_SCROLL
     h.mem.w32(h.virt + EXTW, 50)
     h.mem.w32(h.virt + EXTH, 40)
     h.scroll(1, 1)

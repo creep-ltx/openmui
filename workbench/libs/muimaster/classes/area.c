@@ -3051,6 +3051,41 @@ BOOL zune_background_is_position_free(Object *obj)
     return zune_window_background_is_position_free(_win(obj));
 }
 
+/* The pen when every MUIM_DrawBackground fill of obj (with its own flags)
+ * is a plain RectFill of it: its own background, the one it inherits from
+ * its parents or the window's a pen, reached through built-in classes that
+ * do nothing else (area_draw_background's pen path; round rw-group: a
+ * group's gaps then need no walk up the parents per fill). Such a
+ * background is position free too. FALSE otherwise. */
+BOOL zune_background_fill_pen(Object *obj, LONG *pen)
+{
+    Object *o = obj;
+
+    if ((_flags(obj) & (MADF_SELECTED | MADF_SHOWSELSTATE))
+        == (MADF_SELECTED | MADF_SHOWSELSTATE))
+        return FALSE;
+    while (o)
+    {
+        struct MUI_AreaData *d = muiAreaData(o);
+
+        if (!area_builtin_background(o)
+            || (d->mad_Flags & (MADF_CANDRAW | MADF_ISVIRTUALGROUP))
+                != MADF_CANDRAW
+            || (d->mad_Flags2 & MADF2_CUSTOMBACKFILL))
+            return FALSE;
+        if (d->mad_Background)
+            return zune_imspec_fill_pen(d->mad_Background,
+                    d->mad_RenderInfo, pen)
+                && d->mad_Frame <= 100
+                && muiGlobalInfo(o)->mgi_Prefs->frames[d->mad_Frame].type
+                    < FST_CUSTOM1;
+        o = _parent(o);
+        while (o && Group_PassesBackground(o))
+            o = _parent(o);
+    }
+    return zune_window_background_fill_pen(_win(obj), pen);
+}
+
 /* MUIM_DrawBackground without the dispatch chain. Built-in classes handle
  * the method only in Area and in Group (virtual offsets), so when every
  * class from the object's down to Area is built-in and the object is no

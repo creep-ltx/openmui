@@ -49,6 +49,20 @@
 
 #include "classfiles.h"   /* generated: ZUNE_CLASSFILE_NFILES */
 
+/* TRUE when obj is a plain built-in Group (of the Group class itself,
+ * not virtual: MADF2_PLAINGROUP, set at its OM_NEW) whose
+ * MUIM_DrawBackground would only hand the request on to its parent.
+ * Objects inheriting a background skip such levels instead of making two
+ * method calls per level. */
+static inline BOOL Group_PassesBackground(Object *obj)
+{
+    struct MUI_AreaData *ad = muiAreaData(obj);
+
+    return (ad->mad_Flags2 & (MADF2_PLAINGROUP | MADF2_CUSTOMBACKFILL))
+        == MADF2_PLAINGROUP && (ad->mad_Flags & MADF_CANDRAW)
+        && !ad->mad_Background && !AREA_SELBACK(ad);
+}
+
 /* The MUI a program sees and Zune behaves as (identity.c) */
 #define ZUNE_ID_MUI38 1
 #define ZUNE_ID_MUI4  2

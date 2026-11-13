@@ -149,6 +149,5 @@ enum
 
 
 extern const struct __MUIBuiltinClass _MUI_Group_desc;  /* PRIV */
-BOOL Group_PassesBackground(Object *obj);                /* PRIV */
 
 #endif /* _MUI_CLASSES_GROUP_H */

@@ -6,9 +6,10 @@ from pathlib import Path
 from check_class_lifetime import Harness, INTUITION
 
 CLASS, GROUP = 0x70000, 0x71000
-# The group's child list: a MinList at offset 52 of Group's data (the
-# lean edition keeps it there, no pointer to it)
-LIST = GROUP + 256 + 52
+import group_layout as G
+# The group's child list: a MinList in Group's data (the lean edition
+# keeps it there, no pointer to it)
+LIST = GROUP + 256 + G.CHILDLIST
 DISCONNECT = 0x12345678  # message forwarded unchanged
 PARENT = 16  # MUI_NotifyData.mnd_ParentObject
 
