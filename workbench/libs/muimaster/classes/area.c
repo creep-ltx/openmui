@@ -42,6 +42,8 @@ extern struct Library *MUIMasterBase;
 #include "textengine.h"
 #include "support_classes.h"
 #include "modules.h"
+#include "imspec_intern.h"
+#include "penspec.h"
 
 //  #define MYDEBUG 1
 #include "debug.h"
@@ -2766,39 +2768,22 @@ static __attribute__((noinline)) void Area_Draw_handle_frame(Object *obj, struct
 *       not a rendering-success guarantee.
 *
 */
-static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
-                            struct MUIP_Draw *msg)
+/* Every draw the common path below does not take: a frame title, a
+ * custom, rounded, phantom or hidden frame, a frame spec string, a custom
+ * backfill, no FillArea, a virtual group, a frame only, a box too small
+ * for every frame to cover its top rows. flags are the draw flags
+ * MUIM_Draw has taken from the object. */
+static __attribute__((noinline)) IPTR area_draw_general(Object *obj,
+    struct MUI_AreaData *data, ULONG flags)
 {
     UBYTE corners = 0;
-    struct MUI_AreaData *data = INST_DATA(cl, obj);
     const struct ZuneFrameGfx *zframe;
     struct TextFont *obj_font = NULL;
-    ULONG flags = data->mad_Flags & MADF_DRAWFLAGS;
     BOOL drawframe, frameonly = FALSE;
     ULONG hidden;
 
-    // APTR areaclip;
-
-    /*      D(bug("Area_Draw(0x%p) %ldx%ldx%ldx%ld\n", obj, _left(obj),
-                _top(obj),_right(obj),_bottom(obj))); */
-    /*      D(bug(" Area_Draw(%p) msg=0x%08lx flags=0x%08lx\n", obj,
-       msg->flags, _flags(obj))); */
-
-    if (flags & MADF_DRAWALL)
-        flags |= MADF_DRAWOBJECT;
-
-    msg->flags = flags;
-    data->mad_Flags &= ~MADF_DRAWFLAGS;
-
-    if (!(flags & MADF_DRAWOBJECT)) {
-        /* MUI 3.9 subclasses such as NList clear the object bit in
-         * mad_Flags to keep Area from drawing inside them; a frame that
-         * was asked for is still drawn (YAM's folder and message lists).
-         * Otherwise let the subclass redraw its content only. */
-        if (!(flags & MADF_DRAWFRAME))
-            return 0;
+    if (!(flags & MADF_DRAWOBJECT))
         frameonly = TRUE;
-    }
 
     /* Background can't be drawn without knowing anything about frame, thus
      * some calculations are made before background and frame drawing.
@@ -2838,7 +2823,7 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
     if (frameonly)
         drawframe = TRUE;
     else
-        corners = Area_Draw_handle_background(obj, data, msg->flags, zframe,
+        corners = Area_Draw_handle_background(obj, data, flags, zframe,
             drawframe);
 
     /* Frame and frametitle drawing; only a title needs the title font */
@@ -2859,6 +2844,140 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
 
     /*    MUI_RemoveClipping(muiRenderInfo(obj), areaclip);*/
 
+    return TRUE;
+}
+
+/* The common draw, without a call per step: a built-in square frame
+ * (resolved from the settings' table, its sizes updated here), the
+ * background a pen RectFill (the object's own pen, or the pen it
+ * inherits, found in one walk up the parents: zune_background_fill_pen),
+ * then the frame. The frame's top rows are not filled with the parent's
+ * background first: every built-in square frame paints all of them in a
+ * box of at least 8x6 pixels, and its top-right bevel corner is
+ * MPEN_BACKGROUND either way, so the pixels are those of the general path.
+ * The corner hints say only what the fill has just painted with the
+ * background pen. */
+/* What a built-in square frame reads of its frame image: only whether the
+ * box fill has just painted the bottom-left corner with MPEN_BACKGROUND */
+static const struct dt_frame_image area_corner_hint[2] = {
+    {.corners_bg = 0}, {.corners_bg = FRAME_CORNER_BL}
+};
+
+static __attribute__((noinline)) IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
+                            struct MUIP_Draw *msg)
+{
+    struct MUI_AreaData *data = INST_DATA(cl, obj);
+    ULONG flags = data->mad_Flags & MADF_DRAWFLAGS;
+    ULONG f;
+    const struct ZuneFrameGfx *zframe;
+    struct MUI_RenderInfo *mri;
+    struct RastPort *rp;
+    struct MUI_ImageSpec_intern *bg;
+    LONG pen, x, y, w, h;
+    int state;
+    BOOL plain;
+
+    if (flags & MADF_DRAWALL)
+        flags |= MADF_DRAWOBJECT;
+    msg->flags = flags;
+    f = data->mad_Flags &= ~MADF_DRAWFLAGS;
+
+    if (!(flags & MADF_DRAWOBJECT)) {
+        /* MUI 3.9 subclasses such as NList clear the object bit in
+         * mad_Flags to keep Area from drawing inside them; a frame that
+         * was asked for is still drawn (YAM's folder and message lists).
+         * Otherwise let the subclass redraw its content only. */
+        if (!(flags & MADF_DRAWFRAME))
+            return 0;
+        return area_draw_general(obj, data, flags);
+    }
+    if (data->mad_Frame > 100 || data->mad_FrameTitle
+        || (f & (MADF_FRAMEPHANTOM | MADF_ISVIRTUALGROUP | MADF_FILLAREA))
+            != MADF_FILLAREA
+        || (data->mad_Flags2 & (MADF2_CUSTOMBACKFILL | MADF2_FRAMEHIDDEN))
+        || _width(obj) < 8 || _height(obj) < 6)
+        return area_draw_general(obj, data, flags);
+
+    {
+        const struct MUI_FrameSpec_intern *frame =
+            &muiGlobalInfo(obj)->mgi_Prefs->frames[data->mad_Frame];
+
+        state = frame->state;
+        if ((f & (MADF_SELECTED | MADF_SHOWSELSTATE))
+            == (MADF_SELECTED | MADF_SHOWSELSTATE))
+            state ^= 1;
+        zframe = zune_zframe_get_with_state(obj, frame, state);
+    }
+    if (zframe->customframe || zframe->border_radius)
+        return area_draw_general(obj, data, flags);
+
+    /* the inner sizes of the frame of this state */
+    data->mad_addleft = data->mad_InnerLeft + zframe->ileft;
+    data->mad_subwidth =
+        data->mad_addleft + data->mad_InnerRight + zframe->iright;
+    data->mad_addtop =
+        data->mad_InnerTop + data->mad_TitleHeightAdd + zframe->itop;
+    data->mad_subheight =
+        data->mad_addtop + data->mad_InnerBottom + zframe->ibottom;
+
+    mri = data->mad_RenderInfo;
+    rp = mri->mri_RastPort;
+    x = _left(obj);
+    w = _width(obj);
+    y = data->mad_TitleHeightAbove + zframe->itop;
+    h = _height(obj) - y;
+    y += _top(obj);
+    if (!(flags & (MADF_DRAWFRAME | MADF_DRAWALL))) {
+        /* a frame that is not redrawn keeps its pixels */
+        x += zframe->ileft;
+        w -= zframe->ileft + zframe->iright;
+        h -= zframe->ibottom;
+    }
+
+    /* Like MUI 3.9, only an object with its own background shows the
+     * selected background; others keep their parent's. */
+    bg = data->mad_Background;
+    if (bg && (f & (MADF_SELECTED | MADF_SHOWSELSTATE))
+        == (MADF_SELECTED | MADF_SHOWSELSTATE))
+        bg = AREA_SELBACK(data);
+    pen = -1;
+    if (bg) {
+        if (bg->type == IST_COLOR)
+            pen = zune_penspec_pen(&bg->u.penspec, mri);
+        else
+            zune_imspec_draw_at(bg, mri, x, y, w, h, x, y, 0,
+                PATTERN_ORIGIN_X(obj), PATTERN_ORIGIN_Y(obj));
+    } else if (mri->mri_BgFresh && area_on_fresh_window(obj, data)) {
+        /* an inherited window background over a window just painted
+         * with it (its opening, a refresh) is the pixels there */
+        if (area_parent_background_is_pen(obj, MPEN_BACKGROUND))
+            pen = -2;
+    } else if (!zune_background_fill_pen(obj, &pen)) {
+        pen = -1;
+        zune_draw_background(obj, x, y, w, h, x, y, f);
+        if (area_parent_background_is_pen(obj, MPEN_BACKGROUND))
+            pen = -2;
+    }
+    if (pen >= 0) {
+        if (rp->FgPen != (BYTE)pen)
+            SetAPen(rp, pen);
+        RectFill(rp, x, y, x + w - 1, y + h - 1);
+        if (pen == mri->mri_Pens[MPEN_BACKGROUND])
+            pen = -2;
+    }
+
+    if (flags & (MADF_DRAWFRAME | MADF_DRAWALL)) {
+        /* the box fill covered the frame's bottom-left corner */
+        plain = (f & (MADF_SELECTED | MADF_SHOWSELSTATE))
+            != (MADF_SELECTED | MADF_SHOWSELSTATE);
+        zframe->draw((struct dt_frame_image *)
+            &area_corner_hint[plain && pen == -2], mri, _left(obj), _top(obj), _width(obj),
+            _height(obj), _left(obj), _top(obj), _width(obj), _height(obj));
+    }
+
+    /* Subclasses draw with the object's font selected */
+    if (rp->Font != _font(obj))
+        SetFont(rp, _font(obj));
     return TRUE;
 }
 
