@@ -182,6 +182,8 @@ ZMC_CHECK(ZuneMenuModule, leave_menu, 12);
 ZMC_CHECK(ZuneMenuModule, close_menu, 16);
 ZMC_CHECK(ZuneMenuModule, menustrip_popup, 20);
 ZMC_CHECK(ZuneMenuModule, popup_rollout, 24);
+#define ZMC_OFS_ZuneMenuModule_area_menu 28
+ZMC_CHECK(ZuneMenuModule, area_menu, 28);
 
 #define ZMC_OFS_ZunePictureModule_load_picture 0
 #define ZMC_OFS_ZunePictureModule_dispose_picture 4
@@ -230,6 +232,8 @@ ZMC_CHECK(ZuneDragDropModule, drag_begin, 40);
 ZMC_CHECK(ZuneDragDropModule, drag_event, 44);
 #define ZMC_OFS_ZuneDragDropModule_area_drag 48
 ZMC_CHECK(ZuneDragDropModule, area_drag, 48);
+#define ZMC_OFS_ZuneDragDropModule_area_drag_motion 52
+ZMC_CHECK(ZuneDragDropModule, area_drag_motion, 52);
 
 #define ZMC_OFS_ZuneRequestModule_alloc_asl 0
 #define ZMC_OFS_ZuneRequestModule_asl 4
@@ -328,6 +332,7 @@ ZMC(zune_close_menu, ZMOD_MENU, ZuneMenuModule, close_menu,
 ZMC(zune_menustrip_popup, ZMOD_MENU, ZuneMenuModule, menustrip_popup, 2, 0);
 /* A cycle popup rolled out (the settings' popup speed above 0) */
 ZMC(zune_popup_rollout, ZMOD_MENU, ZuneMenuModule, popup_rollout, 5, 0);
+ZMC(zune_area_menu, ZMOD_MENU, ZuneMenuModule, area_menu, 2, 0);
 
 struct ZMenu *zune_open_menu(struct Window *wnd, struct NewMenu *newmenu)
 {
@@ -386,6 +391,8 @@ ZMC(CreateDragNDropA, ZMOD_DRAGDROP, ZuneDragDropModule, create, 1, 0);
 ZMC(zune_drag_begin, ZMOD_DRAGDROP, ZuneDragDropModule, drag_begin, 6, 0);
 ZMC(zune_drag_event, ZMOD_DRAGDROP, ZuneDragDropModule, drag_event, 3, 1);
 ZMC(zune_area_drag, ZMOD_DRAGDROP, ZuneDragDropModule, area_drag, 3, 0);
+ZMC(zune_area_drag_motion, ZMOD_DRAGDROP, ZuneDragDropModule,
+    area_drag_motion, 2, 0);
 ZMC(DeleteDragNDrop, ZMOD_DRAGDROP, ZuneDragDropModule, delete, 1, 0);
 ZMC(PrepareDragNDrop, ZMOD_DRAGDROP, ZuneDragDropModule, prepare, 2, 0);
 ZMC(FinishDragNDrop, ZMOD_DRAGDROP, ZuneDragDropModule, finish, 1, 0);

@@ -70,7 +70,12 @@ struct ZuneMenuModule
     IPTR (*menustrip_popup)(Object *, struct MUIP_Menustrip_Popup *);
     BOOL (*popup_rollout)(struct Window *, LONG, void (*)(Object *, APTR),
         Object *, APTR);
+    IPTR (*area_menu)(Object *, struct IntuiMessage *);
 };
+/* area_menu: Area's context menu events (areamenu.c); 0 without the
+ * module */
+struct IntuiMessage;
+IPTR zune_area_menu(Object *obj, struct IntuiMessage *imsg);
 /* MUIM_Menustrip_Popup (menupopup.c) */
 IPTR zune_menustrip_popup(Object *obj, struct MUIP_Menustrip_Popup *msg);
 /* A cycle popup rolled out from the top in about FRAMES video frames
@@ -132,7 +137,11 @@ struct ZuneDragDropModule
         struct Screen *);
     BOOL (*drag_event)(Object *, struct ZuneDrag *, struct IntuiMessage *);
     IPTR (*area_drag)(struct IClass *, Object *, Msg);
+    BOOL (*area_drag_motion)(Object *, struct IntuiMessage *);
 };
+/* area_drag_motion: whether a move over a draggable object starts its
+ * drag, and the start (areadrag.c); FALSE without the module */
+BOOL zune_area_drag_motion(Object *obj, struct IntuiMessage *imsg);
 /* area_drag: Area's MUIM_DoDrag, MUIM_CreateDragImage,
  * MUIM_DeleteDragImage, MUIM_DragBegin and MUIM_DragFinish (areadrag.c);
  * 0 without the module */

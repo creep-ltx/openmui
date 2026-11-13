@@ -18,6 +18,7 @@
 #define zune_drag_begin zmod_drag_begin
 #define zune_drag_event zmod_drag_event
 #define zune_area_drag zmod_area_drag
+#define zune_area_drag_motion zmod_area_drag_motion
 #include "../dragndrop.c"
 #include "../dragwin.c"
 #include "../areadrag.c"
@@ -30,7 +31,8 @@ static const struct ZuneDragDropModule dragdrop_module = {
     zmod_CreateDragNDropA, zmod_DeleteDragNDrop, zmod_PrepareDragNDrop,
     zmod_FinishDragNDrop, zmod_DrawDragNDrop, zmod_UndrawDragNDrop,
     zmod_CreateBitMapNodeA, zmod_DeleteBitMapNode, zmod_AttachBitMapNode,
-    zmod_DetachBitMapNode, zmod_drag_begin, zmod_drag_event, zmod_area_drag
+    zmod_DetachBitMapNode, zmod_drag_begin, zmod_drag_event, zmod_area_drag,
+    zmod_area_drag_motion
 };
 
 BOOPSI_DISPATCHER(IPTR, Zdragdrop_Dispatcher, cl, obj, msg)

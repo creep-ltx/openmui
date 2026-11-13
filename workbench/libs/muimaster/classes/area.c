@@ -45,6 +45,7 @@ extern struct Library *MUIMasterBase;
 #include "imspec_intern.h"
 #if !defined(ZUNE68_GCC_NATIVE)
 #include "areadrag.c"
+#include "areamenu.c"
 #endif
 #include "penspec.h"
 
@@ -1196,6 +1197,74 @@ static void area_active_erase(Object *obj)
  * clears initial Selected; a FramePhantomHoriz tag sets its flag regardless
  * of value.
  */
+/* The attributes OM_NEW and OM_SET take alike: flags, weights, the
+ * disappear levels, the help text, the font, the input mode, the pointer
+ * type; MUI 4/5's frame attributes through the module. Any other tag is
+ * left alone. */
+static __attribute__((noinline)) void area_set_plain(Object *obj,
+    struct MUI_AreaData *data, struct TagItem *tag)
+{
+    IPTR v = tag->ti_Data;
+    ULONG bit;
+
+    switch (tag->ti_Tag) {
+    case MUIA_FillArea:
+        bit = MADF_FILLAREA;
+        goto flag;
+    case MUIA_Draggable:
+        bit = MADF_DRAGGABLE;
+        goto flag;
+    case MUIA_Dropable:
+        bit = MADF_DROPABLE;
+    flag:
+        _handle_bool_tag(data->mad_Flags, v, bit);
+        break;
+    case MUIA_CustomBackfill:
+        bit = MADF2_CUSTOMBACKFILL;
+        goto flag2;
+    case MUIA_KnowsDisabled:
+        bit = MADF2_KNOWSDISABLED;
+    flag2:
+        _handle_bool_tag(data->mad_Flags2, v, bit);
+        break;
+    case MUIA_FrameVisible:     /* MUI 4/5: in the module; MUI 3.8 */
+    case MUIA_FrameDynamic:     /* does not know them */
+        if (!ZUNE_MUI38())
+            zune_area_mui45(obj, tag->ti_Tag, v, NULL);
+        break;
+    case MUIA_Font:
+        data->mad_FontPreset = v;
+        break;
+    case MUIA_HorizDisappear:
+        data->mad_HorizDisappear = v;
+        break;
+    case MUIA_VertDisappear:
+        data->mad_VertDisappear = v;
+        break;
+    case MUIA_Weight:
+        /* MUI also accepts this after creation (Voyager's buttons). */
+        data->mad_HorizWeight = v;
+        /* fall through */
+    case MUIA_VertWeight:
+        data->mad_VertWeight = v;
+        break;
+    case MUIA_HorizWeight:
+        data->mad_HorizWeight = v;
+        break;
+    case MUIA_ShortHelp:
+        data->mad_ShortHelp = (STRPTR)v;
+        break;
+    case MUIA_PointerType:
+        if ((v != MUIV_PointerType_Parent || data->mad_Rare)
+            && zune_area_rare(data))
+            data->mad_Rare->PointerType = v;
+        break;
+    case MUIA_InputMode:
+        data->mad_InputMode = v;
+        break;
+    }
+}
+
 static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 {
     struct MUI_AreaData *data;
@@ -1245,34 +1314,6 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 data->mad_DisableCount |= AREA_DISABLED_SELF;
             break;
 
-        case MUIA_CustomBackfill:
-            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
-                MADF2_CUSTOMBACKFILL);
-            break;
-
-        case MUIA_FillArea:
-            _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_FILLAREA);
-            break;
-
-        case MUIA_KnowsDisabled:
-            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
-                MADF2_KNOWSDISABLED);
-            break;
-
-        case MUIA_FrameVisible:     /* MUI 4/5: in the module; MUI 3.8 */
-        case MUIA_FrameDynamic:     /* does not know them */
-            if (!ZUNE_MUI38())
-                zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
-            break;
-
-        case MUIA_Draggable:
-            _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_DRAGGABLE);
-            break;
-
-        case MUIA_Dropable:
-            _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_DROPABLE);
-            break;
-
         case MUIA_FixHeight:
             data->mad_Flags |= MADF_FIXHEIGHT;
             data->mad_FixHeight = tag->ti_Data;
@@ -1293,10 +1334,6 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 data->mad_Rare->HardWidthTxt = (STRPTR)tag->ti_Data;
             break;
 
-        case MUIA_Font:
-            data->mad_FontPreset = tag->ti_Data;
-            break;
-
         case MUIA_Frame:
             data->mad_Frame = tag->ti_Data;
             break;
@@ -1307,18 +1344,6 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_FrameTitle:
             data->mad_FrameTitle = (STRPTR)tag->ti_Data;
-            break;
-
-        case MUIA_HorizDisappear:
-            data->mad_HorizDisappear = tag->ti_Data;
-            break;
-
-        case MUIA_VertDisappear:
-            data->mad_VertDisappear = tag->ti_Data;
-            break;
-
-        case MUIA_HorizWeight:
-            data->mad_HorizWeight = tag->ti_Data;
             break;
 
         /* MUI 3.9 keeps inner spacings as bytes, without a limit
@@ -1343,10 +1368,6 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->mad_InnerTop = (BYTE)tag->ti_Data;
             break;
 
-        case MUIA_InputMode:
-            data->mad_InputMode = tag->ti_Data;
-            break;
-
         case MUIA_MaxHeight:
             if (zune_area_rare(data))
             {
@@ -1367,16 +1388,6 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_SELECTED);
             break;
 
-        case MUIA_PointerType:
-            if ((tag->ti_Data != MUIV_PointerType_Parent || data->mad_Rare)
-                && zune_area_rare(data))
-                data->mad_Rare->PointerType = tag->ti_Data;
-            break;
-
-        case MUIA_ShortHelp:
-            data->mad_ShortHelp = (STRPTR)tag->ti_Data;
-            break;
-
         case MUIA_ShowMe:
             _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_SHOWME);
             break;
@@ -1385,18 +1396,13 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_SHOWSELSTATE);
             break;
 
-        case MUIA_VertWeight:
-            data->mad_VertWeight = tag->ti_Data;
-            break;
-
-        case MUIA_Weight:
-            data->mad_HorizWeight = data->mad_VertWeight = tag->ti_Data;
-            break;
-
         case MUIA_ContextMenu:
             if ((tag->ti_Data || data->mad_Rare) && zune_area_rare(data))
                 data->mad_Rare->ContextMenu = (Object *)tag->ti_Data;
             break;
+
+        default:
+            area_set_plain(obj, data, tag);
         }
     }
 
@@ -1586,26 +1592,6 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             MUI_Redraw(obj, MADF_DRAWOBJECT | MADF_DRAWFRAME);
             break;
 
-        case MUIA_CustomBackfill:
-            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
-                MADF2_CUSTOMBACKFILL);
-            break;
-
-        case MUIA_FillArea:
-            _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_FILLAREA);
-            break;
-
-        case MUIA_KnowsDisabled:
-            _handle_bool_tag(data->mad_Flags2, tag->ti_Data,
-                MADF2_KNOWSDISABLED);
-            break;
-
-        case MUIA_FrameVisible:     /* MUI 4/5: in the module; MUI 3.8 */
-        case MUIA_FrameDynamic:     /* does not know them */
-            if (!ZUNE_MUI38())
-                zune_area_mui45(obj, tag->ti_Tag, tag->ti_Data, NULL);
-            break;
-
         case MUIA_Frame:
             /* this is not documented in MUI but it is possible,
                and needed to suppress frame for external images */
@@ -1667,38 +1653,11 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             }
             break;
 
-        case MUIA_HorizWeight:
-            data->mad_HorizWeight = tag->ti_Data;
-            break;
-
-        case MUIA_HorizDisappear:
-            data->mad_HorizDisappear = tag->ti_Data;
-            break;
-
-        case MUIA_VertDisappear:
-            data->mad_VertDisappear = tag->ti_Data;
-            break;
-
-        case MUIA_Weight:
-            /* MUI also accepts this after creation (Voyager's buttons). */
-            data->mad_HorizWeight = data->mad_VertWeight = tag->ti_Data;
-            break;
-
         case MUIA_Pressed:
             if (tag->ti_Data)
                 data->mad_Flags |= MADF_PRESSED;
             else
                 data->mad_Flags &= ~MADF_PRESSED;
-            break;
-
-        case MUIA_PointerType:
-            if ((tag->ti_Data != MUIV_PointerType_Parent || data->mad_Rare)
-                && zune_area_rare(data))
-                data->mad_Rare->PointerType = tag->ti_Data;
-            break;
-
-        case MUIA_ShortHelp:
-            data->mad_ShortHelp = (STRPTR)tag->ti_Data;
             break;
 
         case MUIA_ShowMe: {
@@ -1774,18 +1733,6 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             }
             break;
 
-        case MUIA_VertWeight:
-            data->mad_VertWeight = tag->ti_Data;
-            break;
-
-        case MUIA_Draggable:
-            _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_DRAGGABLE);
-            break;
-
-        case MUIA_Dropable:
-            _handle_bool_tag(data->mad_Flags, tag->ti_Data, MADF_DROPABLE);
-            break;
-
         case MUIA_ContextMenu:
             if ((tag->ti_Data || data->mad_Rare) && zune_area_rare(data))
                 data->mad_Rare->ContextMenu = (Object *)tag->ti_Data;
@@ -1795,13 +1742,9 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 zune_area_live(obj, cl);
             break;
 
-        case MUIA_Font:
-            data->mad_FontPreset = tag->ti_Data;
-            break;
 
-        case MUIA_InputMode:
-            data->mad_InputMode = tag->ti_Data;
-            break;
+        default:
+            area_set_plain(obj, data, tag);
         }
     }
 
@@ -2789,7 +2732,11 @@ static __attribute__((noinline)) IPTR Area__MUIM_Draw(struct IClass *cl, Object 
                             struct MUIP_Draw *msg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
-    ULONG flags = data->mad_Flags & MADF_DRAWFLAGS;
+    ULONG flags;
+    /* the data pointer in an address register: GCC otherwise keeps the
+     * instance offset in one and indexes every field access with it */
+    __asm__("" : "+a"(data));
+    flags = data->mad_Flags & MADF_DRAWFLAGS;
     ULONG f;
     const struct ZuneFrameGfx *zframe;
     struct MUI_RenderInfo *mri;
@@ -4031,58 +3978,14 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
         break;
 
     case MENUDOWN:
-        if (in && AREA_CONTEXTMENU(data)) {
-            Object *menuobj = (Object *)DoMethod(obj, MUIM_ContextMenuBuild,
-                                                 imsg->MouseX, imsg->MouseY);
-            if (menuobj) {
-                struct NewMenu *newmenu = NULL;
-
-                /* stegerg: HACKME, CHECKME! The menu/menu item objs should
-                   automatically be connected (parentobject setup) without
-                   need for this, but they aren't. Because of how family
-                   class is and is used by other classes, I think!? */
-                DoMethod(menuobj, MUIM_ConnectParent, obj);
-
-                get(menuobj, MUIA_Menuitem_NewMenu, &newmenu);
-                if (newmenu) {
-                    if (data->mad_Live->ContextZMenu)
-                        zune_close_menu(data->mad_Live->ContextZMenu);
-                    data->mad_Live->ContextZMenu = zune_open_menu(_window(obj), newmenu);
-                }
-
-                area_events(obj, data->mad_Live,
-                    data->mad_Live->ehn.ehn_Events | IDCMP_MOUSEMOVE);
-            }
-            return MUI_EventHandlerRC_Eat;
-        }
+        /* the context menu: in the menu module, which its window needs */
+        if (in && AREA_CONTEXTMENU(data))
+            return zune_area_menu(obj, imsg);
         break;
 
     case MENUUP:
-        if (data->mad_Live->ContextZMenu) {
-            struct MenuItem *item = zune_leave_menu(data->mad_Live->ContextZMenu);
-
-            area_events(obj, data->mad_Live, IDCMP_MOUSEBUTTONS);
-
-            if (item) {
-                Object *itemobj = (Object *)GTMENUITEM_USERDATA(item);
-
-                /* CHECKME: MUIA_MenuItem_Trigger should probably be set inside
-                   MUIM_ContextMenuChoice!? But there I only know about
-                   itemobj, not MenuItem itself! */
-                if (item->Flags & CHECKIT) {
-                    set(itemobj, MUIA_Menuitem_Checked, !!(item->Flags & CHECKED));
-                }
-
-                set(itemobj, MUIA_Menuitem_Trigger, item);
-
-                DoMethod(obj, MUIM_ContextMenuChoice, itemobj);
-            }
-
-            zune_close_menu(data->mad_Live->ContextZMenu);
-            data->mad_Live->ContextZMenu = NULL;
-
-            return MUI_EventHandlerRC_Eat;
-        }
+        if (data->mad_Live->ContextZMenu)
+            return zune_area_menu(obj, imsg);
         break;
     }
 
@@ -4095,89 +3998,29 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
  * change handler/timer registration and notify synchronously. Always return
  * Eat, including no-action paths. Do not reply or retain imsg.
  */
-#define DRAG_QUALIFIERS (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | \
-    IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL | IEQUALIFIER_LALT | \
-    IEQUALIFIER_RALT | IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND)
-
-/* The settings' drag qualifier (Navigation page, "Left Button") held, as
- * commodities' MatchIX compares qualifiers, mouse buttons left aside */
-static BOOL drag_qualifier_held(const ZuneKeySpec *k, UWORD qual)
-{
-    UWORD want;
-
-    if (!k->ix_well)
-        return FALSE;
-    want = k->ix.ix_Qualifier & DRAG_QUALIFIERS;
-    qual &= DRAG_QUALIFIERS;
-    if (k->ix.ix_QualSame & IXSYM_SHIFT)
-    {
-        if (qual & IXSYM_SHIFTMASK) qual |= IXSYM_SHIFTMASK;
-        if (want & IXSYM_SHIFTMASK) want |= IXSYM_SHIFTMASK;
-    }
-    if (k->ix.ix_QualSame & IXSYM_ALT)
-    {
-        if (qual & IXSYM_ALTMASK) qual |= IXSYM_ALTMASK;
-        if (want & IXSYM_ALTMASK) want |= IXSYM_ALTMASK;
-    }
-    return want && (qual & want) == want;
-}
-
-/* How far the pointer must move with the left button held before a
- * draggable object starts a drag, from the settings (Navigation page):
- * the autostart distance, or one pixel with the drag qualifier held; 0:
- * no drag. MUI 3.8's defaults: autostart on, 3 pixels, qualifier control. */
-static LONG drag_distance(Object *obj, UWORD qual)
-{
-    struct ZunePrefsNew *prefs = muiGlobalInfo(obj)->mgi_Prefs;
-
-    if (prefs->drag_left_button
-        && drag_qualifier_held(&prefs->drag_left_modifier, qual))
-        return 1;
-    if (prefs->drag_autostart)
-        return MAX(prefs->drag_autostart_length, 1);
-    return 0;
-}
-
+/* A move while a button is held: an open context menu follows the
+ * pointer; with the left one, a draggable object starts a drag once the
+ * pointer has moved far enough from the click (the drag and drop module
+ * decides), and a pressed RelVerify object is selected while the pointer
+ * is over it. Always eaten. */
 static IPTR event_motion(Class *cl, Object *obj, struct IntuiMessage *imsg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
 
-    if ((imsg->Qualifier & IEQUALIFIER_RBUTTON) && data->mad_Live->ContextZMenu) {
-        zune_mouse_update(data->mad_Live->ContextZMenu, 0);
-        return MUI_EventHandlerRC_Eat;
-    }
+    if ((imsg->Qualifier & IEQUALIFIER_RBUTTON) && data->mad_Live->ContextZMenu)
+        return zune_area_menu(obj, imsg);
 
     if (imsg->Qualifier & IEQUALIFIER_LEFTBUTTON) {
         BOOL in = _between(_left(obj), imsg->MouseX, _right(obj)) &&
                   _between(_top(obj), imsg->MouseY, _bottom(obj));
 
-        LONG dist;
-
         if (in && (data->mad_Flags & MADF_DRAGGABLE)
-            && (dist = drag_distance(obj, imsg->Qualifier))) {
-            if ((abs(data->mad_Live->ClickX - imsg->MouseX) >= dist) ||
-                (abs(data->mad_Live->ClickY - imsg->MouseY) >= dist))
-            {
-                if (data->mad_InputMode == MUIV_InputMode_RelVerify)
-                    set(obj, MUIA_Selected, FALSE);
-                nnset(obj, MUIA_Pressed, FALSE);
+            && zune_area_drag_motion(obj, imsg))
+            return MUI_EventHandlerRC_Eat;
 
-                area_events(obj, data->mad_Live, IDCMP_MOUSEBUTTONS);
-                area_stop_timer(obj, data->mad_Live);
-
-                DoMethod(obj, MUIM_DoDrag, data->mad_Live->ClickX - _left(obj),
-                         data->mad_Live->ClickY - _top(obj), 0);
-                return MUI_EventHandlerRC_Eat;
-            }
-        }
-
-        if (data->mad_InputMode == MUIV_InputMode_RelVerify) {
-            if (!in && (data->mad_Flags & MADF_SELECTED)) { /* going out */
-                set(obj, MUIA_Selected, FALSE);
-            } else if (in && !(data->mad_Flags & MADF_SELECTED)) { /* going in */
-                set(obj, MUIA_Selected, TRUE);
-            }
-        }
+        if (data->mad_InputMode == MUIV_InputMode_RelVerify
+            && !in != !(data->mad_Flags & MADF_SELECTED))
+            set(obj, MUIA_Selected, in);    /* going in or out */
     }
     return MUI_EventHandlerRC_Eat;
 }

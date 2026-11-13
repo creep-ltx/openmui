@@ -13,6 +13,8 @@
 
 #include <exec/types.h>
 #include <graphics/gfxmacros.h>
+#include <devices/inputevent.h>
+#include <libraries/commodities.h>
 #include <clib/alib_protos.h>
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -129,6 +131,67 @@ static struct MUI_DragImage *area_drag_image(Object *obj,
         img->flags = 0;
     }
     return img;
+}
+
+/* A move with the left button held over a draggable object: the drag
+ * starts when the pointer has gone the settings' distance from the click
+ * (Navigation page: the autostart distance, or one pixel with the drag
+ * qualifier held; MUI 3.8's defaults autostart, 3 pixels, control).
+ * TRUE when it started. */
+#define DRAG_QUALIFIERS (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | \
+    IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL | IEQUALIFIER_LALT | \
+    IEQUALIFIER_RALT | IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND)
+
+BOOL zune_area_drag_motion(Object *obj, struct IntuiMessage *imsg)
+{
+    struct MUI_AreaData *data = muiAreaData(obj);
+    struct MUI_AreaLive *live = data->mad_Live;
+    struct ZunePrefsNew *prefs = muiGlobalInfo(obj)->mgi_Prefs;
+    const ZuneKeySpec *k = &prefs->drag_left_modifier;
+    LONG dist = 0, dx, dy;
+
+    if (prefs->drag_left_button && k->ix_well)
+    {
+        /* the qualifier held, as commodities' MatchIX compares them,
+         * mouse buttons left aside */
+        UWORD want = k->ix.ix_Qualifier & DRAG_QUALIFIERS;
+        UWORD qual = imsg->Qualifier & DRAG_QUALIFIERS;
+
+        if (k->ix.ix_QualSame & IXSYM_SHIFT)
+        {
+            if (qual & IXSYM_SHIFTMASK) qual |= IXSYM_SHIFTMASK;
+            if (want & IXSYM_SHIFTMASK) want |= IXSYM_SHIFTMASK;
+        }
+        if (k->ix.ix_QualSame & IXSYM_ALT)
+        {
+            if (qual & IXSYM_ALTMASK) qual |= IXSYM_ALTMASK;
+            if (want & IXSYM_ALTMASK) want |= IXSYM_ALTMASK;
+        }
+        if (want && (qual & want) == want)
+            dist = 1;
+    }
+    if (!dist && prefs->drag_autostart)
+        dist = MAX(prefs->drag_autostart_length, 1);
+    dx = live->ClickX - imsg->MouseX;
+    dy = live->ClickY - imsg->MouseY;
+    if (!dist || (dx < dist && -dx < dist && dy < dist && -dy < dist))
+        return FALSE;
+    if (data->mad_InputMode == MUIV_InputMode_RelVerify)
+        set(obj, MUIA_Selected, FALSE);
+    nnset(obj, MUIA_Pressed, FALSE);
+    if (live->ehn.ehn_Events)
+        DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&live->ehn);
+    live->ehn.ehn_Events = IDCMP_MOUSEBUTTONS;
+    DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR)&live->ehn);
+    if (live->x && live->x->Timer.ihn_Millis)
+    {
+        DoMethod(_app(obj), MUIM_Application_RemInputHandler,
+            (IPTR)&live->x->Timer);
+        live->x->Timer.ihn_Millis = 0;
+    }
+    DoMethod(obj, MUIM_DoDrag, live->ClickX - _left(obj),
+        live->ClickY - _top(obj), 0);
+    return TRUE;
 }
 
 IPTR zune_area_drag(struct IClass *cl, Object *obj, Msg msg)
