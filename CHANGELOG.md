@@ -20,6 +20,19 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- **Group rewritten for 68k machines**: the class every window is built
+  from (rows, columns, pages, scrolling areas) lays out, measures and draws
+  with less of its own work: one routine for both directions instead of
+  two, no function call per child when it walks its children, the gaps
+  between children filled with one pen in one go when the background is a
+  plain colour, rarely used parts (tab titles, grids, scrolling areas)
+  kept apart. On a 68020: a full window redraw 148 -> 141 ms (MUI 3.8
+  141-151), a relayout 193 -> 180 (198-207), creating an application with
+  its windows 235 -> 219 (235-239), opening a window 420 -> 408, a Cycle
+  set 2.38 -> 2.21, a Register page 45.4 -> 43.7. On a 68000: the full redraw 505 -> 478 ms (MUI 3.8 470-478; it was 7 % slower than MUI 3.8, now even), a relayout 693 -> 643 (MUI 3.8 698-706). Each group
+  takes 36 bytes instead of 68 (MUI 3.8: 42): the first MUI-Demo needs
+  444,592 bytes (was 450,848; MUI 3.8 460,296) and each further one 193.6 KB (196.8). The library's code is 3 KB smaller. Programs see no
+  difference: the same attributes, methods and pixels.
 - **Window openings, page switches and popups draw less**: a window that has
   just been painted with its background no longer paints the same background
   again behind its groups; Register tabs, page switches and list repaints no

@@ -4440,7 +4440,124 @@ known quit bug ("Compatibility round 3").
   within the spread of lean's own runs this session).
 - stackrun: see "Left open" (the instances did not answer under the host's load this session).
 
+## Rewrite: Group (2026-11-13, branch `rw-group`)
+
+The third class of the "rewrite for m68k" phase (roadmap): Group (`classes/group.o` 22,820 bytes
+of code) with what only it uses, against targets set by our partner after round `draw1` (on a
+68000 OpenMUI's full redraw was 7 % slower than MUI 3.8's and application creation 0-4 %: the
+library's own code must get much cheaper). Group's instance data stays private to `group.c`; the
+white-box checks read its offsets from `tests/group_layout.py` now (one place). Same rules as
+the rounds before. All figures are **emulator figures** (FS-UAE cycle-exact; demopix and the
+suite on Amiberry).
+
+### Targets and results
+
+ms per operation, `opbench` (the same binary on every library), FS-UAE cycle-exact; A600 = a600-31
+(68000 7 MHz, OS 3.1) with 4 MB fast RAM and MUI 3.8 copied on as in round draw1, A1200 =
+a1200-31-mui38 (68EC020 14 MHz, OS 3.1). Medians of 5 (A600) or 9 (A1200) repetitions per
+instance; ranges over instances and rounds. MUI 3.8 on the A600: 9 instances over six rounds
+this session; on the A1200 round draw1's three instances (the same binary and machine).
+
+| target | MUI 3.8 | lean (before) | rw-group (after) | after / MUI 3.8 | reached |
+|---|---:|---:|---:|---:|---|
+| A600 full redraw | 470.2-478.1 | 504.1-506.6 | 477.6-477.7 | 1.00-1.02 | **no**: within MUI 3.8's spread, not below its faster boots |
+| A600 app+windows create | 916.8-941.2 | 935.4-960.1 | 897.0-946.3 (earlier builds of the round 895-920) | 0.95-1.01 | about: faster in 9 of 10 instances, one instance 946 |
+| A1200 full redraw | 140.6-150.9 | 148.2-148.6 | 140.9-141.0 | 0.93-1.00 | yes |
+| A1200 app+windows create | 235.2-239.4 | 232.4-244.6 | 218.7-219.8 | 0.91-0.93 | yes |
+| memory: first program (MUI-Demo cold) | 460,296 | 450,848 | 444,592 | | yes (-6.3 KB) |
+| memory: each further | 210,632-218,888 | 196,776-196,840 | 193,608-193,672 | | yes (-3.2 KB) |
+| Group code (`classes/group.o`) | | 22,820 | 19,304 (-15.4 %) | | markedly smaller |
+| Group instance data | 42 | 68 | 36 | | below MUI 3.8's |
+
+The other operations against lean (A1200 two rounds of two instances each, A600 two instances
+of the final build plus the round's earlier builds): relayout 193 -> 180 ms on the A1200 (MUI
+3.8 198-207) and 691-695 -> 643-644 on the A600 (MUI 3.8 698-706: now 0.92); window open+close
+420 -> 408 and 1482-1488 -> 1446-1448; uniconify 356.5 -> 343.5 and 1303 -> 1262; register page
+45.4 -> 43.7 and 158.4 -> 151.0; cycle set 2.38 -> 2.21 and 9.4 -> 8.7; radio set 9.63 -> 9.40;
+the rest within lean's spread. **Iconify on the A600** is bimodal on both libraries (it waits for display frames): lean's
+medians 239.6-249.5 ms in five instances, the branch's builds' 227.7-236.2 in eight and
+248.9-271.7 in five (fastest repetitions: lean 233.0-240.3, the branch 226.5-247.6; MUI 3.8
+297-316). Whether the branch lands in the slow mode more often is not settled by these 13
+instances: left open. The A1200's iconify is lean's (77.3-77.6 against 77.5-77.6).
+
+### What was rewritten
+
+| commit | what |
+|---|---|
+| 78112281 | **The whole class.** One minmax and one layout function for both directions: the axis is an index into the child's Area data (minimum, maximum, default, size, weight and disappear level of either axis from one pointer), where lean had a horizontal and a vertical copy of each; the two directions keep their measured differences (a horizontal group adds its children's default widths also of weight 0 and SameWidth raises the minimum it counts; a vertical one adds the minimum height of a weight-0 child and SameHeight sets the children's minimum heights). **The children walked by their nodes** (the successor read before the body, as NextObject() allows): no function call per child in every walk (lean called ZuneNextObject for each child of every walk: minmax, layout, draw, show, setup, dispose). **The dispatcher a sorted table** (62 methods, halved; the methods that only belong to the group itself point at DoSuperMethodA, anything else goes to the children, then Area). **Rarely used state in a block of its own** (`struct GroupExtra`: the title group of MUI 4's tabs, a grid's columns, rows and arrays, a virtual group's state), made when a group needs it. **OM_NEW** reads the frame from Area's data (lean made an OM_GET through every class of every new group) and adds its children itself (lean: CoerceMethod and then OM_ADDTAIL through every class of each child). **The gaps** of a group whose background is a pen all the way to the window's are RectFills of that pen, found once per draw (`zune_background_fill_pen`, area.c; lean made a MUIM_DrawBackground walk up the parents for every gap), the same rectangles. **Group_PassesBackground** is a flag test (`MADF2_PLAINGROUP`, set at OM_NEW), inlined where Area walks the parents. The helpers holding big buffers or a layout message (the gap fill, a hook's MINMAX and LAYOUT, asking the children for their sizes, the 1D sizes) are functions of their own, off the recursive frames |
+| 33730c74 | **Instance data 36 bytes** (lean 68, MUI 3.8 42): the visible-child count counted in the layout instead of kept. An even number of longwords' worth keeps the data of Group's subclasses where it was: with 38 bytes List's fields moved half a longword and list insert 1000 was 2 % slower on the 68020 (a 68020 reads a longword that is not on a longword boundary in two bus cycles). The dispatcher tests the draw, OM_SET and OM_GET first |
+| 8250ef48 | a virtual group's frame ring cleared in one loop |
+| 237986ca | **the methods subclasses send most** (a List's row backgrounds, AskMinMax, the layouts, Show, Hide, HandleEvent) tested before the table: on a 68000 its search cost more than GCC's compare tree (list active +1.5 % on the A600 before) |
+| a0a49cfb, c400994b | the band sweep tried as edge events with a bit mask per band (no faster: full redraw 142.1 against 141.8 ms on the 68020, 480-484 against 478-479 on the 68000, its variable shifts) and taken back; kept from it: a group without children (a List) paints its inner box at once, Group_PassesBackground always inlined, a virtual group's autoscroll a helper per axis |
+
+**Not moved to modules:** virtual groups (every Scrollgroup), page groups (every Cycle and
+Register) and Columns/Rows (ColGroup, in MUI-Demo and opbench's own window) are used by MUI 3
+programs; in a module they would be loaded by nearly every program. What only MUI 4 uses (the
+title group) costs a pointer in the extra block, nothing in the 36 bytes.
+
+**Tried and not taken** (measured): the edge-event sweep above; 38-byte instance data (List
+2 % slower on the 68020, above); a merged MUIM_FindUData/GetUData/SetUData/SetUDataOnce (frame
+24 -> 40) and a merged ExitChange/ExitChange2 (frame 8 -> 16): kept as separate functions;
+the virtual group's offsets kept in its block during OM_SET (a set from inside the set's own
+notification would overwrite the outer one's: kept as locals).
+
+### Sizes
+
+| | lean (65eed3a2) | rw-group |
+|---|---:|---:|
+| Group's code (`classes/group.o`) | 22,820 | 19,304 |
+| library code (`size`) | 234,428 | 231,344 |
+| library file, stripped | 251,088 | 248,012 |
+| Group instance data (MUI 3.8: 42) | 68 | 36 |
+| MUI-Demo first program (MUI 3.8: 460,296) | 450,848 | 444,592 |
+| MUI-Demo each further (MUI 3.8: 210,632-218,888) | 196,776-196,840 | 193,608-193,672 |
+
+Group's biggest functions now: AskMinMax 2,226 bytes (the four minmax kinds inlined), Layout
+1,332 (the three layouts), the gap fill 856, the clamp-and-share pass 816, OM_NEW 712, OM_SET
+648, the method table 496, OM_GET 494, a virtual group's draw 456. Area's `zune_background_fill_pen` (+128) and
+Window's `zune_window_background_fill_pen` are the gap fill's; Group_PassesBackground inlined into
+Area's parent walks +124. The first program's 6.3 KB: about 3 KB of code and 3.2 KB of data (32
+bytes less in each group, list, listview and scrollbar: about a hundred in MUI-Demo).
+
+### Checked (emulators)
+
+- `make check` after every library commit (the white-box checks check_clipping,
+  check_custom_backfill, check_dynamic_layout, check_group_parent and check_virtual_scroll read
+  Group's offsets from `tests/group_layout.py`; a virtual group's state sits in the extra block
+  now and the update states are flags).
+- `-fstack-usage` of every library and class-file function against lean: none larger (smaller:
+  AskMinMax 180 -> 116, Layout 128 -> 88, Draw 96 -> 60, OM_SET 100 -> 80, the dispatcher 40 ->
+  24, group_draw_frame_and_gaps 1,148 -> 312; the gap fill a function of its own, 744, reached
+  from it: 1,056 together). Frames that grew on the way and were brought back: the merged
+  UData methods and ExitChange (split again), InitChange and change_active_page (the data
+  pointer as a pointer of its own, group_title always inlined), Layout1D_mui_redistrib (its
+  share pass a function of its own), a virtual group's DrawBackground (the offsets moved in the
+  message and back, no copy of it), HandleEvent (the autoscroll axis a helper).
+- stackrun (FS-UAE, lean and the branch side by side, two runs each, the branch's at two of
+  its builds): MUI-Demo 5,044 -> 4,992, Layout
+  2,224, Virtual 2,168, Pages 2,196, Slidorama 2,260 on both.
+- Pixels: demopix (Amiberry, both libraries' shots): 25 of 27 identical to lean's, the other two
+  InputHandler's timer text and Layout's random places as always; against MUI 3.8 17-18 of 27 as
+  lean. pagepix, radiopix, scrollpix and listclip (4,181 rows) identical to lean's.
+- fullcheck (FS-UAE): MUI-Demo with its eight sub-windows and the other 18 MUI 3.8 demos opened and closed on lean
+  and on the branch: the same windows and the same lost figures (608 / 200 / AppWindow 264), no
+  alert.
+- The suite: @@SUITE@@
+
 ## Left open
+
+- **Rewrite for m68k (2026-11-13, after `rw-group`)**: Group done (code -15.4 %, instance data
+  68 -> 36 bytes, first program -6.3 KB, each further -3.2 KB; full redraw -5 % on the A1200 and
+  -5.7 % on the A600). **The A600 full redraw** is now within MUI 3.8's spread (477.6-477.7
+  against 470.2-478.1 ms, lean 504-507) but not below its faster boots: what the 68000 still
+  spends more than MUI 3.8 is mostly Area's (its dispatcher, the background and frame of every
+  object; on the 68020 profile after the round Group's own code is about 5 % of a redraw's
+  samples, Area's dispatcher and drawing about 9 %): the Area round. **Creation on the A600**
+  0.95-1.01 of MUI 3.8, one instance of ten above its range (946 against 917-941). **Iconify on
+  the A600** is bimodal (frame waits) on both libraries; whether the branch's builds land in the
+  slow mode more often than lean (5 of 13 instances against 0 of 5) is not settled. **The group
+  spare-pixel rule** was not taken up this round (Compatibility round 4's probe and figures stay
+  for it). Not moved to modules: virtual, page and grid groups (MUI 3 programs use all three).
 
 - **Prove it: drawing and memory (2026-11-13, after `draw1`)**: the 25 % targets against MUI 3.8
   were not reached: window open+close 0.79-0.81, uniconify 0.79-0.80, register page 0.85, popup

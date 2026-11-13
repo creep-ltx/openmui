@@ -692,6 +692,27 @@ ChangeWindowBox to IDCMP_NEWSIZE 218.7 ms. drawcost.c (opbench's screen, 68020):
 68-95 us. Memory (MUI-Demo cold): first program 450,848-450,896 bytes (lean 448,488, MUI 3.8
 460,296), each further 196,728-196,776.
 
+## Rewrite: Group (2026-11-13, branch `rw-group`)
+
+README.md "Rewrite: Group" has the steps. Figures (FS-UAE cycle-exact, OS 3.1, emulator; A600 =
+a600-31 + 4 MB fast RAM, MUI 3.8 copied on):
+
+| | MUI 3.8 | lean (65eed3a2) | rw-group |
+|---|---:|---:|---:|
+| Group's code (`classes/group.o`) | | 22,820 | 19,304 |
+| library code (`size`) | | 234,428 | 231,344 |
+| library file, stripped | | 251,088 | 248,012 |
+| Group instance data | 42 | 68 | 36 |
+| MUI-Demo first program | 460,296 | 450,848 | 444,592 |
+| MUI-Demo each further | 210,632-218,888 | 196,776-196,840 | 193,608-193,672 |
+| A1200 full redraw (ms) | 140.6-150.9 | 148.2-148.6 | 140.9-141.0 |
+| A1200 app+windows create | 235.2-239.4 | 232.4-244.6 | 218.7-219.8 |
+| A1200 relayout | 197.6-207.3 | 192.8-193.1 | 180.1-180.2 |
+| A600 full redraw | 470.2-478.1 | 504.1-506.6 | 477.6-477.7 |
+| A600 app+windows create | 916.8-941.2 | 935.4-960.1 | 897.0-946.3 |
+| A600 relayout | 697.8-705.7 | 691.5-694.9 | 643.1-643.6 |
+| stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 5,044 / 2,224 / 2,168 / 2,196 / 2,260 | 4,992 / 2,224 / 2,168 / 2,196 / 2,260 |
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,

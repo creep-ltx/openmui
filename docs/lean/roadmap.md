@@ -363,10 +363,15 @@ where a measured hot loop pays. Order:
    MUI 5's case-sensitive shortcuts and MENUVERIFY and the snapshot's file editing in modules.
    Window code -12.7 %, library -3.1 KB, first program -4.4 KB, each further -1.3 KB, speed
    as lean. Details in [README.md](README.md#rewrite-window-2026-11-13-branch-rw-window).
-3. Group (draw1 measured it: the background machinery, the gap sweep and Area's dispatch are
-   most of the library's 38-41 % of a full redraw; a full redraw makes the same OS calls as
-   MUI 3.8, so a faster redraw has to come from here).
-4. Area.
+3. **Group** (done 2026-11-13, `rw-group`): one minmax and one layout for both directions,
+   the children walked by their nodes, the dispatcher a table with the hot methods first, the
+   rarely used state in a block of its own (instance data 68 -> 36 bytes, MUI 3.8 42), the gaps
+   one pen's RectFills. Group code -15.4 %, first program -6.3 KB, each further -3.2 KB; full
+   redraw -5 % (A1200) and -5.7 % (A600: now MUI 3.8's 1.00-1.02, was 1.07), relayout -7 %,
+   creation -6 % (A1200). Details in
+   [README.md](README.md#rewrite-group-2026-11-13-branch-rw-group).
+4. Area (after Group the redraw's library code is mostly Area's: its dispatcher, the background
+   and frame drawing of every object; the A600's last 1-2 % against MUI 3.8 are there).
 5. Application.
 6. String.
 7. The text engine (textengine.c).
