@@ -19,11 +19,10 @@ Where it comes from
 -------------------
 Zune is the MUI-compatible GUI toolkit of AROS, by The AROS Development
 Team. Zune68 is Stefan Reinauer's port of it to classic AmigaOS 3.
-OpenMUI is the lean edition of Zune68, with a memory and size diet and
-MUI 3.8's look. Earlier test builds of it were called Zune68k lean.
+OpenMUI is the lean edition of Zune68, rewritten for the 68000 family:
+MUI 3.8's look, memory use and speed as the target.
 
-This is a public beta ([STAGE], [RELEASE]). Every figure below was
-measured in an emulator (FS-UAE, A1200 with OS 3.1), not on a real Amiga.
+Version: [STAGE] ([RELEASE]), public beta.
 
 What is in it
 -------------
@@ -87,18 +86,25 @@ your MUI. "Use OpenMUI" switches back. "Uninstall" (or Install again,
 yours it had replaced; your MUI keeps working. The same from a Shell:
 SYS:OpenMUI/Data/OpenMUISwitch MUI|OPENMUI|UNINSTALL|STATUS.
 
-Status
-------
-A public beta. An earlier build is in daily use on an A1200 (PiStorm,
-Emu68); the figures below come from emulators (FS-UAE, Amiberry). 184
-real MUI programs and class demos (YAM, AmIRC, AmFTP, IBrowse, NList,
-TextEditor, TheBar and many more) are tested against real
-MUI 3.8 and MUI 5. MUI-Demo on OS 3.1 with 4 MB fast RAM: 460 KB for the
-first program (MUI 3.8: 460 KB), 205 KB for each further one (MUI 3.8:
-211-219 KB, MUI 5: 427-435 KB). Speed (cycle-exact emulation): at least
-as fast as MUI 3.8 in 24 of 26 everyday operations, faster than MUI 5 in
-all 27. Please report what works and what does not:
-https://github.com/creep-ltx/openmui/issues
+Performance
+-----------
+Measured on an emulated A1200 (68EC020, OS 3.1, 4 MB fast RAM; MUI 5 on
+OS 3.2.1), cycle-exact FS-UAE, against real MUI 3.8 and MUI 5:
+- Memory, MUI-Demo: first program 453 KB (MUI 3.8 460 KB, MUI 5 1,294
+  KB), each further program 198 KB (MUI 3.8 211-219 KB, MUI 5 427-435).
+- Speed: at least as fast as MUI 3.8 in 24 of 26 common operations,
+  faster than MUI 5 in all 27. Inserting 1,000 list entries: 248 ms
+  (MUI 3.8 6,650 ms, MUI 5 20,262 ms).
+- Runs on a 68000 with OS 3.1 and 1 MB chip RAM.
+
+Compatibility
+-------------
+Tested against real MUI 3.8 and MUI 5 with 184 MUI programs and class
+demos (YAM, AmIRC, AmFTP, IBrowse, SimpleMail, NList, TextEditor, TheBar
+and more): all MUI 3 programs that run on MUI 3.8 run on OpenMUI; 19 of
+MUI's 27 demo windows are pixel-identical to MUI 3.8; all 24 MUI 4/5
+programs in the set run. Known differences: docs/developer-guide.md.
+Reports: https://github.com/creep-ltx/openmui/issues
 
 Source and licences
 -------------------

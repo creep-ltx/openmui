@@ -12,8 +12,7 @@ written for MUI 3, 4 and 5, and aims at the look and the memory use of MUI 3.8.
 > toolkit of AROS (The AROS Development Team), as ported to AmigaOS 3 by
 > Stefan Reinauer (Zune68).
 
-**This is a beta (0.1b2).** An earlier build is in daily use on an A1200
-(PiStorm with Emu68); the wide testing is done in emulators. Please report what works and what does not (see
+**Version 0.1b2, public beta.** Please report what works and what does not (see
 [Reporting a problem](#reporting-a-problem)).
 
 ## What you need

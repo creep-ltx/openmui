@@ -41,9 +41,8 @@ All figures, with exact values on hover and table views:
 [docs/stats/openmui-stats.html](docs/stats/openmui-stats.html) (download and open it in a browser).
 How each was measured: [docs/lean/measurements.md](docs/lean/measurements.md).
 
-**Version 0.1b2, a test build.** Betas are `X.YbN` until OpenMUI has been in
-daily use for a while. Every figure in these pages was measured in an emulator
-(FS-UAE), not on a real Amiga.
+**Version 0.1b2, public beta.** Figures are from cycle-exact emulation (FS-UAE) of an
+A1200 against real MUI 3.8 and MUI 5.
 
 > **OpenMUI is not MUI and is not affiliated with MUI's authors.** MUI was created by Stefan Stuntz;
 > MUI 4 and 5 come from the MUI team. OpenMUI is a separate library that is compatible
