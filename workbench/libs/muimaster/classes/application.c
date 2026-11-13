@@ -1480,6 +1480,11 @@ static __attribute__((noinline)) void app_save_positions(
         while ((child = NextObject(&cstate)))
             ZuneRememberWindowPosition(child);
     }
+    /* No position was ever stored or read: the file would be written as
+     * it is (an empty one where there was none), a read and a write of
+     * ENV: at every quit for nothing */
+    if (!data->app_WinPos)
+        return;
     snprintf(filename, 255, "ENV:OpenMUI/%s.prefs", data->app_Base);
     DoMethod(data->app_GlobalInfo.mgi_Configdata,
         MUIM_Configdata_SaveWindowPositions, (IPTR) filename);
