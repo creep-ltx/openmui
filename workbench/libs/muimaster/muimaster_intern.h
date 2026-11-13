@@ -147,6 +147,7 @@ struct MUIMasterBase_intern
 
 #undef MUIMB
 void zune_vector_free_templates(void); /* imspec_vector.c, at expunge */
+void zune_keycache_free(void);         /* classes/configdata.c, at expunge */
 void zune_title_gadgets_free(void);    /* classes/window.c, at expunge */
 #define MUIMB(b)	((struct MUIMasterBase_intern *)b)
 

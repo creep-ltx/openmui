@@ -329,12 +329,25 @@ const static struct def_strval DefStrValues[] = {
 };
 
 /* ParseIX inverts the keymap and compares qualifier names: about 0.3 ms
- * per binding, and every Configdata parses 24 of them. The default
- * strings are constants shared by all applications, so their parsed
- * expressions are kept here; saved bindings are parsed per object. */
+ * per binding, and every Configdata parses 24 of them. The parsed
+ * expressions are kept here for every application: the default strings
+ * (constants, found by address) and the saved ones (a copy of the
+ * string, found by its text: a global.prefs gives every application the
+ * same 24). Freed at expunge (zune_keycache_free). */
 #define KEYCACHE 32
 static struct { CONST_STRPTR str; IX ix; LONG well; } keycache[KEYCACHE];
 static int keycache_count;
+static UBYTE keycache_owned[KEYCACHE];
+
+void zune_keycache_free(void)
+{
+    int i;
+
+    for (i = 0; i < keycache_count; i++)
+        if (keycache_owned[i])
+            FreeVec((APTR)keycache[i].str);
+    keycache_count = 0;
+}
 
 static BOOL is_default_string(CONST_STRPTR val)
 {
@@ -357,24 +370,34 @@ static void Configdata__SetKey(ZuneKeySpec *key, CONST_STRPTR val)
     }
     count = keycache_count;
     for (i = 0; i < count; i++)
-        if (keycache[i].str == val)
+        if (keycache[i].str == val
+            || (keycache_owned[i] && !strcmp(keycache[i].str, val)))
         {
             key->ix = keycache[i].ix;
             key->ix_well = keycache[i].well;
             return;
         }
     key->ix_well = ZUNE_CX() && !ParseIX(key->readable_hotkey, &key->ix);
-    if (is_default_string(val))
+    if (keycache_count < KEYCACHE)
     {
+        UBYTE owned = !is_default_string(val);
+        CONST_STRPTR str = owned ? (CONST_STRPTR)StrDup(val) : val;
+
+        if (!str)
+            return;
         Forbid();
         if (keycache_count < KEYCACHE)
         {
-            keycache[keycache_count].str = val;
+            keycache[keycache_count].str = str;
             keycache[keycache_count].ix = key->ix;
             keycache[keycache_count].well = key->ix_well;
+            keycache_owned[keycache_count] = owned;
             keycache_count++;
+            str = NULL;
         }
         Permit();
+        if (str && owned)
+            FreeVec((APTR)str);
     }
 }
 

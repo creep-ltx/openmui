@@ -73,22 +73,61 @@ extern struct Library *MUIMasterBase;
 struct Dataspace_Node
 {
     struct MinNode node;
+    struct Dataspace_Node *hnext;   /* the next in its hash chain */
     ULONG id;
     ULONG len;
     /* len bytes data follows */
 };
 
+/* The records in the order they were added (WriteIFF writes them so),
+ * and found by id through a hash of DS_HASH chains: an application's
+ * settings are about 200 records, and reading them added and looked each
+ * up along the whole list (about 300 ms per application on a 68020 with
+ * a full global.prefs, opbench prof). */
+#define DS_HASH 32
 struct MUI_DataspaceData
 {
-    /* We store this as a linear list, but it has O(n) when looking
-     ** for an entry, which is bad because this is the most frequently used
-     ** operation.
-     */
     struct MinList list;
     APTR pool;
     APTR pool_allocated;
     APTR current_pool;
+    struct Dataspace_Node *hash[DS_HASH];
 };
+
+#define DS_FIRST(data) ((struct Dataspace_Node *)(data)->list.mlh_Head)
+#define DS_VALID(n) ((n)->node.mln_Succ)
+#define DS_NEXT(n) ((struct Dataspace_Node *)(n)->node.mln_Succ)
+
+static struct Dataspace_Node **ds_chain(struct MUI_DataspaceData *data,
+    ULONG id)
+{
+    return &data->hash[(id ^ (id >> 16)) & (DS_HASH - 1)];
+}
+
+/* The record of id, or NULL */
+static struct Dataspace_Node *ds_find(struct MUI_DataspaceData *data,
+    ULONG id)
+{
+    struct Dataspace_Node *node;
+
+    for (node = *ds_chain(data, id); node; node = node->hnext)
+        if (node->id == id)
+            break;
+    return node;
+}
+
+/* Out of the list and its chain, and freed */
+static void ds_free(struct MUI_DataspaceData *data,
+    struct Dataspace_Node *node)
+{
+    struct Dataspace_Node **link = ds_chain(data, node->id);
+
+    while (*link != node)
+        link = &(*link)->hnext;
+    *link = node->hnext;
+    Remove((struct Node *)node);
+    FreeVecPooled(data->current_pool, node);
+}
 
 /* Construct the Semaphore superclass, initialize the record list, and bind
  * a borrowed pool or create an owned one. On pool failure, dispose of the
@@ -202,21 +241,18 @@ IPTR Dataspace__MUIM_Add(struct IClass *cl, Object *obj,
 
     /* The source may be the entry being replaced. */
     CopyMem(msg->data, node + 1, msg->len);
-    replace = List_First(&data->list);
-    while (replace)
-    {
-        if (replace->id == msg->id)
-        {
-            Remove((struct Node *)replace);
-            FreeVecPooled(data->current_pool, replace);
-            break;
-        }
-        replace = Node_Next(replace);
-    }
+    if ((replace = ds_find(data, msg->id)))
+        ds_free(data, replace);
 
     AddTail((struct List *)&data->list, (struct Node *)node);
     node->id = msg->id;
     node->len = msg->len;
+    {
+        struct Dataspace_Node **chain = ds_chain(data, msg->id);
+
+        node->hnext = *chain;
+        *chain = node;
+    }
 
     return 1;
 }
@@ -249,15 +285,16 @@ IPTR Dataspace__MUIM_Clear(struct IClass *cl, Object *obj,
     struct MUI_DataspaceData *data = INST_DATA(cl, obj);
     struct Dataspace_Node *node;
 
-    node = List_First(&data->list);
-    while (node)
+    node = DS_FIRST(data);
+    while (DS_VALID(node))
     {
         struct Dataspace_Node *tmp = node;
-        node = Node_Next(node);
+        node = DS_NEXT(node);
 
         FreeVecPooled(data->current_pool, tmp);
     }
     NewList((struct List *)&data->list);
+    memset(data->hash, 0, sizeof(data->hash));
 
     return 1;
 }
@@ -298,15 +335,8 @@ IPTR Dataspace__MUIM_Find(struct IClass *cl, Object *obj,
     struct MUI_DataspaceData *data = INST_DATA(cl, obj);
     struct Dataspace_Node *find;
 
-    find = List_First(&data->list);
-    while (find)
-    {
-        if (find->id == msg->id)
-        {
-            return (IPTR) (find + 1);
-        }
-        find = Node_Next(find);
-    }
+    if ((find = ds_find(data, msg->id)))
+        return (IPTR) (find + 1);
 
     return (IPTR) NULL;
 }
@@ -316,13 +346,10 @@ static IPTR Dataspace_Get(struct IClass *cl, Object *obj,
 {
     struct MUI_DataspaceData *data = INST_DATA(cl, obj);
     struct Dataspace_Node *node;
-    for (node = List_First(&data->list); node; node = Node_Next(node))
-        if (node->id == msg->id)
-        {
-            if (msg->size) *msg->size = node->len;
-            return (IPTR)(node + 1);
-        }
-    return 0;
+    if (!(node = ds_find(data, msg->id)))
+        return 0;
+    if (msg->size) *msg->size = node->len;
+    return (IPTR)(node + 1);
 }
 
 /****** Dataspace.mui/MUIM_Dataspace_Merge ************
@@ -387,16 +414,10 @@ IPTR Dataspace__MUIM_Remove(struct IClass *cl, Object *obj,
     struct MUI_DataspaceData *data = INST_DATA(cl, obj);
     struct Dataspace_Node *node;
 
-    node = List_First(&data->list);
-    while (node)
+    if ((node = ds_find(data, msg->id)))
     {
-        if (node->id == msg->id)
-        {
-            Remove((struct Node *)node);
-            FreeVecPooled(data->current_pool, node);
-            return 1;
-        }
-        node = Node_Next(node);
+        ds_free(data, node);
+        return 1;
     }
 
     return 0;
@@ -449,6 +470,7 @@ IPTR Dataspace__MUIM_ReadIFF(struct IClass *cl, Object *obj,
 
     LONG len;
     ULONG id;
+    BOOL direct;
 
     /* The handle may be the program's own: iffparse.library is opened on
      * first use (lazylib.h) and may not be open in Zune yet. */
@@ -471,6 +493,8 @@ IPTR Dataspace__MUIM_ReadIFF(struct IClass *cl, Object *obj,
     }
 
     p = buffer;
+    direct = OCLASS(obj) == cl || (OCLASS(obj)->cl_Super == cl
+        && OCLASS(obj)->cl_ID && !strcmp(OCLASS(obj)->cl_ID, MUIC_Configdata));
 
     while (p + 8 <= buffer + read)
     {
@@ -489,8 +513,17 @@ IPTR Dataspace__MUIM_ReadIFF(struct IClass *cl, Object *obj,
         if (len > (ULONG)(buffer + read - p))
             break;
 
-        /* Now add the data */
-        DoMethod(obj, MUIM_Dataspace_Add, (IPTR) p, len, id);
+        /* Now add the data: directly when no subclass of a program's
+         * can have its own MUIM_Dataspace_Add (a Dataspace, the library's
+         * Configdata): the semaphore is held already */
+        if (direct)
+        {
+            struct MUIP_Dataspace_Add m = { MUIM_Dataspace_Add, p, len, id };
+
+            Dataspace__MUIM_Add(cl, obj, &m);
+        }
+        else
+            DoMethod(obj, MUIM_Dataspace_Add, (IPTR) p, len, id);
         p += len;
     }
     FreeVec(buffer);
@@ -548,8 +581,8 @@ IPTR Dataspace__MUIM_WriteIFF(struct IClass *cl, Object *obj,
     if ((rc = PushChunk(msg->handle, msg->type, msg->id, IFFSIZE_UNKNOWN)))
         return rc;
 
-    iter = List_First(&data->list);
-    while (iter)
+    iter = DS_FIRST(data);
+    while (DS_VALID(iter))
     {
         ULONG len = iter->len + 8;
         /* Data is stored in big-endian whatever your machine.
@@ -564,7 +597,7 @@ IPTR Dataspace__MUIM_WriteIFF(struct IClass *cl, Object *obj,
         {
             return rc;
         }
-        iter = Node_Next(iter);
+        iter = DS_NEXT(iter);
     }
     if ((rc = PopChunk(msg->handle)))
         return rc;
@@ -595,7 +628,7 @@ BOOPSI_DISPATCHER(IPTR, Dataspace_Dispatcher, cl, obj, msg)
             struct Dataspace_Node *node;
             ULONG count = 0;
             DoMethod(obj, MUIM_Semaphore_ObtainShared);
-            for (node = List_First(&data->list); node; node = Node_Next(node))
+            for (node = DS_FIRST(data); DS_VALID(node); node = DS_NEXT(node))
                 count++;
             *((struct opGet *)msg)->opg_Storage = count;
             DoMethod(obj, MUIM_Semaphore_Release);
