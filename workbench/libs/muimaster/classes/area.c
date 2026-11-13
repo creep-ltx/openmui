@@ -1401,7 +1401,22 @@ static IPTR Area__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 data->mad_Rare->ContextMenu = (Object *)tag->ti_Data;
             break;
 
-        default:
+        case MUIA_FillArea:
+        case MUIA_Draggable:
+        case MUIA_Dropable:
+        case MUIA_CustomBackfill:
+        case MUIA_KnowsDisabled:
+        case MUIA_FrameVisible:
+        case MUIA_FrameDynamic:
+        case MUIA_Font:
+        case MUIA_HorizDisappear:
+        case MUIA_VertDisappear:
+        case MUIA_Weight:
+        case MUIA_VertWeight:
+        case MUIA_HorizWeight:
+        case MUIA_ShortHelp:
+        case MUIA_PointerType:
+        case MUIA_InputMode:
             area_set_plain(obj, data, tag);
         }
     }
@@ -1742,7 +1757,22 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
 
-        default:
+        case MUIA_FillArea:
+        case MUIA_Draggable:
+        case MUIA_Dropable:
+        case MUIA_CustomBackfill:
+        case MUIA_KnowsDisabled:
+        case MUIA_FrameVisible:
+        case MUIA_FrameDynamic:
+        case MUIA_Font:
+        case MUIA_HorizDisappear:
+        case MUIA_VertDisappear:
+        case MUIA_Weight:
+        case MUIA_VertWeight:
+        case MUIA_HorizWeight:
+        case MUIA_ShortHelp:
+        case MUIA_PointerType:
+        case MUIA_InputMode:
             area_set_plain(obj, data, tag);
         }
     }
@@ -4781,7 +4811,20 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case OM_SET: method = (APTR)Area__OM_SET; break;
     case OM_GET: method = (APTR)Area__OM_GET; break;
     case MUIM_AskMinMax: return Area__MUIM_AskMinMax(cl, obj, (APTR)msg);
-    case MUIM_Draw: return Area__MUIM_Draw(cl, obj, (APTR)msg);
+    case MUIM_Draw:
+        {
+            /* an update a subclass draws itself (no object, frame or
+             * all) without the call */
+            struct MUI_AreaData *d = muiAreaData(obj);
+            ULONG f = d->mad_Flags;
+
+            if (!(f & (MADF_DRAWOBJECT | MADF_DRAWFRAME | MADF_DRAWALL))) {
+                ((struct MUIP_Draw *)msg)->flags = f & MADF_DRAWFLAGS;
+                d->mad_Flags = f & ~MADF_DRAWFLAGS;
+                return 0;
+            }
+        }
+        return Area__MUIM_Draw(cl, obj, (APTR)msg);
     case MUIM_DrawBackground: return Area__MUIM_DrawBackground(cl, obj, (APTR)msg);
     case MUIM_CustomBackfill: method = (APTR)Area__MUIM_CustomBackfill; break;
     case MUIM_DrawParentBackground: return Area__MUIM_DrawParentBackground(cl, obj, (APTR)msg);
