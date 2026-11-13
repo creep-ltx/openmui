@@ -260,7 +260,7 @@ static void CalcKnobDimensions(struct IClass *cl, Object *obj)
         zune_zframe_get(obj,
         &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Knob]);
 
-    InitRastPort(&rp);
+    zune_init_rastport(&rp);
     SetFont(&rp, _font(obj));
 
     width = 0;

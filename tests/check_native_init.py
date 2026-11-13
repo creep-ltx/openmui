@@ -25,6 +25,8 @@ class InitHarness(Harness):
         self.trap(EXEC - 558, lambda: None)
         self.trap(GRAPHICS - 72, self.open_font)
         self.trap(GRAPHICS - 78, self.close_font)
+        # InitRastPort: the library's blank RastPort (zune_blank_rp)
+        self.trap(GRAPHICS - 198, lambda: None)
         self.trap(self.symbols['_Locale_Initialize'], self.locale_init)
         self.trap(self.symbols['_Locale_Deinitialize'], self.locale_exit)
         # The in-memory muigfx.library: Forbid/Permit, FindName,

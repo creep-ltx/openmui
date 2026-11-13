@@ -106,6 +106,97 @@ static const struct sc_fn sc_fns[] = {
     { SC_INTUI, -696, "FreeScreenDrawInfo" },
     { SC_INTUI, -84, "CurrentTime" },
     { SC_INTUI, -414, "LockIBase" }, { SC_INTUI, -420, "UnlockIBase" },
+#ifdef SC_ALLINTUI
+    /* every other intuition function (-DSC_ALLINTUI): which one makes a
+     * call the program does not make itself (draw1: WaitTOF) */
+    { SC_INTUI, -42, "AddGadget" },
+    { SC_INTUI, -48, "ClearDMRequest" },
+    { SC_INTUI, -60, "ClearPointer" },
+    { SC_INTUI, -66, "CloseScreen" },
+    { SC_INTUI, -78, "CloseWorkBench" },
+    { SC_INTUI, -90, "DisplayAlert" },
+    { SC_INTUI, -96, "DisplayBeep" },
+    { SC_INTUI, -102, "DoubleClick" },
+    { SC_INTUI, -120, "EndRequest" },
+    { SC_INTUI, -126, "GetDefPrefs" },
+    { SC_INTUI, -132, "GetPrefs" },
+    { SC_INTUI, -138, "InitRequester" },
+    { SC_INTUI, -144, "ItemAddress" },
+    { SC_INTUI, -162, "MoveScreen" },
+    { SC_INTUI, -168, "MoveWindow" },
+    { SC_INTUI, -174, "OffGadget" },
+    { SC_INTUI, -180, "OffMenu" },
+    { SC_INTUI, -186, "OnGadget" },
+    { SC_INTUI, -192, "OnMenu" },
+    { SC_INTUI, -198, "OpenScreen" },
+    { SC_INTUI, -204, "OpenWindow" },
+    { SC_INTUI, -210, "OpenWorkBench" },
+    { SC_INTUI, -222, "RefreshGadgets" },
+    { SC_INTUI, -228, "RemoveGadget" },
+    { SC_INTUI, -234, "ReportMouse" },
+    { SC_INTUI, -240, "Request" },
+    { SC_INTUI, -246, "ScreenToBack" },
+    { SC_INTUI, -252, "ScreenToFront" },
+    { SC_INTUI, -258, "SetDMRequest" },
+    { SC_INTUI, -270, "SetPointer" },
+    { SC_INTUI, -282, "ShowTitle" },
+    { SC_INTUI, -288, "SizeWindow" },
+    { SC_INTUI, -294, "ViewAddress" },
+    { SC_INTUI, -300, "ViewPortAddress" },
+    { SC_INTUI, -306, "WindowToBack" },
+    { SC_INTUI, -312, "WindowToFront" },
+    { SC_INTUI, -324, "SetPrefs" },
+    { SC_INTUI, -336, "WBenchToBack" },
+    { SC_INTUI, -342, "WBenchToFront" },
+    { SC_INTUI, -348, "AutoRequest" },
+    { SC_INTUI, -360, "BuildSysRequest" },
+    { SC_INTUI, -372, "FreeSysRequest" },
+    { SC_INTUI, -378, "MakeScreen" },
+    { SC_INTUI, -384, "RemakeDisplay" },
+    { SC_INTUI, -390, "RethinkDisplay" },
+    { SC_INTUI, -396, "AllocRemember" },
+    { SC_INTUI, -402, "AlohaWorkbench" },
+    { SC_INTUI, -408, "FreeRemember" },
+    { SC_INTUI, -426, "GetScreenData" },
+    { SC_INTUI, -456, "RefreshWindowFrame" },
+    { SC_INTUI, -462, "ActivateGadget" },
+    { SC_INTUI, -474, "QueryOverscan" },
+    { SC_INTUI, -480, "MoveWindowInFrontOf" },
+    { SC_INTUI, -492, "SetEditHook" },
+    { SC_INTUI, -498, "SetMouseQueue" },
+    { SC_INTUI, -504, "ZipWindow" },
+    { SC_INTUI, -522, "LockPubScreenList" },
+    { SC_INTUI, -528, "UnlockPubScreenList" },
+    { SC_INTUI, -534, "NextPubScreen" },
+    { SC_INTUI, -540, "SetDefaultPubScreen" },
+    { SC_INTUI, -546, "SetPubScreenModes" },
+    { SC_INTUI, -552, "PubScreenStatus" },
+    { SC_INTUI, -570, "GadgetMouse" },
+    { SC_INTUI, -576, "intuitionPrivate1" },
+    { SC_INTUI, -582, "GetDefaultPubScreen" },
+    { SC_INTUI, -588, "EasyRequestArgs" },
+    { SC_INTUI, -594, "BuildEasyRequestArgs" },
+    { SC_INTUI, -600, "SysReqHandler" },
+    { SC_INTUI, -612, "OpenScreenTagList" },
+    { SC_INTUI, -624, "PointInImage" },
+    { SC_INTUI, -666, "NextObject" },
+    { SC_INTUI, -672, "intuitionPrivate2" },
+    { SC_INTUI, -684, "AddClass" },
+    { SC_INTUI, -708, "RemoveClass" },
+    { SC_INTUI, -720, "intuitionPrivate3" },
+    { SC_INTUI, -726, "intuitionPrivate4" },
+    { SC_INTUI, -768, "AllocScreenBuffer" },
+    { SC_INTUI, -774, "FreeScreenBuffer" },
+    { SC_INTUI, -780, "ChangeScreenBuffer" },
+    { SC_INTUI, -786, "ScreenDepth" },
+    { SC_INTUI, -792, "ScreenPosition" },
+    { SC_INTUI, -798, "ScrollWindowRaster" },
+    { SC_INTUI, -804, "LendMenus" },
+    { SC_INTUI, -822, "TimedDisplayAlert" },
+    { SC_INTUI, -828, "HelpControl" },
+    { SC_INTUI, -834, "ShowWindow" },
+    { SC_INTUI, -840, "HideWindow" },
+#endif
     /* exec */
     { SC_EXEC, -198, "AllocMem" }, { SC_EXEC, -210, "FreeMem" },
     { SC_EXEC, -684, "AllocVec" }, { SC_EXEC, -690, "FreeVec" },
@@ -225,11 +316,14 @@ LONG sc_who = -1;
  * reported per operation as "_pixels": how much a toolkit paints */
 LONG sc_rectidx = -1;
 static ULONG sc_pix, sc_apix, sc_lastarea;
+static WORD sc_lastrect[4];
 
 void sc_rect(LONG x0, LONG y0, LONG x1, LONG y1)
 {
     LONG w = (WORD)x1 - (WORD)x0 + 1, h = (WORD)y1 - (WORD)y0 + 1;
 
+    sc_lastrect[0] = x0; sc_lastrect[1] = y0;
+    sc_lastrect[2] = x1; sc_lastrect[3] = y1;
     sc_lastarea = 0;
     if (w > 0 && h > 0)
         sc_pix += sc_lastarea = w * h;
@@ -238,6 +332,7 @@ static ULONG sc_lo, sc_hi;
 #define SC_RECS 600
 #define SC_DEPTH 6
 static ULONG sc_rec[SC_RECS][SC_DEPTH], sc_recarea[SC_RECS];
+static WORD sc_recrect[SC_RECS][4];   /* who=RectFill: the rectangle */
 static int sc_nrec, sc_nrec_kept;
 static const char *sc_whoname;   /* "who=NAME" */
 
@@ -249,6 +344,7 @@ void sc_record(ULONG *p)
     if (sc_nrec >= SC_RECS)
         return;
     sc_recarea[sc_nrec] = sc_who == sc_rectidx ? sc_lastarea : 0;
+    memcpy(sc_recrect[sc_nrec], sc_lastrect, sizeof(sc_lastrect));
     r = sc_rec[sc_nrec++];
     r[n++] = p[0];
     for (i = 1; i < 96 && n < SC_DEPTH; i++)
@@ -411,7 +507,9 @@ static void sc_report(const char *name, ULONG ops)
 
         printf("who %s", name);
         if (sc_who == sc_rectidx)
-            printf(" a=%lu", (unsigned long)sc_recarea[i]);
+            printf(" a=%lu r=%d,%d,%d,%d", (unsigned long)sc_recarea[i],
+                sc_recrect[i][0], sc_recrect[i][1], sc_recrect[i][2],
+                sc_recrect[i][3]);
         for (k = 0; k < SC_DEPTH && sc_rec[i][k]; k++)
             printf(" %08lx", (unsigned long)sc_rec[i][k]);
         printf("\n");

@@ -2319,6 +2319,30 @@ static IPTR Area__MUIM_CustomBackfill(struct IClass *cl, Object *obj,
  */
 static BOOL area_parent_background_is_pen(Object *obj, LONG muipen);
 
+static BOOL area_builtin_background(Object *obj);
+
+/* TRUE when obj's background fill would paint the window background that
+ * the window has just painted under the root's drawing
+ * (mri_BgFresh): obj has none of its own, shows no
+ * selected state, has no custom backfill, its MUIM_DrawBackground is
+ * Area's, and its parents pass the window's on */
+static __attribute__((noinline)) BOOL area_on_fresh_window(Object *obj,
+    struct MUI_AreaData *data)
+{
+    Object *p;
+
+    if (data->mad_Background
+        || (data->mad_Flags & (MADF_SELECTED | MADF_ISVIRTUALGROUP))
+        || (data->mad_Flags2 & MADF2_CUSTOMBACKFILL)
+        || !muiRenderInfo(obj)->mri_BgFresh
+        || !area_builtin_background(obj))
+        return FALSE;
+    p = _parent(obj);
+    while (p && Group_PassesBackground(p))
+        p = _parent(p);
+    return !p && zune_window_background_is_position_free(_win(obj));
+}
+
 /* Area_Draw_handle_background has filled the frame's top rows (the title
  * gap) with the parent background; returned beside FRAME_CORNER_* */
 #define AREA_TITLE_GAP_FILLED 0x80
@@ -2480,7 +2504,10 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
              */
             /* D(bug(" Area_Draw(%p):%ld: MUIM_DrawBackground\n", obj,
                    __LINE__)); */
-            if (zframe->border_radius == 0) {
+            /* An inherited window background over a window just painted
+             * with it (its opening, a refresh) is the pixels there */
+            if (zframe->border_radius == 0
+                && !area_on_fresh_window(obj, data)) {
                 /* Non-rounded frames: draw background normally */
                 zune_draw_background(obj, rects[i].MinX, rects[i].MinY,
                          rects[i].MaxX - rects[i].MinX + 1,

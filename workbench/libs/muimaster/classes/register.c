@@ -262,6 +262,29 @@ static void LayoutTabItems(Object *obj, struct Register_DATA *data)
 /**************************************************************************
    Render one item
 **************************************************************************/
+
+/* A tab title's clip: a clip costs two InstallClipRegion (about 2 ms on
+ * OS 3.1, and a page switch redraws two tabs), so a plain title that fits
+ * the tab (a pixel to spare for MUI 3.8's places) is drawn without, as
+ * Text does; TextLength leaves out a bold or italic overhang. (APTR)-1
+ * when none is needed. */
+static __attribute__((noinline)) APTR register_title_clip(Object *obj,
+    ZText *zt, ULONG xw, ULONG tb)
+{
+    /* packed by twos (x and width, top and bottom): four arguments keep
+     * the tab's own frame as it was */
+    LONG x = (WORD)(xw >> 16), fitwidth = (WORD)xw;
+    LONG top = (WORD)(tb >> 16), bottom = (WORD)tb;
+
+    if (zt->nontext || (zt->styles & (FSF_BOLD | FSF_ITALIC))
+        || (_font(obj)->tf_Style & FSF_ITALIC)
+        || zt->width > fitwidth - 1
+        || top + TEXTSPACING + zt->height - 1 > bottom)
+        return MUI_AddClipping(muiRenderInfo(obj), x, top, fitwidth,
+            bottom - top + 1);
+    return (APTR)-1;
+}
+
 /*
  * Render one tab and its parsed text using live RastPort, pens and item
  * geometry. Caller must provide an in-range index and valid setup text;
@@ -372,8 +395,9 @@ static void RenderRegisterTabItem(struct IClass *cl, Object *obj,
     /* text */
     fitwidth = item_bar_width - TEXTSPACING;
     x = left_item_bar_x + TEXTSPACING / 2;
-    APTR clip = MUI_AddClipping(muiRenderInfo(obj), x, top_item_bar_y,
-        fitwidth, bottom_item_bar_y - top_item_bar_y + 1);
+    APTR clip = register_title_clip(obj, ri->ztext,
+        ((ULONG)x << 16) | (UWORD)fitwidth,
+        ((ULONG)top_item_bar_y << 16) | (UWORD)bottom_item_bar_y);
 
     SetAPen(_rp(obj), _pens(obj)[MPEN_TEXT]);
     /* MUI 3.8 centres the title on the tab's own width (a pixel left of
@@ -382,7 +406,8 @@ static void RenderRegisterTabItem(struct IClass *cl, Object *obj,
         top_item_bar_y + TEXTSPACING - 1
         + (mui38 && data->active == item ? 1 : 0));
 
-    MUI_RemoveClipping(muiRenderInfo(obj), clip);
+    if (clip != (APTR)-1)
+        MUI_RemoveClipping(muiRenderInfo(obj), clip);
 }
 
 /**************************************************************************

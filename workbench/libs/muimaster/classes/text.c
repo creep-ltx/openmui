@@ -833,7 +833,7 @@ IPTR Text__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     {
         struct RastPort rp;
 
-        InitRastPort(&rp);
+        zune_init_rastport(&rp);
         SetFont(&rp, _font(obj));
         msg->MinMaxInfo->DefWidth += TextLength(&rp, "WWW", 3);
     }

@@ -2266,6 +2266,15 @@ static void UndisplayWindow(Object *obj, struct MUI_WindowData *data)
 /* The window's background over all of its inside (between the borders),
  * as the window's own coordinates: a refresh's clip limits it to the
  * damage */
+/* The render info's mri_BgFresh is set while the root draws over the
+ * window background painted just before (the window's opening, a refresh,
+ * a resize's clear): a fill with the window background is then the pixels
+ * already there, as long as the background does not depend on where it is
+ * cut (zune_window_background_is_position_free, asked by the fills).
+ * group_draw_frame_and_gaps leaves its gaps then and Area its inherited
+ * background (MUI 3.8 paints a new window's background once, in its layer
+ * backfill, and fills a third of the area of a redraw there, black box:
+ * tests/lean/scripts/overdraw.py) */
 static __attribute__((noinline)) void WindowBackground(
     struct MUI_WindowData *data)
 {
@@ -2295,11 +2304,15 @@ static VOID RefreshWindow(Object *oWin, struct MUI_WindowData *data)
         DoShowMethod(data->wd_RootObject);
 
         if (data->wd_Flags & MUIWF_ERASEAREA)
+        {
             WindowBackground(data);
+            data->wd_RenderInfo.mri_BgFresh = 1;
+        }
         else if (muiGlobalInfo(oWin)->mgi_Prefs->window_redraw
             != WINDOW_REDRAW_WITH_CLEAR)
             flags = MADF_DRAWOBJECT | MADF_DRAWFRAME;
         MUI_Redraw(data->wd_RootObject, flags);
+        data->wd_RenderInfo.mri_BgFresh = 0;
         // but should only draw focus without using MUIM_GoActive !
         ActivateObject(data);
     }
@@ -2310,7 +2323,9 @@ static VOID RefreshWindow(Object *oWin, struct MUI_WindowData *data)
          * the room between its buttons to it. The refresh clip limits
          * this to the damaged area. */
         WindowBackground(data);
+        data->wd_RenderInfo.mri_BgFresh = 1;
         MUI_Redraw(data->wd_RootObject, MADF_DRAWALL);
+        data->wd_RenderInfo.mri_BgFresh = 0;
         // but should only draw focus without using MUIM_GoActive !
         ActivateObject(data);
         MUI_EndRefresh(mri, 0);
@@ -5122,13 +5137,21 @@ static __attribute__((noinline)) ULONG WindowOpen(struct IClass *cl, Object *obj
     WindowShow(cl, obj);
     WindowBackground(data);
 
+    /* Not when it is the front screen already: ScreenToFront waits for
+     * the next vertical blank whatever the order (ScreenDepth's WaitTOF,
+     * up to 20 ms a window opening; counted with opbench "count",
+     * tests/native/syscount.h -DSC_ALLINTUI). MUI 3.8 makes no call at an
+     * uniconify either. */
     if (data->wd_RenderInfo.mri_Screen
-        && muiGlobalInfo(obj)->mgi_Prefs->publicscreen_pop_to_front)
+        && muiGlobalInfo(obj)->mgi_Prefs->publicscreen_pop_to_front
+        && IntuitionBase->FirstScreen != data->wd_RenderInfo.mri_Screen)
     {
         ScreenToFront(data->wd_RenderInfo.mri_Screen);
     }
 
+    data->wd_RenderInfo.mri_BgFresh = 1;
     MUI_Redraw(data->wd_RootObject, MADF_DRAWOBJECT | MADF_DRAWFRAME);
+    data->wd_RenderInfo.mri_BgFresh = 0;
 
     D(bug("MUIC_Window:windowOpen() ActiveObject=%p\n",
             data->wd_ActiveObject));
@@ -5338,7 +5361,9 @@ IPTR Window__MUIM_RecalcDisplay(struct IClass *cl, Object *obj,
     else
     {
         WindowBackground(data);
+        data->wd_RenderInfo.mri_BgFresh = 1;
         MUI_Redraw(data->wd_RootObject, MADF_DRAWALL);
+        data->wd_RenderInfo.mri_BgFresh = 0;
     }
 
     ActivateObject(data);

@@ -1000,7 +1000,7 @@ void zune_text_get_bounds(ZText * text, Object * obj)
     }
     else
     {
-        InitRastPort(&copy);
+        zune_init_rastport(&copy);
         SetFont(&copy, font);
     }
 

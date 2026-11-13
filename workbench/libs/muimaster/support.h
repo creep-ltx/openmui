@@ -120,4 +120,11 @@ Object *ZuneNextObject(APTR iterator);
                    :\
                    : "cc", "memory", "d1", "a1");\
   __zv_ret;})
+/* A RastPort as InitRastPort() leaves it, made once at library start:
+ * InitRastPort costs about 95 us on OS 3.1 (tests/native/drawcost.c) and
+ * a window's setup measured its texts with about 90 fresh ones; a copy of
+ * this one is a few moves (library only, not the class files) */
+extern struct RastPort zune_blank_rp;
+#define zune_init_rastport(rp) (*(rp) = zune_blank_rp)
+
 #endif

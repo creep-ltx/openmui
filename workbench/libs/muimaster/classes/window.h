@@ -405,7 +405,10 @@ struct MUI_RenderInfo
                                  * and spacing), see WindowOpen() and
                                  * the FALLBACK_ stages in
                                  * muimaster_intern.h */
-    UWORD mri_Reserved2;
+    UWORD mri_BgFresh;          /* nonzero while the root draws over the
+                                 * window background painted just before
+                                 * (a position-free one): fills with it
+                                 * may be left, window.c's WindowBgFresh */
     UWORD mri_PensStorage[MPEN_COUNT];  /* storage for pens, mri_Pens points
                                          * to here */
 

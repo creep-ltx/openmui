@@ -2548,11 +2548,16 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
      * scroll whose rows all end inside the area (MUI 3.8 shows whole rows
      * only) is such an update too: two InstallClipRegion calls less per
      * step (opbench "list scroll line"). */
+    /* A full repaint whose rows all end inside the area (MUI 3.8's whole
+     * rows) needs no clip at once either: a row or text that would leave
+     * the area asks for it below (opbench "full redraw", "register page") */
     if (((msg->flags & MADF_DRAWUPDATE) == 0
             || (data->update & UPDATEMODE_ALL))
         && (data->entries_num != 0 || (data->title_height && data->title))
-        && !((msg->flags & MADF_DRAWUPDATE)
-            && data->update == (UPDATEMODE_ENTRY | UPDATEMODE_ALL)
+        && !(((msg->flags & MADF_DRAWUPDATE) == 0
+                || data->update == UPDATEMODE_ALL
+                || data->update == (UPDATEMODE_ENTRY | UPDATEMODE_ALL))
+            && data->entries_top_pixel >= _mtop(area)
             && data->entries_top_pixel + data->entries_visible
                 * data->entry_maxheight - 1 <= entries_bottom))
         List_NeedClip(obj, data, &clip);

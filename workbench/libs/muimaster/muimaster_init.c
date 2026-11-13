@@ -26,6 +26,7 @@ struct Library *DiskfontBase;
 struct Library *IconBase;
 struct Library *WorkbenchBase;
 struct Library *MUIMasterBase, *MUIScreenBase, *CyberGfxBase;
+struct RastPort zune_blank_rp;
 extern struct Library *MathIeeeDoubBasBase, *MathIeeeDoubTransBase;
 BOOL Locale_Initialize(void);
 void MUIGfx_Install(struct Library *owner);
@@ -147,6 +148,7 @@ ULONG L_InitLib(struct Library *library)
     base->intuibase = IntuitionBase;
     /* Do not load a screen helper during LibInit: it can reopen this
        library before Exec has published it. Planar graphics need no RTG. */
+    InitRastPort(&zune_blank_rp);
     base->topaz8font = OpenFont(&font);
     if (!base->topaz8font) goto fail;
     base->SpecialMemory = AllocAbs(4, (APTR)MUIV_TriggerValue);

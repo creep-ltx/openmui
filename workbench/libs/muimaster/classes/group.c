@@ -2441,6 +2441,32 @@ static BOOL group_page_covers(struct IClass *cl, Object *obj)
  * box, in redraw-without-clear mode only where no child paints. Not
  * inlined: Group__MUIM_Draw's frame is on the stack once per nesting
  * level. */
+#define GROUP_GAP_CHILDREN 32
+static int group_collect_children(struct IClass *cl, Object *obj,
+    struct Rectangle *kids, int max);
+static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
+    int n, ULONG flags);
+
+/* The page switch's background as group_fill_gaps' bands, with no clip
+ * region: installing one and taking it away again costs about 2 ms on OS
+ * 3.1 (tests/native/drawcost.c), several fills a fraction of that. Only
+ * for a background that gives the same pixels however it is cut
+ * (zune_background_is_position_free): the region painted it from the
+ * inner box's corner. FALSE when not done. */
+static __attribute__((noinline)) BOOL group_page_gaps(struct IClass *cl,
+    Object *obj)
+{
+    struct Rectangle kids[GROUP_GAP_CHILDREN];
+    int n;
+
+    if (!zune_background_is_position_free(obj)
+        || (n = group_collect_children(cl, obj, kids,
+            GROUP_GAP_CHILDREN)) < 0)
+        return FALSE;
+    group_fill_gaps(obj, kids, n, 0);
+    return TRUE;
+}
+
 static __attribute__((noinline)) void group_draw_page_background(
     struct IClass *cl, Object *obj)
 {
@@ -2452,6 +2478,8 @@ static __attribute__((noinline)) void group_draw_page_background(
     {
         if (group_page_covers(cl, obj))
             return;     /* the clip would hide all of it */
+        if (group_page_gaps(cl, obj))
+            return;
         r = group_children_clip_region(cl, obj);
     }
 
@@ -2469,12 +2497,11 @@ static __attribute__((noinline)) void group_draw_page_background(
         MUI_RemoveClipRegion(muiRenderInfo(obj), c);
 }
 
-#define GROUP_GAP_CHILDREN 32
 
 /* Collect the visible children of a group clipped to its inner box.
  * Returns the count, or -1 when there are too many for the gap painter. */
 static int group_collect_children(struct IClass *cl, Object *obj,
-    struct Rectangle *kids)
+    struct Rectangle *kids, int max)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
     struct MinList *ChildList = NULL;
@@ -2504,7 +2531,7 @@ static int group_collect_children(struct IClass *cl, Object *obj,
         rect.MaxY = MIN(_bottom(child), _mbottom(obj));
         if (rect.MaxX < rect.MinX || rect.MaxY < rect.MinY)
             continue;
-        if (n == GROUP_GAP_CHILDREN)
+        if (n == max)
             return -1;
         kids[n++] = rect;
     }
@@ -2515,7 +2542,7 @@ static int group_collect_children(struct IClass *cl, Object *obj,
  * using a band sweep instead of a clip region. Region clipping allocated
  * temporary regions and rebuilt the layer clip for every group drawn. */
 static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
-    int n)
+    int n, ULONG flags)
 {
     WORD ys[2 * GROUP_GAP_CHILDREN + 2], xs[GROUP_GAP_CHILDREN][2];
     WORD left = _mleft(obj), right = _mright(obj);
@@ -2596,7 +2623,7 @@ static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
                     zune_draw_background(obj, pend[p].x0, pend[p].y0,
                         pend[p].x1 - pend[p].x0 + 1,
                         pend[p].y1 - pend[p].y0 + 1, pend[p].x0, pend[p].y0,
-                        _flags(obj));
+                        flags);
             }
             for (c = 0; c < ncur; c++)
                 pend[c] = cur[c];
@@ -2605,7 +2632,7 @@ static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
         for (p = 0; p < npend; p++)
             zune_draw_background(obj, pend[p].x0, pend[p].y0,
                 pend[p].x1 - pend[p].x0 + 1, pend[p].y1 - pend[p].y0 + 1,
-                pend[p].x0, pend[p].y0, _flags(obj));
+                pend[p].x0, pend[p].y0, flags);
     }
 }
 
@@ -2726,6 +2753,20 @@ static void group_clear_ring(Object *obj)
  * the background only where no child will paint. Kept out of
  * Group__MUIM_Draw: its buffers (about 900 bytes) would otherwise sit on
  * the stack once for every nesting level while the children draw. */
+/* TRUE when the group's gaps show the window background (no group up to
+ * the window has one of its own) and the window has just been painted
+ * with it (mri_BgFresh): its gaps need no fill then */
+static __attribute__((noinline)) BOOL group_on_fresh_background(Object *obj)
+{
+    Object *p = obj;
+
+    if (!muiRenderInfo(obj)->mri_BgFresh)
+        return FALSE;
+    while (p && Group_PassesBackground(p))
+        p = _parent(p);
+    return !p && zune_window_background_is_position_free(_win(obj));
+}
+
 static __attribute__((noinline)) void group_draw_frame_and_gaps(
     struct IClass *cl, Object *obj, struct MUIP_Draw *msg, BOOL virtual)
 {
@@ -2743,7 +2784,7 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
             DoSuperMethodA(cl, obj, (Msg) msg);
             return;
         }
-        nkids = group_collect_children(cl, obj, kids);
+        nkids = group_collect_children(cl, obj, kids, GROUP_GAP_CHILDREN);
     }
 
     if (nkids >= 0)
@@ -2753,8 +2794,8 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
         _flags(obj) &= ~MADF_FILLAREA;
         DoSuperMethodA(cl, obj, (Msg) msg);
         _flags(obj) |= MADF_FILLAREA;
-        if (msg->flags & MADF_DRAWOBJECT)
-            group_fill_gaps(obj, kids, nkids);
+        if ((msg->flags & MADF_DRAWOBJECT) && !group_on_fresh_background(obj))
+            group_fill_gaps(obj, kids, nkids, _flags(obj));
     }
     else
     {

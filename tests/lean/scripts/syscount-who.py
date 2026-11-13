@@ -40,7 +40,7 @@ for line in open(out, errors='replace'):
     if line.startswith('whobase '):
         base = int(line.split()[1], 16) - gate
     elif line.startswith('who '):
-        m = re.match(r'who (.*?)(?: a=(\d+))?((?: [0-9a-f]{8})+)$', line.rstrip())
+        m = re.match(r'who (.*?)(?: a=(\d+))?(?: r=[-\d,]+)?((?: [0-9a-f]{8})+)$', line.rstrip())
         op, ads = m.group(1), [int(x, 16) for x in m.group(3).split()]
         if only and op != only:
             continue
