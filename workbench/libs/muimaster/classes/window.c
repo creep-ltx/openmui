@@ -9,6 +9,7 @@
 #include <aros/atomic.h>
 
 #include <string.h>
+#include <stddef.h>
 #include <stdio.h>
 
 #include <intuition/imageclass.h>
@@ -4216,7 +4217,7 @@ IPTR Window__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg);
  * catches MUIA_Window_RootObject in its OM_SET and never passed it on, so
  * its window had no root object and never opened; on MUI 3.8 and MUI 5 it
  * opens (the mcc group of the real-program suite, 2026-11-11). */
-static void OwnSet(struct IClass *cl, Object *obj, IPTR attr, IPTR val)
+static __attribute__((noinline)) void OwnSet(struct IClass *cl, Object *obj, IPTR attr, IPTR val)
 {
     struct TagItem tags[2] = { { attr, val }, { TAG_DONE, 0 } };
     struct opSet msg = { OM_SET, tags, NULL };
@@ -4240,10 +4241,10 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     /* Initial local instance data */
     data = INST_DATA(cl, obj);
 
+    /* (the instance data is 0: only what is not is set) */
     data->wd_AreaRenderInfo = window_area_renderinfo;
     data->wd_Opacity = 255;
     data->wd_Class = cl;
-    data->wd_EventCursors = NULL;
     data->wd_RenderInfo.mri_WindowObject = obj;
 
     NewList((struct List *)&(data->wd_EHList));
@@ -4254,12 +4255,8 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         | WFLG_REPORTMOUSE | WFLG_NEWLOOKMENUS;
     data->wd_ZoomGadget = TRUE;
     data->wd_Events = GetDefaultEvents();
-    data->wd_ActiveObject = NULL;
-    data->wd_ID = 0;
     data->wd_ReqHeight = MUIV_Window_Height_Default;
     data->wd_ReqWidth = MUIV_Window_Width_Default;
-    data->wd_RootObject = NULL;
-    data->wd_DefaultObject = NULL;
 
     data->wd_AltDim.Top = MUIV_Window_AltTopEdge_NoChange;
     data->wd_AltDim.Left = MUIV_Window_AltLeftEdge_NoChange;
@@ -4267,7 +4264,6 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data->wd_AltDim.Height = MUIV_Window_AltHeight_MinMax(0);
     data->wd_ReqX = MUIV_Window_LeftEdge_Centered;
     data->wd_ReqY = MUIV_Window_TopEdge_Centered;
-    data->wd_DisabledKeys = 0L;
     data->wd_HelpTicker = BUBBLEHELP_TICKER_DEFAULT;
 
     /* parse initial taglist */
@@ -4283,25 +4279,23 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->wd_ZoomGadget = tag->ti_Data;
             break;
 
+        case MUIA_Window_RootObject:
+            if (!tag->ti_Data)
+            {
+                CoerceMethod(cl, obj, OM_DISPOSE);
+                return 0;
+            }
+            /* fall through */
         case MUIA_Window_ID:
-            OwnSet(cl, obj, MUIA_Window_ID, tag->ti_Data);
-            break;
-
         case MUIA_Window_Title:
-            OwnSet(cl, obj, MUIA_Window_Title, tag->ti_Data);
-            break;
-
         case MUIA_Window_ScreenTitle:
-            OwnSet(cl, obj, MUIA_Window_ScreenTitle, tag->ti_Data);
+        case MUIA_Window_DefaultObject:
+            OwnSet(cl, obj, tag->ti_Tag, tag->ti_Data);
             break;
 
         case MUIA_Window_Activate:
             _handle_bool_tag(data->wd_Flags, !tag->ti_Data,
                 MUIWF_DONTACTIVATE);
-            break;
-
-        case MUIA_Window_DefaultObject:
-            OwnSet(cl, obj, MUIA_Window_DefaultObject, tag->ti_Data);
             break;
 
         case MUIA_Window_Menustrip:
@@ -4312,29 +4306,18 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->wd_NoMenus = (BOOL) tag->ti_Data;
             break;
 
-        case MUIA_Window_RootObject:
-            if (!tag->ti_Data)
-            {
-                CoerceMethod(cl, obj, OM_DISPOSE);
-                return 0;
-            }
-            OwnSet(cl, obj, MUIA_Window_RootObject, tag->ti_Data);
-            break;
-
-        case MUIA_Window_AltHeight:
-            data->wd_AltDim.Height = (WORD) tag->ti_Data;
-            break;
-
-        case MUIA_Window_AltWidth:
-            data->wd_AltDim.Width = (WORD) tag->ti_Data;
-            break;
-
+        /* the zoomed box (WORDs) */
         case MUIA_Window_AltLeftEdge:
             data->wd_AltDim.Left = (WORD) tag->ti_Data;
             break;
-
         case MUIA_Window_AltTopEdge:
             data->wd_AltDim.Top = (WORD) tag->ti_Data;
+            break;
+        case MUIA_Window_AltWidth:
+            data->wd_AltDim.Width = (WORD) tag->ti_Data;
+            break;
+        case MUIA_Window_AltHeight:
+            data->wd_AltDim.Height = (WORD) tag->ti_Data;
             break;
 
         default:
@@ -4670,155 +4653,127 @@ IPTR Window__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
  */
 IPTR Window__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 {
-#define STORE *(msg->opg_Storage)
-
     struct MUI_WindowData *data = INST_DATA(cl, obj);
+    UBYTE *w;
+    IPTR v;
 
+    /* (data in an address register: GCC otherwise keeps the class's
+     * instance offset in a data register for (d8,An,Xn) addressing, a
+     * frame 4 bytes larger) */
+    __asm__("" : "+a"(data));
     /* Nothing is stored for an attribute this class does not know: a
      * subclass that stores its own value and then calls the superclass
      * (tipwindow.mcc's MUIA_Tip_WindowObject) keeps it, as on MUI 3.8 */
     switch (msg->opg_AttrID)
     {
     case MUIA_WindowObject:
-        STORE = (IPTR)obj;
-        return TRUE;
+        v = (IPTR)obj;
+        break;
     case MUIA_Window_Menustrip:
-        STORE = (IPTR)(data->wd_ChildMenustrip ? data->wd_ChildMenustrip : data->wd_Menustrip);
-        return TRUE;
+        v = (IPTR)(data->wd_ChildMenustrip ? data->wd_ChildMenustrip
+            : data->wd_Menustrip);
+        break;
     case MUIA_Window_Activate:
-        STORE =
-            (data->wd_Flags & (MUIWF_ACTIVE | MUIWF_OPENED)) ==
-            (MUIWF_ACTIVE | MUIWF_OPENED);
-        return TRUE;
-
+        v = (data->wd_Flags & (MUIWF_ACTIVE | MUIWF_OPENED))
+            == (MUIWF_ACTIVE | MUIWF_OPENED);
+        break;
     case MUIA_Window_Window:
-        STORE = (IPTR) data->wd_RenderInfo.mri_Window;
-        return TRUE;
-
+        v = (IPTR)data->wd_RenderInfo.mri_Window;
+        break;
     case MUIA_Window_Screen:
-        STORE = (IPTR) data->wd_RenderInfo.mri_Screen;
-        return TRUE;
-
+        v = (IPTR)data->wd_RenderInfo.mri_Screen;
+        break;
     case MUIA_Window_PublicScreen:
-        STORE = (IPTR) data->wd_UserPublicScreen;
-        return TRUE;
-
+        v = (IPTR)data->wd_UserPublicScreen;
+        break;
     case MUIA_Window_ActiveObject:
-        if ((data->wd_ActiveObject != NULL)
-            && (DoMethod(data->wd_RootObject, MUIM_FindAreaObject,
-                    (IPTR) data->wd_ActiveObject) != (IPTR) NULL))
-            STORE = (IPTR) data->wd_ActiveObject;
-        else
-            STORE = (IPTR) NULL;
-        return TRUE;
-
+        v = 0;
+        if (data->wd_ActiveObject && DoMethod(data->wd_RootObject,
+                MUIM_FindAreaObject, (IPTR)data->wd_ActiveObject))
+            v = (IPTR)data->wd_ActiveObject;
+        break;
     case MUIA_Window_CloseRequest:
-        STORE = FALSE;
-        return TRUE;
-
+        v = FALSE;
+        break;
     case MUIA_Window_DefaultObject:
-        STORE = (IPTR) data->wd_DefaultObject;
-        return TRUE;
-
+        v = (IPTR)data->wd_DefaultObject;
+        break;
     case MUIA_Window_DisableKeys:
-        STORE = data->wd_DisabledKeys;
-        return TRUE;
-
-    case MUIA_Window_Height:
-        /* The whole window, borders included, as MUI 3.8 answers (and
-         * as the pixel value given at OM_NEW is taken) */
-        if (data->wd_RenderInfo.mri_Window != NULL)
-            STORE = (IPTR) data->wd_RenderInfo.mri_Window->Height;
-        else
-            STORE = 0;
-        return TRUE;
-
+        v = data->wd_DisabledKeys;
+        break;
     case MUIA_Window_ID:
-        STORE = data->wd_ID;
-        return TRUE;
-
+        v = data->wd_ID;
+        break;
     case MUIA_Window_IsSubWindow:
-        STORE = (data->wd_Flags & MUIWF_ISSUBWINDOW) == MUIWF_ISSUBWINDOW;
-        return TRUE;
-
-    case MUIA_Window_LeftEdge:
-        if (data->wd_RenderInfo.mri_Window)
-            STORE = (IPTR) data->wd_RenderInfo.mri_Window->LeftEdge;
-        else
-            STORE = 0;
-        return TRUE;
-
+        v = (data->wd_Flags & MUIWF_ISSUBWINDOW) != 0;
+        break;
     case MUIA_Window_Open:
-        STORE = (data->wd_Flags & MUIWF_OPENED) == MUIWF_OPENED;
-        return TRUE;
-
+        v = (data->wd_Flags & MUIWF_OPENED) != 0;
+        break;
     case MUIA_Window_RootObject:
-        STORE = (IPTR) data->wd_RootObject;
+        v = (IPTR)data->wd_RootObject;
         if (data->wd_Flags & MUIWF_SCROLLWRAP)
-            STORE = (IPTR) zune_window_scrollwrap(data->wd_RootObject,
-                ZUNE_SW_PEEK);
-        return TRUE;
-
+            v = (IPTR)zune_window_scrollwrap((Object *)v, ZUNE_SW_PEEK);
+        break;
     case MUIA_Window_ScreenTitle:
-        STORE = (IPTR) data->wd_ScreenTitle;
-        return TRUE;
-
+        v = (IPTR)data->wd_ScreenTitle;
+        break;
     case MUIA_Window_Title:
-        STORE = (IPTR) data->wd_Title;
-        return TRUE;
-
-    case MUIA_Window_TopEdge:
-        if (data->wd_RenderInfo.mri_Window)
-            STORE = (IPTR) data->wd_RenderInfo.mri_Window->TopEdge;
-        else
-            STORE = (IPTR) 0;
-        return (TRUE);
-
-    case MUIA_Window_Width:
-        /* The whole window, borders included, as MUI 3.8 answers (and
-         * as the pixel value given at OM_NEW is taken) */
-        if (data->wd_RenderInfo.mri_Window != NULL)
-            STORE = (IPTR) data->wd_RenderInfo.mri_Window->Width;
-        else
-            STORE = 0;
-        return TRUE;
-
-
-
+        v = (IPTR)data->wd_Title;
+        break;
     case MUIA_Window_Opacity:
-        STORE = data->wd_Opacity;
-        return TRUE;
+        v = data->wd_Opacity;
+        break;
     case MUIA_Window_Sleep:
-        STORE = data->wd_SleepCount ? TRUE : FALSE;
-        return TRUE;
-
+        v = data->wd_SleepCount != 0;
+        break;
     case MUIA_Version:
-        STORE = ZUNE68_BUILTIN_VERSION;
-        return TRUE;
-
+        v = ZUNE68_BUILTIN_VERSION;
+        break;
     case MUIA_Revision:
-        STORE = ZUNE68_BUILTIN_REVISION;
-        return TRUE;
+        v = ZUNE68_BUILTIN_REVISION;
+        break;
 
+    /* The native window's box, 0 while closed: the whole window, borders
+     * included, as MUI 3.8 answers (and as the pixel value given at
+     * OM_NEW is taken) */
+    case MUIA_Window_LeftEdge:
+        v = offsetof(struct Window, LeftEdge);
+        goto native;
+    case MUIA_Window_TopEdge:
+        v = offsetof(struct Window, TopEdge);
+        goto native;
+    case MUIA_Window_Width:
+        v = offsetof(struct Window, Width);
+        goto native;
+    case MUIA_Window_Height:
+        v = offsetof(struct Window, Height);
+    native:
+        w = (UBYTE *)data->wd_RenderInfo.mri_Window;
+        v = w ? (LONG)*(WORD *)(w + v) : 0;
+        break;
+
+    /* the zoomed box as given */
     case MUIA_Window_AltLeftEdge:
-        STORE = (IPTR) data->wd_AltDim.Left;
-        return TRUE;
-
+        v = offsetof(struct IBox, Left);
+        goto alt;
     case MUIA_Window_AltTopEdge:
-        STORE = (IPTR) data->wd_AltDim.Top;
-        return TRUE;
-
+        v = offsetof(struct IBox, Top);
+        goto alt;
     case MUIA_Window_AltWidth:
-        STORE = (IPTR) data->wd_AltDim.Width;
-        return TRUE;
-
+        v = offsetof(struct IBox, Width);
+        goto alt;
     case MUIA_Window_AltHeight:
-        STORE = (IPTR) data->wd_AltDim.Height;
-        return TRUE;
-    }
+        v = offsetof(struct IBox, Height);
+    alt:
+        v = (LONG)*(WORD *)((UBYTE *)&data->wd_AltDim + v);
+        break;
 
-    return DoSuperMethodA(cl, obj, (Msg) msg);
-#undef STORE
+    default:
+        return DoSuperMethodA(cl, obj, (Msg) msg);
+    }
+    *msg->opg_Storage = v;
+    return TRUE;
 }
 
 /* Match window UserData first, then search its root subtree if present.
