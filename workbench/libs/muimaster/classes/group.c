@@ -2444,7 +2444,7 @@ static BOOL group_page_covers(struct IClass *cl, Object *obj)
 #define GROUP_GAP_CHILDREN 32
 static int group_collect_children(struct IClass *cl, Object *obj,
     struct Rectangle *kids, int max);
-static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
+static void group_fill_gaps_ool(Object *obj, const struct Rectangle *kids,
     int n, ULONG flags);
 
 /* The page switch's background as group_fill_gaps' bands, with no clip
@@ -2463,7 +2463,7 @@ static __attribute__((noinline)) BOOL group_page_gaps(struct IClass *cl,
         || (n = group_collect_children(cl, obj, kids,
             GROUP_GAP_CHILDREN)) < 0)
         return FALSE;
-    group_fill_gaps(obj, kids, n, 0);
+    group_fill_gaps_ool(obj, kids, n, 0);
     return TRUE;
 }
 
@@ -2541,8 +2541,9 @@ static int group_collect_children(struct IClass *cl, Object *obj,
 /* Paint the group background only where no child covers the inner box,
  * using a band sweep instead of a clip region. Region clipping allocated
  * temporary regions and rebuilt the layer clip for every group drawn. */
-static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
-    int n, ULONG flags)
+static inline __attribute__((always_inline)) void group_fill_gaps(
+    Object *obj, const struct Rectangle *kids, int n, ULONG flags,
+    const int many)
 {
     WORD ysbuf[2 * GROUP_GAP_CHILDREN + 2], xsbuf[GROUP_GAP_CHILDREN][2];
     WORD *ys = ysbuf, (*xs)[2] = xsbuf;
@@ -2552,8 +2553,10 @@ static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
     WORD left = _mleft(obj), right = _mright(obj);
     int ny = 0, i, j, k;
 
-    /* More children than the arrays on the stack hold: one block */
-    if (n > GROUP_GAP_CHILDREN)
+    /* More children than the arrays on the stack hold: one block (many
+     * is a constant: the inlined copy for at most GROUP_GAP_CHILDREN has
+     * none of this) */
+    if (many && n > GROUP_GAP_CHILDREN)
     {
         if (!(heap = AllocVec((2 * n + 2) * sizeof(WORD)
                 + n * 2 * sizeof(WORD) + 2 * (n + 1) * sizeof(struct gap),
@@ -2649,8 +2652,17 @@ static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
                 pend[p].x1 - pend[p].x0 + 1, pend[p].y1 - pend[p].y0 + 1,
                 pend[p].x0, pend[p].y0, flags);
     }
-    if (heap)
+    if (many && heap)
         FreeVec(heap);
+}
+
+/* The bands out of line: for the page switch and the many-children case,
+ * whose callers are not on the drawing's every level (inlined into
+ * group_draw_frame_and_gaps, as before, for the common draw) */
+static __attribute__((noinline)) void group_fill_gaps_ool(Object *obj,
+    const struct Rectangle *kids, int n, ULONG flags)
+{
+    group_fill_gaps(obj, kids, n, flags, 1);
 }
 
 /* Private MUI virtual-group painting protocol. These method IDs are used
@@ -2775,11 +2787,10 @@ static void group_clear_ring(Object *obj)
  * took before (group_children_clip_region) costs a ClearRectRegion per
  * child, each walking and allocating the region's rectangles: 2.8 s per
  * 8-pixel scroll of a Virtgroup of 80 buttons on a 68020, against MUI
- * 3.8's 73 ms (round draw1, t/vgscroll). Area's frame first, as the
- * caller does. GROUP_GAPS_DONE when painted, -1 for the region. */
-#define GROUP_GAPS_DONE 0x7fff
+ * 3.8's 73 ms (round draw1, tests/lean/sgstep.c). Area's frame first, as
+ * group_draw_frame_and_gaps does; the region when memory is short. */
 static BOOL group_on_fresh_background(Object *obj);
-static __attribute__((noinline)) int group_gaps_many(struct IClass *cl,
+static __attribute__((noinline)) void group_gaps_many(struct IClass *cl,
     Object *obj, struct MUIP_Draw *msg)
 {
     struct MUI_GroupData *data = INST_DATA(cl, obj);
@@ -2787,15 +2798,25 @@ static __attribute__((noinline)) int group_gaps_many(struct IClass *cl,
     int n;
 
     if (!(kids = AllocVec(data->num_children * sizeof(*kids), MEMF_ANY)))
-        return -1;
+    {
+        struct Region *r = group_children_clip_region(cl, obj);
+        APTR c = (APTR)-1;
+
+        if (r)
+            c = MUI_AddClipRegion(muiRenderInfo(obj), r);
+        DoSuperMethodA(cl, obj, (Msg) msg);
+        if (r)
+            MUI_RemoveClipRegion(muiRenderInfo(obj), c);
+        return;
+    }
     n = group_collect_children(cl, obj, kids, data->num_children + 1);
     _flags(obj) &= ~MADF_FILLAREA;
     DoSuperMethodA(cl, obj, (Msg) msg);
     _flags(obj) |= MADF_FILLAREA;
-    if ((msg->flags & MADF_DRAWOBJECT) && !group_on_fresh_background(obj))
-        group_fill_gaps(obj, kids, n, _flags(obj));
+    if ((msg->flags & MADF_DRAWOBJECT) && (!muiRenderInfo(obj)->mri_BgFresh
+            || !group_on_fresh_background(obj)))
+        group_fill_gaps_ool(obj, kids, n, _flags(obj));
     FreeVec(kids);
-    return GROUP_GAPS_DONE;
 }
 
 /* TRUE when the group's gaps show the window background (no group up to
@@ -2829,10 +2850,15 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
             DoSuperMethodA(cl, obj, (Msg) msg);
             return;
         }
-        nkids = group_collect_children(cl, obj, kids, GROUP_GAP_CHILDREN);
-        if (nkids < 0
-            && group_gaps_many(cl, obj, msg) == GROUP_GAPS_DONE)
+        /* more children than the bands' arrays here: a call in tail
+         * position, so this function's frame is gone while it paints */
+        if (((struct MUI_GroupData *)INST_DATA(cl, obj))->num_children
+                > GROUP_GAP_CHILDREN)
+        {
+            group_gaps_many(cl, obj, msg);
             return;
+        }
+        nkids = group_collect_children(cl, obj, kids, GROUP_GAP_CHILDREN);
     }
 
     if (nkids >= 0)
@@ -2842,8 +2868,9 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
         _flags(obj) &= ~MADF_FILLAREA;
         DoSuperMethodA(cl, obj, (Msg) msg);
         _flags(obj) |= MADF_FILLAREA;
-        if ((msg->flags & MADF_DRAWOBJECT) && !group_on_fresh_background(obj))
-            group_fill_gaps(obj, kids, nkids, _flags(obj));
+        if ((msg->flags & MADF_DRAWOBJECT) && (!muiRenderInfo(obj)->mri_BgFresh
+            || !group_on_fresh_background(obj)))
+            group_fill_gaps(obj, kids, nkids, _flags(obj), 0);
     }
     else
     {

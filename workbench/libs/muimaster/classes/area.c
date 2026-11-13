@@ -2507,7 +2507,8 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
             /* An inherited window background over a window just painted
              * with it (its opening, a refresh) is the pixels there */
             if (zframe->border_radius == 0
-                && !area_on_fresh_window(obj, data)) {
+                && (!data->mad_RenderInfo->mri_BgFresh
+                    || !area_on_fresh_window(obj, data))) {
                 /* Non-rounded frames: draw background normally */
                 zune_draw_background(obj, rects[i].MinX, rects[i].MinY,
                          rects[i].MaxX - rects[i].MinX + 1,
