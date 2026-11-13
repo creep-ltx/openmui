@@ -252,11 +252,12 @@ void zune_list_layout_editor(Object *obj, struct MUI_ListData *data)
 {
     LONG left = _mleft(data->area) - data->horiz_first;
     LONG top = data->entries_top_pixel + (data->edit_row - data->entries_first) * data->entry_maxheight;
+    struct ColumnInfo *ci = data->ci, *end = ci + data->edit_column;
     if (!data->edit_object) return;
-    for (LONG column = 0; column < data->edit_column; column++)
-        if (!ColumnHidden(data, column))
-            left += ColumnWidth(data, column) + data->ci[column].delta +
-                (data->ci[column].bar ? BAR_WIDTH : 0);
+    for (; ci < end; ci++)
+        if (!ci->hidden && !ci->layout_hidden)
+            left += (data->format_layout ? ci->layout_width : ci->entries_width)
+                + ci->delta + (ci->bar ? BAR_WIDTH : 0);
     LONG width = MIN(ColumnWidth(data, data->edit_column),
         _mright(data->area) - left + 1);
     MUI_LayoutObj(data->edit_object, left, top, MAX(1, width),
@@ -274,7 +275,7 @@ IPTR zune_list_edit(struct IClass *cl, Object *obj, LONG row, LONG column)
     if (data->ci[column].hidden)
         set(obj, MUIA_List_ShowColumn, data->ci[column].order_id);
     if (data->edit_object && !zune_list_end_edit(cl, obj, MUIV_List_EndEdit_Done, FALSE)) return FALSE;
-    editor = (Object *)DoMethod(obj, MUIM_List_CreateEditObject, row, column, data->entries[row]->data);
+    editor = (Object *)DoMethod(obj, MUIM_List_CreateEditObject, row, column, data->entries[row].data);
     if (!editor) return FALSE;
     DoMethod(editor, MUIM_ConnectParent, obj);
     if (!DoMethod(editor, MUIM_Setup, muiRenderInfo(obj)))
@@ -286,7 +287,7 @@ IPTR zune_list_edit(struct IClass *cl, Object *obj, LONG row, LONG column)
     DoMethodA(editor, (Msg)&ask);
     if (ask.MinMaxInfo) __area_finish_minmax(editor, ask.MinMaxInfo);
     data->edit_object = editor; data->edit_row = row; data->edit_column = column;
-    data->edit_entry = data->entries[row]->data;
+    data->edit_entry = data->entries[row].data;
     data->edit_focus = (Object *)XGET(_win(obj), MUIA_Window_ActiveObject);
     DoMethod(obj, MUIM_List_Jump, row);
     zune_list_layout_editor(obj, data);
@@ -305,6 +306,9 @@ IPTR zune_list_end_edit(struct IClass *cl, Object *obj, ULONG mode, BOOL force)
     LONG row = data->edit_row, column = data->edit_column;
     if (!editor) return TRUE;
     if (data->ending_edit) return FALSE;
+    /* data in a register of its own: GCC kept the instance offset live
+     * to address data->columns from obj (one register more) */
+    __asm__ ("" : "+a" (data));
     data->ending_edit = TRUE;
     IPTR accepted = DoMethod(obj, MUIM_List_EditDone, row, column,
         mode == MUIV_List_EndEdit_Abort ? NULL : data->edit_entry, editor);
@@ -336,31 +340,25 @@ IPTR zune_list_end_edit(struct IClass *cl, Object *obj, ULONG mode, BOOL force)
 void zune_list_draw_sort_mark(Object *obj, struct MUI_ListData *data,
     LONG x1, LONG y, LONG h)
 {
-    struct RastPort *rp = _rp(obj);
-    LONG x2 = MIN(x1 + ColumnWidth(data, data->sort_column),
-        _mright(data->area));
-    BOOL descending = data->ci[data->sort_column].descending;
-    LONG th = (_font(obj)->tf_YSize + 1) / 2, tw = th * 2 - 1;
-    LONG left = x2 - tw - 2, top = y + (h - th) / 2, bottom = top + th - 1;
-    LONG mid = left + th - 1;
+    LONG th = (_font(obj)->tf_YSize + 1) / 2;
+    LONG left = MIN(x1 + ColumnWidth(data, data->sort_column),
+        _mright(data->area)) - (th * 2 - 1) - 2;
+    LONG base, tip;
+    struct RastPort *rp;
 
     if (th < 3 || left < x1)
         return;
+    /* the base line, then to the tip and back: the tip down for
+     * descending */
+    base = y + (h - th) / 2, tip = base + th - 1;
+    if (!data->ci[data->sort_column].descending)
+        tip = base, base += th - 1;
+    rp = _rp(obj);
     SetAPen(rp, muiRenderInfo(obj)->mri_Pens[MPEN_TEXT]);
-    if (descending)
-    {
-        Move(rp, left, top);
-        Draw(rp, left + tw - 1, top);
-        Draw(rp, mid, bottom);
-        Draw(rp, left, top);
-    }
-    else
-    {
-        Move(rp, left, bottom);
-        Draw(rp, left + tw - 1, bottom);
-        Draw(rp, mid, top);
-        Draw(rp, left, bottom);
-    }
+    Move(rp, left, base);
+    Draw(rp, left + th * 2 - 2, base);
+    Draw(rp, left + th - 1, tip);
+    Draw(rp, left, base);
 }
 
 
@@ -377,9 +375,7 @@ BOOL zune_list_column_order(struct MUI_ListData *data, const UBYTE *order)
     }
     columns = AllocVec(data->columns * sizeof(*columns), MEMF_ANY);
     if (!columns) return FALSE;
-    if (!data->mapped_strings)
-        data->mapped_strings = AllocVec(2 * data->columns * sizeof(STRPTR), MEMF_ANY);
-    if (!data->mapped_strings) { FreeVec(columns); return FALSE; }
+    data->mapped_strings = List_MappedArea(data);  /* in the format block */
     memcpy(columns, data->ci, data->columns * sizeof(*columns));
     for (LONG i = 0; i < data->columns; i++)
         for (LONG j = 0; j < data->columns; j++)
@@ -446,7 +442,6 @@ LONG zune_list_cell_dims(Object *obj, struct MUI_ListData *data,
     {
         LONG height = mm.DefHeight + data->prefs_linespacing;
         if (height > entry->height) { entry->height = height; ret = 1; }
-        entry->widths[j] = mm.DefWidth;
         if (mm.DefWidth > data->ci[j].entries_width)
         { data->ci[j].entries_width = mm.DefWidth; ret = 1; }
         EndCellObject(cell, state);
@@ -706,7 +701,7 @@ void zune_list_format_mui45(struct ColumnInfo *ci, IPTR *args)
         ci->min_width = ci->max_width =
             MAX(0, MIN(32767, *(LONG *)args[ARG_FIXWIDTH]));
         ci->min_pixels = ci->max_pixels = TRUE;
-        ci->user_width = ci->min_width;
+        ci->fixed = TRUE;
         ci->delta = 0;
     }
     ci->is_object = !!args[ARG_ISOBJECT];

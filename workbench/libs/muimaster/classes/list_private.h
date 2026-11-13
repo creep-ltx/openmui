@@ -43,39 +43,47 @@ enum
 };
 
 
+/* One row. The rows are an array of these (data->entries, the title at
+ * index -1), not pointers to pooled blocks: no allocation per entry, and a
+ * row is 8 bytes (it was 24 + 4 per column, in the pool, + 4 for the
+ * pointer). The row's column widths were measured but never read: gone. */
 struct ListEntry
 {
     APTR data;
-    LONG width;    /* Line width */
-    LONG height;   /* Line height */
-    WORD flags;    /* see below */
-    LONG widths[]; /* Widths of the columns */
+    WORD height;   /* Line height */
+    UWORD flags;   /* see below */
 };
+_Static_assert(sizeof(struct ListEntry) == 8, "ListEntry is 8 bytes");
+/* A row as two longwords: moved through registers, not a struct on the
+ * frame */
+#define ROW_L(entries, i) ((ULONG *)&(entries)[i])
 
 #define ENTRY_SELECTED   (1<<0)
 #define ENTRY_RENDER     (1<<1)
+#define ENTRY_INSERTED   (1<<2)  /* Insert_Sorted's first entry, while sorting */
+#define ENTRY_ACTIVEMARK (1<<3)  /* the active entry, while sorting */
 
 
+/* A format column, 32 bytes (data->ci[col] is a shift). Pixel widths
+ * that a format gives are clamped to 0..32767 when parsed, a laid out
+ * column's to 32767 (zune_list_layout_columns); column numbers
+ * are below MUIA_List_MaxColumns (at most 256). */
 struct ColumnInfo
 {
-    int colno;      /* Column number */
-    int user_width; /* user set width; -1 if entry width */
-    int min_width;  /* min width percentage */
-    int max_width;  /* min width percentage */
-    int weight;
-    int delta;      /* ignored for the first and last column, defaults to 4 */
-    int bar;
     STRPTR preparse;
-    int entries_width; /* width of the entries (maximum of all widths) */
-    UBYTE hidden, sortable, descending;
-    int order_id;
+    LONG entries_width; /* width of the entries (maximum of all widths) */
+    WORD layout_width, layout_max;  /* a laid out format's: at most 32767 */
+    WORD min_width;     /* min width: percentage, pixels, -1 entry width */
+    WORD max_width;     /* max width, the same */
+    WORD weight;
+    WORD delta;         /* ignored for the first and last column, defaults to 4 */
+    UBYTE colno;        /* Column number */
+    UBYTE order_id;
+    UBYTE bar, fixed;   /* fixed: FIXWIDTH (MUI 5) */
+    UBYTE hidden, sortable, descending, elide;
     UBYTE min_pixels, max_pixels, is_object, layout_hidden;
-    LONG elide, layout_width, layout_max;
-    UBYTE pad[4];
 };
-/* 64 bytes: data->ci[col] is a shift (it was 66 bytes: a shift, an add
- * and a doubling at each of the ~110 places that index it) */
-_Static_assert(sizeof(struct ColumnInfo) == 64, "ColumnInfo is 64 bytes");
+_Static_assert(sizeof(struct ColumnInfo) == 32, "ColumnInfo is 32 bytes");
 
 struct MUI_ImageSpec_intern;
 
@@ -98,13 +106,10 @@ struct MUI_ListData
     struct Hook *display_hook;
     struct Hook *multi_test_hook;
 
-    struct Hook default_compare_hook;
-
-    /* List management, currently we use a simple flat array, which is not
-     * good if many entries are inserted/deleted */
+    /* The rows: entries[-1] is the title, entries_allocated counts it */
     LONG entries_num;           /* Number of Entries in the list */
     LONG entries_allocated;
-    struct ListEntry **entries;
+    struct ListEntry *entries;
 
     LONG entries_first;         /* first visible entry */
     LONG entries_visible;       /* number of visible entries,
@@ -113,7 +118,7 @@ struct MUI_ListData
     LONG insert_position;       /* pos of the last insertion */
 
     LONG entry_maxheight;       /* Maximum height of an entry */
-    ULONG entry_minheight;      /* from MUIA_List_MinLineHeight */
+    LONG entry_minheight;       /* from MUIA_List_MinLineHeight, 0..32767 */
 
     LONG entries_totalheight;
     LONG entries_maxwidth;
@@ -128,16 +133,15 @@ struct MUI_ListData
 
     LONG entries_top_pixel;     /* Where the entries start */
 
-    /* Column managment, is allocated by ParseListFormat() and freed
-     * by CleanListFormat() */
+    /* The format: one block from ParseListFormat() (FreeListFormat()),
+     * ci first, then preparses[], strings[] and the room for
+     * mapped_strings[] (List_MappedArea()) */
     STRPTR format;
     LONG columns;               /* Number of columns the list has */
-    LONG columns_allocated;     /* List has space for columns_allocated columns */
     struct ColumnInfo *ci;
     STRPTR *preparses;
-    STRPTR *strings_mem;        /* safe pointer to allocated memory for strings[] */
-    STRPTR *strings;            /* the strings for the display function, one
-                                 * more than needed (for the entry position) */
+    STRPTR *strings;            /* the strings for the display function;
+                                 * strings[-1] is the entry position */
 
     /* Titlestuff */
     WORD title_height;          /* The complete height of the title */
@@ -176,7 +180,6 @@ struct MUI_ListData
      * pixels */
     Object *horiz;
     LONG horiz_first;
-    struct Hook layout_hook;
     IPTR scroller_pos;
 
     /* clicked column */
@@ -195,7 +198,6 @@ struct MUI_ListData
 
     LONG seltype;
 
-    struct Hook hook;
     LONG hscroll_visibility, title_click, sort_column;
     Object *edit_object, *edit_focus;
     LONG edit_row, edit_column;
@@ -243,6 +245,11 @@ struct MUI_ListData
 #define LIST_DIMSVALID  (1<<8)  /* CalcWidths' results still hold (List_Dispatcher) */
 
 
+/* mapped_strings' room in the format block: 2 x columns after strings[] */
+static inline __attribute__((always_inline)) STRPTR *List_MappedArea(struct MUI_ListData *data)
+{
+    return data->strings + data->columns_reserved + 1;
+}
 static inline __attribute__((always_inline)) LONG ColumnWidth(struct MUI_ListData *data, LONG column)
 {
     return data->format_layout ? data->ci[column].layout_width :

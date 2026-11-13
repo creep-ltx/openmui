@@ -8,6 +8,11 @@ from check_notifications import NotifyHarness
 from check_class_lifetime import STACK, MASTER, EXEC, INTUITION
 
 CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71100
+# struct MUI_ListData (classes/list_private.h): the offsets the test uses
+POOL, ENTRIES_NUM, ENTRIES_ALLOCATED, ENTRIES = 16, 40, 44, 48
+ENTRIES_ACTIVE, INSERT_POSITION, CONFIRM_ENTRIES_NUM = 60, 64, 96
+# struct ListEntry: data, height (WORD), flags (UWORD); the rows are an array
+ENTRY_SIZE = 8
 
 
 class SortHarness(NotifyHarness):
@@ -16,19 +21,22 @@ class SortHarness(NotifyHarness):
         self.mem.w16(CLASS + 32, 256)
         self.mem.w32(DATA, 32)  # LIST_QUIET
         self.comparisons = 0
-        self.entries = []
-        self.keys = {}
-        for n, value in enumerate(values):
-            entry = self.blob(bytes(20))
-            self.mem.w32(entry, n + 1)
-            self.entries.append(entry)
-            self.keys[n + 1] = value
-        self.array = self.words(*self.entries, 0)
-        self.mem.w32(DATA + 60, len(values))
-        self.mem.w32(DATA + 68, self.array)
-        self.mem.w32(DATA + 80, 0 if values else 0xffffffff)
+        # an entry is its data, a key number: the rows hold it in place
+        self.entries = list(range(1, len(values) + 1))
+        self.keys = {n + 1: value for n, value in enumerate(values)}
+        self.array = self.rows(self.entries)
+        self.mem.w32(DATA + ENTRIES_NUM, len(values))
+        self.mem.w32(DATA + ENTRIES, self.array)
+        self.mem.w32(DATA + ENTRIES_ACTIVE, 0 if values else 0xffffffff)
         self.trap(self.symbols['_DoMethodA'], self.compare)
         self.trap(self.symbols['_MUI_Redraw'], lambda: None)
+
+    def rows(self, entries, spare=1):
+        return self.blob(b''.join(struct.pack('>IHH', e, 0, 0)
+                                  for e in entries) + bytes(ENTRY_SIZE * spare))
+
+    def row(self, n):
+        return self.mem.r32(self.array + n * ENTRY_SIZE)
 
     def compare(self):
         msg = self.argument(1)
@@ -44,17 +52,18 @@ class SortHarness(NotifyHarness):
         self.machine.prepare(self.symbols['_List__MUIM_Sort'], STACK)
         assert self.machine.was_exit(self.machine.execute(100000000))
         assert not self.allocations, 'sort must not allocate'
-        return [self.mem.r32(self.array + n * 4) for n in range(len(self.entries))]
+        return [self.row(n) for n in range(len(self.entries))]
 
 
 class InsertHarness(SortHarness):
     def __init__(self, path, values):
         super().__init__(path, values)
-        self.array = self.words(0, *self.entries, *([0] * 32)) + 4
-        self.mem.w32(DATA + 68, self.array)
-        self.mem.w32(DATA + 64, 32)
-        self.mem.w32(DATA + 116, len(values))
-        self.mem.w32(DATA + 16, 123)  # caller-owned entry pool
+        # the title row first, room for 32 rows
+        self.array = self.rows([0] + self.entries, 32 - len(values)) + ENTRY_SIZE
+        self.mem.w32(DATA + ENTRIES, self.array)
+        self.mem.w32(DATA + ENTRIES_ALLOCATED, 33)
+        self.mem.w32(DATA + CONFIRM_ENTRIES_NUM, len(values))
+        self.mem.w32(DATA + POOL, 123)  # caller-owned entry pool
         self.fail_construct = 0
         self.constructs = 0
         self.trap(EXEC - 708, self.alloc_vec)
@@ -86,9 +95,9 @@ class InsertHarness(SortHarness):
         while self.mem.r32(tags):
             attr, value = self.mem.r32(tags), self.mem.r32(tags + 4)
             if attr == 0x80421654:
-                self.mem.w32(DATA + 60, value)
+                self.mem.w32(DATA + ENTRIES_NUM, value)
             elif attr == 0x8042391c:  # List_Active
-                self.mem.w32(DATA + 80, value)
+                self.mem.w32(DATA + ENTRIES_ACTIVE, value)
             tags += 8
         self.cpu.w_reg(0, 0)
 
@@ -101,8 +110,8 @@ class InsertHarness(SortHarness):
         message = self.words(0x80426c87, self.words(*incoming), len(values),
                              position & 0xffffffff)
         result = self.call('List__MUIM_Insert', CLASS, OBJECT, message)
-        count = self.mem.r32(DATA + 60)
-        entries = [self.mem.r32(self.array + n * 4) for n in range(count)]
+        count = self.mem.r32(DATA + ENTRIES_NUM)
+        entries = [self.row(n) for n in range(count)]
         return result, entries
 
     def finish(self):
@@ -118,10 +127,10 @@ def check(path, baseline=False):
                                  ([2, 2, 4], 2), ([], 1)]:
             h = InsertHarness(path, values)
             result, entries = h.insert([incoming])
-            assert [h.keys[h.mem.r32(e)] for e in entries] == sorted(values + [incoming])
-            assert h.mem.r32(DATA + 84) == sum(v <= incoming for v in values)
+            assert [h.keys[e] for e in entries] == sorted(values + [incoming])
+            assert h.mem.r32(DATA + INSERT_POSITION) == sum(v <= incoming for v in values)
             if values:
-                assert entries[h.mem.r32(DATA + 80)] == h.entries[0]
+                assert entries[h.mem.r32(DATA + ENTRIES_ACTIVE)] == h.entries[0]
             assert h.comparisons <= 3
             h.finish()
         h = InsertHarness(path, list(range(28)))
@@ -130,11 +139,12 @@ def check(path, baseline=False):
         h.finish()
         h = InsertHarness(path, [2, 4])
         result, entries = h.insert([1, 3])
-        assert [h.keys[h.mem.r32(e)] for e in entries] == [1, 2, 3, 4]
-        assert h.mem.r32(DATA + 84) == 0, 'first inserted entry position'
-        assert entries[h.mem.r32(DATA + 80)] == h.entries[0]
+        assert [h.keys[e] for e in entries] == [1, 2, 3, 4]
+        assert h.mem.r32(DATA + INSERT_POSITION) == 0, 'first inserted entry position'
+        assert entries[h.mem.r32(DATA + ENTRIES_ACTIVE)] == h.entries[0]
         h.finish()
         h = InsertHarness(path, [2, 4])
+        h.mem.w32(DATA + ENTRIES_ALLOCATED, 3)  # full: the rows must grow
         h.fail_alloc = True
         result, entries = h.insert([1], 0)
         assert result == 0xffffffff and entries == h.entries
@@ -145,8 +155,8 @@ def check(path, baseline=False):
             result, entries = h.insert([1, 3, 5], 0)
             expected = [1, 3, 5][:failure - 1] + [2, 4]
             assert result == 0xffffffff
-            assert [h.keys[h.mem.r32(e)] for e in entries] == expected
-            assert entries[h.mem.r32(DATA + 80)] == h.entries[0]
+            assert [h.keys[e] for e in entries] == expected
+            assert entries[h.mem.r32(DATA + ENTRIES_ACTIVE)] == h.entries[0]
             h.finish()
 
     rng = random.Random(68)
@@ -158,9 +168,9 @@ def check(path, baseline=False):
         active = h.entries[0] if values else None
         result = h.sort()
         assert sorted(result) == sorted(h.entries)
-        assert [h.keys[h.mem.r32(e)] for e in result] == sorted(values)
+        assert [h.keys[e] for e in result] == sorted(values)
         if active:
-            assert result[h.mem.r32(DATA + 80)] == active
+            assert result[h.mem.r32(DATA + ENTRIES_ACTIVE)] == active
         if not baseline:
             assert h.comparisons <= max(1, len(values) * 20)
             if values == sorted(values):
@@ -170,7 +180,7 @@ def check(path, baseline=False):
     h = SortHarness(path, list(range(128)))
     total = 0
     for count in range(1, 129):
-        h.mem.w32(DATA + 60, count)
+        h.mem.w32(DATA + ENTRIES_NUM, count)
         h.sort()
     total = h.comparisons
     h.machine.cleanup()

@@ -38,42 +38,50 @@ extern struct Library *MUIMasterBase;
  * can shrink and grow columns without measuring every entry again. */
 void zune_list_layout_columns(struct MUI_ListData *data)
 {
-    LONG available, used = 0, last = -1, extra;
+    struct ColumnInfo *ci, *end, *last = NULL;
+    LONG available, used = 0, extra;
+
     if (!data->format_layout || !data->area) return;
     available = MAX(0, _mwidth(data->area));
-    for (LONG i = 0; i < data->columns; i++)
+    end = data->ci + data->columns;
+    for (ci = data->ci; ci < end; ci++)
     {
-        struct ColumnInfo *ci = &data->ci[i];
+        LONG minimum, maximum;
+
         ci->layout_hidden = FALSE;
         ci->layout_width = 0;
         if (ci->hidden) continue;
-        LONG minimum = ci->min_width < 0 ? ci->entries_width :
+        minimum = ci->min_width < 0 ? ci->entries_width :
             ci->min_pixels ? ci->min_width : available * ci->min_width / 100;
-        LONG maximum = ci->max_width < 0 ? ci->entries_width :
+        maximum = ci->max_width < 0 ? ci->entries_width :
             ci->max_pixels ? ci->max_width : available * ci->max_width / 100;
-        if (ci->user_width < 0) { minimum += 6; maximum += 6; }
-        ci->layout_max = MAX(minimum, maximum);
-        LONG gap = last < 0 ? 0 : data->ci[last].delta +
-            (data->ci[last].bar ? BAR_WIDTH : 0);
-        if (last >= 0 && used + gap + minimum > available)
-        { ci->layout_hidden = TRUE; continue; }
+        if (!ci->fixed) { minimum += 6; maximum += 6; }
+        /* the widths are WORDs: 32767 pixels at most */
+        if (minimum > 32767) minimum = 32767;
+        ci->layout_max = MIN(MAX(minimum, maximum), 32767);
+        if (last)
+        {
+            LONG gap = last->delta + (last->bar ? BAR_WIDTH : 0);
+            if (used + gap + minimum > available)
+            { ci->layout_hidden = TRUE; continue; }
+            used += gap;
+        }
         ci->layout_width = minimum;
-        used += gap + minimum;
-        last = i;
+        used += minimum;
+        last = ci;
     }
     extra = available - used;
     /* Redistribute space left by columns which hit their maximum. */
     while (extra > 0)
     {
         LONG weights = 0, remaining = extra;
-        for (LONG i = 0; i < data->columns; i++)
-            if (!ColumnHidden(data, i) && data->ci[i].layout_width < data->ci[i].layout_max)
-                weights += data->ci[i].weight;
+        for (ci = data->ci; ci < end; ci++)
+            if (!ci->hidden && !ci->layout_hidden && ci->layout_width < ci->layout_max)
+                weights += ci->weight;
         if (!weights) break;
-        for (LONG i = 0; i < data->columns; i++)
+        for (ci = data->ci; ci < end; ci++)
         {
-            struct ColumnInfo *ci = &data->ci[i];
-            if (ColumnHidden(data, i) || ci->layout_width >= ci->layout_max || !ci->weight) continue;
+            if (ci->hidden || ci->layout_hidden || ci->layout_width >= ci->layout_max || !ci->weight) continue;
             LONG share = MAX(1, remaining * ci->weight / weights);
             share = MIN(extra, MIN(share, ci->layout_max - ci->layout_width));
             ci->layout_width += share; extra -= share;
@@ -112,8 +120,6 @@ static inline void ListLayoutEditor(Object *obj, struct MUI_ListData *data)
     if (data->edit_object)
         zune_list_layout_editor(obj, data);
 }
-
-static BOOL IncreaseColumns(struct MUI_ListData *data, int new_columns);
 
 /****** List.mui/MUIA_List_Active ********************************************
 *
@@ -390,109 +396,39 @@ static BOOL IncreaseColumns(struct MUI_ListData *data, int new_columns);
 */
 
 /**************************************************************************
- Allocate a single list entry, does not initialize it (except the pointer)
-**************************************************************************/
-static struct ListEntry *AllocListEntry(struct MUI_ListData *data)
-{
-    struct ListEntry *le;
-    /* use IncreaseColumns() to enlarge column entry array. Sized for
-     * columns_allocated, not the current format: IncreaseColumns() copies
-     * that many from every entry, also after a format with fewer columns
-     * made this one. */
-    IPTR size = sizeof(struct ListEntry)
-        + sizeof(LONG) * (data->columns_allocated + 1);
-
-    le = (struct ListEntry *) AllocVecPooled(data->pool, size);
-    D(bug("List AllocListEntry %p, %ld bytes\n", le, size));
-    if (le)
-    {
-        /* possible, that we have an external pool, which does not have
-           MEMF_CLEAR set.. */
-        memset(le, 0, size);
-    }
-    return le;
-}
-
-/**************************************************************************
- The title entry lives outside the pool: a list that never gets an entry
- then does not hold a whole pool puddle for it. Cleared.
-**************************************************************************/
-static struct ListEntry *AllocTitleEntry(int columns)
-{
-    return (struct ListEntry *) AllocVec(sizeof(struct ListEntry)
-        + sizeof(LONG) * (columns + 1), MEMF_ANY | MEMF_CLEAR);
-}
-
-/**************************************************************************
- Deallocate a single list entry, does not deinitialize it
-**************************************************************************/
-static void FreeListEntry(struct MUI_ListData *data,
-    struct ListEntry *entry)
-{
-    D(bug("FreeListEntry %p\n", entry));
-    FreeVecPooled(data->pool, entry);
-}
-
-/**************************************************************************
  Ensures that there can be at least the given amount of entries within
- the list. Returns 0 if not. It also allocates the space for the title.
- It can be accessed with data->entries[ENTRY_TITLE]
+ the list. Returns 0 if not. It also holds the title, entries[ENTRY_TITLE]
+ (cleared when the array is first made).
 **************************************************************************/
 static int SetListSize(struct MUI_ListData *data, LONG size)
 {
-    struct ListEntry **new_entries;
-    int new_entries_allocated;
+    struct ListEntry *new_entries;
+    LONG n;
 
     if (size + 1 <= data->entries_allocated)
         return 1;
 
-    new_entries_allocated = data->entries_allocated * 2 + 4;
-    if (new_entries_allocated < size + 1)
-        new_entries_allocated = size + 1 + 10;  /* 10 is just random */
+    n = data->entries_allocated * 2 + 4;
+    if (n < size + 1)
+        n = size + 1 + 10;  /* 10 is just random */
     /* a count no memory can hold (an Insert's bogus count): the byte size
      * below would wrap to a small block and the copy run past it */
-    if ((ULONG)new_entries_allocated > 0x1FFFFFFF)
+    if ((ULONG)n > 0x0FFFFFFF)
         return 0;
 
-    D(bug("List %p : SetListSize allocating %ld bytes\n", data,
-            new_entries_allocated * sizeof(struct ListEntry *)));
-    new_entries =
-        AllocVec(new_entries_allocated * sizeof(struct ListEntry *), 0);
+    new_entries = AllocVec(n * sizeof(struct ListEntry),
+        data->entries ? 0 : MEMF_CLEAR);
     if (NULL == new_entries)
         return 0;
     if (data->entries)
     {
         CopyMem(data->entries - 1, new_entries,
-            (data->entries_num + 1) * sizeof(struct ListEntry *));
+            (data->entries_num + 1) * sizeof(struct ListEntry));
         FreeVec(data->entries - 1);
     }
     data->entries = new_entries + 1;
-    data->entries_allocated = new_entries_allocated;
+    data->entries_allocated = n;
     return 1;
-}
-
-/**************************************************************************
- Prepares the insertion of count entries at pos.
- This function doesn't care if there is enough space in the datastructure.
- SetListSize() must be used first.
- With current implementation, this call will never fail
-**************************************************************************/
-static int PrepareInsertListEntries(struct MUI_ListData *data, int pos,
-    int count)
-{
-    memmove(&data->entries[pos + count], &data->entries[pos],
-        (data->entries_num - pos) * sizeof(struct ListEntry *));
-    return 1;
-}
-
-/**************************************************************************
- Removes count (already deinitalized) list entries starting az pos.
-**************************************************************************/
-static void RemoveListEntries(struct MUI_ListData *data, int pos, int count)
-{
-    // FIXME: segfault if entries_num = pos = count = 1
-    memmove(&data->entries[pos], &data->entries[pos + count],
-        (data->entries_num - (pos + count)) * sizeof(struct ListEntry *));
 }
 
 /**************************************************************************
@@ -500,28 +436,15 @@ static void RemoveListEntries(struct MUI_ListData *data, int pos, int count)
 **************************************************************************/
 static void FreeListFormat(struct MUI_ListData *data)
 {
-    int i;
-
     if (data->ci)
     {
-        for (i = 0; i < data->columns; i++)
-        {
+        for (LONG i = 0; i < data->columns; i++)
             FreeVec(data->ci[i].preparse);
-            data->ci[i].preparse = NULL;
-        }
-        FreeVec(data->ci);
+        FreeVec(data->ci);      /* the whole block */
         data->ci = NULL;
     }
-    FreeVec(data->mapped_strings);
     data->mapped_strings = NULL;
-    FreeVec(data->preparses);
-    data->preparses = NULL;
-    if (data->strings_mem)
-    {
-        FreeVec(data->strings_mem);
-        data->strings_mem = NULL;
-        data->strings = NULL;
-    }
+    data->preparses = data->strings = NULL;
     data->columns = 0;
 }
 
@@ -547,82 +470,28 @@ static CONST_STRPTR StringArrayGet(struct MUI_ListData *data, APTR entry,
     return col < n ? ((CONST_STRPTR *)entry)[col] : NULL;
 }
 
-/* A parsed format, kept while a new one is parsed (ParseListFormat) */
-struct ListFormatParts
+/* The format's block for n columns and reserved display slots: the
+ * columns, preparses[] (reserved + 10), strings[] (reserved + 11: the
+ * entry position at -1 and room for MPlayer's -9) and mapped_strings[]
+ * (2 n). Cleared. */
+static struct ColumnInfo *List_FormatBlock(LONG n, LONG reserved)
 {
-    LONG columns, columns_reserved, columns_used;
-    struct ColumnInfo *ci;
-    STRPTR *preparses, *strings_mem, *strings, *mapped_strings;
-    BOOL format_layout;
-};
-
-static void TakeListFormat(struct MUI_ListData *data,
-    struct ListFormatParts *f)
-{
-    f->columns = data->columns;
-    f->columns_reserved = data->columns_reserved;
-    f->columns_used = data->columns_used;
-    f->ci = data->ci;
-    f->preparses = data->preparses;
-    f->strings_mem = data->strings_mem;
-    f->strings = data->strings;
-    f->mapped_strings = data->mapped_strings;
-    f->format_layout = data->format_layout;
-    data->columns = 0;
-    data->ci = NULL;
-    data->preparses = data->strings_mem = data->strings = NULL;
-    data->mapped_strings = NULL;
+    return AllocVec(n * (sizeof(struct ColumnInfo) + 2 * sizeof(STRPTR))
+        + (2 * reserved + 21) * sizeof(STRPTR), MEMF_CLEAR);
 }
-
-static void PutListFormat(struct MUI_ListData *data,
-    struct ListFormatParts *f)
-{
-    data->columns = f->columns;
-    data->columns_reserved = f->columns_reserved;
-    data->columns_used = f->columns_used;
-    data->ci = f->ci;
-    data->preparses = f->preparses;
-    data->strings_mem = f->strings_mem;
-    data->strings = f->strings;
-    data->mapped_strings = f->mapped_strings;
-    data->format_layout = f->format_layout;
-}
-
-static BOOL ParseListFormatNew(struct MUI_ListData *data, STRPTR format,
-    BOOL initial);
 
 /**************************************************************************
  Parses the given format string and replaces the previous format with it.
- Use initial=FALSE for format changes outside OM_NEW.
  Return FALSE on failure; the previous format is then kept: a list left
  without one wrote its display strings through a NULL array at the next
  redraw.
 **************************************************************************/
-static BOOL ParseListFormat(struct MUI_ListData *data, STRPTR format,
-    BOOL initial)
+static BOOL ParseListFormat(struct MUI_ListData *data, STRPTR format)
 {
-    struct ListFormatParts old, fresh;
-
-    TakeListFormat(data, &old);
-    if (!ParseListFormatNew(data, format, initial))
-    {
-        FreeListFormat(data);   /* what was made of the new one */
-        PutListFormat(data, &old);
-        return FALSE;
-    }
-    TakeListFormat(data, &fresh);
-    PutListFormat(data, &old);
-    FreeListFormat(data);
-    PutListFormat(data, &fresh);
-    return TRUE;
-}
-
-static BOOL ParseListFormatNew(struct MUI_ListData *data, STRPTR format,
-    BOOL initial)
-{
-    int new_columns, i;
-    STRPTR ptr;
-    STRPTR format_sep;
+    LONG n = 1, i, reserved, used, base;
+    BOOL layout = FALSE, mapped = FALSE;
+    struct ColumnInfo *ci, *ci2;
+    STRPTR ptr, format_sep;
     char c;
 
     IPTR args[ARG_CNT];
@@ -631,36 +500,31 @@ static BOOL ParseListFormatNew(struct MUI_ListData *data, STRPTR format,
     if (!format)
         format = (STRPTR) "";
 
-    ptr = format;
-
-    data->format_layout = FALSE;
-
-    new_columns = 1;
-
     /* Count the number of columns first */
-    while ((c = *ptr++))
+    for (ptr = format; (c = *ptr++);)
         if (c == ',')
-            new_columns++;
-
-
-    if (new_columns > data->max_columns) return FALSE;
-
-    if (!(data->ci = AllocVec(new_columns * sizeof(struct ColumnInfo), MEMF_CLEAR)))
+            n++;
+    if (n > data->max_columns)
         return FALSE;
-    /* Counted at once so that a failure below frees the preparse strings */
-    data->columns = new_columns;
+
+    /* The display arrays hold every column the format names (COL= may
+     * point past the column count), all of MUIA_List_MaxColumns when a
+     * program set it, and at least LIST_MIN_RESERVED: display hooks may
+     * fill more columns than the format has (Zune's Dirlist always fills
+     * six), so a format of one column must not get a one-slot array. */
+    base = MAX(n, data->max_columns_explicit
+        ? data->max_columns : MIN(LIST_MIN_RESERVED, data->max_columns));
+    if (!(ci = List_FormatBlock(n, base)))
+        return FALSE;
 
     // set defaults
-    for (i = 0; i < new_columns; i++)
+    for (i = 0; i < n; i++)
     {
-        data->ci[i].colno = data->ci[i].order_id = i;
-        data->ci[i].weight = 100;
-        data->ci[i].delta = 4;
-        data->ci[i].min_width = -1;
-        data->ci[i].max_width = -1;
-        data->ci[i].user_width = -1;
-        data->ci[i].bar = FALSE;
-        data->ci[i].preparse = NULL;
+        ci[i].colno = ci[i].order_id = i;
+        ci[i].weight = 100;
+        ci[i].delta = 4;
+        ci[i].min_width = -1;
+        ci[i].max_width = -1;
     }
 
     if (*format && (format_sep = StrDup(format)) != 0)
@@ -700,108 +564,83 @@ static BOOL ParseListFormatNew(struct MUI_ListData *data, STRPTR format,
                 memset(args, 0, sizeof args);
                 if (ReadArgs(FORMAT_TEMPLATE, args, rdargs))
                 {
+                    struct ColumnInfo *cc = &ci[i];
+                    /* a column number no format can show: its own */
                     if (args[ARG_COL])
-                        data->ci[i].colno = *(LONG *) args[ARG_COL];
+                    {
+                        LONG col = *(LONG *) args[ARG_COL];
+                        if (col >= 0 && col < MAX(n, data->max_columns))
+                            cc->colno = col;
+                    }
                     if (args[ARG_WEIGHT])
-                        data->ci[i].weight = MAX(0, MIN(10000, *(LONG *)args[ARG_WEIGHT]));
+                        cc->weight = MAX(0, MIN(10000, *(LONG *)args[ARG_WEIGHT]));
                     if (args[ARG_DELTA])
-                        data->ci[i].delta = MAX(0, MIN(32767, *(LONG *)args[ARG_DELTA]));
+                        cc->delta = MAX(0, MIN(32767, *(LONG *)args[ARG_DELTA]));
                     if (args[ARG_MINWIDTH])
-                        data->ci[i].min_width =
-                            ParseColumnWidth((STRPTR)args[ARG_MINWIDTH], &data->ci[i].min_pixels);
+                        cc->min_width =
+                            ParseColumnWidth((STRPTR)args[ARG_MINWIDTH], &cc->min_pixels);
                     if (args[ARG_MAXWIDTH])
-                        data->ci[i].max_width =
-                            ParseColumnWidth((STRPTR)args[ARG_MAXWIDTH], &data->ci[i].max_pixels);
+                        cc->max_width =
+                            ParseColumnWidth((STRPTR)args[ARG_MAXWIDTH], &cc->max_pixels);
                     /* FIXWIDTH, ISOBJECT, ELIDE, HIDDEN, SORTABLE, ORDER
                      * (MUI 4/5; MUI 3.8's format has none of them) */
                     if (args[ARG_FIXWIDTH] || args[ARG_ISOBJECT]
                         || args[ARG_ELIDE] || args[ARG_HIDDEN]
                         || args[ARG_SORTABLE] || args[ARG_ORDER])
-                        zune_list_format_mui45(&data->ci[i], args);
-                    data->format_layout |= args[ARG_MINWIDTH] || args[ARG_MAXWIDTH] || args[ARG_FIXWIDTH];
-                    data->ci[i].bar = args[ARG_BAR];
+                        zune_list_format_mui45(cc, args);
+                    layout |= args[ARG_MINWIDTH] || args[ARG_MAXWIDTH] || args[ARG_FIXWIDTH];
+                    cc->bar = args[ARG_BAR];
                     if (args[ARG_PREPARSE])
-                        data->ci[i].preparse =
-                            StrDup((STRPTR) args[ARG_PREPARSE]);
+                        cc->preparse = StrDup((STRPTR) args[ARG_PREPARSE]);
 
                     FreeArgs(rdargs);
                 }
                 ptr += strlen(ptr) + 1;
                 i++;
             }
-            while (i < new_columns);
+            while (i < n);
             FreeDosObject(DOS_RDARGS, rdargs);
         }
         FreeVec(format_sep);
     }
 
-    for (i = 0; i < new_columns; i++)
+    reserved = base;
+    used = n;
+    for (i = 0; i < n; i++)
     {
-        D(bug("colno %d weight %d delta %d preparse %s\n",
-                data->ci[i].colno, data->ci[i].weight, data->ci[i].delta,
-                data->ci[i].preparse));
+        if (ci[i].colno >= reserved)
+            reserved = ci[i].colno + 1;
+        if (ci[i].colno >= used)
+            used = ci[i].colno + 1;
+        if (ci[i].colno != i)
+            mapped = TRUE;
     }
-
-    if (initial)
+    if (reserved > base)
     {
-        /* called from OM_NEW */
-        data->columns_allocated = new_columns;
-    }
-    else if (data->columns_allocated < new_columns)
-    {
-        /* called by MUIA_List_Format */
-        if (!IncreaseColumns(data, new_columns))
+        /* a COL= past the slots: a larger block (rare) */
+        if (!(ci2 = List_FormatBlock(n, reserved)))
         {
-            bug("[Zune:List] not enough memory for new columns!!\n");
-            /* FIXME: failure can leave list entries with mixed allocation sizes. */
+            for (i = 0; i < n; i++)
+                FreeVec(ci[i].preparse);
+            FreeVec(ci);
             return FALSE;
         }
-        data->columns_allocated = new_columns;
+        CopyMem(ci, ci2, n * sizeof(struct ColumnInfo));
+        FreeVec(ci);
+        ci = ci2;
     }
-    /* The display arrays hold every column the format names (COL= may
-     * point past the column count), all of MUIA_List_MaxColumns when a
-     * program set it, and at least LIST_MIN_RESERVED: display hooks may
-     * fill more columns than the format has (Zune's Dirlist always fills
-     * six), so a format of one column must not get a one-slot array. */
-    data->columns_reserved = MAX(new_columns, data->max_columns_explicit
-        ? data->max_columns : MIN(LIST_MIN_RESERVED, data->max_columns));
-    for (i = 0; i < new_columns; i++)
-    {
-        if (data->ci[i].colno < 0 ||
-            data->ci[i].colno >= MAX(new_columns, data->max_columns))
-            data->ci[i].colno = i;
-        if (data->ci[i].colno >= data->columns_reserved)
-            data->columns_reserved = data->ci[i].colno + 1;
-    }
-    data->columns_used = new_columns;
-    for (i = 0; i < new_columns; i++)
-        if (data->ci[i].colno >= data->columns_used)
-            data->columns_used = data->ci[i].colno + 1;
 
-    if (!(data->preparses =
-            AllocVec((data->columns_reserved + 10) * sizeof(STRPTR), MEMF_CLEAR)))
-        return FALSE;
-
-    if (!(data->strings_mem = AllocVec((data->columns_reserved + 1 + 10)
-        * sizeof(STRPTR), MEMF_CLEAR)))
-                                  /* hold enough space also for the entry pos,
-                                   * used by orginal MUI and also some
-                                   * security space */
-        return FALSE;
-    data->strings=data->strings_mem;
-
-    for (i = 0; i < new_columns; i++)
-    {
-        if (data->ci[i].colno != i && !data->mapped_strings)
-        {
-            data->mapped_strings = AllocVec(2 * new_columns * sizeof(STRPTR), MEMF_ANY);
-            if (!data->mapped_strings) return FALSE;
-        }
-    }
-    data->columns = new_columns;
+    FreeListFormat(data);
+    data->ci = ci;
+    data->columns = n;
+    data->columns_reserved = reserved;
+    data->columns_used = used;
+    data->format_layout = layout;
+    data->preparses = (STRPTR *)(ci + n);
     /* Skip entry pos (-1) and enough indexes to get (-9). Based on MPlayer source codes. */
-    data->strings += 10;
-
+    data->strings = data->preparses + reserved + 10 + 10;
+    if (mapped)
+        data->mapped_strings = List_MappedArea(data);
     return TRUE;
 }
 
@@ -857,7 +696,7 @@ static void DisplayEntry(struct IClass *cl, Object *obj, int entry_pos)
     else
     {
         data->strings[-1] = (STRPTR)(IPTR)entry_pos;
-        entry_data = data->entries[entry_pos]->data;
+        entry_data = data->entries[entry_pos].data;
     }
 
     /* Get the display formation */
@@ -875,21 +714,20 @@ static void DisplayEntry(struct IClass *cl, Object *obj, int entry_pos)
 static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
-    struct ListEntry *entry = data->entries[pos];
-    int j;
+    struct ListEntry *entry;
+    LONG j, height;
     int ret = 0;
-
-    if (!entry)
-        return ret;
 
     if (!(_flags(obj) & MADF_SETUP))
         return ret;
 
     DisplayEntry(cl, obj, pos);
+    /* after the display hook, which might have changed the list */
+    entry = &data->entries[pos];
 
     /* Set height to at least minheight */
-    if (data->entries[pos]->height < data->entry_minheight)
-        data->entries[pos]->height = data->entry_minheight;
+    if (entry->height < data->entry_minheight)
+        entry->height = data->entry_minheight;
 
     for (j = 0; j < data->columns; j++)
     {
@@ -916,10 +754,9 @@ static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
              * Rows are drawn entry_maxheight apart: only a new maximum
              * (below) moves the other rows, not this entry's own height
              * growing from 0 as it is measured */
-            if (text->height + data->prefs_linespacing
-                > data->entries[pos]->height)
-                data->entries[pos]->height =
-                    text->height + data->prefs_linespacing;
+            height = text->height + data->prefs_linespacing;
+            if (height > entry->height)
+                entry->height = height;
             LONG width = text->width;
 
             /* a SORTABLE column's title has room for the sort mark
@@ -927,7 +764,6 @@ static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
              * and a gap on each side), as on MUI 5 */
             if (pos == ENTRY_TITLE && data->ci[j].sortable)
                 width += (_font(obj)->tf_YSize + 1) / 2 * 2 + 5;
-            data->entries[pos]->widths[j] = width;
 
             if (width > data->ci[j].entries_width)
             {
@@ -943,9 +779,9 @@ static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
                 zune_text_destroy(text);
         }
     }
-    if (data->entries[pos]->height > data->entry_maxheight)
+    if (entry->height > data->entry_maxheight)
     {
-        data->entry_maxheight = data->entries[pos]->height;
+        data->entry_maxheight = entry->height;
         /* maximum entry height changed, redraw all entries later */
         ret = 1;
     }
@@ -974,7 +810,7 @@ static void CalcWidths(struct IClass *cl, Object *obj)
     for (i = (data->title ? ENTRY_TITLE : 0); i < data->entries_num; i++)
     {
         CalcDimsOfEntry(cl, obj, i);
-        data->entries_totalheight += data->entries[i]->height;
+        data->entries_totalheight += data->entries[i].height;
     }
 
     for (j = 0; j < data->columns; j++)
@@ -1030,70 +866,6 @@ static int CalcVertVisible(struct IClass *cl, Object *obj)
         || (old_entries_top_pixel != data->entries_top_pixel);
 }
 
-/**************************************************************************
- Resize arrays, so that there is enough space for new columns.
- The widths[] array must grow with increasing columns.
- columns_allocated must be checked, before calling this function.
- Space can only grow, not shrink.
- Return FALSE on error (no memory).
-**************************************************************************/
-static BOOL IncreaseColumns(struct MUI_ListData *data, int new_columns)
-{
-    int i = 0;
-    IPTR newsize, oldsize;
-    struct ListEntry *le;
-
-    D(bug("IncreaseColumns: %d => %d columns\n", data->columns_allocated, new_columns));
-
-    newsize = sizeof(struct ListEntry) + sizeof(LONG) * (new_columns             + 1);
-    oldsize = sizeof(struct ListEntry) + sizeof(LONG) * (data->columns_allocated + 1);
-
-    if (data->title)
-    {
-        i = -1;
-    }
-
-    for (; i < data->entries_num; i++)
-    {
-        D(bug("IncreaseColumns: i: %d, size: %d => %d\n", i, oldsize, newsize));
-        if (i == ENTRY_TITLE)
-            le = AllocTitleEntry(new_columns);
-        else
-            le = (struct ListEntry *) AllocVecPooled(data->pool, newsize);
-        if (!le)
-        {
-            return FALSE;
-        }
-        if (i != ENTRY_TITLE)
-            memset(le, 0, newsize);
-        D(bug("IncreaseColumns: CopyMem(%p, %p, %d)\n", data->entries[i],
-            le, oldsize));
-        CopyMem(data->entries[i], le, oldsize);
-        if (i == ENTRY_TITLE)
-            FreeVec(data->entries[i]);
-        else
-            FreeVecPooled(data->pool, data->entries[i]);
-        data->entries[i]=le;
-    }
-
-    return TRUE;
-}
-
-/**************************************************************************
- Default hook to compare two list entries. Works for strings only.
-**************************************************************************/
-AROS_UFH3S(int, default_compare_func,
-    AROS_UFHA(struct Hook *, h, A0),
-    AROS_UFHA(char *, s2, A2),
-    AROS_UFHA(char *, s1, A1))
-{
-    AROS_USERFUNC_INIT
-
-    return Stricmp(s1, s2);
-
-    AROS_USERFUNC_EXIT
-}
-
 #define PROP_VERT_FIRST   1
 #define PROP_HORIZ_FIRST  2
 #define PROP_VERT_SYNC    3
@@ -1130,11 +902,17 @@ static __attribute__((noinline)) void List_SyncVertFirst(Object *obj,
             data->vertprop_first * List_PropScale(obj, data), TAG_DONE);
 }
 
-static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
+/* List's class: the hooks below are shared by every list and find the
+ * list's data from the object (set at OM_NEW) */
+static struct IClass *List_Class;
+
+/* The scrollbars' notifications (MUIM_CallHook on the list) */
+static IPTR List_Function(register struct Hook *hook __asm("a0"),
+    register Object *obj __asm("a2"), register SIPTR *msg __asm("a1"))
 {
-    struct MUI_ListData *data = (struct MUI_ListData *)hook->h_Data;
-    SIPTR type = (SIPTR) msg[0];
-    SIPTR val = (SIPTR) msg[1];
+    struct MUI_ListData *data = INST_DATA(List_Class, obj);
+    SIPTR type = msg[0];
+    SIPTR val = msg[1];
 
     switch (type)
     {
@@ -1173,8 +951,13 @@ static ULONG List_Function(struct Hook *hook, Object * obj, void **msg)
     return 0;
 }
 
-static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
-    struct MUI_LayoutMsg *lm);
+static IPTR List_LayoutFunction(register struct Hook *hook __asm("a0"),
+    register Object *obj __asm("a2"),
+    register struct MUI_LayoutMsg *lm __asm("a1"));
+static const struct Hook list_hook =
+    { {NULL, NULL}, (HOOKFUNC)List_Function, NULL, NULL };
+static const struct Hook list_layout_hook =
+    { {NULL, NULL}, (HOOKFUNC)List_LayoutFunction, NULL, NULL };
 /* After the columns changed width: the horizontal scroller (the
  * module's; a list has one only in a program that gets MUI 4/5 or asks
  * for it, MUIM_Setup) is checked when quiet ends; the module is called
@@ -1209,7 +992,7 @@ static __attribute__((noinline)) void List_VertNotify(Object *obj,
     for (LONG i = 0; i < 3; i++)
         if (on)
             DoMethod(obj, MUIM_Notify, vertprop[i], MUIV_EveryTime,
-                (IPTR) obj, 3, MUIM_CallHook, (IPTR) &data->hook,
+                (IPTR) obj, 3, MUIM_CallHook, (IPTR) &list_hook,
                 i ? PROP_VERT_SYNC : PROP_VERT_SYNCFIRST);
         else
             DoMethod(obj, MUIM_KillNotifyObj, vertprop[i], (IPTR) obj);
@@ -1268,7 +1051,7 @@ static void List_HandleScrollerPos(struct IClass *cl, Object *obj)
         List_SyncVertProp(obj, data);
 
         DoMethod(data->vert, MUIM_Notify, MUIA_Prop_First, MUIV_EveryTime,
-            (IPTR) obj, 4, MUIM_CallHook, (IPTR) &data->hook, PROP_VERT_FIRST,
+            (IPTR) obj, 4, MUIM_CallHook, (IPTR) &list_hook, PROP_VERT_FIRST,
             MUIV_TriggerValue);
 
         List_VertNotify(obj, data, TRUE);
@@ -1316,7 +1099,7 @@ static void List_SetPlain(struct MUI_ListData *data, struct TagItem *tag)
     case MUIA_List_Stripes: data->stripes = !!v; break;
     case MUIA_List_Editable: data->editable = !!v; break;
     case MUIA_List_CompareHook:
-        data->compare_hook = v ? (struct Hook *)v : &data->default_compare_hook;
+        data->compare_hook = (struct Hook *)v;
         break;
     case MUIA_List_ConstructHook: data->construct_hook = (struct Hook *)v; break;
     case MUIA_List_DestructHook: data->destruct_hook = (struct Hook *)v; break;
@@ -1397,9 +1180,6 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
      * MUIA_List_PoolPuddleSize/PoolThreshSize get theirs. */
     data->intern_puddle_size = 1000;
     data->intern_thresh_size = 500;
-    data->default_compare_hook.h_Entry = (HOOKFUNC) default_compare_func;
-    data->default_compare_hook.h_SubEntry = 0;
-    data->compare_hook = &(data->default_compare_hook);
     data->flags = LIST_SHOWDROPMARKS;
     data->area_replaced = FALSE;
     data->area_connected = FALSE;
@@ -1435,9 +1215,7 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
      */
     muiAreaData(obj)->mad_ehnPriority--; /* the node is made at setup */
 
-    data->hook.h_Entry = HookEntry;
-    data->hook.h_SubEntry = (HOOKFUNC) List_Function;
-    data->hook.h_Data = data;
+    List_Class = cl;
 
     area = (Object *)GetTagData(MUIA_List_ListArea, (IPTR) 0,
         msg->ops_AttrList);
@@ -1487,7 +1265,7 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_List_MinLineHeight:
-            data->entry_minheight = tag->ti_Data;
+            data->entry_minheight = MAX(0, MIN((LONG)tag->ti_Data, 32767));
             break;
 
         case MUIA_List_AdjustHeight:
@@ -1516,13 +1294,10 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     List_HandleScrollerPos(cl, obj);
 
-    data->layout_hook.h_Entry = HookEntry;
-    data->layout_hook.h_SubEntry = (HOOKFUNC) List_LayoutFunction;
-    data->layout_hook.h_Data = data;
     /* a superclass attribute set in OM_NEW goes to the superclass, not
      * through a subclass's OM_SET (its OM_NEW has not finished; MUI 3.8
      * measured with tests/lean/probe/newset.c: the subclass sees nothing) */
-    superset(cl, obj, MUIA_Group_LayoutHook, (IPTR) &data->layout_hook);
+    superset(cl, obj, MUIA_Group_LayoutHook, (IPTR) &list_layout_hook);
 
     if (!data->pool)
     {
@@ -1538,7 +1313,7 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     }
 
     /* parse the list format */
-    if (!ParseListFormat(data, data->format, TRUE))
+    if (!ParseListFormat(data, data->format))
     {
         CoerceMethod(cl, obj, OM_DISPOSE);
         return 0;
@@ -1550,12 +1325,6 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     /* This is necessary for at least the title */
     if (!SetListSize(data, 0))
-    {
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return 0;
-    }
-
-    if (!(data->entries[ENTRY_TITLE] = AllocTitleEntry(data->columns_allocated)))
     {
         CoerceMethod(cl, obj, OM_DISPOSE);
         return 0;
@@ -1618,22 +1387,14 @@ IPTR List__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
     /* Call destruct method for every entry and free the entries manually
      * to avoid notification */
     while (data->confirm_entries_num)
-    {
-        struct ListEntry *lentry =
-            data->entries[--data->confirm_entries_num];
-        DoMethod(obj, MUIM_List_Destruct, (IPTR) lentry->data,
+        DoMethod(obj, MUIM_List_Destruct,
+            (IPTR) data->entries[--data->confirm_entries_num].data,
             (IPTR) data->pool);
-        FreeListEntry(data, lentry);
-    }
 
     if (data->intern_pool)
         DeletePool(data->intern_pool);
     if (data->entries)
-    {
-        FreeVec(data->entries[ENTRY_TITLE]); /* not pooled */
-        FreeVec(data->entries - 1);
-    }
-            /* title is currently before all other elements */
+        FreeVec(data->entries - 1);     /* the title is before the rows */
 
     FreeListFormat(data);
 
@@ -1787,7 +1548,7 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             ListEndEdit(cl, obj, MUIV_List_EndEdit_Abort, TRUE);
             /* A format that cannot be used (more columns than
              * MUIA_List_MaxColumns, no memory) leaves the old one */
-            if (ParseListFormat(data, (STRPTR) tag->ti_Data, FALSE))
+            if (ParseListFormat(data, (STRPTR) tag->ti_Data))
                 data->format = (STRPTR) tag->ti_Data;
             DoMethod(obj, MUIM_List_Redraw, MUIV_List_Redraw_All);
             break;
@@ -1873,9 +1634,9 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                             MUIV_List_Active_Off, MUIV_List_Select_Off, 0);
 
                     if (old >= 0 && old < data->entries_num)
-                        data->entries[old]->flags |= ENTRY_RENDER;
+                        data->entries[old].flags |= ENTRY_RENDER;
                     if (data->entries_active >= 0 && data->entries_active < data->entries_num)
-                        data->entries[data->entries_active]->flags |= ENTRY_RENDER;
+                        data->entries[data->entries_active].flags |= ENTRY_RENDER;
                     if (jump)
                     {
                         LONG first = new_entries_active, previous = data->entries_first;
@@ -2147,7 +1908,7 @@ IPTR List__MUIM_Setup(struct IClass *cl, Object *obj,
             DoMethod(obj, OM_ADDMEMBER, (IPTR) data->horiz);
             DoMethod(data->horiz, MUIM_Notify, MUIA_Prop_First,
                 MUIV_EveryTime, (IPTR) obj, 4, MUIM_CallHook,
-                (IPTR) &data->hook, PROP_HORIZ_FIRST, MUIV_TriggerValue);
+                (IPTR) &list_hook, PROP_HORIZ_FIRST, MUIV_TriggerValue);
         }
     }
 
@@ -2237,10 +1998,11 @@ static WORD List_TitleStrip(Object *obj, struct MUI_ListData *data)
 
 /* The list group's layout: the entry area, beside the vertical scroller
  * and below the title buttons, with the horizontal scroller inside it */
-static ULONG List_LayoutFunction(struct Hook *hook, Object *obj,
-    struct MUI_LayoutMsg *lm)
+static IPTR List_LayoutFunction(register struct Hook *hook __asm("a0"),
+    register Object *obj __asm("a2"),
+    register struct MUI_LayoutMsg *lm __asm("a1"))
 {
-    struct MUI_ListData *data = (struct MUI_ListData *)hook->h_Data;
+    struct MUI_ListData *data = INST_DATA(List_Class, obj);
     Object *vert = data->vert && (_flags(data->vert) & MADF_SHOWME)
         ? data->vert : NULL;
 
@@ -2524,7 +2286,6 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
     Object *area = data->area;
-    struct ListEntry *entry = data->entries[entry_pos];
     int row_height = data->entry_maxheight;
     int y_offset = y;
     int col, x1, x2;
@@ -2533,7 +2294,7 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
     if (entry_pos == ENTRY_TITLE) {
         if (!data->title)
             return;
-        row_height = entry ? entry->height : 0;
+        row_height = data->entries[ENTRY_TITLE].height;
     }
 
     DisplayEntry(cl, obj, entry_pos);
@@ -2703,7 +2464,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     {
         /* MUI 3.8: a pixel below the title, no separator lines (demopix:
          * MUI-Demo's Dirlist) */
-        data->title_height = data->entries[ENTRY_TITLE]->height
+        data->title_height = data->entries[ENTRY_TITLE].height
             + (ZUNE_APP_MUI38(obj) ? 1 : 2);
     }
     else
@@ -2749,7 +2510,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
          */
         if (data->title_height && data->title)
         {
-            if (y + data->entries[ENTRY_TITLE]->height + 1 > entries_bottom)
+            if (y + data->entries[ENTRY_TITLE].height + 1 > entries_bottom)
                 List_NeedClip(obj, data, &clip);
             /* MUI 3.8: no separator lines below it. A list that does
              * not behave as MUI 3.8 has its title in the strip of
@@ -2828,7 +2589,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     for (entry_pos = start;
         entry_pos < end && entry_pos < data->entries_num; entry_pos++)
     {
-        struct ListEntry *entry = data->entries[entry_pos];
+        struct ListEntry *entry = &data->entries[entry_pos];
 
         if (!(msg->flags & MADF_DRAWUPDATE) ||
             ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_ALL) ||
@@ -2892,7 +2653,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
                     _mright(area), y + data->entry_maxheight - 1);
             }
             List_DrawEntry(cl, obj, entry_pos, y, &clip);
-            entry->flags &= ~ENTRY_RENDER;
+            data->entries[entry_pos].flags &= ~ENTRY_RENDER;
         }
         y += data->entry_maxheight;
     }
@@ -2922,9 +2683,9 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     if (data->title_height && data->title)
     {
         while (List_DrawBars(obj, data, y,
-            y + data->entries[ENTRY_TITLE]->height - 1, clip.done, TRUE))
+            y + data->entries[ENTRY_TITLE].height - 1, clip.done, TRUE))
             List_NeedClip(obj, data, &clip);
-        y += data->entries[ENTRY_TITLE]->height + 1;
+        y += data->entries[ENTRY_TITLE].height + 1;
     }
     while (List_DrawBars(obj, data, y, entries_bottom, clip.done, FALSE))
         List_NeedClip(obj, data, &clip);
@@ -2961,12 +2722,9 @@ IPTR List__MUIM_Clear(struct IClass *cl, Object *obj,
 
     while (data->confirm_entries_num)
     {
-        struct ListEntry *lentry =
-            data->entries[--data->confirm_entries_num];
-        DoMethod(obj, MUIM_List_Destruct, (IPTR) lentry->data,
+        DoMethod(obj, MUIM_List_Destruct,
+            (IPTR) data->entries[--data->confirm_entries_num].data,
             (IPTR) data->pool);
-        FreeListEntry(data, lentry);
-
         data->flags |= LIST_CHANGED;
     }
     /* Should never fail when shrinking */
@@ -3070,9 +2828,9 @@ IPTR List__MUIM_Exchange(struct IClass *cl, Object *obj,
     if (pos1 >= 0 && pos1 < data->entries_num && pos2 >= 0
         && pos2 < data->entries_num && pos1 != pos2)
     {
-        struct ListEntry *save = data->entries[pos1];
-        data->entries[pos1] = data->entries[pos2];
-        data->entries[pos2] = save;
+        ULONG *a = ROW_L(data->entries, pos1), *b = ROW_L(data->entries, pos2);
+        ULONG t = a[0]; a[0] = b[0]; b[0] = t;
+        t = a[1]; a[1] = b[1]; b[1] = t;
 
         data->update = UPDATEMODE_ENTRY;
         data->update_pos = pos1;
@@ -3121,7 +2879,7 @@ IPTR List__MUIM_Redraw(struct IClass *cl, Object *obj,
         {
             LONG i;
             for (i = 0; i < data->entries_num; i++)
-                if (data->entries[i]->data == msg->entry)
+                if (data->entries[i].data == msg->entry)
                 {
                     pos = i;
                     break;
@@ -3132,7 +2890,7 @@ IPTR List__MUIM_Redraw(struct IClass *cl, Object *obj,
 
         if (pos != -1)
         {
-            data->entries[pos]->flags |= ENTRY_RENDER;
+            data->entries[pos].flags |= ENTRY_RENDER;
             if (!(data->flags & LIST_QUIET))
             {
                 if (CalcDimsOfEntry(cl, obj, pos))
@@ -3200,11 +2958,7 @@ IPTR List__MUIM_Remove(struct IClass *cl, Object *obj,
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
     if (data->edit_object) ListEndEdit(cl, obj, MUIV_List_EndEdit_Abort, TRUE);
-    LONG pos;
-    LONG new_act;
-    LONG i;
-    BOOL found, done = FALSE;
-    struct ListEntry *lentry;
+    LONG pos, new_act, i;
     Tag active_tag = TAG_DONE;
 
     if (!data->entries_num)
@@ -3213,6 +2967,7 @@ IPTR List__MUIM_Remove(struct IClass *cl, Object *obj,
     switch (msg->pos)
     {
     case MUIV_List_Remove_First:
+    case MUIV_List_Remove_Selected:
         pos = 0;
         break;
 
@@ -3222,10 +2977,6 @@ IPTR List__MUIM_Remove(struct IClass *cl, Object *obj,
 
     case MUIV_List_Remove_Last:
         pos = data->entries_num - 1;
-        break;
-
-    case MUIV_List_Remove_Selected:
-        pos = 0;
         break;
 
     default:
@@ -3240,29 +2991,26 @@ IPTR List__MUIM_Remove(struct IClass *cl, Object *obj,
 
     /* All selected entries in one pass: removing them one at a time moved
      * the rest of the list once per entry (a second for 1000 of 2000
-     * entries on a 68000). Without a selected one, the active entry goes
-     * as before. */
+     * entries on a 68000). Without a selected one, the active entry goes. */
     if (msg->pos == MUIV_List_Remove_Selected)
     {
-        LONG n = data->confirm_entries_num, w = 0;
+        LONG n = data->confirm_entries_num, w;
         LONG active = data->entries_active;
 
         for (i = 0; i < n; i++)
-            if (data->entries[i]->flags & ENTRY_SELECTED)
+            if (data->entries[i].flags & ENTRY_SELECTED)
                 break;
         if (i < n)
         {
             for (w = i; i < n; i++)
             {
-                lentry = data->entries[i];
-                if (!(lentry->flags & ENTRY_SELECTED))
+                if (!(data->entries[i].flags & ENTRY_SELECTED))
                 {
-                    data->entries[w++] = lentry;
+                    data->entries[w++] = data->entries[i];
                     continue;
                 }
-                DoMethod(obj, MUIM_List_Destruct, (IPTR) lentry->data,
-                    (IPTR) data->pool);
-                FreeListEntry(data, lentry);
+                DoMethod(obj, MUIM_List_Destruct,
+                    (IPTR) data->entries[i].data, (IPTR) data->pool);
                 if (i < active)
                 {
                     new_act--;
@@ -3272,63 +3020,27 @@ IPTR List__MUIM_Remove(struct IClass *cl, Object *obj,
                     active_tag = MUIA_List_Active;
             }
             data->confirm_entries_num = w;
-            done = TRUE;
+            goto removed;
         }
+        if (data->confirm_entries_num != data->entries_num
+            || data->entries_active == MUIV_List_Active_Off)
+            goto removed;
+        pos = data->entries_active;
     }
 
-    while (!done)
+    DoMethod(obj, MUIM_List_Destruct, (IPTR) data->entries[pos].data,
+        (IPTR) data->pool);
+    memmove(&data->entries[pos], &data->entries[pos + 1],
+        (data->entries_num - (pos + 1)) * sizeof(struct ListEntry));
+    data->confirm_entries_num--;
+    if (pos <= new_act)
     {
-        if (msg->pos == MUIV_List_Remove_Selected)
-        {
-            /* Find the next selected entry */
-            for (found = FALSE, i = pos;
-                i < data->confirm_entries_num && !found; i++)
-            {
-                if (data->entries[i]->flags & ENTRY_SELECTED)
-                {
-                    pos = i;
-                    found = TRUE;
-                }
-            }
-
-            if (!found)
-            {
-                done = TRUE;
-
-                /* If there were no selected entries, remove the active one */
-                if (data->confirm_entries_num == data->entries_num
-                    && data->entries_active != MUIV_List_Active_Off)
-                {
-                    pos = data->entries_active;
-                    found = TRUE;
-                }
-            }
-        }
-        else
-        {
-            done = TRUE;
-            found = TRUE;
-        }
-
-        if (found)
-        {
-            lentry = data->entries[pos];
-            DoMethod(obj, MUIM_List_Destruct, (IPTR) lentry->data,
-                (IPTR) data->pool);
-            FreeListEntry(data, lentry);
-            RemoveListEntries(data, pos, 1);
-            data->confirm_entries_num--;
-
-            if (pos < new_act)
-            {
-                new_act--;
-                active_tag = MUIA_List_Active;
-            }
-            else if (pos == new_act)
-                active_tag = MUIA_List_Active;
-        }
+        if (pos < new_act)
+            new_act--;
+        active_tag = MUIA_List_Active;
     }
 
+removed:
     /* Update entries count prior to range check */
     SetAttrs(obj, MUIA_List_Entries, data->confirm_entries_num, TAG_DONE);
 
@@ -3431,12 +3143,12 @@ IPTR List__MUIM_Select(struct IClass *cl, Object *obj,
            multi-selectable */
         for (i = 0; i < data->entries_num && multi_allowed; i++)
         {
-            if (data->entries[i]->flags & ENTRY_SELECTED)
+            if (data->entries[i].flags & ENTRY_SELECTED)
             {
                 selcount++;
                 if (data->multi_test_hook != NULL && selcount == 1)
                     multi_allowed = CallHookPkt(data->multi_test_hook, NULL,
-                        data->entries[i]->data);
+                        data->entries[i].data);
             }
         }
     }
@@ -3444,7 +3156,7 @@ IPTR List__MUIM_Select(struct IClass *cl, Object *obj,
     /* Change or check state of each entry in the range */
     for (i = pos; i < pos + count; i++)
     {
-        state = data->entries[i]->flags & ENTRY_SELECTED;
+        state = data->entries[i].flags & ENTRY_SELECTED;
         switch (msg->seltype)
         {
         case MUIV_List_Select_Off:
@@ -3460,7 +3172,7 @@ IPTR List__MUIM_Select(struct IClass *cl, Object *obj,
             break;
 
         default:
-            if (data->entries[i]->flags & ENTRY_SELECTED)
+            if (data->entries[i].flags & ENTRY_SELECTED)
                 selcount++;
             break;
         }
@@ -3475,7 +3187,7 @@ IPTR List__MUIM_Select(struct IClass *cl, Object *obj,
                     /* Check if the entry to be selected is multi-selectable */
                     if (data->multi_test_hook != NULL)
                         new_multi_allowed = CallHookPkt(data->multi_test_hook,
-                            NULL, data->entries[i]->data);
+                            NULL, data->entries[i].data);
                     else
                         new_multi_allowed = TRUE;
 
@@ -3485,7 +3197,7 @@ IPTR List__MUIM_Select(struct IClass *cl, Object *obj,
                     {
                         /* Select the entry and update the selection count
                            and flag */
-                        data->entries[i]->flags |= ENTRY_SELECTED;
+                        data->entries[i].flags |= ENTRY_SELECTED;
                         selcount++;
 
                         multi_allowed = new_multi_allowed;
@@ -3494,7 +3206,7 @@ IPTR List__MUIM_Select(struct IClass *cl, Object *obj,
             }
             else if (!new_select_state && state)
             {
-                data->entries[i]->flags &= ~ENTRY_SELECTED;
+                data->entries[i].flags &= ~ENTRY_SELECTED;
                     selcount--;
             }
         }
@@ -3573,26 +3285,27 @@ LONG zune_list_compare(Object *obj, struct MUI_ListData *data, APTR a, APTR b)
     zune_list_compare((obj), (data), (a)->data, (b)->data)
 
 /* Insert one appended entry into the sorted prefix, after equal keys. */
-static LONG InsertSortedEntry(Object *obj, struct MUI_ListData *data, struct ListEntry **entries, LONG at)
+static LONG InsertSortedEntry(Object *obj, struct MUI_ListData *data, struct ListEntry *entries, LONG at)
 {
-    struct ListEntry *entry = entries[at];
+    ULONG d, hf;
     LONG lo = 0, hi = at, mid;
     while (lo < hi)
     {
         mid = lo + (hi - lo) / 2;
-        if (CompareEntries(obj, data, entries[mid], entry) <= 0)
+        if (CompareEntries(obj, data, &entries[mid], &entries[at]) <= 0)
             lo = mid + 1;
         else
             hi = mid;
     }
+    d = ROW_L(entries, at)[0], hf = ROW_L(entries, at)[1];
     while (at > lo)
     {
         entries[at] = entries[at - 1];
-        entries[at]->flags |= ENTRY_RENDER;
+        entries[at].flags |= ENTRY_RENDER;
         at--;
     }
-    entries[lo] = entry;
-    entry->flags |= ENTRY_RENDER;
+    ROW_L(entries, lo)[0] = d;
+    ROW_L(entries, lo)[1] = hf | ENTRY_RENDER;
     return lo;
 }
 
@@ -3657,33 +3370,29 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
     until = pos + count;
     toinsert = msg->entries;
 
-    if (!(PrepareInsertListEntries(data, pos, count)))
-        return ~0;
+    memmove(&data->entries[until], &data->entries[pos],
+        (data->entries_num - pos) * sizeof(struct ListEntry));
 
     while (pos < until)
     {
-        struct ListEntry *lentry;
-
-        lentry = AllocListEntry(data);
-        if (lentry)
-            lentry->data = (APTR)DoMethod(obj, MUIM_List_Construct,
-                (IPTR)*toinsert, (IPTR)data->pool);
-        if (!lentry || !lentry->data)
+        APTR entry = (APTR)DoMethod(obj, MUIM_List_Construct,
+            (IPTR)*toinsert, (IPTR)data->pool);
+        if (!entry)
         {
-            if (lentry) FreeListEntry(data, lentry);
             /* The reserved gap extends past entries_num. Move only the
              * original tail, never a negative (entries_num - until) size. */
             memmove(&data->entries[pos], &data->entries[until],
                 (data->entries_num - data->insert_position)
-                * sizeof(struct ListEntry *));
+                * sizeof(struct ListEntry));
             count = pos - data->insert_position;
             if (!count) return ~0;
             failed = TRUE;
             break;
         }
 
-        lentry->flags |= ENTRY_RENDER;
-        data->entries[pos] = lentry;
+        data->entries[pos].data = entry;
+        data->entries[pos].height = 0;
+        data->entries[pos].flags = ENTRY_RENDER;
         data->confirm_entries_num++;
 
         data->flags |= LIST_CHANGED;
@@ -3725,7 +3434,6 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
 
     if (sort)
     {
-        struct ListEntry *inserted = data->entries[data->insert_position];
         LONG i;
         if (count == 1)
         {
@@ -3743,10 +3451,13 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
         }
         else
         {
+            /* the first inserted entry, marked, is found after the sort */
+            data->entries[data->insert_position].flags |= ENTRY_INSERTED;
             DoMethod(obj, MUIM_List_Sort);
             for (i = 0; i < data->entries_num; i++)
-                if (data->entries[i] == inserted)
+                if (data->entries[i].flags & ENTRY_INSERTED)
                 {
+                    data->entries[i].flags &= ~ENTRY_INSERTED;
                     data->insert_position = i;
                     break;
                 }
@@ -3778,7 +3489,7 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
         else if (data->insert_position < last)
         {
             for (i = data->insert_position; i < last; i++)
-                data->entries[i]->flags |= ENTRY_RENDER;
+                data->entries[i].flags |= ENTRY_RENDER;
             data->update = UPDATEMODE_NEEDED;
             MUI_Redraw(obj, MADF_DRAWUPDATE);
         }
@@ -3877,7 +3588,7 @@ IPTR List__MUIM_GetEntry(struct IClass *cl, Object *obj,
         *msg->entry = NULL;
         return 0;
     }
-    *msg->entry = data->entries[pos]->data;
+    *msg->entry = data->entries[pos].data;
     return (IPTR) *msg->entry;
 }
 
@@ -4273,25 +3984,26 @@ IPTR List__MUIM_Jump(struct IClass *cl, Object *obj,
 
 /* A fixed-stack heap handles arbitrary input without a scratch array. */
 
-static void SiftEntries(Object *obj, struct MUI_ListData *data, struct ListEntry **entries,
+static void SiftEntries(Object *obj, struct MUI_ListData *data, struct ListEntry *entries,
     LONG root, LONG count)
 {
-    struct ListEntry *entry = entries[root];
-    LONG child;
+    struct ListEntry *r = &entries[root], *c, *end = &entries[count],
+        *half = &entries[count / 2];
 
-    while (root < count / 2)
+    /* the entry sinks by swaps: nothing held across the compares but
+     * where it is */
+    while (r < half)
     {
-        child = root * 2 + 1;
-        if (child + 1 < count
-            && CompareEntries(obj, data, entries[child], entries[child + 1]) < 0)
-            child++;
-        if (CompareEntries(obj, data, entry, entries[child]) >= 0) break;
-        entries[root] = entries[child];
-        entries[root]->flags |= ENTRY_RENDER;
-        root = child;
+        c = r + (r - entries) + 1;
+        if (c + 1 < end && CompareEntries(obj, data, c, c + 1) < 0)
+            c++;
+        if (CompareEntries(obj, data, r, c) >= 0) break;
+        ULONG *a = (ULONG *)r, *b = (ULONG *)c;
+        ULONG t = a[0]; a[0] = b[0]; b[0] = t;
+        t = a[1]; a[1] = b[1] | ENTRY_RENDER; b[1] = t;
+        r = c;
     }
-    entries[root] = entry;
-    entry->flags |= ENTRY_RENDER;
+    r->flags |= ENTRY_RENDER;
 }
 
 IPTR List__MUIM_Sort(struct IClass *cl, Object *obj,
@@ -4299,17 +4011,19 @@ IPTR List__MUIM_Sort(struct IClass *cl, Object *obj,
 {
     struct MUI_ListData *data = INST_DATA(cl, obj);
     if (data->edit_object) ListEndEdit(cl, obj, MUIV_List_EndEdit_Abort, TRUE);
-    struct ListEntry **entries = data->entries;
-    struct ListEntry *active = NULL, *entry;
-    LONG count = data->entries_num, i;
+    struct ListEntry *entries = data->entries;
+    LONG count = data->entries_num, i, active = data->entries_active;
 
     if (count < 2) return 0;
     /* Verify order each time: callers may change comparison keys in place. */
     for (i = 1; i < count; i++)
-        if (CompareEntries(obj, data, entries[i - 1], entries[i]) > 0) break;
+        if (CompareEntries(obj, data, &entries[i - 1], &entries[i]) > 0) break;
     if (i == count) return 0;
-    if (data->entries_active >= 0 && data->entries_active < count)
-        active = entries[data->entries_active];
+    /* the active entry is marked and found again after the sort */
+    if (active >= 0 && active < count)
+        entries[active].flags |= ENTRY_ACTIVEMARK;
+    else
+        active = -1;
 
     if (i == count - 1)
     {
@@ -4321,17 +4035,18 @@ IPTR List__MUIM_Sort(struct IClass *cl, Object *obj,
             SiftEntries(obj, data, entries, i - 1, count);
         for (i = count - 1; i > 0; i--)
         {
-            entry = entries[0];
+            ULONG d = ROW_L(entries, 0)[0], hf = ROW_L(entries, 0)[1];
             entries[0] = entries[i];
-            entries[i] = entry;
-            entry->flags |= ENTRY_RENDER;
+            ROW_L(entries, i)[0] = d;
+            ROW_L(entries, i)[1] = hf | ENTRY_RENDER;
             SiftEntries(obj, data, entries, 0, i);
         }
     }
-    if (active)
+    if (active >= 0)
         for (i = 0; i < count; i++)
-            if (entries[i] == active)
+            if (entries[i].flags & ENTRY_ACTIVEMARK)
             {
+                entries[i].flags &= ~ENTRY_ACTIVEMARK;
                 data->entries_active = i;
                 break;
             }
@@ -4383,7 +4098,6 @@ IPTR List__MUIM_Move(struct IClass *cl, Object *obj,
     if (data->edit_object) ListEndEdit(cl, obj, MUIV_List_EndEdit_Abort, TRUE);
 
     LONG from, to;
-    int i;
 
     /* Normalise special 'from' values */
     switch (msg->from)
@@ -4428,31 +4142,23 @@ IPTR List__MUIM_Move(struct IClass *cl, Object *obj,
         || to > data->entries_num - 1 || to < 0 || from == to)
         return (IPTR) FALSE;
 
-    /* Shift all entries in the range between the 'from' and 'to' positions */
-    if (from < to)
+    /* Shift all entries in the range between the 'from' and 'to'
+     * positions. The active index stays (MUI 3), so the active entry
+     * may change. */
     {
-        struct ListEntry *backup = data->entries[from];
-        for (i = from; i < to; i++)
-            data->entries[i] = data->entries[i + 1];
-        data->entries[to] = backup;
-    }
-    else
-    {
-        struct ListEntry *backup = data->entries[from];
-        for (i = from; i > to; i--)
-            data->entries[i] = data->entries[i - 1];
-        data->entries[to] = backup;
-    }
+        ULONG *p = ROW_L(data->entries, from);
+        ULONG d = p[0], hf = p[1];
+        LONG n;
 
-#if 0    /* Not done in MUI 3 */
-    /* Update index of active entry */
-    if (from == data->entries_active)
-        data->entries_active = to;
-    else if (data->entries_active > from && data->entries_active < to)
-        data->entries_active--;
-    else if (data->entries_active < from && data->entries_active >= to)
-        data->entries_active++;
-#endif
+        if (from < to)
+            for (n = to - from; n; n--, p += 2)
+                p[0] = p[2], p[1] = p[3];
+        else
+            for (n = from - to; n; n--, p -= 2)
+                p[0] = p[-2], p[1] = p[-1];
+        p[0] = d;
+        p[1] = hf;
+    }
 
     /* Reflect list changes visually */
     data->flags |= LIST_CHANGED;
@@ -4518,7 +4224,7 @@ IPTR List__MUIM_NextSelected(struct IClass *cl, Object *obj,
     /* Find the next selected entry */
     for (i = pos; i < data->entries_num && !found; i++)
     {
-        if (data->entries[i]->flags & ENTRY_SELECTED)
+        if (data->entries[i].flags & ENTRY_SELECTED)
         {
             pos = i;
             found = TRUE;
