@@ -2639,8 +2639,9 @@ static const struct dt_frame_image area_corner_hint[2] = {
  * filled with the parent's background first: every built-in square frame
  * paints all of them in such a box, and its top-right bevel corner is
  * MPEN_BACKGROUND either way, so the pixels are those of the general
- * path. The corner hint says only what the fill has just painted with the
- * background pen. A function of its own: its calls' arguments are not on
+ * path (FST_WIN_BEVEL, whose inner corners lie on its outer line, takes
+ * the general path). The corner hint says only what the fill has just
+ * painted with the background pen. A function of its own: its calls' arguments are not on
  * the dispatcher's frame. */
 static __attribute__((noinline)) void area_draw_plain(Object *obj,
     struct MUI_AreaData *data, const struct ZuneFrameGfx *zframe,
@@ -2723,7 +2724,7 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
     const struct ZuneFrameGfx *zframe;
     struct TextFont *obj_font = NULL;
     ULONG flags = data->mad_Flags & MADF_DRAWFLAGS;
-    BOOL drawframe, frameonly = FALSE;
+    BOOL drawframe, frameonly = FALSE, winbevel;
     ULONG hidden;
 
     if (flags & MADF_DRAWALL)
@@ -2758,13 +2759,17 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
             state ^= 1;
 
         zframe = zune_zframe_get_with_state(obj, frame, state);
+        winbevel = frame->type == FST_WIN_BEVEL;
 
         /* update innersizes as there are frames which have different inner
          * spacings in selected state */
         area_update_msizes(obj, data, frame, zframe);
     }
 
-    if (!frameonly && !data->mad_FrameTitle
+    /* Not FST_WIN_BEVEL: its recessed state's inner bevels have their
+     * top-right and bottom-left corners on the outer line, which the
+     * general path's corner hints leave in the outer line's pen */
+    if (!frameonly && !winbevel && !data->mad_FrameTitle
         && (data->mad_Flags & (MADF_FRAMEPHANTOM | MADF_ISVIRTUALGROUP
             | MADF_FILLAREA)) == MADF_FILLAREA
         && !(data->mad_Flags2 & (MADF2_CUSTOMBACKFILL | MADF2_FRAMEHIDDEN))
