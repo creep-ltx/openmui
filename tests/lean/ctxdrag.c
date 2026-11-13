@@ -6,7 +6,10 @@
  * and runs its own MUI loop between the steps, then prints what reached
  * it: the context menu's trigger and the item's checkmark, the target's
  * DragQuery/DragBegin/DragDrop/DragFinish, a short click that must not
- * start a drag, a right click beside the button.
+ * start a drag, a right click beside the button. "ctxdrag manual" first
+ * waits 30 s for the real mouse (wasabi mouse down --right, moves onto an
+ * item, up --right) and prints the trigger that arrived: the program's
+ * own events do not reach the menu's choice.
  * Build: m68k-amigaos-gcc -m68000 -noixemul -Os -I<build>/include \
  *        -Wl,-u,___stkinit ctxdrag.c -o ctxdrag -lamiga
  */
@@ -167,6 +170,17 @@ int main(int argc, char **argv)
     scr = (struct Screen *)xget(win, MUIA_Window_Screen);
     pump(25);
 
+    if (argc > 1 && argv[1][0] == 'm')
+    {
+        /* "manual": 30 s for a person or a script to use the context
+         * menu with the real mouse, then what arrived */
+        printf("manual\n");
+        pump(1500);
+        printf("manual: trigger %s, check item %ld\n",
+            trig == (LONG)item1 ? "First" : trig == (LONG)item2 ? "Check"
+            : trig ? "other" : "none", (long)xget(item2, MUIA_Menuitem_Checked));
+        argc = 1;
+    }
     /* the context menu: right button down on the button, down onto the
      * items, released on the second; then again on the first */
     {

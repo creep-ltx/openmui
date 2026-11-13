@@ -4673,9 +4673,11 @@ the general background 954 and frame 778, the common draw 610, the minmax finish
   loop: a context menu opened on a button, a right click beside it, a short click on a draggable
   object, a drag onto a custom drop target): the same output on lean and the branch (the menu
   opens and closes, no trigger beside it, the click selects without a drag, the drop target gets
-  DragQuery, DragBegin, DragDrop and DragFinish). The menu choice itself is not reached by its
-  pointer path on either library (the item is highlighted at the release, no trigger arrives:
-  left open for the test, not a difference).
+  DragQuery, DragBegin, DragDrop and DragFinish). Its own input events do not reach the menu's
+  choice on either library (the item is highlighted at the release, no trigger arrives); its
+  "manual" mode waits 30 s for the real mouse: with `wasabi mouse down --right`, moves onto
+  "Check" and `up --right`, both libraries report the trigger and the item checked (the choice
+  now runs in Zmenu.mui).
 - fullcheck (FS-UAE): MUI-Demo with its eight sub-windows and the other 18 MUI 3.8 demos opened
   and closed on lean and on the final build: the same windows at the same places and sizes, the
   same lost figures (608 / 200 / AppWindow 264), no alert.
@@ -4693,8 +4695,8 @@ SUITE_PLACEHOLDER
   smaller by less than Group's was: the common draw is new code (610 bytes) that the general path
   could not lose, and the hot methods stay inlined; what is left large is OM_SET/OM_NEW/OM_GET
   (3.4 KB together: switches GCC already makes compact; tables cost frames in every round) and
-  the general draw for titled and special frames (2.1 KB). `tests/lean/ctxdrag.c` does not yet
-  reach a context menu's choice. Not moved: bubble help, MUIM_DragQueryExtended, custom
+  the general draw for titled and special frames (2.1 KB). `tests/lean/ctxdrag.c`'s own events
+  do not reach a context menu's choice (its manual mode with wasabi's mouse does). Not moved: bubble help, MUIM_DragQueryExtended, custom
   backfills, titled frames (MUI 3 programs use them all). Next: Application (roadmap).
 
 - **Rewrite for m68k (2026-11-13, after `rw-group`)**: Group done (code -15.4 %, instance data
