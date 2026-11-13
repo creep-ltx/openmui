@@ -1333,70 +1333,19 @@ static void EnqueueByPriAndAddress(struct List *list, struct Node *node)
     Insert(list, (struct Node *)node, scannode->ln_Pred);
 }
 
-/* Initialize all 16 render-info custom-frame slots and load the
- * corresponding preference image specifications through the frame cache.
- * Requires live application preferences. Return TRUE even if individual
- * loads return NULL; cleanup must release acquired cache references.
- */
-static BOOL InitCustomFrames(Object *obj, struct MUI_RenderInfo *mri)
+/* The 16 custom frames of the settings (customframe_config_1 to _16, in
+ * this order in the settings) through the frame cache; a slot whose frame
+ * does not load is NULL. Requires live application preferences. */
+static __attribute__((noinline)) void InitCustomFrames(Object *obj,
+    struct MUI_RenderInfo *mri)
 {
+    CONST_STRPTR *spec =
+        &muiGlobalInfo(obj)->mgi_Prefs->customframe_config_1;
     int i;
 
     for (i = 0; i < 16; i++)
-    {
-        mri->mri_Tail->FrameImage[i] = NULL;
-    }
-
-    mri->mri_Tail->FrameImage[0] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_1, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[1] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_2, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[2] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_3, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[3] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_4, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[4] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_5, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[5] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_6, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[6] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_7, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[7] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_8, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[8] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_9, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[9] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_10, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[10] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_11, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[11] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_12, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[12] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_13, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[13] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_14, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[14] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_15, mri->mri_Screen);
-    mri->mri_Tail->FrameImage[15] =
-        load_custom_frame(muiGlobalInfo(obj)->mgi_Prefs->
-        customframe_config_16, mri->mri_Screen);
-
-    return TRUE;
+        mri->mri_Tail->FrameImage[i] =
+            load_custom_frame(spec[i], mri->mri_Screen);
 }
 
 /* Release each non-NULL custom-frame cache reference and clear its slot.
@@ -1501,7 +1450,7 @@ static __attribute__((noinline)) void ReleaseRenderScreen(
  * screen/DrawInfo failure, TRUE otherwise. Public locks are owned until
  * cleanup; optional allocations remain incompletely checked.
  */
-static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
+static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     struct MUI_RenderInfo *mri)
 {
     Object *temp_obj;
@@ -1589,14 +1538,7 @@ static BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     if (GetBitMapAttr(scr->RastPort.BitMap, BMA_DEPTH) >= 15)
         ZuneOpenCyberGfx();
 #endif
-    if (!InitCustomFrames(obj, mri))
-    {
-        DisposeCustomFrames(mri);
-        FreeScreenDrawInfo(scr, mri->mri_DrawInfo);
-        mri->mri_DrawInfo = NULL;
-        ReleaseRenderScreen(data, mri);
-        return FALSE;
-    }
+    InitCustomFrames(obj, mri);
 
     mri->mri_Colormap = scr->ViewPort.ColorMap;
     /* MUI 3.8 opens every later window of an application in the stage
@@ -1729,7 +1671,7 @@ static void CloseRenderInfoFonts(struct MUI_RenderInfo *mri)
  * application window list; CloseScreen failure is ignored. Clear the render
  * screen and return no status.
  */
-static void CleanupRenderInfo(Object *obj, struct MUI_WindowData *data,
+static __attribute__((noinline)) void CleanupRenderInfo(Object *obj, struct MUI_WindowData *data,
     struct MUI_RenderInfo *mri)
 {
 
@@ -2380,16 +2322,30 @@ static void UndisplayWindow(Object *obj, struct MUI_WindowData *data)
  * all inputs and return no status; this helper does not validate a closed
  * window.
  */
+/* The window's background over all of its inside (between the borders),
+ * as the window's own coordinates: a refresh's clip limits it to the
+ * damage */
+static __attribute__((noinline)) void WindowBackground(
+    struct MUI_WindowData *data)
+{
+    struct Window *win = data->wd_RenderInfo.mri_Window;
+    LONG left = win->BorderLeft, top = win->BorderTop;
+
+    zune_imspec_draw(data->wd_Background, &data->wd_RenderInfo, left, top,
+        win->Width - win->BorderRight - left,
+        win->Height - win->BorderBottom - top, left, top, 0);
+}
+
 static VOID RefreshWindow(Object *oWin, struct MUI_WindowData *data)
 {
+    struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
+    ULONG flags = MADF_DRAWALL;
+
     if (data->wd_Flags & MUIWF_RESIZING)
     {
-        //LONG left,top,right,bottom;
-        if (MUI_BeginRefresh(&data->wd_RenderInfo, 0))
-        {
-            MUI_EndRefresh(&data->wd_RenderInfo, 0);
-        }
-        RefreshWindowFrame(data->wd_RenderInfo.mri_Window);
+        if (MUI_BeginRefresh(mri, 0))
+            MUI_EndRefresh(mri, 0);
+        RefreshWindowFrame(mri->mri_Window);
 
         data->wd_Flags &= ~MUIWF_RESIZING;
         _width(data->wd_RootObject) = data->wd_Width;
@@ -2397,57 +2353,26 @@ static VOID RefreshWindow(Object *oWin, struct MUI_WindowData *data)
         DoLayoutMethod(data->wd_RootObject);
         DoShowMethod(data->wd_RootObject);
 
-        if (muiGlobalInfo(oWin)->mgi_Prefs->window_redraw ==
-            WINDOW_REDRAW_WITH_CLEAR
-            || (data->wd_Flags & MUIWF_ERASEAREA))
-        {
-            LONG left, top, width, height;
-
-            left = data->wd_RenderInfo.mri_Window->BorderLeft;
-            top = data->wd_RenderInfo.mri_Window->BorderTop;
-            width =
-                data->wd_RenderInfo.mri_Window->Width -
-                data->wd_RenderInfo.mri_Window->BorderRight - left;
-            height =
-                data->wd_RenderInfo.mri_Window->Height -
-                data->wd_RenderInfo.mri_Window->BorderBottom - top;
-
-            if (data->wd_Flags & MUIWF_ERASEAREA)
-            {
-                //D(bug("%d:zune_imspec_draw(%p) "
-                //    "l=%d t=%d w=%d h=%d xo=%d yo=%d\n",
-                //    __LINE__, data->wd_Background, left, top, width,
-                //    height, left, top));
-                zune_imspec_draw(data->wd_Background,
-                    &data->wd_RenderInfo, left, top, width, height,
-                    left, top, 0);
-            }
-            MUI_Redraw(data->wd_RootObject, MADF_DRAWALL);
-        }
-        else
-            MUI_Redraw(data->wd_RootObject, MADF_DRAWOBJECT | MADF_DRAWFRAME);
+        if (data->wd_Flags & MUIWF_ERASEAREA)
+            WindowBackground(data);
+        else if (muiGlobalInfo(oWin)->mgi_Prefs->window_redraw
+            != WINDOW_REDRAW_WITH_CLEAR)
+            flags = MADF_DRAWOBJECT | MADF_DRAWFRAME;
+        MUI_Redraw(data->wd_RootObject, flags);
         // but should only draw focus without using MUIM_GoActive !
         ActivateObject(data);
     }
-    else
+    else if (MUI_BeginRefresh(mri, 0))
     {
-        if (MUI_BeginRefresh(&data->wd_RenderInfo, 0))
-        {
-            struct Window *win = data->wd_RenderInfo.mri_Window;
-            LONG left = win->BorderLeft, top = win->BorderTop;
-
-            /* MUI 3.9's layer backfill hook paints damage with the window
-             * background before objects redraw; IBrowse's toolbar leaves
-             * the room between its buttons to it. The refresh clip limits
-             * this to the damaged area. */
-            zune_imspec_draw(data->wd_Background, &data->wd_RenderInfo,
-                left, top, win->Width - win->BorderRight - left,
-                win->Height - win->BorderBottom - top, left, top, 0);
-            MUI_Redraw(data->wd_RootObject, MADF_DRAWALL);
-            // but should only draw focus without using MUIM_GoActive !
-            ActivateObject(data);
-            MUI_EndRefresh(&data->wd_RenderInfo, 0);
-        }
+        /* MUI 3.9's layer backfill hook paints damage with the window
+         * background before objects redraw; IBrowse's toolbar leaves
+         * the room between its buttons to it. The refresh clip limits
+         * this to the damaged area. */
+        WindowBackground(data);
+        MUI_Redraw(data->wd_RootObject, MADF_DRAWALL);
+        // but should only draw focus without using MUIM_GoActive !
+        ActivateObject(data);
+        MUI_EndRefresh(mri, 0);
     }
 }
 
@@ -2757,6 +2682,13 @@ static __attribute__((noinline)) BOOL WindowResize(struct MUI_WindowData *data)
  * the first/later help ticker. Requires the help object to remain alive
  * through its callback; obj is unused and no status is returned.
  */
+/* The ticks until the next help bubble: the settings' first delay, the
+ * later one in bubble mode (a bubble was shown since the last click or
+ * key) */
+#define HELP_TICKER(data) ((data)->wd_HelpTicker = \
+    ((data)->wd_Flags & MUIWF_BUBBLEMODE) \
+    ? BUBBLEHELP_TICKER_LATER : BUBBLEHELP_TICKER_FIRST)
+
 static void KillHelpBubble(struct MUI_WindowData *data, Object *obj,
     BOOL kill_bubblemode)
 {
@@ -2770,16 +2702,7 @@ static void KillHelpBubble(struct MUI_WindowData *data, Object *obj,
 
     if (kill_bubblemode)
         data->wd_Flags &= ~MUIWF_BUBBLEMODE;
-
-    if (data->wd_Flags & MUIWF_BUBBLEMODE)
-    {
-        data->wd_HelpTicker = BUBBLEHELP_TICKER_LATER;
-    }
-    else
-    {
-        data->wd_HelpTicker = BUBBLEHELP_TICKER_FIRST;
-    }
-
+    HELP_TICKER(data);
 }
 
 /**************/
@@ -3044,6 +2967,10 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
         /* set window limits according to window contents */
         ContentLimits(data, iWin);
 
+        /* The notifications go through wd_Class, the Window class, not
+         * OCLASS(oWin): a subclass's OM_SET would reach Window's, which
+         * takes MUIA_Window_Width/Height as requests (the next move would
+         * then look like a resize). */
         if ((iWin->GZZWidth != data->wd_Width)
             || (iWin->GZZHeight != data->wd_Height))
         {
@@ -3053,16 +2980,8 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
 
             data->wd_Flags |= MUIWF_RESIZING;
             RefreshWindow(oWin, data);
-            
-            /* Use wd_Class below instead of OCLASS(oWin), because otherwise if oWin is an
-               instance of a subclass of window class, then superset will go to window class's
-               OM_SET where MUIA_Window_Width|Height for some reason are always set to 0. This has
-               the side effect that after the first window resize all future window moves(!) too
-               are interpreted as "window size was changed" (if check above returns TRUE even if
-               window size did not change) */
             superset(data->wd_Class, oWin, MUIA_Window_Width, data->wd_Width);
             superset(data->wd_Class, oWin, MUIA_Window_Height, data->wd_Height);
-            
         }
         if (iWin->LeftEdge != data->wd_X)
         {
@@ -3150,89 +3069,56 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
         is_handled = FALSE;     /* forwardable to area event handlers */
         if (data->wd_VertProp || data->wd_HorizProp)
         {
-            struct TagItem *tag;
-            tag = FindTagItem(GA_ID, (struct TagItem *)imsg->IAddress);
-            if (tag)
+            /* the border arrows: decrease or increase their scroller's
+             * prop object (the prop gadget's user data, classes/prop.c);
+             * wd_VertProp, its up and down button, wd_HorizProp, its left
+             * and right button in this order */
+            struct TagItem *tag =
+                FindTagItem(GA_ID, (struct TagItem *)imsg->IAddress);
+            Object **g = &data->wd_VertProp;
+            int i;
+
+            for (i = 0; tag && i < 6; i += 3)
             {
-                /* If there's a propclass object connected to the prop
-                   gadget, the prop gadget's userdata will point to
-                   that propclass object. See classes/prop.c */
+                ULONG method = 0;
 
-                ULONG id = tag->ti_Data, method = 0;
-                Object *gad = NULL;
-
-                if (data->wd_VertProp)
-                {
-                    gad = data->wd_VertProp;
-                    if (id == GADGETID(data->wd_UpButton))
-                        method = MUIM_Prop_Decrease;
-                    else if (id == GADGETID(data->wd_DownButton))
-                        method = MUIM_Prop_Increase;
-                }
-                if (!method && data->wd_HorizProp)
-                {
-                    gad = data->wd_HorizProp;
-                    if (id == GADGETID(data->wd_LeftButton))
-                        method = MUIM_Prop_Decrease;
-                    else if (id == GADGETID(data->wd_RightButton))
-                        method = MUIM_Prop_Increase;
-                }
+                if (!g[i])
+                    continue;
+                if (tag->ti_Data == GADGETID(g[i + 1]))
+                    method = MUIM_Prop_Decrease;
+                else if (tag->ti_Data == GADGETID(g[i + 2]))
+                    method = MUIM_Prop_Increase;
                 if (method)
                 {
-                    Object *prop = (Object *) ((struct Gadget *)gad)->UserData;
+                    Object *prop = (Object *)G(g[i])->UserData;
+
                     is_handled = TRUE;
                     if (prop)
                         DoMethod(prop, method, 1);
+                    break;
                 }
             }
         }
         break;
 
     case IDCMP_INTUITICKS:
-        if (data->wd_HelpTicker)
+        if (data->wd_HelpTicker && !--data->wd_HelpTicker)
         {
-            data->wd_HelpTicker--;
+            Object *underobj = ObjectUnderPointer(data, data->wd_RootObject,
+                imsg->MouseX, imsg->MouseY, ShortHelpUnderPointerCheck);
 
-            if (data->wd_HelpTicker == 0)
+            if (underobj != data->wd_HelpObject)
             {
-                Object *underobj =
-                    ObjectUnderPointer(data, data->wd_RootObject,
-                    imsg->MouseX, imsg->MouseY,
-                    ShortHelpUnderPointerCheck);
-
-                if (underobj != data->wd_HelpObject)
+                KillHelpBubble(data, oWin, FALSE);
+                if (underobj && (data->wd_HelpBubble = (APTR)DoMethod(
+                        underobj, MUIM_CreateBubble, imsg->MouseX,
+                        imsg->MouseY, 0, 0)))
                 {
-                    if (data->wd_HelpObject)
-                    {
-                        DoMethod(data->wd_HelpObject, MUIM_DeleteBubble,
-                            (IPTR) data->wd_HelpBubble);
-
-                        data->wd_HelpObject = NULL;
-                        data->wd_HelpBubble = NULL;
-                    }
-
-                    if (underobj)
-                    {
-                        data->wd_HelpBubble =
-                            (APTR) DoMethod(underobj, MUIM_CreateBubble,
-                            imsg->MouseX, imsg->MouseY, 0, 0);
-                        if (data->wd_HelpBubble)
-                        {
-                            data->wd_HelpObject = underobj;
-                            data->wd_Flags |= MUIWF_BUBBLEMODE;
-                        }
-                    }
-                }
-
-                if (data->wd_Flags & MUIWF_BUBBLEMODE)
-                {
-                    data->wd_HelpTicker = BUBBLEHELP_TICKER_LATER;
-                }
-                else
-                {
-                    data->wd_HelpTicker = BUBBLEHELP_TICKER_FIRST;
+                    data->wd_HelpObject = underobj;
+                    data->wd_Flags |= MUIWF_BUBBLEMODE;
                 }
             }
+            HELP_TICKER(data);
         }
 
         is_handled = FALSE;     /* forwardable to area event handlers */
@@ -5366,7 +5252,7 @@ static void WindowShow(struct IClass *cl, Object *obj)
 /* Base-owned setup resources must also unwind when a subclass rejects
  * Setup after calling its superclass, or filters Cleanup entirely.
  */
-static void CleanupWindowSetup(struct MUI_WindowData *data)
+static __attribute__((noinline)) void CleanupWindowSetup(struct MUI_WindowData *data)
 {
     struct MUI_ImageSpec_intern *background = data->wd_Background;
 
@@ -5379,6 +5265,19 @@ static void CleanupWindowSetup(struct MUI_WindowData *data)
         data->wd_dnd = NULL;
         DeleteDragNDrop(dnd);
     }
+}
+
+/* Undo the setup of an opening: the root's (level 2), the window's
+ * (MUIM_Window_Cleanup, level 1 and 2), then the render info's */
+static __attribute__((noinline)) void WindowUnsetup(Object *obj,
+    struct MUI_WindowData *data, LONG level)
+{
+    if (level > 1)
+        DoMethod(data->wd_RootObject, MUIM_Cleanup);
+    if (level > 0)
+        DoMethod(obj, MUIM_Window_Cleanup);
+    CleanupWindowSetup(data);
+    CleanupRenderInfo(obj, data, &data->wd_RenderInfo);
 }
 
 /* Does the window at its minimum size fit the screen? */
@@ -5404,7 +5303,7 @@ static BOOL WindowFits(struct MUI_WindowData *data)
  * connected application state; optional resource failures may remain
  * unchecked.
  */
-static ULONG WindowOpen(struct IClass *cl, Object *obj)
+static __attribute__((noinline)) ULONG WindowOpen(struct IClass *cl, Object *obj)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
 
@@ -5417,17 +5316,14 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
 
     if (!DoMethod(obj, MUIM_Window_Setup))
     {
-        CleanupWindowSetup(data);
-        CleanupRenderInfo(obj, data, &data->wd_RenderInfo);
+        WindowUnsetup(obj, data, 0);
         return FALSE;
     }
 
     /* I got display info, so calculate your display dependant data */
     if (!DoSetupMethod(data->wd_RootObject, &data->wd_RenderInfo))
     {
-        DoMethod(obj, MUIM_Window_Cleanup);
-        CleanupWindowSetup(data);
-        CleanupRenderInfo(obj, data, &data->wd_RenderInfo);
+        WindowUnsetup(obj, data, 1);
         return FALSE;
     }
 
@@ -5464,9 +5360,7 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
                 || (++mri->mri_Fallback, FALSE)))
             || !DoSetupMethod(data->wd_RootObject, mri))
         {
-            DoMethod(obj, MUIM_Window_Cleanup);
-            CleanupWindowSetup(data);
-            CleanupRenderInfo(obj, data, mri);
+            WindowUnsetup(obj, data, 1);
             return FALSE;
         }
         OpenAllPresetFonts(data->wd_RootObject);
@@ -5487,10 +5381,7 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
     {
         /* free display dependant data */
         data->wd_Menustrip = NULL;
-        DoMethod(data->wd_RootObject, MUIM_Cleanup);
-        DoMethod(obj, MUIM_Window_Cleanup);
-        CleanupWindowSetup(data);
-        CleanupRenderInfo(obj, data, &data->wd_RenderInfo);
+        WindowUnsetup(obj, data, 2);
         return FALSE;
     }
 
@@ -5499,25 +5390,7 @@ static ULONG WindowOpen(struct IClass *cl, Object *obj)
     data->wd_Flags |= MUIWF_OPENED;
 
     WindowShow(cl, obj);
-
-    {
-        LONG left, top, width, height;
-
-        left = data->wd_RenderInfo.mri_Window->BorderLeft;
-        top = data->wd_RenderInfo.mri_Window->BorderTop,
-            width = data->wd_RenderInfo.mri_Window->Width
-            - data->wd_RenderInfo.mri_Window->BorderRight - left;
-        height = data->wd_RenderInfo.mri_Window->Height
-            - data->wd_RenderInfo.mri_Window->BorderBottom - top;
-
-/*          D(bug("zune_imspec_draw %s %d\n", __FILE__, __LINE__)); */
-//        D(bug("%d:zune_imspec_draw(%p) l=%d t=%d w=%d h=%d xo=%d yo=%d\n",
-//              __LINE__, data->wd_Background, left, top, width,
-//              height, left, top));
-
-        zune_imspec_draw(data->wd_Background, &data->wd_RenderInfo,
-            left, top, width, height, left, top, 0);
-    }
+    WindowBackground(data);
 
     if (data->wd_RenderInfo.mri_Screen
         && muiGlobalInfo(obj)->mgi_Prefs->publicscreen_pop_to_front)
@@ -5580,10 +5453,7 @@ static ULONG WindowClose(struct IClass *cl, Object *obj)
     data->wd_Menustrip = NULL;
 
     /* free display dependant data */
-    if (data->wd_RootObject) DoMethod(data->wd_RootObject, MUIM_Cleanup);
-    DoMethod(obj, MUIM_Window_Cleanup);
-    CleanupWindowSetup(data);
-    CleanupRenderInfo(obj, data, &data->wd_RenderInfo);
+    WindowUnsetup(obj, data, data->wd_RootObject ? 2 : 1);
     return TRUE;
 }
 
@@ -5614,7 +5484,6 @@ IPTR Window__MUIM_RecalcDisplay(struct IClass *cl, Object *obj,
     struct MUIP_Window_RecalcDisplay *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    LONG left, top, width, height;
     BOOL reshow = FALSE;
     Object *current_obj;
 
@@ -5738,15 +5607,7 @@ IPTR Window__MUIM_RecalcDisplay(struct IClass *cl, Object *obj,
     }
     else
     {
-        left = data->wd_RenderInfo.mri_Window->BorderLeft;
-        top = data->wd_RenderInfo.mri_Window->BorderTop;
-        width = data->wd_RenderInfo.mri_Window->Width
-            - data->wd_RenderInfo.mri_Window->BorderRight - left;
-        height = data->wd_RenderInfo.mri_Window->Height
-            - data->wd_RenderInfo.mri_Window->BorderBottom - top;
-
-        zune_imspec_draw(data->wd_Background, &data->wd_RenderInfo,
-            left, top, width, height, left, top, 0);
+        WindowBackground(data);
         MUI_Redraw(data->wd_RootObject, MADF_DRAWALL);
     }
 
