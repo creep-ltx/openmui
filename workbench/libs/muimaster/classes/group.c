@@ -2561,24 +2561,34 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
         MUI_RemoveClipRegion(muiRenderInfo(obj), c);
 }
 
-/* Paint the background of an object's box outside its inner box */
-static void group_clear_ring(Object *obj)
+/* Paint the background of an object's box outside its inner box: the
+ * bands above and below it, then the strips beside it */
+static __attribute__((noinline)) void group_clear_ring(Object *obj)
 {
-    LONG l = _left(obj), t = _top(obj), r = _right(obj), b = _bottom(obj);
-    LONG ml = _mleft(obj), mt = _mtop(obj), mr = _mright(obj),
+    WORD r[4][4], (*p)[4] = r;
+    WORD l = _left(obj), t = _top(obj), rt = _right(obj), b = _bottom(obj);
+    WORD ml = _mleft(obj), mt = _mtop(obj), mr = _mright(obj),
         mb = _mbottom(obj);
 
     if (mt > t)
-        zune_draw_background(obj, l, t, r - l + 1, mt - t, l, t, 0);
+        p[0][0] = l, p[0][1] = t, p[0][2] = rt, p[0][3] = mt - 1, p++;
     if (mb < b)
-        zune_draw_background(obj, l, mb + 1, r - l + 1, b - mb,
-            l, mb + 1, 0);
-    if (ml > l && mb >= mt)
-        zune_draw_background(obj, l, mt, ml - l, mb - mt + 1,
-            l, mt, 0);
-    if (mr < r && mb >= mt)
-        zune_draw_background(obj, mr + 1, mt, r - mr, mb - mt + 1,
-            mr + 1, mt, 0);
+        p[0][0] = l, p[0][1] = mb + 1, p[0][2] = rt, p[0][3] = b, p++;
+    if (mb >= mt)
+    {
+        if (ml > l)
+            p[0][0] = l, p[0][1] = mt, p[0][2] = ml - 1, p[0][3] = mb, p++;
+        if (mr < rt)
+            p[0][0] = mr + 1, p[0][1] = mt, p[0][2] = rt, p[0][3] = mb, p++;
+    }
+    while (p > r)
+    {
+        WORD *q = *--p;
+
+        /* in the order above (the last first: the same pixels) */
+        zune_draw_background(obj, q[0], q[1], q[2] - q[0] + 1,
+            q[3] - q[1] + 1, q[0], q[1], 0);
+    }
 }
 
 /* A virtual group's draw before its children (Group__MUIM_Draw): the
