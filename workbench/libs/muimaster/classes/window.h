@@ -114,6 +114,9 @@ struct MUIP_Window_ToFront
 #define MUIM_Window_Refit        /* PRIV */ \
     (MUIB_Window | 0x00000009)   /* Zune68: close and open again to fit the
                                   * screen, PRIV don't use it! */
+#define MUIM_Window_ArrowRepeat  /* PRIV */ \
+    (MUIB_Window | 0x0000000a)   /* OpenMUI: a held border arrow's repeat
+                                  * timer, PRIV don't use it! */
 
 struct MUIP_Window_AddControlCharHandler
 {

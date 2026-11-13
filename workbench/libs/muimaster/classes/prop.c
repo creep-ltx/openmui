@@ -1454,8 +1454,10 @@ IPTR Prop__MUIM_Hide(struct IClass *cl, Object *obj,
         {
             RemoveGadget(_window(obj), (struct Gadget *)data->prop_object);
             DisposeObject(data->prop_object);
-            data->prop_object = NULL;
         }
+        /* the border gadget is the window's: it goes when the window
+         * closes, and the next Show links to the new one */
+        data->prop_object = NULL;
     }
 
     return DoSuperMethodA(cl, obj, (Msg) msg);

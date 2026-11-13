@@ -2544,9 +2544,26 @@ static int group_collect_children(struct IClass *cl, Object *obj,
 static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
     int n, ULONG flags)
 {
-    WORD ys[2 * GROUP_GAP_CHILDREN + 2], xs[GROUP_GAP_CHILDREN][2];
+    WORD ysbuf[2 * GROUP_GAP_CHILDREN + 2], xsbuf[GROUP_GAP_CHILDREN][2];
+    WORD *ys = ysbuf, (*xs)[2] = xsbuf;
+    struct gap { WORD x0, x1, y0, y1; } pendbuf[GROUP_GAP_CHILDREN + 1],
+        curbuf[GROUP_GAP_CHILDREN + 1], *pend = pendbuf, *cur = curbuf;
+    APTR heap = NULL;
     WORD left = _mleft(obj), right = _mright(obj);
     int ny = 0, i, j, k;
+
+    /* More children than the arrays on the stack hold: one block */
+    if (n > GROUP_GAP_CHILDREN)
+    {
+        if (!(heap = AllocVec((2 * n + 2) * sizeof(WORD)
+                + n * 2 * sizeof(WORD) + 2 * (n + 1) * sizeof(struct gap),
+                MEMF_ANY)))
+            return;
+        pend = heap;
+        cur = pend + n + 1;
+        xs = (WORD (*)[2])(cur + n + 1);
+        ys = (WORD *)(xs + n);
+    }
 
     ys[ny++] = _mtop(obj);
     ys[ny++] = _mbottom(obj) + 1;
@@ -2567,8 +2584,6 @@ static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
      * column of children at every child edge. The pending gaps are kept
      * sorted by x like each band's gaps. */
     {
-        struct { WORD x0, x1, y0, y1; } pend[GROUP_GAP_CHILDREN + 1],
-            cur[GROUP_GAP_CHILDREN + 1];
         int npend = 0, ncur, p, c;
         BOOL merge = zune_background_is_position_free(obj);
 
@@ -2634,6 +2649,8 @@ static void group_fill_gaps(Object *obj, const struct Rectangle *kids,
                 pend[p].x1 - pend[p].x0 + 1, pend[p].y1 - pend[p].y0 + 1,
                 pend[p].x0, pend[p].y0, flags);
     }
+    if (heap)
+        FreeVec(heap);
 }
 
 /* Private MUI virtual-group painting protocol. These method IDs are used
@@ -2753,6 +2770,34 @@ static void group_clear_ring(Object *obj)
  * the background only where no child will paint. Kept out of
  * Group__MUIM_Draw: its buffers (about 900 bytes) would otherwise sit on
  * the stack once for every nesting level while the children draw. */
+/* A group with more children than group_fill_gaps' stack arrays: the
+ * rectangles and the band sweep's arrays on the heap. The clip region it
+ * took before (group_children_clip_region) costs a ClearRectRegion per
+ * child, each walking and allocating the region's rectangles: 2.8 s per
+ * 8-pixel scroll of a Virtgroup of 80 buttons on a 68020, against MUI
+ * 3.8's 73 ms (round draw1, t/vgscroll). Area's frame first, as the
+ * caller does. GROUP_GAPS_DONE when painted, -1 for the region. */
+#define GROUP_GAPS_DONE 0x7fff
+static BOOL group_on_fresh_background(Object *obj);
+static __attribute__((noinline)) int group_gaps_many(struct IClass *cl,
+    Object *obj, struct MUIP_Draw *msg)
+{
+    struct MUI_GroupData *data = INST_DATA(cl, obj);
+    struct Rectangle *kids;
+    int n;
+
+    if (!(kids = AllocVec(data->num_children * sizeof(*kids), MEMF_ANY)))
+        return -1;
+    n = group_collect_children(cl, obj, kids, data->num_children + 1);
+    _flags(obj) &= ~MADF_FILLAREA;
+    DoSuperMethodA(cl, obj, (Msg) msg);
+    _flags(obj) |= MADF_FILLAREA;
+    if ((msg->flags & MADF_DRAWOBJECT) && !group_on_fresh_background(obj))
+        group_fill_gaps(obj, kids, n, _flags(obj));
+    FreeVec(kids);
+    return GROUP_GAPS_DONE;
+}
+
 /* TRUE when the group's gaps show the window background (no group up to
  * the window has one of its own) and the window has just been painted
  * with it (mri_BgFresh): its gaps need no fill then */
@@ -2785,6 +2830,9 @@ static __attribute__((noinline)) void group_draw_frame_and_gaps(
             return;
         }
         nkids = group_collect_children(cl, obj, kids, GROUP_GAP_CHILDREN);
+        if (nkids < 0
+            && group_gaps_many(cl, obj, msg) == GROUP_GAPS_DONE)
+            return;
     }
 
     if (nkids >= 0)
@@ -2918,7 +2966,9 @@ IPTR Group__MUIM_Draw(struct IClass *cl, Object *obj,
         if (child != data->titlegroup)
             ++page;
 
-        if (_flags(child) & MADF_DISAPPEARED)
+        /* a window border scroller (Scrollgroup's UseWinBorder) is shown
+         * but has no place in the group: intuition draws it */
+        if (_flags(child) & (MADF_DISAPPEARED | MADF_BORDERGADGET))
             continue;
 
         if ((data->flags & GROUP_PAGEMODE) && ((page != data->active_page)

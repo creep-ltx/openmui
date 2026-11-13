@@ -523,26 +523,35 @@ AROS_UFH3(ULONG, Scrollgroup_Layout_Function,
             //kprintf("cont_size layouted to %d,%d\n",
             //    cont_width, cont_height);
 
+            /* In the window border the bars take no room but must be
+             * shown: a Prop links itself to the window's border gadget in
+             * its MUIM_Show (the gadget's UserData, which the window's
+             * border arrows use), and only a shown Prop follows the
+             * gadget. Hidden, the border arrows scrolled nothing
+             * (tests/lean/borderarrows.c; MUI 3.8 scrolls) */
+            if (data->usewinborder)
+                vbar = hbar = TRUE;
             /* A bar exists only on an axis that scrolls (FreeHoriz,
              * FreeVert); the button only when both bars do */
             if (data->vert)
             {
                 set(data->vert, MUIA_ShowMe, vbar);
-                if (vbar)
+                if (vbar && !data->usewinborder)
                     MUI_Layout(data->vert, cont_width, 0, vert_width,
                         cont_height, 0);
             }
             if (data->horiz)
             {
                 set(data->horiz, MUIA_ShowMe, hbar);
-                if (hbar)
+                if (hbar && !data->usewinborder)
                     MUI_Layout(data->horiz, 0, cont_height, cont_width,
                         horiz_height, 0);
             }
             if (data->button)
             {
-                set(data->button, MUIA_ShowMe, hbar && vbar);
-                if (hbar && vbar)
+                set(data->button, MUIA_ShowMe,
+                    hbar && vbar && !data->usewinborder);
+                if (hbar && vbar && !data->usewinborder)
                     MUI_Layout(data->button, cont_width, cont_height,
                         vert_width, horiz_height, 0);
             }
@@ -677,6 +686,11 @@ AROS_UFH3(ULONG, Scrollgroup_Function,
  * failure. Nested object allocation failures do not have comprehensive
  * local unwind; requires unowned compatible contents and writable tags.
  */
+/* MUI 3.8 scrolls a Scrollgroup 8 pixels per arrow step, its own arrows
+ * and the window border's, whatever the font (black box: tests/lean/
+ * borderarrows.c, sgstep in round draw1, topaz 8 and courier 13) */
+#define SCROLLGROUP_STEP 8
+
 IPTR Scrollgroup__OM_NEW(struct IClass *cl, Object *obj,
     struct opSet *msg)
 {
@@ -748,6 +762,10 @@ IPTR Scrollgroup__OM_NEW(struct IClass *cl, Object *obj,
     }
 
     data = INST_DATA(cl, obj);
+    if (vert)
+        set(vert, MUIA_Prop_DeltaFactor, SCROLLGROUP_STEP);
+    if (horiz)
+        set(horiz, MUIA_Prop_DeltaFactor, SCROLLGROUP_STEP);
     data->vert = vert;
     data->horiz = horiz;
     data->button = button;

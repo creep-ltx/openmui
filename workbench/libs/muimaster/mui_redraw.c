@@ -134,6 +134,23 @@ void ZuneDrawDisabled(Object *obj)
 
 }
 
+
+/* TRUE when obj lies wholly outside the clip region installed in its
+ * layer: nothing of it can show. A Virtgroup's scroll paints only the
+ * uncovered strips, and MUI 3.8 draws only the children there (2.5 Text
+ * per 8-pixel step of 80 buttons; OpenMUI drew all 80, round draw1).
+ * Not inlined: MUI_Redraw's frame is on every nesting level. */
+static __attribute__((noinline)) BOOL redraw_outside_clip(Object *obj)
+{
+    struct RastPort *rp = muiRenderInfo(obj)->mri_RastPort;
+    struct Region *r;
+
+    if (!rp || !rp->Layer || !(r = rp->Layer->ClipRegion))
+        return FALSE;
+    return _right(obj) < r->bounds.MinX || _left(obj) > r->bounds.MaxX
+        || _bottom(obj) < r->bounds.MinY || _top(obj) > r->bounds.MaxY;
+}
+
 /*****************************************************************************
 
     NAME */
@@ -234,6 +251,8 @@ void ZuneDrawDisabled(Object *obj)
         struct Rectangle bounds;
         BOOL have_bounds = FALSE;
         struct Region *region;
+        if (redraw_outside_clip(obj))
+            return;
 
         get(obj, MUIA_WindowObject, &wnd);
         parent = obj;

@@ -1190,6 +1190,7 @@ struct MUI_WindowData
     BOOL wd_SnapshotClick;
 #endif
     struct WindowEventCursor *wd_EventCursors;
+    struct WindowArrow *wd_Arrow;   /* a held border arrow's repeat, or NULL */
     struct ZuneWindowGuard *wd_Guards;
     struct ZunePointer *wd_Pointer;
     IPTR wd_PointerType;
@@ -1799,6 +1800,8 @@ static void CancelWindowGuards(struct MUI_WindowData *data)
 
 }
 
+static void WindowArrowStop(Object *oWin, struct MUI_WindowData *data);
+
 /* Optionally snapshot, clear exposed native pointers and active state,
  * detach/free native menus, remove and reply queued messages belonging to
  * this window under Forbid, detach the shared port and close Intuition.
@@ -2190,6 +2193,7 @@ static void UndisplayWindow(Object *obj, struct MUI_WindowData *data)
     }
 
 
+    WindowArrowStop(obj, data);
     data->wd_RenderInfo.mri_Window = NULL;
     data->wd_RenderInfo.mri_VertProp = NULL;
     data->wd_RenderInfo.mri_HorizProp = NULL;
@@ -2845,6 +2849,77 @@ static __attribute__((noinline)) void MenuPick(Object *oWin,
 }
 
 /* Reply to imsg if handled */
+/* A border arrow, pressed or held: buttongclass reports the press and
+ * many repeats while held as interim (IEQUALIFIER_REPEAT here, OS 3.1 and
+ * 3.2.1) and the release once more. MUI 3.8 steps once at the press, then
+ * after a pause at its own pace (black box, round draw1: 8 pixels at the
+ * press, nothing for about 300 ms, then 8 more each step, as a RelVerify
+ * button's MUIA_Timer: 300 ms, then 50); the gadget's repeats only tell
+ * that it is still held. The timer node is allocated for the hold only. */
+struct WindowArrow
+{
+    struct MUI_InputHandlerNode ihn;
+    Object *prop;
+    ULONG method;
+};
+
+static void WindowArrowStop(Object *oWin, struct MUI_WindowData *data)
+{
+    if (data->wd_Arrow)
+    {
+        DoMethod(_app(oWin), MUIM_Application_RemInputHandler,
+            (IPTR)&data->wd_Arrow->ihn);
+        FreeVec(data->wd_Arrow);
+        data->wd_Arrow = NULL;
+    }
+}
+
+static __attribute__((noinline)) void WindowArrow(Object *oWin,
+    struct MUI_WindowData *data, Object *prop, ULONG method, ULONG held)
+{
+    struct WindowArrow *a = data->wd_Arrow;
+
+    if (!held || (a && (a->prop != prop || a->method != method)))
+        WindowArrowStop(oWin, data);
+    if (!held || data->wd_Arrow || !prop)
+        return;
+    DoMethod(prop, method, 1);
+    if ((a = AllocVec(sizeof(*a), MEMF_CLEAR)))
+    {
+        a->ihn.ihn_Object = oWin;
+        a->ihn.ihn_Flags = MUIIHNF_TIMER;
+        a->ihn.ihn_Method = MUIM_Window_ArrowRepeat;
+        a->ihn.ihn_Millis = 300;
+        a->prop = prop;
+        a->method = method;
+        data->wd_Arrow = a;
+        DoMethod(_app(oWin), MUIM_Application_AddInputHandler,
+            (IPTR)&a->ihn);
+    }
+}
+
+/* MUIM_Window_ArrowRepeat: the held arrow's next step, then every 50 ms */
+static IPTR Window__MUIM_ArrowRepeat(struct IClass *cl, Object *obj,
+    Msg msg)
+{
+    struct MUI_WindowData *data = INST_DATA(cl, obj);
+    struct WindowArrow *a = data->wd_Arrow;
+
+    if (a)
+    {
+        if (a->ihn.ihn_Millis != 50)
+        {
+            DoMethod(_app(obj), MUIM_Application_RemInputHandler,
+                (IPTR)&a->ihn);
+            a->ihn.ihn_Millis = 50;
+            DoMethod(_app(obj), MUIM_Application_AddInputHandler,
+                (IPTR)&a->ihn);
+        }
+        DoMethod(a->prop, a->method, 1);
+    }
+    return 0;
+}
+
 /* Handle activation, geometry, refresh, close, menu, scrollbar and help
  * events for a live open window. Return TRUE for consumed events and
  * normally reply those messages; FALSE leaves the message for further
@@ -2977,8 +3052,8 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
                     Object *prop = (Object *)G(g[i])->UserData;
 
                     is_handled = TRUE;
-                    if (prop)
-                        DoMethod(prop, method, 1);
+                    WindowArrow(oWin, data, prop, method,
+                        imsg->Qualifier & IEQUALIFIER_REPEAT);
                     break;
                 }
             }
@@ -6469,6 +6544,7 @@ static const struct { ULONG id; APTR method; } window_methods[] =
     { MUIM_Window_UpdateMenu, (APTR)Window__MUIM_UpdateMenu },
     { MUIM_Window_Refresh, (APTR)Window__MUIM_Refresh },
     { MUIM_Window_Refit, (APTR)Window__MUIM_Refit },
+    { MUIM_Window_ArrowRepeat, (APTR)Window__MUIM_ArrowRepeat },
 };
 _Static_assert((ULONG)OM_NEW < (ULONG)OM_DISPOSE, "window_methods order");
 _Static_assert((ULONG)OM_DISPOSE < (ULONG)OM_GET, "window_methods order");
@@ -6506,6 +6582,7 @@ _Static_assert((ULONG)MUIM_Window_RecalcDisplay < (ULONG)MUIM_Window_RemControlC
 _Static_assert((ULONG)MUIM_Window_RemControlCharHandler < (ULONG)MUIM_Window_UpdateMenu, "window_methods order");
 _Static_assert((ULONG)MUIM_Window_UpdateMenu < (ULONG)MUIM_Window_Refresh, "window_methods order");
 _Static_assert((ULONG)MUIM_Window_Refresh < (ULONG)MUIM_Window_Refit, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_Refit < (ULONG)MUIM_Window_ArrowRepeat, "window_methods order");
 
 /* The function of a method in window_methods, NULL if Window has none
  * (a function of its own: its search is off the stack when the method
