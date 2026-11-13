@@ -20,6 +20,22 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- **Area rewritten for 68k machines**: the class every visible object is
+  built on draws its background and frame in one short step in the common
+  case (a plain colour, an ordinary frame): one walk up the window to find
+  the colour, one fill, the frame, where it used to look the frame up
+  twice, walk up twice and first paint the frame's top rows with the
+  background only to paint the frame over them. On a 68000 a full window
+  redraw now takes 445 ms against MUI 3.8's 470-477 (it was 475-478, level
+  with MUI 3.8); on a 68020 134 ms against 141-151 (was 141). Relayouts are
+  4-5 % faster, a Cycle or Radio set about 10 %, a button click 5-14 %.
+  Rarely used parts load only when used: drag and drop, context menus and
+  rounded frames' backgrounds went into the files those features load
+  anyway, and AROS's own Area methods into the MUI 4/5 file. The library's
+  code is 1.4 KB smaller (Area's own 8.8 %), the first MUI-Demo needs
+  443,048 bytes (444,6xx before; MUI 3.8 460,296), an object that reacts to
+  input 8 bytes less. Programs see no difference: the same attributes,
+  methods and pixels.
 - **Group rewritten for 68k machines**: the class every window is built
   from (rows, columns, pages, scrolling areas) lays out, measures and draws
   with less of its own work: one routine for both directions instead of

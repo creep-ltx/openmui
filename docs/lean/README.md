@@ -4555,7 +4555,147 @@ bytes less in each group, list, listview and scrollbar: about a hundred in MUI-D
   group; AMPlifier +64 bytes, its second run equal): YAM 2.9 and 2.10 -28.7 KB, MultiRen
   -11.7 KB, AmigaGPT -10.6 KB; on the second run none higher.
 
+## Rewrite: Area (2026-11-13, branch `rw-area`)
+
+The fourth class of the "rewrite for m68k" phase (roadmap): Area (`classes/area.o` 17,072 bytes
+of code), the base class of every visible object, with what only it uses. After the Group round
+the 68000's full redraw was level with MUI 3.8 and what was left was mostly Area's (its draw, the
+background and frame of every object). Area's instance data was already MUI 3.8's 108 bytes (the
+public part up to offset 108 is MUI's `struct MUI_AreaData`; "114" in older notes is before
+072a96c4); it stays. Same rules as the rounds before. All figures are **emulator figures**
+(FS-UAE cycle-exact; demopix and the suite on Amiberry).
+
+### Targets and results
+
+ms per operation, `opbench` (the same binary on every library), FS-UAE cycle-exact; A600 = a600-31
+(68000 7 MHz, OS 3.1) with 4 MB fast RAM and MUI 3.8 copied on, A1200 = a1200-31-mui38 (68EC020
+14 MHz, OS 3.1). Medians of 5 (A600) or 9 (A1200) repetitions per instance; ranges over the
+instances and rounds of this session (MUI 3.8 on the A600 four instances over three rounds; on
+the A1200 round draw1's three instances, the same binary and machine).
+
+| target | MUI 3.8 | lean (before) | rw-area (after) | after / MUI 3.8 | reached |
+|---|---:|---:|---:|---:|---|
+| A600 full redraw | 470.2-476.7 | 475.0-477.9 | 444.7-444.9 | 0.93-0.95 | **yes** (-7 % against lean) |
+| A600 app+windows create | 928.8-945.4 | 893.8-930.5 | 915.8-923.3 | 0.97-0.99 | below MUI 3.8 in every instance, but within the instances' spread, as lean: **not clearly** |
+| A600 relayout | 697.7-704.8 | 639.6-644.0 | 613.4-614.3 | 0.87-0.88 | (-4.5 %) |
+| A1200 full redraw | 140.6-150.9 | 140.4-141.1 | 133.7 | 0.89-0.95 | **yes** (-5 %) |
+| A1200 app+windows create | 235.2-239.4 | 216.4-227.7 | 225.0-225.4 | 0.94-0.96 | yes (as lean: Area is not where creation's time goes) |
+| A1200 relayout | 197.6-207.3 | 180.2-180.6 | 173.4 | 0.84-0.88 | (-4 %) |
+| memory: first program (MUI-Demo cold) | 460,296 | 444,560-444,608 | 443,048 | | yes (-1.5 KB: the code) |
+| memory: each further | 210,632-218,888 | 193,560-193,672 | 193,512-193,576 | | yes (about even: MUI-Demo's input objects save 8 bytes each in their live blocks) |
+| Area code (`classes/area.o`) | | 17,072 | 15,568 (-8.8 %) | | smaller; less than Group's -15 % (the common draw is new code) |
+| Area instance data | 108 | 108 | 108 | | MUI 3.8's already; the live block of an input object 80 -> 72 |
+
+The other operations against lean (the final build, two instances each on both machines): the
+A1200's cycle set 2.21 -> 2.02, radio set 9.40 -> 8.52, button click 17.5 -> 16.6, window
+open+close 408.7 -> 401.1, uniconify 345.4 -> 338.7, register page 43.8 -> 42.6, popup 96.8 ->
+95.5; the A600's cycle set 8.72 -> 7.92, radio set 36.9 -> 33.0, button click 72.6 -> 62.7-69.8,
+window open+close 1443 -> 1400, uniconify 1263 -> 1248, register page 151.3 -> 146.0, popup 349.9
+-> 341.6-345.6; all others within lean's spread (iconify bimodal on the A600 as before).
+
+**What did not move**: application creation is mostly memory allocation (exec's allocator is 28 %
+of its profile on the 68020) and Notify's and the subclasses' work; Area's part (its OM_NEW and
+dispatcher) is about 5 %. On the A600 it stays a little below MUI 3.8 in every instance measured
+(0.96-0.99) but within the spread of the instances, as lean: "clearly below" is not reached.
+`list insert 1` stays 1.02 of MUI 3.8 on the A600, as lean.
+
+### What was rewritten
+
+| commit | what |
+|---|---|
+| 08613cd1, a97db257, dda163c5 | **The common draw**: a built-in square frame of a box of at least 8x6 pixels, FillArea, no title, no custom backfill, no phantom or hidden frame, no virtual group (nearly every object): the background is one pen RectFill (the object's own pen, or the pen it inherits, found in one walk up the parents with rw-group's `zune_background_fill_pen`), then the frame's draw function with a static corner-hint image (`area_draw_plain`). Lean resolved the frame twice, went through a 148-byte-frame background function (rectangle arrays, the rounded frames' clip, a walk to fill and a second walk for the corner hint) and a 176-byte-frame frame function (a `dt_frame_image` cleared per draw). **The frame's top rows are no longer filled with the parent's background first**: for every framed child drawn with MADF_DRAWFRAME lean filled them (a full MUIM_DrawParentBackground dispatch, a walk and a blitter RectFill) and the frame painted over them; every built-in square frame paints all its top rows in such a box and its top-right bevel corner is MPEN_BACKGROUND either way, so the pixels are the same. FST_WIN_BEVEL takes the general path: its recessed state's inner corners lie on its outer line, which lean's corner hint leaves in the line's pen (`tests/lean/framethick.c` found the two pixels). Everything else (titles, custom, rounded, phantom and hidden frames, custom backfills, no FillArea, virtual groups, frame-only draws, small boxes) takes the general path as before |
+| 2b9b04a3 | **Drag methods in the drag module, AROS's methods in Zmui45**: MUIM_DoDrag, CreateDragImage, DeleteDragImage, DragBegin and DragFinish (with the drop target's dashed outline) in `areadrag.c`, part of Zdragdrop.mui, which every drag loads anyway for its image and events; MUIM_DrawBackgroundBuffered, QueryFrameCharacteristics and CreateFrameClippingRegion, AROS Zune's own methods (MUIB_Area), which no MUI program sends, in Zmui45.mui |
+| a3299ef9, 2d4e9784 | **Context menus in Zmenu, the drag start in Zdragdrop, shared attributes**: the right button's press, moves and release over an object with a context menu (`areamenu.c`) are part of the menu module, which the menu's window needs anyway; whether a move over a draggable object starts its drag (the settings' distance and qualifier) and the start are in the drag module, asked only for draggable objects. OM_NEW and OM_SET hand the attributes they take alike to one function (`area_set_plain`), reached only by its own tags (through `default:` every subclass attribute paid a second search: slider set, notify chain, list insert 1 were 1-3 % slower) |
+| a11895e7 | **The frame sizes in one function** (`area_frame_sizes`: inner spacings, title room, box offsets; Setup resolved the frame three times) and **the live block 72 -> 64 bytes** (80 -> 72 with AllocVec's): the click position in WORDs, the open context menu in the extension only context-menu objects make |
+| f36326a4 | **A rounded frame's background in the round frame module** (`arearound.c` in Zframes.mui, which draws those frames, types 5, 7, 8, A and B, anyway); OM_GET's flag attributes share one store |
+| 81b17bb6 | **The frame lookup and the active outline off the dispatcher's frame** (`area_frame_gfx` for AskMinMax and Draw): a frame spec string's buffer was on the dispatcher's frame, which every method of every object pays at each nesting level: 84 -> 68 bytes |
+
+**Not moved to modules**: bubble help (MUI 3 programs use it; it is in `bubbleengine.c` already),
+the context menu's attribute and its two methods (tiny), MUIM_DragQueryExtended (sent to every
+object under the pointer during a drag: a module call per object), custom backfills (IBrowse,
+Newstring), titled frames (every GroupFrameT).
+
+**Tried and not taken** (measured): the whole MUIM_Draw out of line (the dispatcher's frame 84 ->
+80, but MUI-Demo's stackrun 32 bytes deeper: its frame under the general path's frame function);
+the common draw fully inline (dispatcher frame 84 -> 112-140: the frame call's ten and the image
+draw's eleven pushed arguments); `__area_finish_minmax` as one function per axis (140 bytes
+smaller, frame 28 -> 36-48 in every form tried: two calls' deferred pops, or six saved
+registers); a shared timer-start function (36 bytes larger: GCC did not inline it); a shortcut key
+handled with a `goto` instead of a second HandleEvent (no smaller); register-argument draw
+functions to make the general path a tail jump (GCC 16 does not sibcall them).
+
+### Sizes
+
+| | lean (0b58e8c3) | rw-area |
+|---|---:|---:|
+| Area's code (`classes/area.o`) | 17,072 | 15,568 (-8.8 %) |
+| library code (`size`) | 231,312 | 229,896 |
+| library file, stripped | 247,980 | 246,504 |
+| Zmui45.mui / Zdragdrop.mui / Zmenu.mui / Zframes.mui (files) | 16,156 / 8,560 / 12,452 / 7,868 | 16,856 / 10,404 / 12,980 / 9,208 |
+| Area instance data (MUI 3.8: 108) | 108 | 108 |
+| live block of an object that takes input (with AllocVec's) | 80 | 72 |
+| MUI-Demo first program (MUI 3.8: 460,296) | 444,560-444,608 | 443,048 |
+| MUI-Demo each further (MUI 3.8: 210,632-218,888) | 193,560-193,672 | 193,512-193,576 |
+
+Area's biggest functions now: the dispatcher 3,316 (Setup, Cleanup, AskMinMax, Draw's choice,
+Show, Hide, HandleEvent and the small methods inlined), OM_SET 1,290, OM_NEW 1,084, OM_GET 1,066,
+the general background 954 and frame 778, the common draw 610, the minmax finish 560 (lean's).
+
+### Checked (emulators)
+
+- `make check` after every library commit.
+- `-fstack-usage` of every library and class-file function against lean: none larger. Smaller:
+  the dispatcher 84 -> 68 (every method of every object, at each nesting level), the general
+  background 148 -> 144, OM_NEW 36 -> 32. New: `area_draw_plain` 96 (the common draw's fill and
+  frame, under the dispatcher where lean had the 148- and 176-byte background and frame
+  functions), `area_frame_gfx` 44, `area_frame_sizes` 48 (lean's set_inner_sizes 44 and
+  set_title_sizes 60), `area_active_outline` 44 (lean's _zune_focus_new 48), `area_set_plain` 28;
+  in the modules `zmod_area_drag` 192, `zmod_area_round_background` 148, `zmod_area_aros45` 104,
+  `zmod_area_menu` 56, `zmod_area_drag_motion` 48 (all reached only through `zune_modcall`).
+- stackrun (FS-UAE, lean and the branch side by side, three rounds, plus the final build's frame
+  experiments): MUI-Demo **4,992 -> 4,976** (lean 4,992 in five runs; the final build 4,976 in
+  four), Layout 2,224, Pages 2,196, Slidorama 2,260 on both; Virtual 2,168 on both, except one of
+  the final build's four runs at 2,204 (lean 2,168 in all five; its own timing, as Virtual and
+  Slidorama varied in earlier rounds). On the way the branch was 32 bytes deeper (5,024) from the
+  moment the drag and AROS methods left the dispatcher (bisected with stackrun over the round's
+  commits; the context menu and drag modules alone, removed from the instance, changed nothing).
+  The depth followed the dispatcher's frame, which every nested method crosses: 84 in lean, 92
+  then 84 again on the way (5,024 both times, with the active outline inlined into it), 80 with
+  the outline a function again (5,008), 68 with the frame lookup out of it too (4,976). Not
+  explained to the byte; each step measured.
+- Pixels: pagepix (20), radiopix (120 lines), scrollpix (17), listclip (4,181 rows) identical to
+  lean after the first commit and for the final build; demopix (Amiberry, the OpenMUI side, lean
+  and the final build): 26 of 27 shots pixel-identical, the 27th Layout's random places as
+  always; `tests/lean/framethick.c` (all 21 frame types and states of MUI's frame list, thin and
+  thick, spec strings) identical to lean (it found FST_WIN_BEVEL's two corner pixels, fixed in
+  dda163c5).
+- New black-box test `tests/lean/ctxdrag.c` (input.device events into the program's own MUI
+  loop: a context menu opened on a button, a right click beside it, a short click on a draggable
+  object, a drag onto a custom drop target): the same output on lean and the branch (the menu
+  opens and closes, no trigger beside it, the click selects without a drag, the drop target gets
+  DragQuery, DragBegin, DragDrop and DragFinish). The menu choice itself is not reached by its
+  pointer path on either library (the item is highlighted at the release, no trigger arrives:
+  left open for the test, not a difference).
+- fullcheck (FS-UAE): MUI-Demo with its eight sub-windows and the other 18 MUI 3.8 demos opened
+  and closed on lean and on the final build: the same windows at the same places and sizes, the
+  same lost figures (608 / 200 / AppWindow 264), no alert.
+- Memory (MUI-Demo cold, OS 3.1, `m.sh`, FS-UAE, the same session): above.
+SUITE_PLACEHOLDER
+
 ## Left open
+
+- **Rewrite for m68k (2026-11-13, after `rw-area`)**: Area done (code -8.8 %, the dispatcher's
+  frame 84 -> 68, first program -1.5 KB). The A600's full redraw is now 0.93-0.95 of MUI 3.8 and
+  the A1200's 0.89-0.95. **Creation on the A600** stays 0.97-0.99 of MUI 3.8, within the spread of
+  the instances as lean: its time is exec's allocator (28 % of the 68020 profile) and the classes
+  above Area, not Area (about 5 %): the object pool / allocation count of "Prove it" and the
+  Application round. A600 `list insert 1` 1.02 of MUI 3.8 as lean (List's). Area's code is
+  smaller by less than Group's was: the common draw is new code (610 bytes) that the general path
+  could not lose, and the hot methods stay inlined; what is left large is OM_SET/OM_NEW/OM_GET
+  (3.4 KB together: switches GCC already makes compact; tables cost frames in every round) and
+  the general draw for titled and special frames (2.1 KB). `tests/lean/ctxdrag.c` does not yet
+  reach a context menu's choice. Not moved: bubble help, MUIM_DragQueryExtended, custom
+  backfills, titled frames (MUI 3 programs use them all). Next: Application (roadmap).
 
 - **Rewrite for m68k (2026-11-13, after `rw-group`)**: Group done (code -15.4 %, instance data
   68 -> 36 bytes, first program -6.3 KB, each further -3.2 KB; full redraw -5 % on the A1200 and

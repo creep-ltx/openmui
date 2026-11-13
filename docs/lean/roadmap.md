@@ -370,8 +370,14 @@ where a measured hot loop pays. Order:
    redraw -5 % (A1200) and -5.7 % (A600: now MUI 3.8's 1.00-1.02, was 1.07), relayout -7 %,
    creation -6 % (A1200). Details in
    [README.md](README.md#rewrite-group-2026-11-13-branch-rw-group).
-4. Area (after Group the redraw's library code is mostly Area's: its dispatcher, the background
-   and frame drawing of every object; the A600's last 1-2 % against MUI 3.8 are there).
+4. **Area** (done 2026-11-13, `rw-area`): the common draw one short path (one pen found in one
+   walk, one fill, the frame; no fill of the frame's top rows that the frame paints over), drag
+   and drop, context menus, rounded frames' backgrounds and AROS's own methods in the modules
+   their use loads anyway, the frame lookup off the dispatcher's frame (84 -> 68). Area code
+   -8.8 %, library -1.4 KB, first program -1.5 KB; full redraw -7 % on the A600 (now 0.93-0.95 of
+   MUI 3.8) and -5 % on the A1200, relayout -4 %, Cycle/Radio set -10 %. Creation on the A600
+   stays 0.97-0.99 of MUI 3.8 (not Area's time). Details in
+   [README.md](README.md#rewrite-area-2026-11-13-branch-rw-area).
 5. Application.
 6. String.
 7. The text engine (textengine.c).

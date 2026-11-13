@@ -713,6 +713,31 @@ a600-31 + 4 MB fast RAM, MUI 3.8 copied on):
 | A600 relayout | 697.8-705.7 | 691.5-694.9 | 643.1-643.6 |
 | stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 5,044 / 2,224 / 2,168 / 2,196 / 2,260 | 4,992 / 2,224 / 2,168 / 2,196 / 2,260 |
 
+## Rewrite: Area (2026-11-13, branch `rw-area`)
+
+README.md "Rewrite: Area" has the steps. Figures (FS-UAE cycle-exact, OS 3.1, emulator; A600 =
+a600-31 + 4 MB fast RAM, MUI 3.8 copied on; MUI 3.8 on the A1200 from round draw1):
+
+| | MUI 3.8 | lean (0b58e8c3) | rw-area |
+|---|---:|---:|---:|
+| Area's code (`classes/area.o`) | | 17,072 | 15,568 |
+| library code (`size`) | | 231,312 | 229,896 |
+| library file, stripped | | 247,980 | 246,504 |
+| Area instance data | 108 | 108 | 108 |
+| live block (input objects, with AllocVec's) | | 80 | 72 |
+| MUI-Demo first program | 460,296 | 444,560-444,608 | 443,048 |
+| MUI-Demo each further | 210,632-218,888 | 193,560-193,672 | 193,512-193,576 |
+| A1200 full redraw (ms) | 140.6-150.9 | 140.4-141.1 | 133.7 |
+| A1200 app+windows create | 235.2-239.4 | 216.4-227.7 | 225.0-225.4 |
+| A1200 relayout | 197.6-207.3 | 180.2-180.6 | 173.4 |
+| A600 full redraw | 470.2-476.7 | 475.0-477.9 | 444.7-444.9 |
+| A600 app+windows create | 928.8-945.4 | 893.8-930.5 | 915.8-923.3 |
+| A600 relayout | 697.7-704.8 | 639.6-644.0 | 613.4-614.3 |
+| stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 4,992 / 2,224 / 2,168 / 2,196 / 2,260 | 4,976 / 2,224 / 2,168 (one run of four 2,204) / 2,196 / 2,260 |
+
+The instance data was already MUI 3.8's 108 bytes (since 072a96c4; the table "Instance sizes
+against MUI 3.8" above still shows the 114 of the step before).
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
