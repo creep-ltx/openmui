@@ -1080,19 +1080,6 @@ extern struct Library *MUIMasterBase;
 #define G(x) ((struct Gadget*)(x))
 #define GADGETID(x) (((struct Gadget*)(x))->GadgetID)
 
-/* this is for the cycle list */
-struct ObjNode
-{
-    struct MinNode node;
-    Object *obj;
-};
-
-/* For the gadget ids */
-struct IDNode
-{
-    struct MinNode node;
-    UWORD id;
-};
 
 
 struct MUI_ImageSpec_intern;
@@ -1125,12 +1112,20 @@ struct MUI_WindowData
     struct MUI_MinMax wd_MinMax;
     struct IBox wd_AltDim;      /* zoomed dimensions */
     BOOL wd_ZoomGadget;         /* enable/disable zoomgadget (altdim stuff) */
-    APTR wd_MemoryPool;         /* for nodes and stuff to deallocate at
-                                 * OM_DISPOSE */
-    struct MinList wd_CycleChain;       /* objects activated with tab */
+    /* The cycle chain (the objects Tab activates), in order, in one
+     * block of wd_ChainSize pointers of which the first wd_ChainCount are
+     * used; a removed object leaves NULL (skipped) until the block is
+     * full, so that a window's cleanup, which removes its objects from the
+     * front, moves nothing. The gadget IDs: one byte each in wd_IDMap
+     * (wd_IDBytes; ID n is byte n - 1, not 0 while in use). Before 2026-11-13 both
+     * were nodes in a memory pool of the window's own: a 1 KB puddle per
+     * window. */
+    Object **wd_Chain;
+    UWORD wd_ChainCount, wd_ChainSize;
+    UBYTE *wd_IDMap;
+    UWORD wd_IDBytes;
     struct MinList wd_EHList;   /* event handlers */
     struct MinList wd_CCList;   /* control chars */
-    struct MinList wd_IDList;   /* gadget ids */
     ULONG wd_Events;            /* events received */
     ULONG wd_CrtFlags;          /* window creation flags, see below */
     Object *wd_ActiveObject;    /* the active object */
@@ -1929,11 +1924,9 @@ static void CancelWindowGuards(struct MUI_WindowData *data)
  * registration is not removed and Sleep count is not reset.
  */
 static void UndisplayWindow(Object *obj, struct MUI_WindowData *data);
-/* Search a stable ObjNode list for pointer equality with a live object;
- * NULL object returns NULL. Return the borrowed node or NULL without
- * changing links or ownership.
- */
-static struct ObjNode *FindObjNode(struct MinList *list, Object *obj);
+/* The index of obj in the cycle chain, -1 if it is not there (NULL never
+ * is) */
+static LONG ChainIndex(struct MUI_WindowData *data, Object *obj);
 
 #ifdef ZUNE68_GCC_NATIVE
 /* The extra title bar gadgets as MUI 3.8 has them: Popup, Prefs, Snapshot
@@ -2949,14 +2942,7 @@ static BOOL ContextMenuUnderPointer(struct MUI_WindowData *data,
  */
 static void ActivateObject(struct MUI_WindowData *data)
 {
-    //bug("Window::ActivateObject (dummy) %08lx\n", data->wd_ActiveObject);
-    //    if (FindObjNode(&data->wd_CycleChain, data->wd_ActiveObject))
-    //        DoMethod(data->wd_ActiveObject, MUIM_GoActive);
-    //    else
-    //        data->wd_ActiveObject = NULL;
-
-    //activate better string gadgets.Fix from Georg S On ML List
-    if (FindObjNode(&data->wd_CycleChain, data->wd_ActiveObject))
+    if (ChainIndex(data, data->wd_ActiveObject) >= 0)
     {
         if (!(data->wd_Flags & MUIWF_OBJECTGOACTIVESENT))
         {
@@ -4033,54 +4019,38 @@ static __attribute__((noinline)) void ChangeRootObject(struct MUI_WindowData *da
     }
 }
 
-// find the ObjNode containing a pointer to the given object
-// currently only used for cycle chain objects
-/* Search a stable ObjNode list for pointer equality with a live object;
- * NULL object returns NULL. Return the borrowed node or NULL without
- * changing links or ownership.
- */
-static struct ObjNode *FindObjNode(struct MinList *list, Object *obj)
+static LONG ChainIndex(struct MUI_WindowData *data, Object *obj)
 {
-    struct ObjNode *node;
+    Object **p = data->wd_Chain;
+    LONG i, n = data->wd_ChainCount;
 
-    ASSERT_VALID_PTR(list);
-
-    if (!obj)
-        return NULL;
-
-    ASSERT_VALID_PTR(obj);
-
-    for (node = (struct ObjNode *)list->mlh_Head;
-        node->node.mln_Succ; node = (struct ObjNode *)node->node.mln_Succ)
-    {
-        if (node->obj == obj)
-        {
-            return node;
-        }
-    }
-    return NULL;
+    if (obj)
+        for (i = 0; i < n; i++)
+            if (p[i] == obj)
+                return i;
+    return -1;
 }
 
-/* From the supplied node forwards (next) or backwards through the cycle
- * chain, the first non-disabled object with SHOWME set; NULL at the end
- * (no wrapping). Require valid stable chain links and live Area targets. */
-static Object *GetPrevNextActiveObject(struct ObjNode *node, BOOL next)
+/* From chain index i forwards (next) or backwards, the first non-disabled
+ * object with SHOWME set; NULL at the end (no wrapping). With i = -1 or the
+ * count and no filter (first/last): the first or last object at all. */
+static __attribute__((noinline)) Object *ChainStep(
+    struct MUI_WindowData *data, LONG i, BOOL next,
+    BOOL filter)
 {
     for (;;)
     {
-        struct MinNode *n = next ? node->node.mln_Succ : node->node.mln_Pred;
         Object *obj;
 
-        if (!(next ? n->mln_Succ : n->mln_Pred))
+        i += next ? 1 : -1;
+        if (i < 0 || i >= data->wd_ChainCount)
             return NULL;
-        node = (struct ObjNode *)n;
-
-        /* let's see if this object meets cycle requirements
-         * (enabled & visible) */
-        if ((obj = node->obj))
+        if ((obj = data->wd_Chain[i]))
         {
             IPTR is_disabled = 0;
 
+            if (!filter)
+                return obj;
             get(obj, MUIA_Disabled, &is_disabled);
             if (!is_disabled && (_flags(obj) & MADF_SHOWME))
                 return obj;
@@ -4106,7 +4076,7 @@ Basically, it will:
 static void SetActiveObject(struct MUI_WindowData *data, Object *obj,
     IPTR newval)
 {
-    struct ObjNode *old_activenode = NULL;
+    LONG old_active = -1;
 
     ASSERT_VALID_PTR(data);
     ASSERT_VALID_PTR(obj);
@@ -4128,8 +4098,7 @@ static void SetActiveObject(struct MUI_WindowData *data, Object *obj,
     {
         if ((IPTR) data->wd_ActiveObject != newval)
         {
-            old_activenode =
-                FindObjNode(&data->wd_CycleChain, data->wd_ActiveObject);
+            old_active = ChainIndex(data, data->wd_ActiveObject);
             if ((data->wd_Flags & MUIWF_OBJECTGOACTIVESENT)
                 && (_flags(data->wd_ActiveObject) & MADF_SETUP))
             {
@@ -4154,15 +4123,12 @@ static void SetActiveObject(struct MUI_WindowData *data, Object *obj,
     {
         BOOL next = newval == MUIV_Window_ActiveObject_Next;
 
-        if (old_activenode != NULL)
-            data->wd_ActiveObject = GetPrevNextActiveObject(old_activenode,
-                next);
+        if (old_active >= 0)
+            data->wd_ActiveObject = ChainStep(data, old_active, next, TRUE);
         /* else the first or last of the chain, disabled or hidden or not */
-        if (NULL == data->wd_ActiveObject
-            && !IsListEmpty((struct List *)&data->wd_CycleChain))
-            data->wd_ActiveObject = ((struct ObjNode *)(next
-                ? data->wd_CycleChain.mlh_Head
-                : data->wd_CycleChain.mlh_TailPred))->obj;
+        if (NULL == data->wd_ActiveObject)
+            data->wd_ActiveObject = ChainStep(data,
+                next ? -1 : data->wd_ChainCount, next, FALSE);
         break;
     }
 
@@ -4465,22 +4431,10 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     data->wd_Opacity = 255;
     data->wd_Class = cl;
     data->wd_EventCursors = NULL;
-    /* 1 KB puddles (was 4 KB): the pool holds the gadget-ID and
-     * cycle-chain nodes, 12 to 16 bytes each, a few dozen per window. */
-    data->wd_MemoryPool = CreatePool(0, 1024, 512);
-    if (NULL == data->wd_MemoryPool)
-    {
-        zune_dispose_children(msg->ops_AttrList);   /* the root object, the menustrip */
-        CoerceMethod(cl, obj, OM_DISPOSE);
-        return (IPTR) NULL;
-    }
-
     data->wd_RenderInfo.mri_WindowObject = obj;
 
     NewList((struct List *)&(data->wd_EHList));
     NewList((struct List *)&(data->wd_CCList));
-    NewList((struct List *)&(data->wd_CycleChain));
-    NewList((struct List *)&(data->wd_IDList));
 
     data->wd_CrtFlags = WFLG_SIZEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET
         | WFLG_CLOSEGADGET | WFLG_SIMPLE_REFRESH
@@ -4590,11 +4544,14 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
  * stopped callbacks. This handler intentionally does not perform close or
  * remove membership.
  */
-/* The explicit cycle chain and the render info's tail, in one call that
- * keeps OM_DISPOSE's frame as small as one FreeVec did */
+/* The explicit cycle chain, the chain, the gadget IDs and the render
+ * info's tail, in one call that keeps OM_DISPOSE's frame as small as one
+ * FreeVec did */
 static void __attribute__((noinline)) WindowFreeBlocks(struct MUI_WindowData *data)
 {
     FreeVec(data->wd_CycleOrder);
+    FreeVec(data->wd_Chain);
+    FreeVec(data->wd_IDMap);
     FreeVec(data->wd_RenderInfo.mri_Tail);
 }
 
@@ -4626,7 +4583,6 @@ IPTR Window__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
     }
     if (data->wd_ChildMenustrip)
         MUI_DisposeObject(data->wd_ChildMenustrip);
-    if (data->wd_MemoryPool) DeletePool(data->wd_MemoryPool);
     WindowFreeBlocks(data);
     return DoSuperMethodA(cl, obj, msg);
 }
@@ -6000,43 +5956,93 @@ static LONG CycleOrder(struct MUI_WindowData *data, Object *obj)
     return -1;
 }
 
+/* A block of newsize bytes (cleared) with the oldsize bytes of old at
+ * its start, old freed; NULL (old kept) if there is no memory */
+static __attribute__((noinline)) APTR Regrow(APTR old, ULONG oldsize,
+    ULONG newsize)
+{
+    APTR p = AllocVec(newsize, MEMF_ANY | MEMF_CLEAR);
+
+    if (p)
+    {
+        CopyMem(old, p, oldsize);
+        FreeVec(old);
+    }
+    return p;
+}
+
+/* Room for one more object in the chain: the removed ones' NULLs dropped,
+ * else a block twice as large. FALSE if there is none. */
+static __attribute__((noinline)) BOOL ChainRoom(struct MUI_WindowData *data)
+{
+    Object **p = data->wd_Chain;
+    UWORD n = data->wd_ChainCount, i, k = 0;
+
+    if (n < data->wd_ChainSize)
+        return TRUE;
+    for (i = 0; i < n; i++)
+        if (p[i])
+            p[k++] = p[i];
+    data->wd_ChainCount = k;
+    if (k < n)
+        return TRUE;
+    n = n ? n * 2 : 8;
+    if (!(p = Regrow(p, k * sizeof(Object *), n * sizeof(Object *))))
+        return FALSE;
+    data->wd_Chain = p;
+    data->wd_ChainSize = n;
+    return TRUE;
+}
+
+/* An object of the explicit (MUIM_Window_SetCycleChain) order into the
+ * chain, before the first one later in that order */
+static __attribute__((noinline)) void ChainInsert(
+    struct MUI_WindowData *data, Object *target)
+{
+    LONG rank = CycleOrder(data, target);
+    Object **p = data->wd_Chain;
+    UWORD i = 0, n = data->wd_ChainCount;
+
+    while (i < n && CycleOrder(data, p[i]) <= rank)
+        i++;
+    for (; n > i; n--)
+        p[n] = p[n - 1];
+    p[i] = target;
+    data->wd_ChainCount++;
+}
+
 IPTR Window__MUIM_SetCycleChain(struct IClass *cl, Object *obj,
     struct MUIP_Window_SetCycleChain *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    Object **order;
-    ULONG count = 0, i;
-    struct MinList replacement;
-    struct ObjNode *node;
+    Object **order, **chain;
+    ULONG count = 0, i, k;
 
     while (msg->obj[count]) count++;
     order = AllocVec((count + 1) * sizeof(Object *), MEMF_ANY);
     if (!order) return FALSE;
+    chain = AllocVec((count + 1) * sizeof(Object *), MEMF_ANY);
+    if (!chain)
+    {
+        FreeVec(order);
+        return FALSE;
+    }
     CopyMem(msg->obj, order, (count + 1) * sizeof(Object *));
-    NewList((struct List *)&replacement);
-    for (i = 0; i < count; i++)
+    for (i = k = 0; i < count; i++)
     {
         Object *child = order[i];
-        if (!FindObjNode(&replacement, child)
-            && (_flags(child) & MADF_SETUP) && muiRenderInfo(child)
+        ULONG j;
+
+        for (j = 0; j < k && chain[j] != child; j++)
+            ;
+        if (j == k && (_flags(child) & MADF_SETUP) && muiRenderInfo(child)
             && _win(child) == obj)
-        {
-            node = AllocPooled(data->wd_MemoryPool, sizeof(*node));
-            if (!node)
-            {
-                while ((node = (struct ObjNode *)RemHead((struct List *)&replacement)))
-                    FreePooled(data->wd_MemoryPool, node, sizeof(*node));
-                FreeVec(order);
-                return FALSE;
-            }
-            node->obj = child;
-            AddTail((struct List *)&replacement, (struct Node *)node);
-        }
+            chain[k++] = child;
     }
-    while ((node = (struct ObjNode *)RemHead((struct List *)&data->wd_CycleChain)))
-        FreePooled(data->wd_MemoryPool, node, sizeof(*node));
-    while ((node = (struct ObjNode *)RemHead((struct List *)&replacement)))
-        AddTail((struct List *)&data->wd_CycleChain, (struct Node *)node);
+    FreeVec(data->wd_Chain);
+    data->wd_Chain = chain;
+    data->wd_ChainCount = k;
+    data->wd_ChainSize = count + 1;
     FreeVec(data->wd_CycleOrder);
     data->wd_CycleOrder = order;
     /* Arrange control-handler setup/cleanup for legacy gadgets as well. */
@@ -6055,54 +6061,25 @@ IPTR Window__MUIM_AddControlCharHandler(struct IClass *cl, Object *obj,
     struct MUIP_Window_AddControlCharHandler *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    struct ObjNode *node;
+    Object *target = msg->ccnode->ehn_Object;
 
     if (msg->ccnode->ehn_Events)
-    {
-#ifdef __AROS__
-    #if !(AROS_FLAVOUR & AROS_FLAVOUR_BINCOMPAT)
-        msg->ccnode->ehn_Node.ln_Pri = msg->ccnode->ehn_Priority;
-    #else
-        msg->ccnode->ehn_Priority = msg->ccnode->ehn_Priority;
-    #endif
-#endif
-	Enqueue((struct List *)&data->wd_CCList, (struct Node *)msg->ccnode);
-    }
+        Enqueue((struct List *)&data->wd_CCList, (struct Node *)msg->ccnode);
     /* Due to the lack of a better idea ... */
-    if ((data->wd_CycleOrder ? CycleOrder(data, msg->ccnode->ehn_Object) >= 0 :
-            !!(muiAreaData(msg->ccnode->ehn_Object)->mad_Flags & MADF_CYCLECHAIN))
-        && (!data->wd_CycleOrder ||
-            !FindObjNode(&data->wd_CycleChain, msg->ccnode->ehn_Object)))
+    if (!data->wd_CycleOrder)
     {
-        node = AllocPooled(data->wd_MemoryPool, sizeof(struct ObjNode));
-        if (node)
-        {
-            struct ObjNode *next;
-            struct MinNode *pred = (struct MinNode *)&data->wd_CycleChain;
-            LONG rank;
-            node->obj = msg->ccnode->ehn_Object;
-            if (!data->wd_CycleOrder)
-            {
-                AddTail((struct List *)&data->wd_CycleChain, (struct Node *)node);
-                return TRUE;
-            }
-            rank = CycleOrder(data, node->obj);
-            for (next = (struct ObjNode *)data->wd_CycleChain.mlh_Head;
-                next->node.mln_Succ; next = (struct ObjNode *)next->node.mln_Succ)
-            {
-                if (data->wd_CycleOrder && CycleOrder(data, next->obj) > rank)
-                    break;
-                pred = &next->node;
-            }
-            Insert((struct List *)&data->wd_CycleChain,
-                (struct Node *)node, (struct Node *)pred);
-        }
+        if ((muiAreaData(target)->mad_Flags & MADF_CYCLECHAIN)
+            && ChainRoom(data))
+            data->wd_Chain[data->wd_ChainCount++] = target;
     }
+    else if (CycleOrder(data, target) >= 0 && ChainIndex(data, target) < 0
+        && ChainRoom(data))
+        ChainInsert(data, target);
     return TRUE;
 }
 
 /* Private MUIM_Window_RemControlCharHandler: unlink ccnode when its event
- * field is nonzero and remove/free the first cycle node for its target.
+ * field is nonzero and remove the first chain entry of its target.
  * Return TRUE. Require the original live registration and unchanged
  * linkage-relevant fields; membership is not validated and caller-owned
  * ccnode is not freed.
@@ -6111,17 +6088,20 @@ IPTR Window__MUIM_RemControlCharHandler(struct IClass *cl, Object *obj,
     struct MUIP_Window_RemControlCharHandler *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    struct ObjNode *node =
-        FindObjNode(&data->wd_CycleChain, msg->ccnode->ehn_Object);
+    LONG i = ChainIndex(data, msg->ccnode->ehn_Object);
 
     if (msg->ccnode->ehn_Events)
         RemoveEventHandler(data, msg->ccnode);
 
-    if (node)
+    if (i >= 0)
     {
-        /* Remove from the chain list */
-        Remove((struct Node *)node);
-        FreePooled(data->wd_MemoryPool, node, sizeof(struct ObjNode));
+        UWORD n = data->wd_ChainCount;
+        Object **p = data->wd_Chain;
+
+        p[i] = NULL;
+        while (n && !p[n - 1])
+            n--;
+        data->wd_ChainCount = n;
     }
 
     return TRUE;
@@ -6181,41 +6161,38 @@ IPTR Window__MUIM_DragObject(struct IClass *cl, Object *obj,
 *       cannot guarantee uniqueness after reuse.
 *
 */
+/* 32 more gadget IDs */
+static __attribute__((noinline)) BOOL IDMapGrow(struct MUI_WindowData *data)
+{
+    UWORD n = data->wd_IDBytes;
+    UBYTE *map = Regrow(data->wd_IDMap, n, n + 32);
+
+    if (!map)
+        return FALSE;
+    data->wd_IDMap = map;
+    data->wd_IDBytes = n + 32;
+    return TRUE;
+}
+
 IPTR Window__MUIM_AllocGadgetID(struct IClass *cl, Object *obj,
     struct MUIP_Window_AllocGadgetID *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    struct IDNode *newnode;
 
-    newnode = AllocPooled(data->wd_MemoryPool, sizeof(struct IDNode));
-    if (newnode)
+    /* the lowest free ID, as the sorted list gave it */
+    do
     {
-        int id;
-        struct MinNode *mn;
+        UBYTE *map = data->wd_IDMap;
+        ULONG i, n = data->wd_IDBytes;
 
-        if (IsListEmpty(&data->wd_IDList))
-        {
-            newnode->id = 1;
-            AddHead((struct List *)&data->wd_IDList,
-                (struct Node *)&newnode->node);
-            return (IPTR) 1;
-        }
-
-        id = 1;
-
-        for (mn = data->wd_IDList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
-        {
-            struct IDNode *idn = (struct IDNode *)mn;
-            if (id < idn->id)
-                break;
-            id++;
-        }
-        newnode->id = id;
-        Insert((struct List *)&data->wd_IDList,
-            (struct Node *)&newnode->node, (struct Node *)mn);
-        return (IPTR) id;
+        for (i = 0; i < n; i++)
+            if (!map[i])
+            {
+                map[i] = 1;
+                return i + 1;
+            }
     }
-
+    while (IDMapGrow(data));
     return 0;
 }
 
@@ -6246,19 +6223,10 @@ IPTR Window__MUIM_FreeGadgetID(struct IClass *cl, Object *obj,
     struct MUIP_Window_FreeGadgetID *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    struct MinNode *mn;
+    ULONG id = msg->gadgetid - 1;
 
-    for (mn = data->wd_IDList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
-    {
-        struct IDNode *idn = (struct IDNode *)mn;
-        if (msg->gadgetid == idn->id)
-        {
-            Remove((struct Node *)idn);
-            FreePooled(data->wd_MemoryPool, idn, sizeof(struct IDNode));
-            return 0;
-        }
-    }
-
+    if (id < data->wd_IDBytes)
+        data->wd_IDMap[id] = 0;
     return 0;
 }
 

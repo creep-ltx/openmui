@@ -5,9 +5,11 @@ from pathlib import Path
 from check_notifications import NotifyHarness
 from check_class_lifetime import EXEC, INTUITION
 
+import window_layout as W
 # DATA: the window's render info, 4 bytes into its data (wd_AreaRenderInfo first)
 CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71044
-POOL, CHAIN, ORDER = DATA + 166, DATA + 170, DATA + 408
+INST = OBJECT + 64
+CHAIN, COUNT, ORDER = INST + W.CHAIN, INST + W.CHAIN_COUNT, INST + W.CYCLE_ORDER
 SETUP, CYCLE = 1 << 28, 1 << 5
 
 
@@ -15,12 +17,6 @@ class LayoutHarness(NotifyHarness):
     def __init__(self, path):
         super().__init__(path)
         self.mem.w16(CLASS + 32, 64)
-        self.mem.w32(CHAIN, CHAIN + 4)
-        self.mem.w32(CHAIN + 8, CHAIN)
-        self.mem.w32(POOL, 0x1234)
-        self.trap(EXEC - 258, self.rem_head)
-        self.trap(EXEC - 708, self.alloc_vec)
-        self.trap(EXEC - 714, self.free_pooled)
         self.trap(EXEC - 624, self.copy)
         self.trap(INTUITION - 648, lambda: self.cpu.w_reg(0, 0))
         self.trap(self.symbols['_DoMethod'], self.method)
@@ -30,19 +26,6 @@ class LayoutHarness(NotifyHarness):
     def copy(self):
         self.mem.w_block(self.cpu.r_reg(9), self.mem.r_block(
             self.cpu.r_reg(8), self.cpu.r_reg(0)))
-
-    def free_pooled(self):
-        self.free_vec()
-
-    def rem_head(self):
-        head = self.cpu.r_reg(8)
-        node = self.mem.r32(head)
-        if self.mem.r32(node):
-            self.cpu.w_reg(9, node)
-            self.remove()
-            self.cpu.w_reg(0, node)
-        else:
-            self.cpu.w_reg(0, 0)
 
     def method(self):
         self.events.append((self.argument(0), self.argument(1)))
@@ -61,12 +44,10 @@ class LayoutHarness(NotifyHarness):
                          CLASS, OBJECT, self.words(0, handler))
 
     def chain(self):
-        objects = []
-        node = self.mem.r32(CHAIN)
-        while self.mem.r32(node):
-            objects.append(self.mem.r32(node + 8))
-            node = self.mem.r32(node)
-        return objects
+        # one block of object pointers; NULL: a removed object
+        block, count = self.mem.r32(CHAIN), self.mem.r16(COUNT)
+        objects = [self.mem.r32(block + 4 * i) for i in range(count)]
+        return [o for o in objects if o]
 
     def order(self, *objects):
         return self.call('Window__MUIM_SetCycleChain', CLASS, OBJECT,
@@ -97,6 +78,8 @@ def check(path):
     order = h.mem.r32(ORDER)
     assert order in h.allocations, 'explicit order storage must remain owned'
     h.cpu.w_reg(9, order)
+    h.free_vec()
+    h.cpu.w_reg(9, h.mem.r32(CHAIN))
     h.free_vec()
     h.check_freed()
     assert not h.allocations

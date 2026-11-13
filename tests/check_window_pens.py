@@ -16,7 +16,9 @@ GFX, SPECS, MESSAGE = 0x78000, 0x79000, 0x7a000
 # Native offsets checked with offsetof against window.c and the classic SDK.
 # The window's render info: 4 bytes into its data (wd_AreaRenderInfo first)
 DATA = OBJECT + 68
-USER_SCREEN, CREATE_FLAGS = DATA + 378, DATA + 222
+import window_layout as W
+INST = OBJECT + 64   # the window's instance data (class offset 64)
+USER_SCREEN, CREATE_FLAGS = INST + W.USER_SCREEN, INST + W.CRT_FLAGS
 PUBLIC_PENS = DATA + 72  # after mri_Fonts (9 pointers), which follow mri_Flags as in MUI 3.8
 
 
