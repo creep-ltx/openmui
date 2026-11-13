@@ -814,3 +814,24 @@ BOOL zune_window_case_shortcut(Object *win, struct Menu *menu, ULONG key)
     }
     return FALSE;
 }
+
+/* Window's IDCMP_MENUVERIFY (only windows of programs that get MUI 4/5 ask
+ * for it): MUIM_Menustrip_WillOpen before a menu opens, the message
+ * answered after it (or by the window's closing). TRUE: answered. */
+BOOL zune_window_menu_verify(Object *win, Object *strip,
+    struct IntuiMessage *imsg)
+{
+    struct ZuneWindowGuard guard = {0};
+
+    if (strip && imsg->Code == MENUHOT)
+    {
+        guard.menu_message = imsg;
+        ZuneWatchWindow(win, &guard);
+        DoMethod(strip, MUIM_Menustrip_WillOpen);
+        if (guard.closed)
+            return TRUE;
+        ZuneUnwatchWindow(win, &guard);
+    }
+    ReplyMsg((struct Message *)imsg);
+    return TRUE;
+}

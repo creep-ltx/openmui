@@ -2800,28 +2800,6 @@ static BOOL HandleDragging(Object *oWin, struct MUI_WindowData *data,
 }
 
 
-/* IDCMP_MENUVERIFY (only windows of programs that get MUI 4/5 ask for
- * it): MUIM_Menustrip_WillOpen before a menu opens, the message answered
- * after it (or by the window's closing). Not inlined: the guard stays off
- * HandleWindowEvent's frame, which every event (a resize's whole redraw
- * too) runs under. */
-static __attribute__((noinline)) void MenuVerify(Object *oWin,
-    struct MUI_WindowData *data, struct IntuiMessage *imsg)
-{
-    struct ZuneWindowGuard guard = {0};
-
-    if (data->wd_Menustrip && imsg->Code == MENUHOT)
-    {
-        guard.menu_message = imsg;
-        ZuneWatchWindow(oWin, &guard);
-        DoMethod(data->wd_Menustrip, MUIM_Menustrip_WillOpen);
-        if (guard.closed)
-            return;
-        ZuneUnwatchWindow(oWin, &guard);
-    }
-    ReplyMsg((struct Message *)imsg);
-}
-
 /* IDCMP_MENUPICK, after the message was replied: the item's object gets
  * its check state and MUIA_Menuitem_Trigger (a copy of the item: the
  * notifications may rebuild the menus), then the application and the
@@ -2939,7 +2917,12 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
         break;
 
     case IDCMP_MENUVERIFY:
-        MenuVerify(oWin, data, imsg);
+        /* only windows of programs that get MUI 4/5 ask for it
+         * (Window_EventsMask): MUIM_Menustrip_WillOpen in the MUI 4/5
+         * module, which answers the message; without it, it is answered
+         * here */
+        if (!zune_window_menu_verify(oWin, data->wd_Menustrip, imsg))
+            ReplyMsg((struct Message *)imsg);
         return TRUE;
 
     case IDCMP_MENUPICK:

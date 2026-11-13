@@ -292,6 +292,7 @@ ZMC_CHECK(ZuneListModule, draw_sort_mark, 24);
 #define ZMC_OFS_ZuneMui45Module_text_argb 36
 #define ZMC_OFS_ZuneMui45Module_image_button 40
 #define ZMC_OFS_ZuneMui45Module_case_shortcut 44
+#define ZMC_OFS_ZuneMui45Module_menu_verify 48
 ZMC_CHECK(ZuneMui45Module, area, 0);
 ZMC_CHECK(ZuneMui45Module, string, 4);
 ZMC_CHECK(ZuneMui45Module, string_draw, 8);
@@ -304,6 +305,7 @@ ZMC_CHECK(ZuneMui45Module, text_copy, 32);
 ZMC_CHECK(ZuneMui45Module, text_argb, 36);
 ZMC_CHECK(ZuneMui45Module, image_button, 40);
 ZMC_CHECK(ZuneMui45Module, case_shortcut, 44);
+ZMC_CHECK(ZuneMui45Module, menu_verify, 48);
 
 #define ZMC_OFS_ZunePrefsModule_configdata_set 0
 ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
@@ -557,6 +559,7 @@ ZMC(ZuneTextARGB, ZMOD_MUI45, ZuneMui45Module, text_argb, 5, 0);
 ZMC(zune_image_button, ZMOD_MUI45, ZuneMui45Module, image_button, 3, 0);
 ZMC(zune_window_case_shortcut, ZMOD_MUI45, ZuneMui45Module, case_shortcut,
     3, 0);
+ZMC(zune_window_menu_verify, ZMOD_MUI45, ZuneMui45Module, menu_verify, 3, 0);
 
 /* Configdata's setters (configset.c): the prefs program's; without the
  * module a setting is not changed */

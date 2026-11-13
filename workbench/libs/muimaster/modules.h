@@ -263,7 +263,12 @@ struct ZuneMui45Module
     BOOL (*text_argb)(struct RastPort *, CONST_STRPTR, ULONG, ULONG, ULONG);
     Object *(*image_button)(CONST_STRPTR, CONST_STRPTR, struct TextFont *);
     BOOL (*case_shortcut)(Object *, struct Menu *, ULONG);
+    BOOL (*menu_verify)(Object *, Object *, struct IntuiMessage *);
 };
+/* menu_verify: Window's IDCMP_MENUVERIFY (mui45.c); FALSE without the
+ * module: the message is not answered then */
+BOOL zune_window_menu_verify(Object *win, Object *strip,
+    struct IntuiMessage *imsg);
 /* case_shortcut: a case-sensitive menu strip's shortcut triggered
  * (mui45.c); FALSE without the module or a matching item */
 BOOL zune_window_case_shortcut(Object *win, struct Menu *menu, ULONG key);
