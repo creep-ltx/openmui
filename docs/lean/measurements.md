@@ -112,6 +112,9 @@ live blocks of its task kept with return addresses), grouped with
   ~17 KB of backing store. MUI 3.8 pays this too; Zune68k and mui38-dev use
   simple refresh, so their per-window figures are ~17 KB flattered.
 - **Windows**: `Window__MUIM_AllocGadgetID` holds a 4,136-byte block per window.
+  (2026-11-13, `rw-window`: by then it was a 1 KB pool puddle, held by every window that had
+  been opened, for its cycle chain and gadget IDs; both are small blocks now, "Rewrite: Window"
+  below.)
 
 ## Where the library size goes
 
@@ -643,6 +646,26 @@ The per-program saving is mostly the pool puddles: every list with an entry held
 1 KB puddle for its rows; now only lists whose construct hook allocates from the pool (or a
 program's MUIA_List_Pool) have one, and the rows are one AllocVec'd array (8 bytes per row,
 doubled as it grows).
+
+## Rewrite: Window (2026-11-13, branch `rw-window`)
+
+README.md "Rewrite: Window" has the steps. Figures (FS-UAE, OS 3.1, emulator):
+
+| | lean (4e8ac5b8) | rw-window |
+|---|---:|---:|
+| Window's code (`classes/window.o`) | 24,548 | 21,436 |
+| library code (`size`) | 235,332 | 232,248 |
+| library file, stripped | 251,912 | 248,804 |
+| Zwintitle.mui / Zmui45.mui (files) | 6,448 / 15,252 | 7,780 / 16,156 |
+| Window instance data (MUI 3.8: 698) | 494 | 480 |
+| per opened window: cycle chain and gadget IDs | pool header + 1 KB puddle | 8-pointer block (doubled as needed) + 32-byte ID map |
+| MUI-Demo first program (MUI 3.8: 460,296) | 452,848 | 448,488 |
+| MUI-Demo each further (MUI 3.8: 210,632-218,888) | 198,040 | 196,704-196,768 |
+| stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | 5,044 / 2,268 / 2,212 / 2,240 / 2,304 | 5,044 / 2,224 / 2,168 / 2,196 / 2,260 |
+
+The first program's 4.4 KB: 3.1 KB of library code and 1.3 KB of data (the main window's pool);
+each further MUI-Demo 1.3 KB (its main window; the eight sub-windows are not opened). Every
+further opened window saves about 1 KB more.
 
 ## Tools
 

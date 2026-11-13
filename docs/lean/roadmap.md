@@ -343,7 +343,12 @@ where a measured hot loop pays. Order:
    format, shared hooks, the plain-cell fast path, the dispatcher as a table. Memory per
    MUI-Demo -7 KB, list insert 1000 -48 %, sort -14 %. Details in
    [README.md](README.md#rewrite-list-2026-11-13-branch-rw-list).
-2. Window.
+2. **Window** (done 2026-11-13, `rw-window`): no memory pool per window (the cycle chain one
+   block, the gadget IDs a byte map), the dispatcher as a table, the opening, the pens and the
+   menu events out of the hot functions' frames, OM_GET/OM_SET/OM_NEW and the setup rewritten,
+   MUI 5's case-sensitive shortcuts and MENUVERIFY and the snapshot's file editing in modules.
+   Window code -12.7 %, library -3.1 KB, first program -4.4 KB, each further -1.3 KB, speed
+   as lean. Details in [README.md](README.md#rewrite-window-2026-11-13-branch-rw-window).
 3. Group.
 4. Area.
 5. Application.

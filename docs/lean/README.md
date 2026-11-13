@@ -4191,7 +4191,104 @@ when run again alone (its known flip); the memory in use with the windows open 8
 everywhere (the code), more where a program's lists hold entries (MultiRen -18 KB, PopPH demo
 -6.9 KB, xSysInfo -5.3 KB, AmFTP -4.3 KB).
 
+## Rewrite: Window (2026-11-13, branch `rw-window`)
+
+The second class of the "rewrite for m68k" phase (roadmap): Window (`classes/window.o` 24,548
+bytes of code) with what only it uses. Its instance data stays private to `window.c`; the
+white-box checks read its offsets from `tests/window_layout.py` now (one place). Same rules as
+List's round.
+
+| commit | what | effect |
+|---|---|---|
+| 23e8e719 | **No memory pool per window**: the cycle chain one block of object pointers (a removed object leaves NULL until the block is full, so a cleanup, which removes from the front, moves nothing), the gadget IDs one byte each (the lowest free first, as the sorted list gave them). The pool's 1 KB puddle was held by every window that had been opened. `MUIM_Window_SetCycleChain` builds its block at once | MUI-Demo first program -1.1 KB, each further -1.3 KB; code +188 |
+| c36ed6b9 | **The dispatcher as a table** (37 methods, ascending, order checked by the compiler; the search a function of its own); OM_SET tested first. `zune_deep_call` takes the application from the object, so the dispatcher pushes four arguments, not five: its frame stays 28 | dispatcher 704 -> 86 + 72 + 296-byte table |
+| 82d1c6eb | **MUIM_Window_Snapshot's editing of the saved settings** (ENV:/ENVARC:) into the title gadget module Zwintitle.mui | library -796 |
+| 57d18444 | **WindowOpen and SetupRenderInfo out of OM_SET**: OM_SET's frame, under every set() on a window and an opening's whole drawing, 172 -> 64. The 16 custom frames in a loop (454 bytes unrolled); the background of the window's inside one function (four copies); one unwinding for a failed opening and the closing; RefreshWindow rewritten | -644 |
+| 4550cd61 | **SetupRenderInfo rewritten**: the screen chosen in one pass, the five system images from a table, the derived pens a loop and a function of their own (frame 152 -> 76 + 140 while the pens are made), CalcWindowPosition's reference box in a loop | -324 |
+| 4345e01c | **OM_GET** with one store, the native box and the zoomed box by offset (810 -> 644, frame 20 kept: an `asm` barrier as in List's round); **OM_NEW**'s forwarded tags one case | -244 |
+| 31f4e8a2 | **OM_SET's plain attributes** through OM_NEW's Window_SetPlain (a start index keeps the creation-only flags out); **the requested size** one function per axis, the caller without deferred pops (frame 44 -> 28) | -356 |
+| 84518a06 | **MENUPICK and MENUVERIFY out of HandleWindowEvent** (frame 100 -> 56, under a resize's relayout); **the pointer shape** (MUI 4/5) asked only for MUI 4/5 programs: a MUI 3 program's mouse moves no longer walk the tree for it; the context-menu test one walk with the help bubble's | -64 |
+| da91f4ac | **MUI 5's case-sensitive menu shortcuts** found and triggered in Zmui45.mui; the library keeps the test | library -488 |
+| b584c1ec | **IDCMP_MENUVERIFY** (only MUI 4/5 programs' windows ask for it) in Zmui45.mui; without the module the library answers the message | library -104 |
+
+**Window's code 24,548 -> 21,436 bytes (-3,112, -12.7 %)**; library code (`size`) 235,332 ->
+232,248, file (stripped) 251,912 -> 248,804; Zwintitle.mui 6,448 -> 7,780, Zmui45.mui 15,252 ->
+16,156 (files). Instance data 494 -> 480 bytes (MUI 3.8: 698).
+
+**Memory** (MUI-Demo cold, OS 3.1, `measure.sh` twice each, FS-UAE, the same session, bytes):
+
+| | first program | each further |
+|---|---:|---:|
+| MUI 3.8 | 460,296 | 210,632-218,888 |
+| lean (4e8ac5b8) | 452,848 | 198,040 |
+| rw-window | **448,488** | **196,704-196,768** |
+
+**opbench** (FS-UAE cycle-exact, ms, median of 9; four instances each over two rounds, the
+libraries swapped between rounds; MUI 3.8 from speed round 1's table, its two instances where
+they differed):
+
+| operation | MUI 3.8 | lean | rw-window |
+|---|---:|---:|---:|
+| app+windows create | 235.2 / 239.4 | 234.2-241.7 | 232.2-241.5 |
+| window open+close | 520.3 | 439.7-441.1 | 440.5-441.4 |
+| full redraw | 150.7 / 140.5 | 148.1-148.5 | 148.2-148.5 |
+| button click | 22.3 / 22.6 | 17.6 | 17.6-17.8 |
+| string type / backspace | 7.75-7.90 / 7.66-7.79 | 7.38-7.40 / 7.26-7.27 | 7.36-7.37 / 7.22-7.26 |
+| menu open+close | 13.2 | 13.2 | 13.2 |
+| iconify / uniconify | 83.6 / 446.0 | 78.0-78.8 / 370.2-371.5 | 76.9-79.5 / 370.2-371.5 |
+| window resize | 220.1 / 230.1 | 220.1 | 220.0-220.1 |
+| popup open+close | 120.0 | 119.9-120.0 | 119.7-120.0 |
+
+All other operations as lean's, within its spread. Button click and window open+close: the
+branch's medians are 0.1-0.3 % above lean's with overlapping ranges (lean alone gave 17.5-18.2
+and 439.7-441.1 over the round's runs); a build with the old context-menu walk gave the same.
+With the MUI 5 identity (`v21`, MENUVERIFY through the module): menu open+close 20.0 as lean.
+
+**Tried and not taken** (measured): the Sleep limits as four WORDs copied as two longwords
+(-18 bytes, OM_SET's frame +4); the border scrollers as one loop over the two axes (-10 bytes,
+DisplayWindow's frame +16); NEWSIZE's four notifications as one SetSuperAttrs (frame +16); a
+help-ticker function (KillHelpBubble's frame +4); the table search inside the dispatcher (frame
+28 -> 40), or a register-argument OM_SET helper (GCC called it, no tail jump: +16 on OM_SET's
+path).
+
+**Checked** (emulators): `make check` after every commit (the white-box checks follow the new
+layout through `tests/window_layout.py`; check_dynamic_layout reads the chain block);
+`-fstack-usage` of all 4,080 library and class-file functions against lean: none larger
+(smaller: OM_SET 172 -> 64, HandleWindowEvent 100 -> 56, HandleInputEvent 108 -> 100,
+WindowSelectDimensions 44 -> 28, CaseShortcut 100 -> 28, RefreshWindow 60 -> 36, WindowClose 48
+-> 40); stackrun twice: MUI-Demo 5,044 as lean, Layout 2,268 -> 2,224, Virtual 2,212 -> 2,168,
+Pages 2,240 -> 2,196, Slidorama 2,304 -> 2,260; demopix (Amiberry, the OpenMUI side): all 27
+shots pixel-identical to lean's with the same window boxes (Layout places its buttons at random);
+listclip (4,181 checksums), pagepix, radiopix, scrollpix identical; fullcheck: MUI-Demo with eight
+sub-windows and the 18 demos, the same lost figures (608 / 200 / AppWindow 264), no alert, and
+the LoadSeg trace shows no module (Z*.mui) loaded; new black-box tests, the same output on lean
+and the branch: `tests/lean/cyclechain.c` (Tab order: Next/Prev from none and each object,
+disabled, other page, reopened, out of the chain, the explicit order; the gadget IDs),
+`tests/lean/winattrs.c` (every attribute OM_GET answers for two windows through closed, open,
+moved and sized, asleep, retitled, iconified), `tests/lean/borderarrows.c`; tests/native
+titleactions (snapshots through the module) and mui5_menu_input_probe (case-sensitive shortcuts
+through the module) as lean.
+
+The suite (the 141 programs of mui3, mcc and mui5 present, OS 3.1, Amiberry, three instances per
+library, lean and the branch side by side): program by program the same status and the same
+windows with the same sizes (106 ok, 20 exited, 9 no window, 4 frozen, 1 frozen at quit, 1 reset
+at quit: the same programs), except three that froze once on one side (Abacus on lean, MUIMine
+and the Urltext demo on the branch) and ran with the same windows on both when run again alone;
+the memory in use with the windows open 4.1 KB lower in the median (the code, and one pool per
+opened window), up to 8.6 KB (YAM 2.9 and 2.10, several windows).
+
 ## Left open
+
+- **Rewrite for m68k (2026-11-13, after `rw-window`)**: Window done (code -12.7 %, memory per
+  MUI-Demo -1.3 KB and ~1 KB per further opened window, OM_SET's frame 172 -> 64). Its biggest
+  functions now: DisplayWindow 1,776 (the OpenWindowTags tag list is its 184-byte frame; the
+  border scrollers kept their two copies: a loop cost frame), OM_SET 1,308, HandleWindowEvent
+  990, HandleRawkey 806 (its 128-byte frame holds the copied message every key handler runs
+  under), SetupRenderInfo 744, OM_GET 644. **Found on the way**: the window border's arrow
+  buttons do not scroll a Scrollgroup with MUIA_Scrollgroup_UseWinBorder (lean too; MUI 3.8
+  scrolls 8 pixels a click, tests/lean/borderarrows.c); MUI 3.8's Tab order skips the hidden page's
+  object and treats MUIM_Window_SetCycleChain differently (tests/lean/cyclechain.c), OpenMUI keeps
+  lean's. Next: Group (roadmap).
 
 - **Rewrite for m68k (2026-11-13, after `rw-list`)**: List done (code -840 bytes, memory per
   MUI-Demo -7 KB, list insert 1000 -48 %, sort -14 %); its biggest functions (OM_SET 1,944,

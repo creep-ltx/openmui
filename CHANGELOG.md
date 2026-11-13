@@ -19,6 +19,16 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
   6,650 ms), sorting 1000 14 % less (94 ms; MUI 3.8 658 ms), redrawing a
   window 1 % less. The library's code is 840 bytes smaller. Programs see no
   difference: the same attributes, methods, hooks and pixels.
+- **Window rewritten for 68k machines**: a window no longer keeps a memory
+  pool of its own (it held a 1 KB block for every window that had been
+  opened); its Tab order and gadget numbers are now small blocks. The code a
+  window runs is 3.1 KB smaller (12.7 %), and the parts only MUI 4/5
+  programs use (case-sensitive menu shortcuts, the menu-open check) and the
+  saving of a window snapshot to disk now load on demand. Each MUI-Demo
+  takes 1.3 KB less memory, the first one 4.4 KB less (448,488 bytes
+  against MUI 3.8's 460,296). A MUI 3 program's mouse moves no longer look
+  for MUI 4/5 pointer shapes. Programs see no difference: the same
+  attributes, methods, notifications and pixels, and the same speed.
 
 ## 0.1b2 (2026-11-13, the first public beta)
 
