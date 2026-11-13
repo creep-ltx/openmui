@@ -1132,7 +1132,7 @@ static void cleanup_control_char(struct MUI_AreaData *data, Object *obj);
  * pen and line pattern are kept: left in JAM2 with the shadow pen, text
  * drawn later by classes that do not set the mode (TheBar's buttons in
  * YAM) came out as black blocks. */
-static void area_active_outline(Object *obj)
+static __attribute__((noinline)) void area_active_outline(Object *obj)
 {
     struct RastPort *rp;
     Object *parent;
@@ -2008,13 +2008,33 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 *       used by layout callers; this method alone does not apply them.
 *
 */
+/* The frame's graphics in its current state (flipped when the object shows
+ * its selected state and sel is set: frames with other inner spacings when
+ * selected) and the box offsets updated from them. A function of its own:
+ * a frame spec string is parsed into a buffer on its frame, not on the
+ * dispatcher's, which every method of every object pays at each nesting
+ * level. */
+static __attribute__((noinline)) const struct ZuneFrameGfx *area_frame_gfx(
+    Object *obj, struct MUI_AreaData *data, BOOL sel)
+{
+    struct MUI_FrameSpec_intern tempframe;
+    const struct MUI_FrameSpec_intern *frame =
+        get_intframe(obj, data, &tempframe);
+    const struct ZuneFrameGfx *zframe;
+    int state = frame->state;
+
+    if (sel && (data->mad_Flags & (MADF_SELECTED | MADF_SHOWSELSTATE))
+        == (MADF_SELECTED | MADF_SHOWSELSTATE))
+        state ^= 1;
+    zframe = zune_zframe_get_with_state(obj, frame, state);
+    area_update_msizes(obj, data, frame, zframe);
+    return zframe;
+}
+
 static IPTR Area__MUIM_AskMinMax(struct IClass *cl, Object *obj,
                                  struct MUIP_AskMinMax *msg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
-    const struct ZuneFrameGfx *zframe;
-    const struct MUI_FrameSpec_intern *frame;
-    struct MUI_FrameSpec_intern tempframe;
 
     /* Like MUI, results always go to the object's own minmax and the
      * message is pointed there, whatever buffer the caller passed;
@@ -2022,11 +2042,7 @@ static IPTR Area__MUIM_AskMinMax(struct IClass *cl, Object *obj,
      * through the message. Voyager passes NULL or an uninitialised
      * pointer and reads _minwidth() or the message. */
     msg->MinMaxInfo = &data->mad_MinMax;
-
-    frame = get_intframe(obj, data, &tempframe);
-    zframe = zune_zframe_get(obj, frame);
-
-    area_update_msizes(obj, data, frame, zframe);
+    area_frame_gfx(obj, data, FALSE);
 
     /* the byte sized frame and spacing sum can be negative; MUI 3.9
      * starts from no size then */
@@ -2746,24 +2762,13 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
     /* Background can't be drawn without knowing anything about frame, thus
      * some calculations are made before background and frame drawing.
      */
+    /* on selected state, the opposite frame, whose inner spacings can
+     * differ */
+    zframe = area_frame_gfx(obj, data, TRUE);
     {
-        /* on selected state, will get the opposite frame */
-        const struct MUI_FrameSpec_intern *frame;
-        struct MUI_FrameSpec_intern tempframe;
-        int state;
+        const struct ZuneFrameGfx *wb = zune_zframe_get_sizes(FST_WIN_BEVEL);
 
-        frame = get_intframe(obj, data, &tempframe);
-        state = frame->state;
-        if ((data->mad_Flags & MADF_SELECTED) &&
-                (data->mad_Flags & MADF_SHOWSELSTATE))
-            state ^= 1;
-
-        zframe = zune_zframe_get_with_state(obj, frame, state);
-        winbevel = frame->type == FST_WIN_BEVEL;
-
-        /* update innersizes as there are frames which have different inner
-         * spacings in selected state */
-        area_update_msizes(obj, data, frame, zframe);
+        winbevel = zframe == wb || zframe == wb + 1;
     }
 
     /* Not FST_WIN_BEVEL: its recessed state's inner bevels have their
