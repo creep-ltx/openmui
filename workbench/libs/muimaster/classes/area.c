@@ -4787,14 +4787,14 @@ BOOPSI_DISPATCHER(IPTR, Area_Dispatcher, cl, obj, msg)
     case MUIM_UpdateInnerSizes: method = (APTR)Area__MUIM_UpdateInnerSizes; break;
     case MUIM_DragQuery:
         return MUIV_DragQuery_Refuse;
-    case MUIM_DragBegin:
     case MUIM_DragDrop:
         return FALSE;
     case MUIM_UnknownDropDestination:
         method = (APTR)Area__MUIM_UnknownDropDestination; break;
-    case MUIM_DragFinish:
     case MUIM_DragReport:
         return MUIV_DragReport_Continue; /* or MUIV_DragReport_Abort? */
+    case MUIM_DragBegin:
+    case MUIM_DragFinish:
     case MUIM_DoDrag:
     case MUIM_CreateDragImage:
     case MUIM_DeleteDragImage:
