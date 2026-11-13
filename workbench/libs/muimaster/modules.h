@@ -262,7 +262,11 @@ struct ZuneMui45Module
     STRPTR (*text_copy)(struct ZText *, LONG, LONG);
     BOOL (*text_argb)(struct RastPort *, CONST_STRPTR, ULONG, ULONG, ULONG);
     Object *(*image_button)(CONST_STRPTR, CONST_STRPTR, struct TextFont *);
+    BOOL (*case_shortcut)(Object *, struct Menu *, ULONG);
 };
+/* case_shortcut: a case-sensitive menu strip's shortcut triggered
+ * (mui45.c); FALSE without the module or a matching item */
+BOOL zune_window_case_shortcut(Object *win, struct Menu *menu, ULONG key);
 IPTR zune_area_mui45(Object *obj, ULONG attr, IPTR value, IPTR *store);
 /* string: String's kept Textinput attributes and MUIA_String_Integer64
  * (mui45.c says how) */

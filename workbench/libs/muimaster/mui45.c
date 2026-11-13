@@ -744,3 +744,73 @@ done:
         MUI_Redraw(obj, MADF_DRAWUPDATE);
     return retval;
 }
+
+/* Window's case-sensitive menu shortcuts (MUI 5's
+ * MUIA_Menustrip_CaseSensitive; classes/window.c asks the strip and calls
+ * this with the native menus and the key): the first enabled item whose
+ * displayed command string is the key is triggered as a menu pick does
+ * (check state, MUIA_Menuitem_Trigger with a copy of the item, the
+ * application's and the window's MenuAction, the application's ReturnID),
+ * stopping when the window closes. TRUE when one was found. */
+#include <intuition/intuition.h>
+#include <libraries/gadtools.h>
+static struct MenuItem *FindCaseShortcut(struct MenuItem *item, UBYTE key)
+{
+    for (; item; item = item->NextItem)
+    {
+        Object *object = (Object *)GTMENUITEM_USERDATA(item);
+        STRPTR shortcut = NULL;
+        IPTR command = FALSE;
+        struct MenuItem *sub;
+        if (!(item->Flags & ITEMENABLED)) continue;
+        if (object)
+        {
+            get(object, MUIA_Menuitem_CommandString, &command);
+            get(object, MUIA_Menuitem_Shortcut, &shortcut);
+            if (shortcut == (STRPTR)MUIV_Menuitem_Shortcut_Check)
+                get(object, MUIA_Menuitem_Title, &shortcut);
+            if (!command && shortcut && shortcut[0] == key && !shortcut[1])
+                return item;
+        }
+        if (item->SubItem && (sub = FindCaseShortcut(item->SubItem, key)))
+            return sub;
+    }
+    return NULL;
+}
+
+
+BOOL zune_window_case_shortcut(Object *win, struct Menu *menu, ULONG key)
+{
+    for (; menu; menu = menu->NextMenu)
+    {
+        struct MenuItem *item, selected;
+        Object *object, *app = _app(win);
+        struct ZuneWindowGuard guard = {0};
+        IPTR id = 0;
+
+        if (!(menu->Flags & MENUENABLED)
+            || !(item = FindCaseShortcut(menu->FirstItem, key)))
+            continue;
+        object = (Object *)GTMENUITEM_USERDATA(item);
+        selected = *item;
+        get(object, MUIA_UserData, &id);
+        ZuneWatchWindow(win, &guard);
+        if (selected.Flags & CHECKIT)
+        {
+            if (selected.Flags & MENUTOGGLE) selected.Flags ^= CHECKED;
+            else selected.Flags |= CHECKED;
+            set(object, MUIA_Menuitem_Checked, !!(selected.Flags & CHECKED));
+            if (guard.closed) return TRUE;
+        }
+        set(object, MUIA_Menuitem_Trigger, &selected);
+        if (guard.closed) return TRUE;
+        set(app, MUIA_Application_MenuAction, id);
+        if (guard.closed) return TRUE;
+        set(win, MUIA_Window_MenuAction, id);
+        if (guard.closed) return TRUE;
+        DoMethod(app, MUIM_Application_ReturnID, id);
+        if (!guard.closed) ZuneUnwatchWindow(win, &guard);
+        return TRUE;
+    }
+    return FALSE;
+}

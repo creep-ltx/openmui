@@ -2799,29 +2799,6 @@ static BOOL HandleDragging(Object *oWin, struct MUI_WindowData *data,
     return finish_drag;
 }
 
-static struct MenuItem *FindCaseShortcut(struct MenuItem *item, UBYTE key)
-{
-    for (; item; item = item->NextItem)
-    {
-        Object *object = (Object *)GTMENUITEM_USERDATA(item);
-        STRPTR shortcut = NULL;
-        IPTR command = FALSE;
-        struct MenuItem *sub;
-        if (!(item->Flags & ITEMENABLED)) continue;
-        if (object)
-        {
-            get(object, MUIA_Menuitem_CommandString, &command);
-            get(object, MUIA_Menuitem_Shortcut, &shortcut);
-            if (shortcut == (STRPTR)MUIV_Menuitem_Shortcut_Check)
-                get(object, MUIA_Menuitem_Title, &shortcut);
-            if (!command && shortcut && shortcut[0] == key && !shortcut[1])
-                return item;
-        }
-        if (item->SubItem && (sub = FindCaseShortcut(item->SubItem, key)))
-            return sub;
-    }
-    return NULL;
-}
 
 /* IDCMP_MENUVERIFY (only windows of programs that get MUI 4/5 ask for
  * it): MUIM_Menustrip_WillOpen before a menu opens, the message answered
@@ -3183,50 +3160,20 @@ static ULONG InvokeEventHandler(struct MUI_EventHandlerNode *ehn,
  * starts with the active object again; callbacks must not retain stack
  * event pointers or alter traversed lists.
  */
-/* A case-sensitive menu's shortcut (the displayed command string, the
- * raw key and its qualifiers matched exactly): trigger the item as a menu
- * pick does. TRUE when one was found. Not inlined: its copy of the item
- * and the guard stay off HandleRawkey's frame, which every key passes. */
+/* A case-sensitive menu's shortcut (MUI 5's MUIA_Menustrip_CaseSensitive:
+ * the displayed command string, the raw key and its qualifiers matched
+ * exactly) is found and triggered in the MUI 4/5 module
+ * (zune_window_case_shortcut); only a menu strip that is case-sensitive
+ * loads it. TRUE when one was found. */
 static __attribute__((noinline)) BOOL CaseShortcut(Object *win,
     struct MUI_WindowData *data, struct IntuiMessage *event, ULONG key)
 {
     IPTR sensitive = FALSE;
-    if (!(event->Code & IECODE_UP_PREFIX) &&
-        (event->Qualifier & IEQUALIFIER_RCOMMAND) && data->wd_Menustrip &&
-        get(data->wd_Menustrip, MUIA_Menustrip_CaseSensitive, &sensitive) && sensitive)
-    {
-        struct Menu *menu;
-        for (menu = data->wd_Menu; menu; menu = menu->NextMenu)
-        {
-            struct MenuItem *item;
-            if (!(menu->Flags & MENUENABLED) ||
-                !(item = FindCaseShortcut(menu->FirstItem, key))) continue;
-            Object *object = (Object *)GTMENUITEM_USERDATA(item);
-            Object *app = _app(win);
-            struct MenuItem selected = *item;
-            struct ZuneWindowGuard guard = {0};
-            IPTR id = 0;
-            get(object, MUIA_UserData, &id);
-            ZuneWatchWindow(win, &guard);
-            if (selected.Flags & CHECKIT)
-            {
-                if (selected.Flags & MENUTOGGLE) selected.Flags ^= CHECKED;
-                else selected.Flags |= CHECKED;
-                set(object, MUIA_Menuitem_Checked, !!(selected.Flags & CHECKED));
-                if (guard.closed) return TRUE;
-            }
-            set(object, MUIA_Menuitem_Trigger, &selected);
-            if (guard.closed) return TRUE;
-            set(app, MUIA_Application_MenuAction, id);
-            if (guard.closed) return TRUE;
-            set(win, MUIA_Window_MenuAction, id);
-            if (guard.closed) return TRUE;
-            DoMethod(app, MUIM_Application_ReturnID, id);
-            if (!guard.closed) ZuneUnwatchWindow(win, &guard);
-            return TRUE;
-        }
-    }
-    return FALSE;
+
+    return !(event->Code & IECODE_UP_PREFIX)
+        && (event->Qualifier & IEQUALIFIER_RCOMMAND) && data->wd_Menustrip
+        && get(data->wd_Menustrip, MUIA_Menustrip_CaseSensitive, &sensitive)
+        && sensitive && zune_window_case_shortcut(win, data->wd_Menu, key);
 }
 
 /* The key handlers of one object (IDCMP_RAWKEY or MUI_EHF_ALWAYSKEYS) in
