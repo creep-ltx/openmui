@@ -3475,57 +3475,137 @@ void zune_applist_free(void)
  * Header-only method IDs are not silently implemented here; messages must
  * contain the fields required by the selected handler.
  */
+/* The methods Application answers, by MethodID (unsigned, ascending: the
+ * dispatcher halves the table to find one; the compiler checks the order).
+ * The rarely used ones go to the application module (zune_app_method).
+ * NewInput, the event loop's, and the other input methods are tested
+ * before: they run with enough stack (zune_deep_call). */
+static const struct { ULONG id; APTR method; } app_methods[]
+    __attribute__((used)) =
+{
+    { OM_NEW, (APTR)Application__OM_NEW },
+    { OM_DISPOSE, (APTR)Application__OM_DISPOSE },
+    { OM_SET, (APTR)Application__OM_SET },
+    { OM_GET, (APTR)Application__OM_GET },
+    { OM_ADDMEMBER, (APTR)Application__OM_ADDMEMBER },
+    { OM_REMMEMBER, (APTR)Application__OM_REMMEMBER },
+    { MUIM_FindObject, (APTR)Application__MUIM_FindUData },
+    { MUIM_Application_UnpushMethod, (APTR)zune_app_method },
+    { MUIM_Application_Save, (APTR)zune_app_method },
+    { MUIM_Application_SetConfigItem, (APTR)zune_app_method },
+    { MUIM_Application_CheckRefresh, (APTR)Application__MUIM_CheckRefresh },
+    { MUIM_Application_Execute, (APTR)zune_app_method },
+    { MUIM_Application_ShowHelp, (APTR)zune_app_method },
+    { MUIM_Application_ReturnID, (APTR)Application__MUIM_ReturnID },
+    { MUIM_Application_SetMenuState, (APTR)zune_app_method },
+    { MUIM_Application_OpenConfigWindow, (APTR)zune_app_method },
+    { MUIM_Application_PushMethod, (APTR)Application__MUIM_PushMethod },
+    { MUIM_Application_GetMenuState, (APTR)zune_app_method },
+    { MUIM_Application_SetMenuCheck, (APTR)zune_app_method },
+    { MUIM_Application_GetMenuCheck, (APTR)zune_app_method },
+    { MUIM_FindUData, (APTR)Application__MUIM_FindUData },
+    { MUIM_SetUData, (APTR)Application__MUIM_SetUData },
+    { MUIM_SetUDataOnce, (APTR)Application__MUIM_SetUDataOnce },
+    { MUIM_Application_AboutMUI, (APTR)zune_app_method },
+    { MUIM_Application_RemInputHandler, (APTR)Application__MUIM_RemInputHandler },
+    { MUIM_GetUData, (APTR)Application__MUIM_GetUData },
+    { MUIM_Application_AddInputHandler, (APTR)Application__MUIM_AddInputHandler },
+    { MUIM_Application_Load, (APTR)zune_app_method },
+    { MUIM_Application_SetConfigdata, (APTR)zune_app_method },
+    { MUIM_Application_OpenWindows, (APTR)zune_app_method },
+    { MUIM_Application_Run, (APTR)zune_app_method },
+    { MUIM_Application_UpdateMenus, (APTR)zune_app_method },
+};
+_Static_assert((ULONG)OM_NEW < (ULONG)OM_DISPOSE, "app_methods order");
+_Static_assert((ULONG)OM_DISPOSE < (ULONG)OM_SET, "app_methods order");
+_Static_assert((ULONG)OM_SET < (ULONG)OM_GET, "app_methods order");
+_Static_assert((ULONG)OM_GET < (ULONG)OM_ADDMEMBER, "app_methods order");
+_Static_assert((ULONG)OM_ADDMEMBER < (ULONG)OM_REMMEMBER, "app_methods order");
+_Static_assert((ULONG)OM_REMMEMBER < (ULONG)MUIM_FindObject, "app_methods order");
+_Static_assert((ULONG)MUIM_FindObject < (ULONG)MUIM_Application_UnpushMethod, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_UnpushMethod < (ULONG)MUIM_Application_Save, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_Save < (ULONG)MUIM_Application_SetConfigItem, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_SetConfigItem < (ULONG)MUIM_Application_CheckRefresh, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_CheckRefresh < (ULONG)MUIM_Application_Execute, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_Execute < (ULONG)MUIM_Application_ShowHelp, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_ShowHelp < (ULONG)MUIM_Application_ReturnID, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_ReturnID < (ULONG)MUIM_Application_SetMenuState, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_SetMenuState < (ULONG)MUIM_Application_OpenConfigWindow, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_OpenConfigWindow < (ULONG)MUIM_Application_PushMethod, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_PushMethod < (ULONG)MUIM_Application_GetMenuState, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_GetMenuState < (ULONG)MUIM_Application_SetMenuCheck, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_SetMenuCheck < (ULONG)MUIM_Application_GetMenuCheck, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_GetMenuCheck < (ULONG)MUIM_FindUData, "app_methods order");
+_Static_assert((ULONG)MUIM_FindUData < (ULONG)MUIM_SetUData, "app_methods order");
+_Static_assert((ULONG)MUIM_SetUData < (ULONG)MUIM_SetUDataOnce, "app_methods order");
+_Static_assert((ULONG)MUIM_SetUDataOnce < (ULONG)MUIM_Application_AboutMUI, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_AboutMUI < (ULONG)MUIM_Application_RemInputHandler, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_RemInputHandler < (ULONG)MUIM_GetUData, "app_methods order");
+_Static_assert((ULONG)MUIM_GetUData < (ULONG)MUIM_Application_AddInputHandler, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_AddInputHandler < (ULONG)MUIM_Application_Load, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_Load < (ULONG)MUIM_Application_SetConfigdata, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_SetConfigdata < (ULONG)MUIM_Application_OpenWindows, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_OpenWindows < (ULONG)MUIM_Application_Run, "app_methods order");
+_Static_assert((ULONG)MUIM_Application_Run < (ULONG)MUIM_Application_UpdateMenus, "app_methods order");
+
+#define APP_METHODS_LAST 248   /* (entries - 1) * 8 */
+_Static_assert(sizeof(app_methods) == (APP_METHODS_LAST + 8), "APP_METHODS_LAST");
+#define ZMC_STR2(x) #x
+#define ZMC_STR(x) ZMC_STR2(x)
+
+/* The function of a method in app_methods, NULL if Application has none:
+ * the table halved, in assembly that keeps every register but d0 (the id
+ * in, the function out) and d1, so the dispatcher keeps its arguments in
+ * a0-a2 and its frame as small as a switch's */
+asm(
+    "\t.text\n\t.even\n"
+    "_app_method_find:\n"
+    "\tmovem.l %a0-%a1,-(%sp)\n"
+    "\tlea _app_methods,%a0\n"                     /* lo */
+    "\tlea _app_methods+" ZMC_STR(APP_METHODS_LAST) ",%a1\n" /* hi */
+    "1:\tcmp.l %a0,%a1\n"
+    "\tbcs.s 8f\n"                                 /* hi < lo: none */
+    "\tmove.l %a1,%d1\n"
+    "\tsub.l %a0,%d1\n"
+    "\tlsr.l #4,%d1\n"
+    "\tlsl.l #3,%d1\n"                             /* the middle entry */
+    "\tcmp.l 0(%a0,%d1.l),%d0\n"
+    "\tbeq.s 7f\n"
+    "\tbcs.s 2f\n"
+    "\tlea 8(%a0,%d1.l),%a0\n"                     /* id above: lo */
+    "\tbra.s 1b\n"
+    "2:\tlea -8(%a0,%d1.l),%a1\n"                  /* id below: hi */
+    "\tbra.s 1b\n"
+    "7:\tmove.l 4(%a0,%d1.l),%d0\n"
+    "\tmovem.l (%sp)+,%a0-%a1\n"
+    "\trts\n"
+    "8:\tmoveq #0,%d0\n"
+    "\tmovem.l (%sp)+,%a0-%a1\n"
+    "\trts\n");
+
+static inline APTR AppMethod(ULONG id)
+{
+    register ULONG d0 __asm("d0") = id;
+
+    __asm volatile ("jsr _app_method_find" : "+d"(d0) : : "d1", "cc", "memory");
+    return (APTR)d0;
+}
+
 BOOPSI_DISPATCHER(IPTR, Application_Dispatcher, cl, obj, msg)
 {
-    IPTR (*method)(struct IClass *, Object *, APTR);
+    IPTR (*method)(struct IClass *, Object *, Msg);
 
-    switch (msg->MethodID)
-    {
-    case OM_NEW: method = (APTR)Application__OM_NEW; break;
-    case OM_DISPOSE: method = (APTR)Application__OM_DISPOSE; break;
-    case OM_SET: method = (APTR)Application__OM_SET; break;
-    case OM_GET: method = (APTR)Application__OM_GET; break;
-    case OM_ADDMEMBER: method = (APTR)Application__OM_ADDMEMBER; break;
-    case OM_REMMEMBER: method = (APTR)Application__OM_REMMEMBER; break;
-    case MUIM_Application_AddInputHandler: method = (APTR)Application__MUIM_AddInputHandler; break;
-    case MUIM_Application_RemInputHandler: method = (APTR)Application__MUIM_RemInputHandler; break;
-    case MUIM_Application_Input:
-        return DEEP(Application__MUIM_Input, cl, obj, msg);
-    case MUIM_Application_InputBuffered:
-        return DEEP(Application__MUIM_InputBuffered, cl, obj, msg);
-    case MUIM_Application_NewInput:
-        return DEEP(Application__MUIM_NewInput, cl, obj, msg);
-    case MUIM_Application_PushMethod: method = (APTR)Application__MUIM_PushMethod; break;
-    case MUIM_Application_ReturnID: method = (APTR)Application__MUIM_ReturnID; break;
-    case MUIM_FindUData:
-    case MUIM_FindObject: method = (APTR)Application__MUIM_FindUData; break;
-    case MUIM_GetUData: method = (APTR)Application__MUIM_GetUData; break;
-    case MUIM_SetUData: method = (APTR)Application__MUIM_SetUData; break;
-    case MUIM_SetUDataOnce: method = (APTR)Application__MUIM_SetUDataOnce; break;
-    case MUIM_Application_CheckRefresh: method = (APTR)Application__MUIM_CheckRefresh; break;
-    /* the rarely used ones: the application module (appx.c) */
-    case MUIM_Application_AboutMUI:
-    case MUIM_Application_ShowHelp:
-    case MUIM_Application_OpenConfigWindow:
-    case MUIM_Application_SetConfigdata:
-    case MUIM_Application_SetConfigItem:
-    case MUIM_Application_OpenWindows:
-    case MUIM_Application_Load:
-    case MUIM_Application_Save:
-    case MUIM_Application_UnpushMethod:
-    case MUIM_Application_UpdateMenus:
-    case MUIM_Application_Execute:
-    case MUIM_Application_Run:
-    case MUIM_Application_GetMenuCheck:
-    case MUIM_Application_GetMenuState:
-    case MUIM_Application_SetMenuCheck:
-    case MUIM_Application_SetMenuState:
-        method = (APTR)zune_app_method; break;
-    default:
+    if (msg->MethodID == MUIM_Application_NewInput)
+        method = (APTR)Application__MUIM_NewInput;
+    else if (msg->MethodID == MUIM_Application_InputBuffered)
+        method = (APTR)Application__MUIM_InputBuffered;
+    else if (msg->MethodID == MUIM_Application_Input)
+        method = (APTR)Application__MUIM_Input;
+    else if ((method = AppMethod(msg->MethodID)))
+        return method(cl, obj, msg);
+    else
         return DoSuperMethodA(cl, obj, msg);
-    }
-
-    return method(cl, obj, msg);
+    return DEEP(method, cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 /*
