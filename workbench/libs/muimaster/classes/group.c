@@ -4569,8 +4569,11 @@ BOOPSI_DISPATCHER(IPTR, Group_Dispatcher, cl, obj, msg)
 {
     IPTR (*method)(struct IClass *, Object *, Msg);
 
-    /* the methods sent most: a draw of every group on every redraw, the
-     * sets and gets of every subclass (List, Cycle, Radio, ...) */
+    /* the methods sent most, without the search (on a 68000 a table
+     * search costs more than GCC's compare tree): a draw of every group
+     * on every redraw, the sets and gets of every subclass (List, Cycle,
+     * Radio, ...), a List's row backgrounds, the layout's and the
+     * visibility's of every group */
     switch (msg->MethodID)
     {
     case MUIM_Draw:
@@ -4579,6 +4582,22 @@ BOOPSI_DISPATCHER(IPTR, Group_Dispatcher, cl, obj, msg)
         return Group__OM_SET(cl, obj, (struct opSet *)msg);
     case OM_GET:
         return Group__OM_GET(cl, obj, (struct opGet *)msg);
+    case MUIM_DrawBackground:
+        return Group__MUIM_DrawBackground(cl, obj,
+            (struct MUIP_DrawBackground *)msg);
+    case MUIM_AskMinMax:
+        return Group__MUIM_AskMinMax(cl, obj, (struct MUIP_AskMinMax *)msg);
+    case MUIM_Zune_Layout:
+        return Group__MUIM_Layout(cl, obj, (struct MUIP_Zune_Layout *)msg);
+    case MUIM_Layout:
+        return DoSuperMethodA(cl, obj, msg);
+    case MUIM_HandleEvent:
+        return Group__MUIM_HandleEvent(cl, obj,
+            (struct MUIP_HandleEvent *)msg);
+    case MUIM_Show:
+        return Group__MUIM_Show(cl, obj, (struct MUIP_Show *)msg);
+    case MUIM_Hide:
+        return Group__MUIM_Hide(cl, obj, (struct MUIP_Hide *)msg);
     }
     method = GroupMethod(msg->MethodID);
     return method(cl, obj, msg);
