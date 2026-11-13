@@ -4542,7 +4542,18 @@ bytes less in each group, list, listview and scrollbar: about a hundred in MUI-D
 - fullcheck (FS-UAE): MUI-Demo with its eight sub-windows and the other 18 MUI 3.8 demos opened and closed on lean
   and on the branch: the same windows and the same lost figures (608 / 200 / AppWindow 264), no
   alert.
-- The suite: @@SUITE@@
+- The suite: all 144 programs of the groups mui3, mcc (UP-Demo among them) and mui5 on OS
+  3.1 (Amiberry, three instances per library, lean and the branch side by side, the
+  border-scroller programs among them): 141 compared, 138 the same in status, windows and their
+  sizes. The three others run again alone on both: mailtext-demo (frozen once on the branch)
+  the same; SimpleMail's quit broken on both (lean reset, the branch froze: its known quit);
+  **the HTMLtext demo's window** 85x71 on lean, 84x256 then 87x71 on the branch's builds,
+  143x83 on real MUI 3.8: its own layout hook reads fields of the MINMAX message that are no
+  input (a zeroed message gives 62x71), so its size follows what happens to be on the stack;
+  left as lean leaves the message (not cleared). Memory in use with the windows open (first run from boot)
+  lower or equal on 135 of the 136 programs with figures on both (the code and 32 bytes per
+  group; AMPlifier +64 bytes, its second run equal): YAM 2.9 and 2.10 -28.7 KB, MultiRen
+  -11.7 KB, AmigaGPT -10.6 KB; on the second run none higher.
 
 ## Left open
 
