@@ -34,8 +34,10 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
   anyway, and AROS's own Area methods into the MUI 4/5 file. The library's
   code is 1.4 KB smaller (Area's own 8.8 %), the first MUI-Demo needs
   443,048 bytes (444,6xx before; MUI 3.8 460,296), an object that reacts to
-  input 8 bytes less. Programs see no difference: the same attributes,
-  methods and pixels.
+  input 8 bytes less. Programs get the same attributes, methods and
+  pixels; one is known to differ and is being investigated: NewsCoaster
+  1.61 resets the machine when its first-start "New User" window is
+  confirmed.
 - **Group rewritten for 68k machines**: the class every window is built
   from (rows, columns, pages, scrolling areas) lays out, measures and draws
   with less of its own work: one routine for both directions instead of

@@ -4682,7 +4682,23 @@ the general background 954 and frame 778, the common draw 610, the minmax finish
   and closed on lean and on the final build: the same windows at the same places and sizes, the
   same lost figures (608 / 200 / AppWindow 264), no alert.
 - Memory (MUI-Demo cold, OS 3.1, `m.sh`, FS-UAE, the same session): above.
-SUITE_PLACEHOLDER
+- The suite: all 184 programs of the groups mui3, mcc (UP-Demo among them) and mui5 on OS 3.1
+  (Amiberry, three instances per library, lean and the final build side by side; the border
+  scroller programs among them): 178 the same in status, windows and their sizes. Run again
+  alone on both: LumiTorrent (frozen once on lean), EvenMore (reset once on the branch) and
+  DASModPlayer (frozen once on lean) the same; SpeedBar demo6 448 or 449 pixels wide on both
+  (its known flip); **MenuImages (mui5)** gets no window on lean and its window on the branch,
+  twice each; **NewsCoaster 1.61 resets the machine on the branch** at its first start, when its
+  "New User" window's Okay is pressed (twice in the suite, and by hand with wasabi's keys): a
+  CPU illegal instruction in its task (trapcap: the PC in memory that holds the typed user name).
+  Lean runs it (five runs), so does the round's first commit (08613cd1); from 2b9b04a3 on every
+  build of the round resets, but reverting any one of that commit's three independent parts (the
+  active outline's functions, the drag methods' or AROS's methods' move to the modules) makes
+  2b9b04a3 run it, and lean with 8 to 1,000 bytes of padding code runs it too. Its cause is not
+  found (left open: a NewsCoaster read of memory it never set, which our code's stack use
+  decides, is the likeliest; not proven). Memory in use with the windows open (programs with
+  figures on both): first run from boot about 1.5 KB lower per program (the code), second run
+  equal to within a few hundred bytes.
 
 ## Left open
 
@@ -4696,7 +4712,9 @@ SUITE_PLACEHOLDER
   could not lose, and the hot methods stay inlined; what is left large is OM_SET/OM_NEW/OM_GET
   (3.4 KB together: switches GCC already makes compact; tables cost frames in every round) and
   the general draw for titled and special frames (2.1 KB). `tests/lean/ctxdrag.c`'s own events
-  do not reach a context menu's choice (its manual mode with wasabi's mouse does). Not moved: bubble help, MUIM_DragQueryExtended, custom
+  do not reach a context menu's choice (its manual mode with wasabi's mouse does). **NewsCoaster
+  1.61 resets at its first start on the branch** (lean runs it): "Checked" above; its cause is
+  not found, and it should be before this round is merged. Not moved: bubble help, MUIM_DragQueryExtended, custom
   backfills, titled frames (MUI 3 programs use them all). Next: Application (roadmap).
 
 - **Rewrite for m68k (2026-11-13, after `rw-group`)**: Group done (code -15.4 %, instance data
