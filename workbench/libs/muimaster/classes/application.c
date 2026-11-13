@@ -979,15 +979,14 @@ static BOOL winpos_grow(struct MUI_ApplicationData *data, ULONG cap)
  */
 struct MQNode *CreateMQNode(LONG count)
 {
-    struct MQNode *mq;
+    struct MQNode *mq = zune_pool_alloc(sizeof(struct MQNode)
+        + count * sizeof(IPTR));
 
-    mq = (struct MQNode *)mui_alloc(sizeof(struct MQNode) +
-        (count * sizeof(IPTR)));
-    if (!mq)
-        return NULL;
-
-    mq->mq_Count = count;
-    mq->mq_Msg = (IPTR *) (((char *)mq) + sizeof(struct MQNode));
+    if (mq)
+    {
+        mq->mq_Count = count;
+        mq->mq_Msg = (IPTR *)(mq + 1);
+    }
     return mq;
 }
 
@@ -1016,7 +1015,8 @@ void DeleteMQNode(struct MQNode *mq)
      */
     if ((ULONG)mq->mq_Count & MQF_OWNED_WINDOWS)
         FreeWindowList((struct List *)mq->mq_Msg[1]);
-    mui_free(mq);
+    zune_pool_free(mq, sizeof(struct MQNode)
+        + (mq->mq_Count & 0xffff) * sizeof(IPTR));
 }
 
 void EnqueueMethod(struct MUI_ApplicationData *data, struct MQNode *mq)
@@ -1040,7 +1040,7 @@ static struct RIDNode *CreateRIDNode(struct MUI_ApplicationData *data,
 {
     struct RIDNode *rid;
 
-    if ((rid = mui_alloc_struct(struct RIDNode)))
+    if ((rid = zune_pool_alloc(sizeof(struct RIDNode))))
     {
         rid->rid_Value = retid;
     }
@@ -1054,7 +1054,7 @@ static struct RIDNode *CreateRIDNode(struct MUI_ApplicationData *data,
 static void DeleteRIDNode(struct MUI_ApplicationData *data,
     struct RIDNode *rid)
 {
-    mui_free(rid);
+    zune_pool_free(rid, sizeof(struct RIDNode));
 }
 
 
@@ -1387,6 +1387,79 @@ static __attribute__((noinline)) void app_save_positions(
  * cleanup assumes preferences exist whenever Base is non-NULL; see the
  * class BUGS contract.
  */
+/* Application's plain attributes: the field each is kept in and how it may
+ * be used (I: OM_NEW, S: OM_SET, G: OM_GET); one table for the three.
+ * The others (windows, positions, iconify, ...) are handled where they
+ * are used. */
+#define AA_I 1
+#define AA_S 2
+#define AA_G 4
+#define AA_BOOL 8       /* a BOOL, stored as TRUE or FALSE */
+#define AA_BYTE 16      /* a BYTE, read back sign-extended */
+struct app_attr
+{
+    ULONG id;
+    UWORD offset;
+    UWORD flags;
+};
+#define AA(id, field, flags) \
+    { id, offsetof(struct MUI_ApplicationData, field), flags }
+static const struct app_attr app_attrs[] = {
+    AA(MUIA_Application_Author, app_Author, AA_I | AA_G),
+    AA(MUIA_Application_Base, app_Base, AA_G),
+    AA(MUIA_Application_Copyright, app_Copyright, AA_I | AA_G),
+    AA(MUIA_Application_Description, app_Description, AA_I | AA_G),
+    AA(MUIA_Application_HelpFile, app_HelpFile, AA_I | AA_S | AA_G),
+    AA(MUIA_Application_Title, app_Title, AA_I | AA_G),
+    AA(MUIA_Application_Version, app_Version, AA_I | AA_G),
+    AA(MUIA_Application_Version_Number, app_Version_Number, AA_I | AA_G),
+    AA(MUIA_Application_Version_Date, app_Version_Date, AA_I | AA_G),
+    AA(MUIA_Application_Version_Extra, app_Version_Extra, AA_I | AA_G),
+    AA(MUIA_Application_Menu, app_LegacyMenu, AA_I | AA_G),
+    AA(MUIA_Application_Menustrip, app_Menustrip, AA_I | AA_G),
+    AA(MUIA_Application_BrokerPri, app_BrokerPri, AA_I | AA_G | AA_BYTE),
+    AA(MUIA_Application_BrokerHook, app_BrokerHook, AA_I | AA_S | AA_G),
+    AA(MUIA_Application_Active, app_Active, AA_I | AA_G | AA_BOOL),
+    AA(MUIA_Application_Commands, app_Commands, AA_I | AA_S | AA_G),
+    AA(MUIA_Application_RexxHook, app_RexxHook, AA_I | AA_S | AA_G),
+    /* Documented as get-only, but MUI 3.9 accepts it and IBrowse sets it
+     * from its own ARexx QUIT FORCE before quitting. */
+    AA(MUIA_Application_ForceQuit, app_ForceQuit,
+        AA_I | AA_S | AA_G | AA_BOOL),
+    AA(MUIA_Application_DropObject, app_DropObject, AA_I | AA_S),
+    AA(MUIA_Application_DiskObject, app_DiskObject, AA_I | AA_S | AA_G),
+    AA(MUIA_Application_Iconified, app_Iconified, AA_G | AA_BOOL),
+    AA(MUIA_Application_MenuAction, app_MenuAction, AA_S | AA_G),
+    AA(MUIA_Application_SearchWinId, searchwinid, AA_S),
+    AA(MUIA_Application_Broker, app_Broker, AA_G),
+    AA(MUIA_Application_BrokerPort, app_BrokerPort, AA_G),
+    AA(MUIA_Application_RexxMsg, app_RexxMsg, AA_G),
+};
+
+/* The table's entry of id if it may be used as use says, else NULL */
+static const struct app_attr *app_attr(ULONG id, UWORD use)
+{
+    const struct app_attr *a;
+
+    for (a = app_attrs; a < app_attrs + sizeof(app_attrs) / sizeof(*a); a++)
+        if (a->id == id)
+            return a->flags & use ? a : NULL;
+    return NULL;
+}
+
+static void app_attr_store(struct MUI_ApplicationData *data,
+    const struct app_attr *a, IPTR value)
+{
+    UBYTE *field = (UBYTE *)data + a->offset;
+
+    if (a->flags & AA_BOOL)
+        *(BOOL *)field = value ? TRUE : FALSE;
+    else if (a->flags & AA_BYTE)
+        *(BYTE *)field = value;
+    else
+        *(IPTR *)field = value;
+}
+
 static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
     struct opSet *msg);
 
@@ -1518,106 +1591,19 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
 
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
     {
-        switch (tag->ti_Tag)
+        const struct app_attr *a = app_attr(tag->ti_Tag, AA_I);
+
+        if (a)
+            app_attr_store(data, a, tag->ti_Data);
+        else if (tag->ti_Tag == MUIA_Application_Window)
         {
-        case MUIA_Application_Author:
-            data->app_Author = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Base:
-            /* moved before config parsing */
-            break;
-
-        case MUIA_Application_Copyright:
-            data->app_Copyright = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Description:
-            data->app_Description = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_HelpFile:
-            data->app_HelpFile = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_SingleTask:
-            /* moved before config parsing */
-            break;
-
-        case MUIA_Application_Title:
-            data->app_Title = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Version:
-            data->app_Version = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Version_Number:
-            data->app_Version_Number = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Version_Date:
-            data->app_Version_Date = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Version_Extra:
-            data->app_Version_Extra = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Window:
             if (tag->ti_Data)
                 DoMethod(obj, OM_ADDMEMBER, tag->ti_Data);
             else
                 bad_childs = TRUE;
-            break;
-
-        case MUIA_Application_Menu:
-            data->app_LegacyMenu = (struct NewMenu *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_Menustrip:
-            data->app_Menustrip = (Object *) tag->ti_Data;
-            break;
-
-        case MUIA_Application_BrokerPri:
-            data->app_BrokerPri = (BYTE) tag->ti_Data;
-            break;
-
-        case MUIA_Application_BrokerHook:
-            data->app_BrokerHook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_Active:
-            data->app_Active = tag->ti_Data ? TRUE : FALSE;
-            break;
-
-        case MUIA_Application_UsedClasses:
-            zune_app_usedclasses((STRPTR *)tag->ti_Data);
-            break;
-
-        case MUIA_Application_Commands:
-            data->app_Commands = (struct MUI_Command *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_RexxHook:
-            data->app_RexxHook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_ForceQuit:
-            /* Documented as get-only, but MUI 3.9 accepts it and IBrowse
-             * sets it from its own ARexx QUIT FORCE before quitting. */
-            data->app_ForceQuit = tag->ti_Data ? TRUE : FALSE;
-            break;
-
-        case MUIA_Application_DropObject:
-            data->app_DropObject = (Object *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_DiskObject:
-            data->app_DiskObject = (struct DiskObject *)tag->ti_Data;
-            break;
-
         }
+        else if (tag->ti_Tag == MUIA_Application_UsedClasses)
+            zune_app_usedclasses((STRPTR *)tag->ti_Data);
     }
 
     /* MUI 3.8 makes the port at once, also without Commands or a RexxHook
@@ -1726,12 +1712,26 @@ fail:
  * superclass result. Saving positions can block on I/O; queued methods
  * are discarded.
  */
+/* Every message of a port replied; TRUE if there was one */
+static BOOL app_drain(struct MsgPort *port)
+{
+    struct Message *m;
+    BOOL any = FALSE;
+
+    while (port && (m = GetMsg(port)))
+    {
+        ReplyMsg(m);
+        any = TRUE;
+    }
+    return any;
+}
+
 static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
     Msg msg)
 {
     struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct RIDNode *rid;
-    struct MQNode *mq;
+    struct MinNode *n;
+    Object *cstate, *child;
 
     if (data->app_Base)
         app_save_positions(data);
@@ -1745,79 +1745,47 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
 
     if (data->app_WindowFamily)
     {
-        struct MinList *children = NULL;
-        Object *cstate;
-        Object *child;
-
-        /* special loop because the next object may have been removed/freed by
-         *  the previous. so restart from listhead each time.
-         */
-        while (1)
+        /* the first window each time: disposing one may have removed or
+         * disposed others */
+        for (;;)
         {
-            children = app_windows(data);
-            if (children == NULL)
-                break;
+            struct MinList *children = app_windows(data);
 
-            cstate = (Object *) children->mlh_Head;
-            if ((child = NextObject(&cstate)))
-            {
-                D(bug("Application_Dispose(%p) : OM_REMMEMBER(%p)\n", obj,
-                        child));
-                DoMethod(obj, OM_REMMEMBER, (IPTR) child);
-                D(bug("Application_Dispose(%p) : MUI_DisposeObject(%p)\n",
-                        obj, child));
-                MUI_DisposeObject(child);
-
-            }
-            else
-            {
+            if (!children)
                 break;
-            }
+            cstate = (Object *)children->mlh_Head;
+            if (!(child = NextObject(&cstate)))
+                break;
+            DoMethod(obj, OM_REMMEMBER, (IPTR) child);
+            MUI_DisposeObject(child);
         }
         MUI_DisposeObject(data->app_WindowFamily);
     }
 
     if (data->app_Menustrip)
         MUI_DisposeObject(data->app_Menustrip);
-
-    if (data->app_VersionAllocated && data->app_Version != NULL)
-    {
+    if (data->app_VersionAllocated)
         FreeVec(data->app_Version);
-    }
-
     if (data->app_GlobalInfo.mgi_Configdata)
         MUI_DisposeObject(data->app_GlobalInfo.mgi_Configdata);
     data->app_GlobalInfo.mgi_Configdata = NULL;
     data->app_GlobalInfo.mgi_Prefs = NULL;
 
-    /* free commodities stuff */
-
+    /* commodities */
     if (data->app_Broker)
-    {
         DeleteCxObjAll(data->app_Broker);
-    }
-
     if (data->app_BrokerPort)
     {
-        struct Message *msg;
-
-        while ((msg = GetMsg(data->app_BrokerPort)))
-        {
-            ReplyMsg(msg);
-        }
-
+        app_drain(data->app_BrokerPort);
         DeleteMsgPort(data->app_BrokerPort);
     }
 
-    /* free timer stuff */
+    /* the timer; timers a class did not remove would otherwise stay with
+     * timer.device and later be replied to the deleted port */
     if (data->app_TimerReq)
     {
         if (data->app_TimerReq->tr_node.io_Device)
         {
-            /* Timers a class did not remove would otherwise stay with
-             * timer.device and later be replied to the deleted port */
-            struct MinNode *n;
-
             while ((n = (struct MinNode *)RemHead(
                     (struct List *)&data->app_Timers)))
             {
@@ -1838,36 +1806,23 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
 
     if (data->app_RexxPort)
     {
-        struct Message *msg;
-        while ((msg = GetMsg(data->app_RexxPort)))
-        {
-            ReplyMsg(msg);
-        }
+        app_drain(data->app_RexxPort);
         RemPort(data->app_RexxPort);
-
         FreeVec(data->app_RexxPort->mp_Node.ln_Name);
         DeleteMsgPort(data->app_RexxPort);
     }
+    FreeVec(data->app_RexxString);
 
-    if (data->app_RexxString)
-        FreeVec(data->app_RexxString);
-
-    if (data->app_AppMenu)
-        RemoveAppMenuItem(data->app_AppMenu);
-    if (data->app_AppIcon)
-        RemoveAppIcon(data->app_AppIcon);
-
-    if (data->app_DefaultDiskObject)
-        FreeDiskObject(data->app_DefaultDiskObject);
+    /* an iconified application's icon and menu item (the module made
+     * them, so it is in memory) */
+    if (data->app_AppMenu || data->app_AppIcon || data->app_DefaultDiskObject)
+        zune_app_iconify(data, obj, FALSE);
 
     FreeVec(data->app_WinPos);
 
     if (data->app_AppPort)
     {
-        struct Message *msg;
-        while ((msg = GetMsg(data->app_AppPort)))
-            ReplyMsg(msg);
-
+        app_drain(data->app_AppPort);
         ZuneDeleteSharedPort(data->app_AppPort);
     }
 
@@ -1876,10 +1831,7 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
         EndNotify(&data->app_CfgNotifyRequest);
         ZuneDeleteSharedPort(data->app_CfgNotifyPort);
     }
-
-    if (data->app_CfgNotifyName)
-        FreeVec(data->app_CfgNotifyName);
-
+    FreeVec(data->app_CfgNotifyName);
 
     DeleteMsgPort(data->app_GlobalInfo.mgi_WindowsPort);
 
@@ -1887,20 +1839,13 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
 
     /* Discard calls to objects being destroyed, including calls queued by
      * their cleanup methods. The list is initialized before any failing
-     * constructor step; its semaphore need not exist on those paths.
-     */
-    while ((mq = (struct MQNode *)RemHead(
+     * constructor step; its semaphore need not exist on those paths. */
+    while ((n = (struct MinNode *)RemHead(
                 (struct List *)&data->app_MethodQueue)))
-        DeleteMQNode(mq);
-
-    /* free returnid stuff */
-
-    while ((rid =
-            (struct RIDNode *)RemHead((struct List *)&data->
-                app_ReturnIDQueue)))
-    {
-        DeleteRIDNode(data, rid);
-    }
+        DeleteMQNode((struct MQNode *)n);
+    while ((n = (struct MinNode *)RemHead(
+                (struct List *)&data->app_ReturnIDQueue)))
+        DeleteRIDNode(data, (struct RIDNode *)n);
 
     /* Never while running on it (a dispose from inside NewInput) */
     if (data->app_SpareStack && !data->app_SpareBusy)
@@ -1919,234 +1864,171 @@ static IPTR Application__OM_DISPOSE(struct IClass *cl, Object *obj,
  * its result. No general failure status is collected; pointer ownership
  * follows each attribute contract.
  */
+/* MUIA_Application_SetWinPos: the record with this id, or the first free
+ * one (the table grows by eight records at a time); a record of width 0
+ * removes this id's */
+static void app_set_winpos(struct MUI_ApplicationData *data,
+    struct windowpos *winp)
+{
+    struct windowpos *wp;
+    ULONG i, cap;
+
+    if (!winp->id)
+        return;
+    if (!winp->w1)
+    {
+        cap = data->app_WinPos ? data->app_WinPosCap : 0;
+        wp = cap ? WINPOS(data) : NULL;
+        for (i = 0; i < cap && wp[i].w1; i++)
+            if (wp[i].id == winp->id)
+            {
+                memmove(&wp[i], &wp[i + 1], (cap - i - 1) * sizeof(*winp));
+                memset(&wp[cap - 1], 0, sizeof(*winp));
+                break;
+            }
+        return;
+    }
+    for (i = 0; i < WINPOS_MAX; i++)
+    {
+        if ((!data->app_WinPos || i >= data->app_WinPosCap)
+            && !winpos_grow(data, i + 8))
+            break;
+        wp = &WINPOS(data)[i];
+        if (!wp->w1 || wp->id == winp->id)
+        {
+            *wp = *winp;
+            break;
+        }
+    }
+}
+
+/* MUIA_Application_CopyWinPosToApp: the first LONG is the byte count of
+ * the records that follow; the table grows to hold them (at most
+ * WINPOS_MAX), the copy never runs past it */
+static void app_copy_winpos(struct MUI_ApplicationData *data, LONG *addr)
+{
+    LONG n;
+
+    if (!addr || *addr <= (LONG)sizeof(LONG))
+        return;
+    n = (*addr - (LONG)sizeof(LONG)) / (LONG)sizeof(struct windowpos);
+    if (n > WINPOS_MAX)
+        n = WINPOS_MAX;
+    if (n > 0 && winpos_grow(data, n))
+        CopyMem(addr, data->app_WinPos,
+            sizeof(LONG) + n * sizeof(struct windowpos));
+}
+
+/* MUIA_ShowMe to every window. Showing or hiding a window can add or
+ * remove other windows (MUIM_Setup/Cleanup), so the list is read again
+ * after each and the walk goes on after the last one done (assuming that
+ * window stays in the list). */
+static void app_show_windows(struct MUI_ApplicationData *data, IPTR show)
+{
+    Object *curwin, *lastwin = NULL;
+    APTR wstate;
+
+    for (;;)
+    {
+        wstate = (Object *)app_windows(data)->mlh_Head;
+        while ((curwin = NextObject(&wstate)) && lastwin)
+            if (curwin == lastwin)
+            {
+                curwin = NextObject(&wstate);
+                break;
+            }
+        if (!curwin)
+            break;
+        set(curwin, MUIA_ShowMe, show);
+        lastwin = curwin;
+    }
+}
+
+/* One attribute set on every window */
+static void app_set_windows(struct MUI_ApplicationData *data, ULONG attr,
+    IPTR value)
+{
+    Object *cstate = (Object *)app_windows(data)->mlh_Head, *child;
+
+    while ((child = NextObject(&cstate)))
+        set(child, attr, value);
+}
+
+/* OM_SET's attributes that are not a plain field (app_attrs) */
+static __attribute__((noinline)) void app_set_other(Object *obj,
+    struct MUI_ApplicationData *data, struct TagItem *tag)
+{
+    IPTR value = tag->ti_Data;
+
+    switch (tag->ti_Tag)
+    {
+    case MUIA_Application_CopyWinPosToApp:
+        app_copy_winpos(data, (LONG *)value);
+        break;
+
+    case MUIA_Application_SetWinPos:
+        app_set_winpos(data, (struct windowpos *)value);
+        break;
+
+    case MUIA_Application_Configdata:
+        DoMethod(obj, MUIM_Application_PushMethod, (IPTR) obj, 2,
+            MUIM_Application_SetConfigdata, value);
+        break;
+
+    case MUIA_Application_Iconified:
+        if (data->app_Iconified != (value == 1))
+        {
+            data->app_Iconified = value == 1;
+            nnset(obj, MUIA_ShowMe, !data->app_Iconified);
+            /* Workbench's icon and Tools menu item: the module */
+            zune_app_iconify(data, obj, data->app_Iconified);
+        }
+        break;
+
+    case MUIA_ShowMe:
+        /* an attribute of an interface Application implements with Area
+         * and a few others */
+        app_show_windows(data, value);
+        break;
+
+    case MUIA_Application_Sleep:
+        app_set_windows(data, MUIA_Window_Sleep, value ? TRUE : FALSE);
+        break;
+
+    case MUIA_Application_Active:
+        data->app_Active = value ? TRUE : FALSE;
+        if (data->app_Broker)
+            ActivateCxObj(data->app_Broker, data->app_Active);
+        break;
+
+    case MUIA_Application_RexxString:
+        {
+            STRPTR replacement = StrDup((CONST_STRPTR)value);
+            if (replacement || !value)
+            {
+                FreeVec(data->app_RexxString);
+                data->app_RexxString = replacement;
+            }
+        }
+        break;
+    }
+}
+
 static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
     struct opSet *msg)
 {
     struct MUI_ApplicationData *data = INST_DATA(cl, obj);
     struct TagItem *tags = msg->ops_AttrList;
     struct TagItem *tag;
+    const struct app_attr *a;
 
-    /* There are many ways to find out what tag items provided by set()
-     ** we do know. The best way should be using NextTagItem() and simply
-     ** browsing through the list.
-     */
     while ((tag = NextTagItem(&tags)) != NULL)
     {
-        switch (tag->ti_Tag)
-        {
-
-        case MUIA_Application_SearchWinId:
-            data->searchwinid = tag->ti_Data;
-            break;
-
-        case MUIA_Application_CopyWinPosToApp:
-            {
-                CONST_APTR addr = (CONST_APTR)tag->ti_Data;
-                if (addr) {
-                    /*
-                     * First element stores the size, and is a 32-bit
-                     * integer even on 64-bit systems
-                     */
-                    LONG wpsize = *(LONG *)(addr);
-                    LONG n = wpsize > (LONG)sizeof(LONG) ? (wpsize
-                        - (LONG)sizeof(LONG)) / (LONG)sizeof(struct windowpos)
-                        : 0;
-                    D(bug("[MUI] Copying coords (%ld bytes @ 0x%p) ...\n", wpsize, addr));
-                    /* The table grows to the stored records; the copy
-                     * never runs past it. */
-                    if (n > WINPOS_MAX)
-                        n = WINPOS_MAX;
-                    if (n > 0 && winpos_grow(data, n))
-                        CopyMem(addr, data->app_WinPos,
-                            sizeof(LONG) + n * sizeof(struct windowpos));
-                }
-            }
-            break;
-
-        case MUIA_Application_SetWinPos:
-            {
-                struct windowpos *winp;
-                winp = (struct windowpos *)tag->ti_Data;
-                //kprintf("SetWinPos %d %d %d %d %d\n", winp->id, winp->x1,
-                //    winp->y1, winp->w1, winp->h1);
-                ULONG i, cap;
-                struct windowpos *wp;
-                if (!winp->id) break;
-                if (!winp->w1)
-                {
-                    cap = data->app_WinPos ? data->app_WinPosCap : 0;
-                    wp = cap ? WINPOS(data) : NULL;
-                    for (i = 0; i < cap && wp[i].w1; i++)
-                        if (wp[i].id == winp->id)
-                        {
-                            memmove(&wp[i], &wp[i + 1],
-                                (cap - i - 1) * sizeof(*winp));
-                            memset(&wp[cap - 1], 0, sizeof(*winp));
-                            break;
-                        }
-                    break;
-                }
-                /* The record with this id, or the first free one; the
-                 * table grows by eight records at a time. */
-                for (i = 0; i < WINPOS_MAX; i++)
-                {
-                    if ((!data->app_WinPos || i >= data->app_WinPosCap)
-                        && !winpos_grow(data, i + 8))
-                        break;
-                    wp = &WINPOS(data)[i];
-                    if (!wp->w1 || wp->id == winp->id)
-                    {
-                        *wp = *winp;
-                        break;
-                    }
-                }
-            }
-            break;
-
-        case MUIA_Application_Configdata:
-            DoMethod(obj, MUIM_Application_PushMethod, (IPTR) obj, 2,
-                MUIM_Application_SetConfigdata, tag->ti_Data);
-            break;
-
-        case MUIA_Application_HelpFile:
-            data->app_HelpFile = (STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_Application_Iconified:
-            {
-                BOOL do_iconify = tag->ti_Data == 1;
-                if (data->app_Iconified != do_iconify)
-                {
-                    data->app_Iconified = do_iconify;
-
-                    nnset(obj, MUIA_ShowMe, !data->app_Iconified);
-
-                    /* Workbench's icon and Tools menu item: the module */
-                    zune_app_iconify(data, obj, data->app_Iconified);
-                }
-            }
-            break;
-
-        case MUIA_ShowMe:
-            {
-                /* Ok ok, you think this stinks? Well, think of it as
-                   an attribute belonging to an interface which
-                   MUIC_Application, together with MUIC_Area and a few
-                   others implement. It makes sense now, yes? */
-                struct List *wlist = NULL;
-                APTR wstate;
-                Object *curwin = NULL;
-                Object *lastwin = NULL;
-
-                /* MUIA_ShowMe can cause MUIM_Setup/MUIM_Cleanup to be issued.
-                 * On the other hand it is allowed to add/remove other
-                 * application windows in MUIM_Setup/MUIM_Cleanup.
-                 * This means after processing a window from internal list,
-                 * the list needs to be re-read and iteration started again,
-                 * because wstate can become invalid.
-                 * Note: The code below assumes that the window won't remove
-                 * itself from the list.
-                 */
-
-                while (1)
-                {
-                    wlist = (struct List *)app_windows(data);
-                    wstate = (Object *) wlist->lh_Head;
-                    while ((curwin = NextObject(&wstate)))
-                    {
-                        if (lastwin == NULL)
-                            break;
-                        if (curwin == lastwin)
-                        {
-                            curwin = NextObject(&wstate);
-                            break;
-                        }
-                    }
-
-                    /* This is the window to be processed */
-                    if (curwin)
-                    {
-                        set(curwin, MUIA_ShowMe, tag->ti_Data);
-                        lastwin = curwin;
-                    }
-                    else
-                    {
-                        /* No more windows */
-                        break;
-                    }
-                }
-            }
-            break;
-
-        case MUIA_Application_Sleep:
-            {
-                struct List *wlist = NULL;
-                APTR wstate;
-                Object *curwin;
-
-                get(obj, MUIA_Application_WindowList, &wlist);
-                if (wlist)
-                {
-                    wstate = wlist->lh_Head;
-                    while ((curwin = NextObject(&wstate)))
-                    {
-                        set(curwin, MUIA_Window_Sleep, tag->ti_Data ? TRUE : FALSE);
-                    }
-                }
-            }
-            break;
-
-        case MUIA_Application_MenuAction:
-            data->app_MenuAction = tag->ti_Data;
-            break;
-
-        case MUIA_Application_BrokerHook:
-            data->app_BrokerHook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_Active:
-            data->app_Active = tag->ti_Data ? TRUE : FALSE;
-            if (data->app_Broker)
-            {
-                ActivateCxObj(data->app_Broker, data->app_Active);
-            }
-            break;
-
-        case MUIA_Application_Commands:
-            data->app_Commands = (struct MUI_Command *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_RexxString:
-            {
-                STRPTR replacement = StrDup((CONST_STRPTR)tag->ti_Data);
-                if (replacement || !tag->ti_Data)
-                {
-                    FreeVec(data->app_RexxString);
-                    data->app_RexxString = replacement;
-                }
-            }
-            break;
-
-        case MUIA_Application_RexxHook:
-            data->app_RexxHook = (struct Hook *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_ForceQuit:
-            /* Documented as get-only, but MUI 3.9 accepts it and IBrowse
-             * sets it from its own ARexx QUIT FORCE before quitting. */
-            data->app_ForceQuit = tag->ti_Data ? TRUE : FALSE;
-            break;
-
-        case MUIA_Application_DropObject:
-            data->app_DropObject = (Object *)tag->ti_Data;
-            break;
-
-        case MUIA_Application_DiskObject:
-            data->app_DiskObject = (struct DiskObject *)tag->ti_Data;
-            break;
-        }
+        if ((a = app_attr(tag->ti_Tag, AA_S)))
+            app_attr_store(data, a, tag->ti_Data);
+        else
+            app_set_other(obj, data, tag);
     }
-
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
@@ -2159,182 +2041,72 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
  * Pointer results are borrowed. DoubleStart returns TRUE without writing
  * storage; GetWinPosSize updates the serialized size header.
  */
-static IPTR Application__OM_GET(struct IClass *cl, Object *obj,
-    struct opGet *msg)
+/* OM_GET's attributes into *store; FALSE: not one of Application's (the
+ * superclass's, MUIA_Version and MUIA_Revision too: Notify reports the
+ * version of the object's class library) */
+static __attribute__((noinline)) BOOL app_get(
+    register struct MUI_ApplicationData *data __asm("a0"),
+    register ULONG id __asm("d0"), register IPTR *store __asm("a1"))
 {
-#define STORE *(msg->opg_Storage)
+    /* No positions stored: an empty serialized block. */
+    static const LONG no_winpos = 0;
+    const struct app_attr *a = app_attr(id, AA_G);
+    ULONG i;
 
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-
-    switch (msg->opg_AttrID)
+    if (a)
     {
-    case MUIA_Application_GetWinPosAddr:
-        {
-            /* No positions stored: an empty serialized block. */
-            static const LONG no_winpos = 0;
-            STORE = data->app_WinPos ? (IPTR) data->app_WinPos
-                : (IPTR) &no_winpos;
-            return TRUE;
-        }
+        UBYTE *field = (UBYTE *)data + a->offset;
 
-    case MUIA_Application_GetWinPosSize:
-        {
-            ULONG i;
-            LONG sz = 0;
-            for (i = 0; data->app_WinPos && i < data->app_WinPosCap; i++)
-            {
-                if (!WINPOS(data)[i].w1)
-                    break;
-                sz += sizeof(struct windowpos);
-            }
-            if (sz > 0) {
-                sz += sizeof(LONG);
-            }
-            if (data->app_WinPos)
-                data->app_WinPos[0] = sz;
-            STORE = sz;
-            return (TRUE);
-        }
-
-    case MUIA_Application_GetWinPos:
-        {
-            int i;
-            if (data->searchwinid)
-            {
-                for (i = 0; data->app_WinPos
-                    && i < (int)data->app_WinPosCap; i++)
-                {
-                    if (WINPOS(data)[i].w1)
-                    {
-                        if (data->searchwinid == WINPOS(data)[i].id)
-                        {
-                            STORE = (IPTR) & WINPOS(data)[i].id;
-                            return 1;
-                        }
-                    }
-                    else
-                        break;
-                }
-            }
-            STORE = 0;
-            return 1;
-        }
+        *store = a->flags & AA_BOOL ? (IPTR)*(BOOL *)field
+            : a->flags & AA_BYTE ? (IPTR)(LONG)*(BYTE *)field
+            : *(IPTR *)field;
         return TRUE;
-
-    case MUIA_Version:
-    case MUIA_Revision:
-        /* Notify reports the version of the object's class library. */
-        return DoSuperMethodA(cl, obj, (Msg)msg);
-
-    case MUIA_Application_Author:
-        STORE = (IPTR) data->app_Author;
-        return TRUE;
-
-    case MUIA_Application_Base:
-        STORE = (IPTR) data->app_Base;
-        return TRUE;
-
-    case MUIA_Application_Copyright:
-        STORE = (IPTR) data->app_Copyright;
-        return TRUE;
-
-    case MUIA_Application_Description:
-        STORE = (IPTR) data->app_Description;
-        return TRUE;
-
+    }
+    switch (id)
+    {
     case MUIA_Application_DoubleStart:
         return TRUE;
 
-    case MUIA_Application_ForceQuit:
-        STORE = (IPTR) data->app_ForceQuit;
-        return TRUE;
-
-    case MUIA_Application_HelpFile:
-        STORE = (IPTR) data->app_HelpFile;
-        return TRUE;
-
-    case MUIA_Application_Iconified:
-        STORE = (IPTR) data->app_Iconified;
-        return TRUE;
-
-    case MUIA_Application_Title:
-        STORE = (IPTR) data->app_Title;
-        return TRUE;
-
-    case MUIA_Application_Version:
-        STORE = (IPTR) data->app_Version;
-        return TRUE;
-
-    case MUIA_Application_Version_Number:
-        STORE = (IPTR) data->app_Version_Number;
-        return TRUE;
-
-    case MUIA_Application_Version_Date:
-        STORE = (IPTR) data->app_Version_Date;
-        return TRUE;
-
-    case MUIA_Application_Version_Extra:
-        STORE = (IPTR) data->app_Version_Extra;
-        return TRUE;
-
     case MUIA_Application_WindowList:
-        return GetAttr(MUIA_Family_List, data->app_WindowFamily,
-            msg->opg_Storage);
+        return GetAttr(MUIA_Family_List, data->app_WindowFamily, store);
 
-    case MUIA_Application_Menu:
-        STORE = (IPTR)data->app_LegacyMenu;
+    case MUIA_Application_GetWinPosAddr:
+        *store = data->app_WinPos ? (IPTR) data->app_WinPos
+            : (IPTR) &no_winpos;
         return TRUE;
 
-    case MUIA_Application_Menustrip:
-        STORE = (IPTR) data->app_Menustrip;
+    case MUIA_Application_GetWinPosSize:
+        /* the records up to the first free one, and the LONG header; the
+         * header written too */
+        for (i = 0; data->app_WinPos && i < data->app_WinPosCap
+            && WINPOS(data)[i].w1; i++)
+            ;
+        *store = i ? sizeof(LONG) + i * sizeof(struct windowpos) : 0;
+        if (data->app_WinPos)
+            data->app_WinPos[0] = *store;
         return TRUE;
 
-    case MUIA_Application_MenuAction:
-        STORE = (IPTR) data->app_MenuAction;
-        return TRUE;
-
-    case MUIA_Application_BrokerPort:
-        STORE = (IPTR) data->app_BrokerPort;
-        return TRUE;
-
-    case MUIA_Application_BrokerPri:
-        STORE = (IPTR) data->app_BrokerPri;
-        return TRUE;
-
-    case MUIA_Application_BrokerHook:
-        STORE = (IPTR) data->app_BrokerHook;
-        return TRUE;
-
-    case MUIA_Application_Broker:
-        STORE = (IPTR) data->app_Broker;
-        return TRUE;
-
-    case MUIA_Application_Active:
-        STORE = data->app_Active;
-        return TRUE;
-
-    case MUIA_Application_Commands:
-        STORE = (IPTR) data->app_Commands;
-        return TRUE;
-
-    case MUIA_Application_RexxMsg:
-        STORE = (IPTR) data->app_RexxMsg;
-        return TRUE;
-
-    case MUIA_Application_RexxHook:
-        STORE = (IPTR) data->app_RexxHook;
-        return TRUE;
-
-    case MUIA_Application_DiskObject:
-        STORE = (IPTR) data->app_DiskObject;
+    case MUIA_Application_GetWinPos:
+        /* the record of MUIA_Application_SearchWinId, or NULL */
+        *store = 0;
+        for (i = 0; data->searchwinid && data->app_WinPos
+            && i < data->app_WinPosCap && WINPOS(data)[i].w1; i++)
+            if (WINPOS(data)[i].id == data->searchwinid)
+            {
+                *store = (IPTR)&WINPOS(data)[i];
+                break;
+            }
         return TRUE;
     }
+    return FALSE;
+}
 
-    /* our handler didn't understand the attribute, we simply pass
-     ** it to our superclass now
-     */
-    return (DoSuperMethodA(cl, obj, (Msg) msg));
-#undef STORE
+static IPTR Application__OM_GET(struct IClass *cl, Object *obj,
+    struct opGet *msg)
+{
+    if (app_get(INST_DATA(cl, obj), msg->opg_AttrID, msg->opg_Storage))
+        return TRUE;
+    return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
 
@@ -2608,17 +2380,107 @@ static IPTR Application__MUIM_NewInput(struct IClass *cl, Object *obj,
 /**************************************************************************
  MUIM_Application_NewInput : application main loop
 **************************************************************************/
+/* The signals the application waits for: its ports' and the input
+ * handlers' (each handler's ULONG at offset field: ihn_Signals, or
+ * MUIM_Application_Input's ihn_Flags, as before) */
+static ULONG app_signal_mask(struct MUI_ApplicationData *data, UWORD field)
+{
+    struct MinNode *mn;
+    ULONG mask = (1L << data->app_GlobalInfo.mgi_WindowsPort->mp_SigBit)
+        | (1L << data->app_TimerPort->mp_SigBit);
+
+    for (mn = data->app_IHList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
+        mask |= *(ULONG *)((UBYTE *)mn + field);
+    if (data->app_Broker)
+        mask |= 1L << data->app_BrokerPort->mp_SigBit;
+    if (data->app_RexxPort)
+        mask |= 1L << data->app_RexxPort->mp_SigBit;
+    if (data->app_AppPort)
+        mask |= 1L << data->app_AppPort->mp_SigBit;
+    if (data->app_CfgNotifyPort)
+        mask |= 1L << data->app_CfgNotifyPort->mp_SigBit;
+    return mask;
+}
+
+/* Whether port has a message for signal */
+#define APP_PORT_SIGNALLED(port, signal) \
+    ((port) && ((signal) & (1L << (port)->mp_SigBit)))
+
+/* The timers that came back: sent again, then their handler called (the
+ * messages taken off the port first: a handler may remove its timer) */
+static void app_timers(struct MUI_ApplicationData *data)
+{
+    struct timerequest_ext *time_ext;
+    struct List list;
+
+    NewList(&list);
+    while ((time_ext = (struct timerequest_ext *)GetMsg(data->app_TimerPort)))
+        AddTail(&list, (struct Node *)time_ext);
+    while ((time_ext = (struct timerequest_ext *)RemHead(&list)))
+    {
+        struct MUI_InputHandlerNode *ihn = time_ext->ihn;
+
+        time_ext->treq.tr_time.tv_secs = ihn->ihn_Millis / 1000;
+        time_ext->treq.tr_time.tv_micro = (ihn->ihn_Millis % 1000) * 1000;
+        SendIO((struct IORequest *)&time_ext->treq);
+        /* Timers carry no signal bits, then the originating node. */
+        DoMethod(ihn->ihn_Object, ihn->ihn_Method, 0, ihn);
+    }
+}
+
+/* The ports other than the windows' and the timer's: commodities, ARexx,
+ * the settings file's notification, Workbench's AppMessages (the rarely
+ * used handling of their messages is in the module) */
+static __attribute__((noinline)) void app_other_ports(struct IClass *cl,
+    Object *obj, struct MUI_ApplicationData *data, ULONG signal)
+{
+    struct Message *m;
+
+    if (APP_PORT_SIGNALLED(data->app_BrokerPort, signal))
+        while ((m = GetMsg(data->app_BrokerPort)))
+        {
+            zune_app_cxmsg(data, obj, m);
+            ReplyMsg(m);
+        }
+
+    if (APP_PORT_SIGNALLED(data->app_RexxPort, signal))
+        while ((m = GetMsg(data->app_RexxPort)))
+        {
+            struct RexxMsg *rmsg = (struct RexxMsg *)m;
+
+            /* Not IsRexxMsg(): that is TRUE only for messages ARexx itself
+             * sent; MUI 3.8 also takes a host's own CreateRexxMsg (wasabi
+             * arexx). Without the module the command fails. */
+            if (ZUNE_REXX() && (rmsg->rm_Action & RXCODEMASK) == RXCOMM)
+            {
+                rmsg->rm_Result1 = RETURN_FAIL;
+                rmsg->rm_Result2 = 0;
+                zune_app_rexx(data, obj, rmsg);
+            }
+            ReplyMsg(m);
+        }
+
+    /* the settings file was written (the settings program): a new
+     * Configdata from it */
+    if (APP_PORT_SIGNALLED(data->app_CfgNotifyPort, signal)
+        && app_drain(data->app_CfgNotifyPort))
+        Application_ReloadConfigdata(cl, obj);
+
+    if (APP_PORT_SIGNALLED(data->app_AppPort, signal))
+        while ((m = GetMsg(data->app_AppPort)))
+            if (!zune_app_appmsg(data, obj, (struct AppMessage *)m))
+                ReplyMsg(m);
+}
+
 static IPTR application_input(struct IClass *cl, Object *obj,
     ULONG *signals, BOOL buffered)
 {
     struct MUI_ApplicationData *data = INST_DATA(cl, obj);
     struct RIDNode *rid;
-    ULONG retval = 0;
+    ULONG retval;
     ULONG signal, signalmask;
-    ULONG handler_mask = 0;     /* the mask of the signal handlers */
     struct MinNode *mn;
-
-    //struct MinNode ihn_Node;
+    struct Message *m;
 
     if (!signals) return 0;
     signal = *signals;
@@ -2629,173 +2491,34 @@ static IPTR application_input(struct IClass *cl, Object *obj,
 
     Application_StartNotifications(cl, obj);
 
-    /* query the signal for the handlers */
-    for (mn = data->app_IHList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
-    {
-        struct MUI_InputHandlerNode *ihn;
-        ihn = (struct MUI_InputHandlerNode *)mn;
-        handler_mask |= ihn->ihn_Signals;
-    }
+    signalmask = app_signal_mask(data,
+        offsetof(struct MUI_InputHandlerNode, ihn_stuff));
 
-    signalmask = (1L << data->app_GlobalInfo.mgi_WindowsPort->mp_SigBit)
-        | (1L << data->app_TimerPort->mp_SigBit) | handler_mask;
-
-    if (data->app_Broker)
-        signalmask |= (1L << data->app_BrokerPort->mp_SigBit);
-
-    if (data->app_RexxPort)
-        signalmask |= (1L << data->app_RexxPort->mp_SigBit);
-
-    if (data->app_AppPort)
-        signalmask |= (1L << data->app_AppPort->mp_SigBit);
-
-    if (data->app_CfgNotifyPort)
-        signalmask |= (1L << data->app_CfgNotifyPort->mp_SigBit);
-
-    if (buffered) signal |= signalmask;
-    if (signal == 0 && !buffered)
-    {
-        /* Stupid app which (always) passes 0 in signals. It's impossible to
-           know which signals were really set as the app will already have
-           called Wait() which has cleared the task's tc_SigRecvd. So assume
-           the window, timer, and broker signals all to be set. Also all of
-           the inputhandler signals (MUI does that too). */
-
-        signal = signalmask;
-    }
+    /* A program that passes 0 (always) has called Wait() already, which
+     * cleared the task's signals: every source is taken as signalled, the
+     * input handlers' too, as MUI does */
+    if (buffered || signal == 0)
+        signal |= signalmask;
 
     if (signal & signalmask)
     {
-        if (signal & (1L << data->app_GlobalInfo.mgi_WindowsPort->
-                mp_SigBit))
-        {
-            struct IntuiMessage *imsg;
-            /* process all pushed methods */
-
-            while ((imsg =
-                    (struct IntuiMessage *)GetMsg(data->app_GlobalInfo.
-                        mgi_WindowsPort)))
-            {
-                /* Let window object process message */
-                _zune_window_message(imsg);     /* reply follows Window path */
-            }
-        }
+        if (signal & (1L << data->app_GlobalInfo.mgi_WindowsPort->mp_SigBit))
+            while ((m = GetMsg(data->app_GlobalInfo.mgi_WindowsPort)))
+                /* the window replies (window.c) */
+                _zune_window_message((struct IntuiMessage *)m);
 
         if (signal & (1L << data->app_TimerPort->mp_SigBit))
+            app_timers(data);
+
+        app_other_ports(cl, obj, data, signal);
+
+        for (mn = data->app_IHList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
         {
-            struct timerequest_ext *time_ext;
-            struct Node *n;
-            struct List list;
-            NewList(&list);
+            struct MUI_InputHandlerNode *ihn =
+                (struct MUI_InputHandlerNode *)mn;
 
-            /* At first we fetch all messages from the message port and store
-             ** them in a list, we use the node of the Message here */
-            while ((time_ext =
-                    (struct timerequest_ext *)GetMsg(data->app_TimerPort)))
-                AddTail(&list, (struct Node *)time_ext);
-
-            /* Now we proccess the list and resend the timer io, no loop can
-             ** happen. We use RemHead() because the handler can remove it
-             ** itself and so a FreeVec() could happen in
-             ** MUIM_Application_RemInputHandler which would destroy the
-             ** ln->Succ of course */
-            while ((n = RemHead(&list)))
-            {
-                struct timerequest_ext *time_ext =
-                    (struct timerequest_ext *)n;
-                struct MUI_InputHandlerNode *ihn = time_ext->ihn;
-                time_ext->treq.tr_time.tv_secs =
-                    time_ext->ihn->ihn_Millis / 1000;
-                time_ext->treq.tr_time.tv_micro =
-                    (time_ext->ihn->ihn_Millis % 1000) * 1000;
-                SendIO((struct IORequest *)&time_ext->treq);
-                /* Timers carry no signal bits, then the originating node. */
-                DoMethod(ihn->ihn_Object, ihn->ihn_Method, 0, ihn);
-            }
-        }
-
-        if (data->app_BrokerPort
-            && (signal & (1L << data->app_BrokerPort->mp_SigBit)))
-        {
-            CxMsg *msg;
-
-            while ((msg = (CxMsg *) GetMsg(data->app_BrokerPort)))
-            {
-                /* Exchange's commands and the hotkey: the module */
-                zune_app_cxmsg(data, obj, msg);
-                ReplyMsg((struct Message *)msg);
-            }
-        }
-
-        if (data->app_RexxPort
-            && (signal & (1L << data->app_RexxPort->mp_SigBit)))
-        {
-
-            D(bug("[MUI] Got Rexx message!\n"));
-            struct RexxMsg *rmsg;
-            while ((rmsg = (struct RexxMsg *)GetMsg(data->app_RexxPort)))
-            {
-                /* Not IsRexxMsg(): that is TRUE only for messages ARexx
-                 * itself sent; MUI 3.8 also takes a host's own
-                 * CreateRexxMsg (wasabi arexx) */
-                if (ZUNE_REXX()
-                    && (rmsg->rm_Action & RXCODEMASK) == RXCOMM)
-                {
-                    /* the commands: the module (without it, failed) */
-                    rmsg->rm_Result1 = RETURN_FAIL;
-                    rmsg->rm_Result2 = 0;
-                    zune_app_rexx(data, obj, rmsg);
-                }
-
-                ReplyMsg((struct Message *)rmsg);
-            }
-        }
-
-        if (data->app_CfgNotifyPort
-            && (signal & (1L << data->app_CfgNotifyPort->mp_SigBit)))
-        {
-            struct NotifyMessage *nmsg;
-
-            /* only act if a notification really happened */
-            if ((nmsg =
-                    (struct NotifyMessage *)GetMsg(data->app_CfgNotifyPort)))
-            {
-                /* reply (and thereby free) all notification messages */
-                do {
-                    ReplyMsg((struct Message *)nmsg);
-                } while ((nmsg =
-                        (struct NotifyMessage *)GetMsg(data->app_CfgNotifyPort)));
-
-                /* the prefs file has been rewritten (e.g. by the MUI Settings
-                 * window) - rebuild the configdata from it and apply it */
-                Application_ReloadConfigdata(cl, obj);
-            }
-        }
-
-        if (data->app_AppPort
-            && (signal & (1L << data->app_AppPort->mp_SigBit)))
-        {
-            struct AppMessage *appmsg;
-            while ((appmsg =
-                    (struct AppMessage *)GetMsg(data->app_AppPort)))
-            {
-                /* icons dropped, the AppIcon or menu item: the module,
-                 * which may reply itself */
-                if (!zune_app_appmsg(data, obj, appmsg))
-                ReplyMsg((struct Message *)appmsg);
-            }
-        }
-
-        if (signal & handler_mask)
-        {
-            for (mn = data->app_IHList.mlh_Head; mn->mln_Succ;
-                mn = mn->mln_Succ)
-            {
-                struct MUI_InputHandlerNode *ihn;
-                ihn = (struct MUI_InputHandlerNode *)mn;
-                if (signal & ihn->ihn_Signals)
-                    DoMethod(ihn->ihn_Object, ihn->ihn_Method);
-            }
+            if (signal & ihn->ihn_Signals)
+                DoMethod(ihn->ihn_Object, ihn->ihn_Method);
         }
     }
 
@@ -2807,17 +2530,15 @@ static IPTR application_input(struct IClass *cl, Object *obj,
     if (buffered)
         return TRUE;
 
-    /* set return code */
-    if ((rid =
-            (struct RIDNode *)RemHead((struct List *)&data->
-                app_ReturnIDQueue)))
-    {
-        retval = rid->rid_Value;
-        DeleteRIDNode(data, rid);
-        if (!IsListEmpty(&data->app_ReturnIDQueue)) *signals = 0;
-        return retval;
-    }
-    return 0;
+    /* the next return id; 0 to wait for while more are queued */
+    if (!(rid = (struct RIDNode *)RemHead(
+            (struct List *)&data->app_ReturnIDQueue)))
+        return 0;
+    retval = rid->rid_Value;
+    DeleteRIDNode(data, rid);
+    if (!IsListEmpty((struct List *)&data->app_ReturnIDQueue))
+        *signals = 0;
+    return retval;
 }
 
 /****** Application.mui/MUIM_Application_Input ************
@@ -2850,35 +2571,10 @@ static IPTR application_input(struct IClass *cl, Object *obj,
 static IPTR Application__MUIM_Input(struct IClass *cl, Object *obj,
     struct MUIP_Application_Input *msg)
 {
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    ULONG signal = 0, handler_mask = 0;
-    struct MinNode *mn;
-
-    /* query the signal for the handlers */
-    for (mn = data->app_IHList.mlh_Head; mn->mln_Succ; mn = mn->mln_Succ)
-    {
-        struct MUI_InputHandlerNode *ihn;
-        ihn = (struct MUI_InputHandlerNode *)mn;
-        handler_mask |= ihn->ihn_Flags;
-    }
-
-    signal = (1L << data->app_GlobalInfo.mgi_WindowsPort->mp_SigBit)
-        | (1L << data->app_TimerPort->mp_SigBit) | handler_mask;
-
-    if (data->app_RexxPort)
-        signal |= (1L << data->app_RexxPort->mp_SigBit);
-
-    if (data->app_AppPort)
-        signal |= (1L << data->app_AppPort->mp_SigBit);
-
-    /* commodities (Exchange's commands, the iconification hotkey) */
-    if (data->app_Broker)
-        signal |= (1L << data->app_BrokerPort->mp_SigBit);
-
-    if (data->app_CfgNotifyPort)
-        signal |= (1L << data->app_CfgNotifyPort->mp_SigBit);
-
-    *msg->signal = signal;
+    /* every source taken as signalled; the handlers' ihn_Flags, not
+     * their signals, as before (BUGS above) */
+    *msg->signal = app_signal_mask(INST_DATA(cl, obj),
+        offsetof(struct MUI_InputHandlerNode, ihn_Flags));
     return Application__MUIM_NewInput(cl, obj, (APTR) msg);
 }
 

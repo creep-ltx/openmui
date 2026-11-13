@@ -43,8 +43,10 @@ struct Library;
 #ifndef ZUNE_POOL_THRESH
 #define ZUNE_POOL_THRESH 1024
 #endif
-APTR zune_pool_alloc(ULONG size);
-void zune_pool_free(APTR block, ULONG size);
+/* register arguments, as exec's AllocMem/FreeMem: no pushed arguments on
+ * the callers' frames */
+APTR zune_pool_alloc(ULONG size __asm("d0"));
+void zune_pool_free(APTR block __asm("a1"), ULONG size __asm("d0"));
 void zune_pool_delete(void);
 
 #define mui_alloc(x) AllocVec(x,MEMF_CLEAR)

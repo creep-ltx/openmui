@@ -366,6 +366,14 @@ static ULONG NNodeSize(struct NotifyNode *nnode)
     return NN_HEADSIZE(nnode) + words * sizeof(IPTR);
 }
 
+/* A node and its parameters back to the pool; out of line with a register
+ * argument: OM_SET's frame (the walk) stays as it was */
+static __attribute__((noinline)) void NNodeFree(
+    register struct NotifyNode *nnode __asm("a1"))
+{
+    zune_pool_free(nnode, NNodeSize(nnode));
+}
+
 /* Allocate an owned notification node and copies of FollowParams message
  * words. Parse an input-event expression when required. Return NULL on
  * parse or allocation failure, releasing partial node storage. data is
@@ -459,7 +467,7 @@ static void DeleteNNode(struct MUI_NotifyData *data,
         nnode->nn_Active = NN_REMOVED;
     else
     {
-        zune_pool_free(nnode, NNodeSize(nnode)); /* parameters included */
+        NNodeFree(nnode); /* parameters included */
     }
 }
 
@@ -717,7 +725,7 @@ static void check_notify(NNode nnode, Object *obj, struct TagItem *tag)
 
         if (nnode->nn_Active == NN_REMOVED)
         {
-            zune_pool_free(nnode, NNodeSize(nnode)); /* parameters included */
+            NNodeFree(nnode); /* parameters included */
         }
         else
             nnode->nn_Active = FALSE;

@@ -359,6 +359,30 @@ static BOOL is_default_string(CONST_STRPTR val)
     return FALSE;
 }
 
+/* A parsed binding into the cache; a saved one's text copied */
+static __attribute__((noinline)) void keycache_add(CONST_STRPTR val,
+    ZuneKeySpec *key)
+{
+    UBYTE owned = !is_default_string(val);
+    CONST_STRPTR str = owned ? (CONST_STRPTR)StrDup(val) : val;
+
+    if (!str)
+        return;
+    Forbid();
+    if (keycache_count < KEYCACHE)
+    {
+        keycache[keycache_count].str = str;
+        keycache[keycache_count].ix = key->ix;
+        keycache[keycache_count].well = key->ix_well;
+        keycache_owned[keycache_count] = owned;
+        keycache_count++;
+        str = NULL;
+    }
+    Permit();
+    if (str && owned)
+        FreeVec((APTR)str);
+}
+
 static void Configdata__SetKey(ZuneKeySpec *key, CONST_STRPTR val)
 {
     int i, count;
@@ -379,26 +403,7 @@ static void Configdata__SetKey(ZuneKeySpec *key, CONST_STRPTR val)
         }
     key->ix_well = ZUNE_CX() && !ParseIX(key->readable_hotkey, &key->ix);
     if (keycache_count < KEYCACHE)
-    {
-        UBYTE owned = !is_default_string(val);
-        CONST_STRPTR str = owned ? (CONST_STRPTR)StrDup(val) : val;
-
-        if (!str)
-            return;
-        Forbid();
-        if (keycache_count < KEYCACHE)
-        {
-            keycache[keycache_count].str = str;
-            keycache[keycache_count].ix = key->ix;
-            keycache[keycache_count].well = key->ix_well;
-            keycache_owned[keycache_count] = owned;
-            keycache_count++;
-            str = NULL;
-        }
-        Permit();
-        if (str && owned)
-            FreeVec((APTR)str);
-    }
+        keycache_add(val, key);
 }
 
 /* Assign a !persistent! string stored in the dataspace (or a default) to

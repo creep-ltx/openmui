@@ -404,7 +404,7 @@ void ZuneTraceOutput(CONST_STRPTR fmt, ...)
  * Sizes are rounded to longwords; the same size frees the block. */
 static APTR zune_pool;
 
-APTR zune_pool_alloc(ULONG size)
+APTR zune_pool_alloc(register ULONG size __asm("d0"))
 {
     ULONG *p, *q, n;
 
@@ -433,7 +433,8 @@ APTR zune_pool_alloc(ULONG size)
     return p;
 }
 
-void zune_pool_free(APTR block, ULONG size)
+void zune_pool_free(register APTR block __asm("a1"),
+    register ULONG size __asm("d0"))
 {
     if (!block)
         return;

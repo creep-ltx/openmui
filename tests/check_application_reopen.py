@@ -66,14 +66,23 @@ class ReopenHarness(DisposalHarness):
                 self.membership([w for w in self.members if w != self.removed_on_open])
         self.cpu.w_reg(0, 1)
 
-    def alloc_vec(self):
+    def failing(self):
         if self.fail_after is not None:
             if self.fail_after == 0:
                 self.fail_after = None
                 self.cpu.w_reg(0, 0)
-                return
+                return True
             self.fail_after -= 1
-        super().alloc_vec()
+        return False
+
+    def alloc_vec(self):
+        if not self.failing():
+            super().alloc_vec()
+
+    # the queued method's node comes from the library's pool (rw-app)
+    def pool_alloc(self):
+        if not self.failing():
+            super().pool_alloc()
 
     def run_queued(self):
         obj, message = self.argument(0), self.argument(1)

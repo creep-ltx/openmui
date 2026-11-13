@@ -511,15 +511,54 @@ static UBYTE *ds_record(UBYTE **p, UBYTE *end, ULONG *id, LONG *len)
     return q;
 }
 
+/* A chunk's records (ReadIFF): in one block, linked directly, for a
+ * Dataspace or the library's Configdata (no program's subclass that could
+ * have its own MUIM_Dataspace_Add; the semaphore is held already), else or
+ * without memory through MUIM_Dataspace_Add each. Out of line: ReadIFF's
+ * frame. */
+static __attribute__((noinline)) void ds_read_records(struct IClass *cl,
+    Object *obj, UBYTE *buffer, UBYTE *end)
+{
+    struct MUI_DataspaceData *data = INST_DATA(cl, obj);
+    struct DS_Block *block = NULL;
+    struct Dataspace_Node *node;
+    UBYTE *p, *d;
+    ULONG id, size = sizeof(struct DS_Block);
+    LONG len;
+
+    if (OCLASS(obj) == cl || (OCLASS(obj)->cl_Super == cl
+        && OCLASS(obj)->cl_ID && !strcmp(OCLASS(obj)->cl_ID, MUIC_Configdata)))
+    {
+        for (p = buffer; ds_record(&p, end, &id, &len); )
+            if (id && len > 0)
+                size += sizeof(struct Dataspace_Node) + ((len + 3) & ~3);
+        block = AllocVecPooled(data->current_pool, size);
+    }
+    if (!block)
+    {
+        for (p = buffer; (d = ds_record(&p, end, &id, &len)); )
+            DoMethod(obj, MUIM_Dataspace_Add, (IPTR) d, len, id);
+        return;
+    }
+    block->size = size;
+    block->next = data->blocks;
+    data->blocks = block;
+    node = (APTR)(block + 1);
+    for (p = buffer; (d = ds_record(&p, end, &id, &len)); )
+        if (id && len > 0)
+        {
+            CopyMem(d, node + 1, len);
+            ds_link(data, node, id, len);
+            node = (APTR)((UBYTE *)(node + 1) + ((len + 3) & ~3));
+        }
+}
+
 IPTR Dataspace__MUIM_ReadIFF(struct IClass *cl, Object *obj,
     struct MUIP_Dataspace_ReadIFF *msg)
 {
-    struct MUI_DataspaceData *data = INST_DATA(cl, obj);
     struct ContextNode *cn;
-    struct DS_Block *block = NULL;
-    UBYTE *buffer, *end, *p, *d;
-    LONG read, len;
-    ULONG id, size;
+    UBYTE *buffer;
+    LONG read;
 
     /* The handle may be the program's own: iffparse.library is opened on
      * first use (lazylib.h) and may not be open in Zune yet. */
@@ -530,44 +569,10 @@ IPTR Dataspace__MUIM_ReadIFF(struct IClass *cl, Object *obj,
     if (!(buffer = AllocVec(cn->cn_Size, 0)))
         return IFFERR_NOMEM;
     read = ReadChunkBytes(msg->handle, buffer, cn->cn_Size);
-    if (read < 0)
-    {
-        FreeVec(buffer);
-        return read;
-    }
-    end = buffer + read;
-
-    /* A Dataspace or the library's Configdata (no program's subclass that
-     * could have its own MUIM_Dataspace_Add): the records in one block,
-     * linked directly (the semaphore is held already) */
-    if (OCLASS(obj) == cl || (OCLASS(obj)->cl_Super == cl
-        && OCLASS(obj)->cl_ID && !strcmp(OCLASS(obj)->cl_ID, MUIC_Configdata)))
-    {
-        size = sizeof(struct DS_Block);
-        for (p = buffer; ds_record(&p, end, &id, &len); )
-            if (id && len > 0)
-                size += sizeof(struct Dataspace_Node) + ((len + 3) & ~3);
-        if ((block = AllocVecPooled(data->current_pool, size)))
-        {
-            struct Dataspace_Node *node = (APTR)(block + 1);
-
-            block->size = size;
-            block->next = data->blocks;
-            data->blocks = block;
-            for (p = buffer; (d = ds_record(&p, end, &id, &len)); )
-                if (id && len > 0)
-                {
-                    CopyMem(d, node + 1, len);
-                    ds_link(data, node, id, len);
-                    node = (APTR)((UBYTE *)(node + 1) + ((len + 3) & ~3));
-                }
-        }
-    }
-    if (!block)
-        for (p = buffer; (d = ds_record(&p, end, &id, &len)); )
-            DoMethod(obj, MUIM_Dataspace_Add, (IPTR) d, len, id);
+    if (read >= 0)
+        ds_read_records(cl, obj, buffer, buffer + read);
     FreeVec(buffer);
-    return 0;
+    return read < 0 ? read : 0;
 }
 
 /****** Dataspace.mui/MUIM_Dataspace_WriteIFF ************

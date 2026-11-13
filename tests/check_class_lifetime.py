@@ -125,16 +125,16 @@ class Harness:
     def free_vec(self):
         del self.allocations[self.cpu.r_reg(9)]
 
+    # zune_pool_alloc(size: d0), zune_pool_free(block: a1, size: d0)
     def pool_alloc(self):
-        result = 0 if self.fail_alloc else self.alloc(
-            self.mem.r32(self.cpu.r_sp() + 4))
+        result = 0 if self.fail_alloc else self.alloc(self.cpu.r_reg(0))
         self.fail_alloc = False
         self.cpu.w_reg(0, result)
 
     def pool_free(self):
-        address = self.mem.r32(self.cpu.r_sp() + 4)
+        address = self.cpu.r_reg(9)
         if address:
-            self.pool_release(address, self.mem.r32(self.cpu.r_sp() + 8))
+            self.pool_release(address, self.cpu.r_reg(0))
 
     def pool_release(self, address, size):
         assert self.allocations.get(address) == size, \
