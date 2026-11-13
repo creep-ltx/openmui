@@ -13,4 +13,8 @@ wasabi put "$LIB" LIBS:muimaster.library --force >/dev/null
 if [ -d "$CLASSDIR" ]; then
   wasabi run "makedir LIBS:$DRAWER" >/dev/null 2>&1
   for f in "$CLASSDIR"/*.mui; do wasabi put "$f" "LIBS:$DRAWER/$(basename "$f")" --force >/dev/null; done
+  # Pixmap.mui (made with the plugins, Libs/MUI in the build) goes there too, as the
+  # installer puts it: Rawimage.mcc (OpenMUI prefs' page icons) needs it
+  P=$(dirname "$LIB")/Libs/MUI/Pixmap.mui
+  [ -f "$P" ] && wasabi put "$P" "LIBS:$DRAWER/Pixmap.mui" --force >/dev/null
 fi
