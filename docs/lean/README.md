@@ -4688,17 +4688,33 @@ the general background 954 and frame 778, the common draw 610, the minmax finish
   alone on both: LumiTorrent (frozen once on lean), EvenMore (reset once on the branch) and
   DASModPlayer (frozen once on lean) the same; SpeedBar demo6 448 or 449 pixels wide on both
   (its known flip); **MenuImages (mui5)** gets no window on lean and its window on the branch,
-  twice each; **NewsCoaster 1.61 resets the machine on the branch** at its first start, when its
-  "New User" window's Okay is pressed (twice in the suite, and by hand with wasabi's keys): a
-  CPU illegal instruction in its task (trapcap: the PC in memory that holds the typed user name).
-  Lean runs it (five runs), so does the round's first commit (08613cd1); from 2b9b04a3 on every
-  build of the round resets, but reverting any one of that commit's three independent parts (the
-  active outline's functions, the drag methods' or AROS's methods' move to the modules) makes
-  2b9b04a3 run it, and lean with 8 to 1,000 bytes of padding code runs it too. Its cause is not
-  found (left open: a NewsCoaster read of memory it never set, which our code's stack use
-  decides, is the likeliest; not proven). Memory in use with the windows open (programs with
-  figures on both): first run from boot about 1.5 KB lower per program (the code), second run
+  twice each. **NewsCoaster 1.61 resets the machine on the branch** at its first start, when its
+  "New User" window's Okay is pressed (every run on the branch; lean, real MUI 3.8 and MUI 5
+  three runs each, run it). Found to be NewsCoaster's own bug, which lean only survived: the hook
+  that creates the user has a 41,548-byte stack frame (`move.l a5,-(sp); move.l sp,a5; add.l
+  #-41548,sp`), and SAS/C addressed its locals beyond 32 KB with 16-bit displacements, so the two
+  copies of the new user record's pointer meant for `-33068(a5)` and `-33064(a5)` go to
+  `+32468(a5)` and `+32472(a5)` (instructions at its code hunk 1 offsets 0x130de and 0x13204): 32 KB
+  above the hook's frame, past the top of NewsCoaster's stack, into whatever lies there. On the
+  test machine that is muimaster.library's code: a build with a code checksum in the dispatchers
+  shows **lean's code overwritten too**, at the same address and code offset 0x7C10 with the same
+  record pointer, inside `zune_pen_spec_to_intern`, on a branch that run never takes; in this
+  round's builds the code moved by a few bytes and offset 0x7C10 holds the instructions just
+  before its `memset` call, run by the next MUI_ObtainPen: the CPU runs the pointer as code
+  (illegal instruction, F-line or bus error by build). On MUI 3.8 and MUI 5 the same 8 bytes are
+  written (the same instructions run); what lies there was not looked at, they run it. Not fixed in OpenMUI: where the write lands depends
+  on the memory layout of each machine, not on anything a MUI implementation passes or returns
+  (the experiments that seemed to "fix" it moved code, the stack swap had nothing to do with it);
+  moving the hot code away from offset 0x7C10 would only hide it on this one test machine.
+  Memory in use with the windows open (programs with figures on both): first run from boot about
+  1.5 KB lower per program (the code), second run
   equal to within a few hundred bytes.
+- After the DragBegin/DragFinish fix (794462e1, the final build): the mui3 group again (100
+  programs, three instances, against lean's run above): 96 the same; NewsCoaster as above;
+  MD2 ok once here, "exited" on both libraries when run alone (its flip); LumiTorrent and
+  DASModPlayer as in lean's run above (lean froze once). opbench once more on the final build:
+  A1200 full redraw 133.7 ms, relayout 173.1, creation 224.6; A600 full redraw 443.8, relayout
+  611.2, creation 916.5, list insert 1 32.7 (MUI 3.8 32.5-32.8): as the round's figures above.
 
 ## Left open
 
@@ -4713,8 +4729,9 @@ the general background 954 and frame 778, the common draw 610, the minmax finish
   (3.4 KB together: switches GCC already makes compact; tables cost frames in every round) and
   the general draw for titled and special frames (2.1 KB). `tests/lean/ctxdrag.c`'s own events
   do not reach a context menu's choice (its manual mode with wasabi's mouse does). **NewsCoaster
-  1.61 resets at its first start on the branch** (lean runs it): "Checked" above; its cause is
-  not found, and it should be before this round is merged. Not moved: bubble help, MUIM_DragQueryExtended, custom
+  1.61 resets at its first start on the branch**: its own stray write 32 KB above its stack (a
+  SAS/C displacement truncation) lands in muimaster.library's code on the test machine, on lean
+  too; it now hits an instruction that runs ("Checked" above). Not OpenMUI's to fix. Not moved: bubble help, MUIM_DragQueryExtended, custom
   backfills, titled frames (MUI 3 programs use them all). Next: Application (roadmap).
 
 - **Rewrite for m68k (2026-11-13, after `rw-group`)**: Group done (code -15.4 %, instance data

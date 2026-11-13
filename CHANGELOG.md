@@ -35,9 +35,10 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
   code is 1.4 KB smaller (Area's own 8.8 %), the first MUI-Demo needs
   443,048 bytes (444,6xx before; MUI 3.8 460,296), an object that reacts to
   input 8 bytes less. Programs get the same attributes, methods and
-  pixels; one is known to differ and is being investigated: NewsCoaster
-  1.61 resets the machine when its first-start "New User" window is
-  confirmed.
+  pixels. NewsCoaster 1.61 resets the machine when its first-start "New
+  User" window is confirmed: its own bug (it writes 8 bytes 32 KB above
+  its stack, which on the test machine is the library's code, on the old
+  code too; the code that now lies there is run).
 - **Group rewritten for 68k machines**: the class every window is built
   from (rows, columns, pages, scrolling areas) lays out, measures and draws
   with less of its own work: one routine for both directions instead of
