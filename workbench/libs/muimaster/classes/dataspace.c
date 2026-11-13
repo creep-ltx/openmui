@@ -92,7 +92,27 @@ struct MUI_DataspaceData
     APTR pool_allocated;
     APTR current_pool;
     struct Dataspace_Node *hash[DS_HASH];
+    struct DS_Block *blocks;    /* the records ReadIFF added */
 };
+
+/* ReadIFF's records in one block: a settings file is ~200 of them, each
+ * an allocation otherwise. A record of a block that is replaced or
+ * removed is only unlinked; the block goes with Clear or the pool. */
+struct DS_Block
+{
+    struct DS_Block *next;
+    ULONG size;
+};
+
+static BOOL ds_in_block(struct MUI_DataspaceData *data, APTR node)
+{
+    struct DS_Block *b;
+
+    for (b = data->blocks; b; b = b->next)
+        if ((UBYTE *)node > (UBYTE *)b && (UBYTE *)node < (UBYTE *)b + b->size)
+            return TRUE;
+    return FALSE;
+}
 
 #define DS_FIRST(data) ((struct Dataspace_Node *)(data)->list.mlh_Head)
 #define DS_VALID(n) ((n)->node.mln_Succ)
@@ -126,7 +146,24 @@ static void ds_free(struct MUI_DataspaceData *data,
         link = &(*link)->hnext;
     *link = node->hnext;
     Remove((struct Node *)node);
-    FreeVecPooled(data->current_pool, node);
+    if (!ds_in_block(data, node))
+        FreeVecPooled(data->current_pool, node);
+}
+
+/* Into the list and its chain, replacing the record of its id */
+static void ds_link(struct MUI_DataspaceData *data,
+    struct Dataspace_Node *node, ULONG id, ULONG len)
+{
+    struct Dataspace_Node *replace, **chain;
+
+    if ((replace = ds_find(data, id)))
+        ds_free(data, replace);
+    AddTail((struct List *)&data->list, (struct Node *)node);
+    node->id = id;
+    node->len = len;
+    chain = ds_chain(data, id);
+    node->hnext = *chain;
+    *chain = node;
 }
 
 /* Construct the Semaphore superclass, initialize the record list, and bind
@@ -226,7 +263,6 @@ IPTR Dataspace__MUIM_Add(struct IClass *cl, Object *obj,
     struct MUIP_Dataspace_Add *msg)
 {
     struct MUI_DataspaceData *data = INST_DATA(cl, obj);
-    struct Dataspace_Node *replace;
     struct Dataspace_Node *node;
 
     if (NULL == msg->data || msg->len < 1 || msg->id < 1)
@@ -241,19 +277,7 @@ IPTR Dataspace__MUIM_Add(struct IClass *cl, Object *obj,
 
     /* The source may be the entry being replaced. */
     CopyMem(msg->data, node + 1, msg->len);
-    if ((replace = ds_find(data, msg->id)))
-        ds_free(data, replace);
-
-    AddTail((struct List *)&data->list, (struct Node *)node);
-    node->id = msg->id;
-    node->len = msg->len;
-    {
-        struct Dataspace_Node **chain = ds_chain(data, msg->id);
-
-        node->hnext = *chain;
-        *chain = node;
-    }
-
+    ds_link(data, node, msg->id, msg->len);
     return 1;
 }
 
@@ -291,7 +315,15 @@ IPTR Dataspace__MUIM_Clear(struct IClass *cl, Object *obj,
         struct Dataspace_Node *tmp = node;
         node = DS_NEXT(node);
 
-        FreeVecPooled(data->current_pool, tmp);
+        if (!ds_in_block(data, tmp))
+            FreeVecPooled(data->current_pool, tmp);
+    }
+    while (data->blocks)
+    {
+        struct DS_Block *b = data->blocks;
+
+        data->blocks = b->next;
+        FreeVecPooled(data->current_pool, b);
     }
     NewList((struct List *)&data->list);
     memset(data->hash, 0, sizeof(data->hash));
@@ -461,71 +493,79 @@ IPTR Dataspace__MUIM_Remove(struct IClass *cl, Object *obj,
 *       MUIM_Dataspace_WriteIFF, MUIM_Dataspace_Add
 *
 */
+/* The next record of a MUIC chunk at *p (id, length, data; on any byte
+ * boundary, so read byte by byte for the 68000): its data, or NULL at
+ * the end or where a length runs past the chunk (a damaged file) */
+static UBYTE *ds_record(UBYTE **p, UBYTE *end, ULONG *id, LONG *len)
+{
+    UBYTE *q = *p;
+
+    if (q + 8 > end)
+        return NULL;
+    *id = (q[0] << 24) | (q[1] << 16) | (q[2] << 8) | q[3];
+    *len = (q[4] << 24) | (q[5] << 16) | (q[6] << 8) | q[7];
+    q += 8;
+    if ((ULONG)*len > (ULONG)(end - q))
+        return NULL;
+    *p = q + *len;
+    return q;
+}
+
 IPTR Dataspace__MUIM_ReadIFF(struct IClass *cl, Object *obj,
     struct MUIP_Dataspace_ReadIFF *msg)
 {
+    struct MUI_DataspaceData *data = INST_DATA(cl, obj);
     struct ContextNode *cn;
-    UBYTE *buffer, *p;
-    LONG read;
-
-    LONG len;
-    ULONG id;
-    BOOL direct;
+    struct DS_Block *block = NULL;
+    UBYTE *buffer, *end, *p, *d;
+    LONG read, len;
+    ULONG id, size;
 
     /* The handle may be the program's own: iffparse.library is opened on
      * first use (lazylib.h) and may not be open in Zune yet. */
     if (!ZUNE_IFFPARSE())
         return IFFERR_NOMEM;
-    cn = CurrentChunk(msg->handle);
-    if (!cn)
-    {
+    if (!(cn = CurrentChunk(msg->handle)))
         return IFFERR_EOF;
-    }
     if (!(buffer = AllocVec(cn->cn_Size, 0)))
-    {
         return IFFERR_NOMEM;
-    }
     read = ReadChunkBytes(msg->handle, buffer, cn->cn_Size);
     if (read < 0)
     {
         FreeVec(buffer);
         return read;
     }
+    end = buffer + read;
 
-    p = buffer;
-    direct = OCLASS(obj) == cl || (OCLASS(obj)->cl_Super == cl
-        && OCLASS(obj)->cl_ID && !strcmp(OCLASS(obj)->cl_ID, MUIC_Configdata));
-
-    while (p + 8 <= buffer + read)
+    /* A Dataspace or the library's Configdata (no program's subclass that
+     * could have its own MUIM_Dataspace_Add): the records in one block,
+     * linked directly (the semaphore is held already) */
+    if (OCLASS(obj) == cl || (OCLASS(obj)->cl_Super == cl
+        && OCLASS(obj)->cl_ID && !strcmp(OCLASS(obj)->cl_ID, MUIC_Configdata)))
     {
-        /* Since data can be stored on uneven addresses we must read
-         ** them byte by byte as MC68000 doesn't like this
-         */
-        id = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
-        p += 4;
-        len = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
-        p += 4;
-
-        /* p might be uneven but MUIM_Dataspace_Add use CopyMem() */
-
-        /* Guard against a corrupted/truncated file - do not read past
-         ** the chunk if the length field is bogus */
-        if (len > (ULONG)(buffer + read - p))
-            break;
-
-        /* Now add the data: directly when no subclass of a program's
-         * can have its own MUIM_Dataspace_Add (a Dataspace, the library's
-         * Configdata): the semaphore is held already */
-        if (direct)
+        size = sizeof(struct DS_Block);
+        for (p = buffer; ds_record(&p, end, &id, &len); )
+            if (id && len > 0)
+                size += sizeof(struct Dataspace_Node) + ((len + 3) & ~3);
+        if ((block = AllocVecPooled(data->current_pool, size)))
         {
-            struct MUIP_Dataspace_Add m = { MUIM_Dataspace_Add, p, len, id };
+            struct Dataspace_Node *node = (APTR)(block + 1);
 
-            Dataspace__MUIM_Add(cl, obj, &m);
+            block->size = size;
+            block->next = data->blocks;
+            data->blocks = block;
+            for (p = buffer; (d = ds_record(&p, end, &id, &len)); )
+                if (id && len > 0)
+                {
+                    CopyMem(d, node + 1, len);
+                    ds_link(data, node, id, len);
+                    node = (APTR)((UBYTE *)(node + 1) + ((len + 3) & ~3));
+                }
         }
-        else
-            DoMethod(obj, MUIM_Dataspace_Add, (IPTR) p, len, id);
-        p += len;
     }
+    if (!block)
+        for (p = buffer; (d = ds_record(&p, end, &id, &len)); )
+            DoMethod(obj, MUIM_Dataspace_Add, (IPTR) d, len, id);
     FreeVec(buffer);
     return 0;
 }
