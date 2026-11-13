@@ -1223,23 +1223,17 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
      * MUIA_List_PoolPuddleSize/PoolThreshSize get theirs. */
     data->intern_puddle_size = 1000;
     data->intern_thresh_size = 500;
+    /* the instance data comes cleared: only what is not 0 is set */
     data->flags = LIST_SHOWDROPMARKS;
-    data->area_replaced = FALSE;
-    data->area_connected = FALSE;
-    data->vert_connected = FALSE;
 
     data->entries_visible = data->vertprop_visible = -1;
     data->last_active = -1;
-    data->title_click = 0;
-    data->drop_mark = 0;
 
     data->ehn.ehn_Events = IDCMP_MOUSEBUTTONS | IDCMP_RAWKEY;
-    data->ehn.ehn_Priority = 0;
     data->ehn.ehn_Flags = MUI_EHF_GUIMODE;
     data->ehn.ehn_Object = obj;
     data->ehn.ehn_Class = cl;
 
-    data->mouse_click = 0;
     data->mouse_x = MUI_MAXMAX;
     data->mouse_y = MUI_MAXMAX;
 
@@ -1388,26 +1382,16 @@ IPTR List__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             MUIV_List_Insert_Top);
     }
 
-    if ((data->entries_num) && (new_entries_active != MUIV_List_Active_Off))
+    /* Selected entry will be moved into visible area. The special values
+     * other than Top and Bottom are below 0, so the first entry. */
+    if (data->entries_num && new_entries_active != MUIV_List_Active_Off)
     {
-        switch (new_entries_active)
-        {
-        case MUIV_List_Active_Top:
-            new_entries_active = 0;
-            break;
-
-        case MUIV_List_Active_Bottom:
+        if (new_entries_active == MUIV_List_Active_Bottom
+            || new_entries_active >= data->entries_num)
             new_entries_active = data->entries_num - 1;
-            break;
-        }
-
-        if (new_entries_active < 0)
+        else if (new_entries_active < 0)
             new_entries_active = 0;
-        else if (new_entries_active >= data->entries_num)
-            new_entries_active = data->entries_num - 1;
-
         data->entries_active = new_entries_active;
-        /* Selected entry will be moved into visible area */
     }
 
     NewList((struct List *)&data->images);
@@ -1608,6 +1592,8 @@ IPTR List__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 if ((data->entries_num)
                     && (new_entries_active != MUIV_List_Active_Off))
                 {
+                    /* inline: through List_ActiveValue() OM_SET's frame
+                     * grew by 4 bytes, and OM_SET recurses */
                     switch (new_entries_active)
                     {
                     case MUIV_List_Active_Top:
@@ -4841,72 +4827,157 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
  * switch: Sort and Insert send thousands of Compare, Construct and Display
  * calls through here (a call per method cost opbench's list sort 1000
  * +14%, a tag scan in every OM_SET list active +2%). */
+/* The few methods that are no plain call, as functions of their own */
+static IPTR List_FindAreaObject(struct IClass *cl, Object *obj, Msg msg)
+{
+    struct MUI_ListData *data = INST_DATA(cl, obj);
+    IPTR found = data->edit_object ? DoMethodA(data->edit_object, msg) : 0;
+    return found ? found : DoSuperMethodA(cl, obj, msg);
+}
+static IPTR List_SortEntriesMethod(struct IClass *cl, Object *obj,
+    struct MUIP_List_SortEntries *msg)
+{
+    return zune_list_sort_entries(cl, obj, msg->entries);
+}
+static IPTR List_EditMethod(struct IClass *cl, Object *obj,
+    struct MUIP_List_Edit *msg)
+{
+    return ListEdit(cl, obj, msg->row, msg->column);
+}
+static IPTR List_EndEditMethod(struct IClass *cl, Object *obj,
+    struct MUIP_List_EndEdit *msg)
+{
+    return ListEndEdit(cl, obj, msg->mode, FALSE);
+}
+static IPTR List_ReturnFalse(void) { return FALSE; }
+static IPTR List_ReturnTrue(void) { return TRUE; }
+
+/* The methods List answers, by MethodID (unsigned, ascending: the search
+ * below halves it). The functions are longword aligned
+ * (-falign-functions=4): bit 0 set means the method may change the
+ * entries' sizes ("forget" above). */
+static const struct { ULONG id; APTR method; } list_methods[] =
+{
+    { OM_NEW, (APTR)List__OM_NEW },
+    { OM_DISPOSE, (APTR)List__OM_DISPOSE },
+    { OM_SET, (APTR)List__OM_SET },
+    { OM_GET, (APTR)List__OM_GET },
+    { MUIM_DragQuery, (APTR)List__MUIM_DragQuery },
+    { MUIM_List_EndEdit, (APTR)List_EndEditMethod },
+    { MUIM_List_DeleteImage, (APTR)List__MUIM_DeleteImage + 1 },
+    { MUIM_List_CreateEditObject, (APTR)List_ReturnFalse },
+    { MUIM_List_Compare, (APTR)List__MUIM_Compare },
+    { MUIM_List_Sort, (APTR)List__MUIM_Sort },
+    { MUIM_AskMinMax, (APTR)List__MUIM_AskMinMax },
+    { MUIM_List_EditDone, (APTR)List_ReturnTrue },
+    { MUIM_List_Exchange, (APTR)List__MUIM_Exchange },
+    { MUIM_DragFinish, (APTR)List__MUIM_DragFinish + 1 },
+    { MUIM_List_Select, (APTR)List__MUIM_Select },
+    { MUIM_List_Display, (APTR)List__MUIM_Display },
+    { MUIM_List_Move, (APTR)List__MUIM_Move },
+    { MUIM_List_InsertSingle, (APTR)List__MUIM_InsertSingle + 1 },
+    { MUIM_List_NextSelected, (APTR)List__MUIM_NextSelected },
+    { MUIM_List_TestPos, (APTR)List__MUIM_TestPos },
+    { MUIM_List_Remove, (APTR)List__MUIM_Remove + 1 },
+    { MUIM_List_Insert, (APTR)List__MUIM_Insert + 1 },
+    { MUIM_HandleEvent, (APTR)List__MUIM_HandleEvent + 1 },
+    { MUIM_Draw, (APTR)List__MUIM_Draw },
+    { MUIM_List_Redraw, (APTR)List__MUIM_Redraw + 1 },
+    { MUIM_List_Destruct, (APTR)List__MUIM_Destruct },
+    { MUIM_List_GetEntry, (APTR)List__MUIM_GetEntry },
+    { MUIM_Setup, (APTR)List__MUIM_Setup },
+    { MUIM_List_Edit, (APTR)List_EditMethod },
+    { MUIM_List_CreateImage, (APTR)List__MUIM_CreateImage + 1 },
+    { MUIM_List_SortEntries, (APTR)List_SortEntriesMethod },
+    { MUIM_List_Clear, (APTR)List__MUIM_Clear + 1 },
+    { MUIM_List_Jump, (APTR)List__MUIM_Jump },
+    { MUIM_DragDrop, (APTR)zune_list_drag_drop + 1 },
+    { MUIM_Show, (APTR)List__MUIM_Show },
+    { MUIM_List_Construct, (APTR)List__MUIM_Construct },
+    { MUIM_Cleanup, (APTR)List__MUIM_Cleanup },
+    { MUIM_CreateDragImage, (APTR)zune_list_create_drag_image },
+    { MUIM_DragReport, (APTR)zune_list_drag_report },
+    { MUIM_Hide, (APTR)List__MUIM_Hide },
+    { MUIM_Zune_Layout, (APTR)List__MUIM_Layout },
+    { MUIM_FindAreaObject, (APTR)List_FindAreaObject },
+    { MUIM_List_SelectChange, (APTR)List__MUIM_SelectChange },
+};
+/* the table's order, checked by the compiler */
+_Static_assert((ULONG)OM_NEW < (ULONG)OM_DISPOSE, "list_methods order");
+_Static_assert((ULONG)OM_DISPOSE < (ULONG)OM_SET, "list_methods order");
+_Static_assert((ULONG)OM_SET < (ULONG)OM_GET, "list_methods order");
+_Static_assert((ULONG)OM_GET < (ULONG)MUIM_DragQuery, "list_methods order");
+_Static_assert((ULONG)MUIM_DragQuery < (ULONG)MUIM_List_EndEdit, "list_methods order");
+_Static_assert((ULONG)MUIM_List_EndEdit < (ULONG)MUIM_List_DeleteImage, "list_methods order");
+_Static_assert((ULONG)MUIM_List_DeleteImage < (ULONG)MUIM_List_CreateEditObject, "list_methods order");
+_Static_assert((ULONG)MUIM_List_CreateEditObject < (ULONG)MUIM_List_Compare, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Compare < (ULONG)MUIM_List_Sort, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Sort < (ULONG)MUIM_AskMinMax, "list_methods order");
+_Static_assert((ULONG)MUIM_AskMinMax < (ULONG)MUIM_List_EditDone, "list_methods order");
+_Static_assert((ULONG)MUIM_List_EditDone < (ULONG)MUIM_List_Exchange, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Exchange < (ULONG)MUIM_DragFinish, "list_methods order");
+_Static_assert((ULONG)MUIM_DragFinish < (ULONG)MUIM_List_Select, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Select < (ULONG)MUIM_List_Display, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Display < (ULONG)MUIM_List_Move, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Move < (ULONG)MUIM_List_InsertSingle, "list_methods order");
+_Static_assert((ULONG)MUIM_List_InsertSingle < (ULONG)MUIM_List_NextSelected, "list_methods order");
+_Static_assert((ULONG)MUIM_List_NextSelected < (ULONG)MUIM_List_TestPos, "list_methods order");
+_Static_assert((ULONG)MUIM_List_TestPos < (ULONG)MUIM_List_Remove, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Remove < (ULONG)MUIM_List_Insert, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Insert < (ULONG)MUIM_HandleEvent, "list_methods order");
+_Static_assert((ULONG)MUIM_HandleEvent < (ULONG)MUIM_Draw, "list_methods order");
+_Static_assert((ULONG)MUIM_Draw < (ULONG)MUIM_List_Redraw, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Redraw < (ULONG)MUIM_List_Destruct, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Destruct < (ULONG)MUIM_List_GetEntry, "list_methods order");
+_Static_assert((ULONG)MUIM_List_GetEntry < (ULONG)MUIM_Setup, "list_methods order");
+_Static_assert((ULONG)MUIM_Setup < (ULONG)MUIM_List_Edit, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Edit < (ULONG)MUIM_List_CreateImage, "list_methods order");
+_Static_assert((ULONG)MUIM_List_CreateImage < (ULONG)MUIM_List_SortEntries, "list_methods order");
+_Static_assert((ULONG)MUIM_List_SortEntries < (ULONG)MUIM_List_Clear, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Clear < (ULONG)MUIM_List_Jump, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Jump < (ULONG)MUIM_DragDrop, "list_methods order");
+_Static_assert((ULONG)MUIM_DragDrop < (ULONG)MUIM_Show, "list_methods order");
+_Static_assert((ULONG)MUIM_Show < (ULONG)MUIM_List_Construct, "list_methods order");
+_Static_assert((ULONG)MUIM_List_Construct < (ULONG)MUIM_Cleanup, "list_methods order");
+_Static_assert((ULONG)MUIM_Cleanup < (ULONG)MUIM_CreateDragImage, "list_methods order");
+_Static_assert((ULONG)MUIM_CreateDragImage < (ULONG)MUIM_DragReport, "list_methods order");
+_Static_assert((ULONG)MUIM_DragReport < (ULONG)MUIM_Hide, "list_methods order");
+_Static_assert((ULONG)MUIM_Hide < (ULONG)MUIM_Zune_Layout, "list_methods order");
+_Static_assert((ULONG)MUIM_Zune_Layout < (ULONG)MUIM_FindAreaObject, "list_methods order");
+_Static_assert((ULONG)MUIM_FindAreaObject < (ULONG)MUIM_List_SelectChange, "list_methods order");
+
 BOOPSI_DISPATCHER(IPTR, List_Dispatcher, cl, obj, msg)
 {
-    IPTR (*method)(struct IClass *, Object *, APTR);
+    ULONG id = msg->MethodID, m;
+    const ULONG *lo = &list_methods[0].id,
+        *hi = &list_methods[sizeof(list_methods) / sizeof(list_methods[0]) - 1].id,
+        *p;
 
-    switch (msg->MethodID)
+    /* the methods Sort and Insert send by the thousand first */
+    if (id == MUIM_List_Compare)
+        return List__MUIM_Compare(cl, obj, (APTR)msg);
+    if (id == MUIM_List_Display)
+        return List__MUIM_Display(cl, obj, (APTR)msg);
+    if (id == MUIM_List_Construct)
+        return List__MUIM_Construct(cl, obj, (APTR)msg);
+    while (lo <= hi)
     {
-    case MUIM_FindAreaObject:
-    {
-        struct MUI_ListData *data = INST_DATA(cl, obj);
-        IPTR found = data->edit_object ? DoMethodA(data->edit_object, msg) : 0;
-        return found ? found : DoSuperMethodA(cl, obj, msg);
+        p = lo + (((hi - lo) >> 2) << 1);
+        if ((m = *p) == id)
+        {
+            m = p[1];
+            if (m & 1)
+                ((struct MUI_ListData *)INST_DATA(cl, obj))->flags
+                    &= ~LIST_DIMSVALID;
+            return ((IPTR (*)(struct IClass *, Object *, Msg))(m & ~1UL))
+                (cl, obj, msg);
+        }
+        if (m < id)
+            lo = p + 2;
+        else
+            hi = p - 2;
     }
-    case MUIM_List_SortEntries:
-        return zune_list_sort_entries(cl, obj, ((struct MUIP_List_SortEntries *)msg)->entries);
-    case MUIM_List_Edit:
-        return ListEdit(cl, obj, ((struct MUIP_List_Edit *)msg)->row,
-            ((struct MUIP_List_Edit *)msg)->column);
-    case MUIM_List_EndEdit:
-        return ListEndEdit(cl, obj, ((struct MUIP_List_EndEdit *)msg)->mode, FALSE);
-    case MUIM_List_CreateEditObject: return 0;
-    case MUIM_List_EditDone: return TRUE;
-    case OM_NEW: method = (APTR)List__OM_NEW; break;
-    case OM_DISPOSE: method = (APTR)List__OM_DISPOSE; break;
-    case OM_SET: method = (APTR)List__OM_SET; break;
-    case OM_GET: method = (APTR)List__OM_GET; break;
-    case MUIM_Setup: method = (APTR)List__MUIM_Setup; break;
-    case MUIM_Cleanup: method = (APTR)List__MUIM_Cleanup; break;
-    case MUIM_HandleEvent: method = (APTR)List__MUIM_HandleEvent; goto forget;
-    case MUIM_AskMinMax: method = (APTR)List__MUIM_AskMinMax; break;
-    case MUIM_Show: method = (APTR)List__MUIM_Show; break;
-    case MUIM_Hide: method = (APTR)List__MUIM_Hide; break;
-    case MUIM_Draw: method = (APTR)List__MUIM_Draw; break;
-    case MUIM_Zune_Layout: method = (APTR)List__MUIM_Layout; break;
-    case MUIM_List_Clear: method = (APTR)List__MUIM_Clear; goto forget;
-    case MUIM_List_Sort: method = (APTR)List__MUIM_Sort; break;
-    case MUIM_List_Exchange: method = (APTR)List__MUIM_Exchange; break;
-    case MUIM_List_Insert: method = (APTR)List__MUIM_Insert; goto forget;
-    case MUIM_List_InsertSingle: method = (APTR)List__MUIM_InsertSingle; goto forget;
-    case MUIM_List_GetEntry: method = (APTR)List__MUIM_GetEntry; break;
-    case MUIM_List_Redraw: method = (APTR)List__MUIM_Redraw; goto forget;
-    case MUIM_List_Remove: method = (APTR)List__MUIM_Remove; goto forget;
-    case MUIM_List_Select: method = (APTR)List__MUIM_Select; break;
-    case MUIM_List_Construct: method = (APTR)List__MUIM_Construct; break;
-    case MUIM_List_Destruct: method = (APTR)List__MUIM_Destruct; break;
-    case MUIM_List_Compare: method = (APTR)List__MUIM_Compare; break;
-    case MUIM_List_Display: method = (APTR)List__MUIM_Display; break;
-    case MUIM_List_SelectChange: method = (APTR)List__MUIM_SelectChange; break;
-    case MUIM_List_CreateImage: method = (APTR)List__MUIM_CreateImage; goto forget;
-    case MUIM_List_DeleteImage: method = (APTR)List__MUIM_DeleteImage; goto forget;
-    case MUIM_List_Jump: method = (APTR)List__MUIM_Jump; break;
-    case MUIM_List_Move: method = (APTR)List__MUIM_Move; break;
-    case MUIM_List_NextSelected: method = (APTR)List__MUIM_NextSelected; break;
-    case MUIM_List_TestPos: method = (APTR)List__MUIM_TestPos; break;
-    case MUIM_DragQuery: method = (APTR)List__MUIM_DragQuery; break;
-    case MUIM_DragFinish: method = (APTR)List__MUIM_DragFinish; goto forget;
-    case MUIM_DragReport: method = (APTR)zune_list_drag_report; break;
-    case MUIM_DragDrop: method = (APTR)zune_list_drag_drop; goto forget;
-    case MUIM_CreateDragImage: method = (APTR)zune_list_create_drag_image; break;
-    default:
-        return DoSuperMethodA(cl, obj, (Msg)msg);
-    }
-    /* one call for all: each case only picks its function */
-    return method(cl, obj, msg);
-forget:
-    ((struct MUI_ListData *)INST_DATA(cl, obj))->flags &= ~LIST_DIMSVALID;
-    return method(cl, obj, msg);
+    return DoSuperMethodA(cl, obj, (Msg)msg);
 }
 BOOPSI_DISPATCHER_END
 
