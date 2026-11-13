@@ -2713,14 +2713,20 @@ static BOOL PointerUnderCheck(Object *obj)
     return TRUE;
 }
 
-static BOOL UpdatePointer(Object *oWin, struct MUI_WindowData *data,
-    LONG x, LONG y, struct WindowEventCursor *cursor)
+/* The pointer's shape from the object under it (MUI 4/5's
+ * MUIM_WhichPointerType, MUIA_PointerType): MUI 3.8 has none, so a MUI 3
+ * program's mouse moves do not walk the tree for it. FALSE if the window
+ * was closed or disposed meanwhile. Not inlined: HandleInputEvent's frame
+ * is under every event's handlers. */
+static __attribute__((noinline)) BOOL UpdatePointer(Object *oWin,
+    struct MUI_WindowData *data, LONG x, LONG y,
+    struct WindowEventCursor *cursor)
 {
     Object *under;
     IPTR type = MUIV_PointerType_Parent;
 
     if (!data->wd_RenderInfo.mri_Window || data->wd_SleepCount ||
-        data->wd_DragObject)
+        data->wd_DragObject || !ZUNE_APP_MUI45(oWin))
         return TRUE;
 
     under = ObjectUnderPointer(data, data->wd_RootObject, x, y,
@@ -2743,45 +2749,12 @@ static BOOL UpdatePointer(Object *oWin, struct MUI_WindowData *data,
     return TRUE;
 }
 
-/* Recursively test children at inclusive x/y bounds, then the current
- * drawable object, for a context-menu pointer. Require a live Area-
- * compatible tree and stable child lists. Return BOOL without taking
- * ownership or constructing a menu.
- */
-static BOOL ContextMenuUnderPointer(struct MUI_WindowData *data,
-    Object *obj, LONG x, LONG y)
+/* The test for a context menu under the pointer (ObjectUnderPointer
+ * has checked that the object is drawn): the same walk as for the help
+ * bubble and the pointer shape, which before had a copy of its own */
+static BOOL ContextMenuUnderPointerCheck(Object *obj)
 {
-    Object *cstate;
-    Object *child;
-    struct MinList *ChildList = NULL;
-
-    if (!(x >= _left(obj) && x <= _right(obj)
-            && y >= _top(obj) && y <= _bottom(obj)))
-    {
-        return FALSE;
-    }
-
-    if ((get(obj, MUIA_Group_ChildList, &(ChildList)))
-        && (ChildList != NULL))
-    {
-
-        cstate = ChildList ? (Object *)ChildList->mlh_Head : NULL;
-        while ((child = NextObject(&cstate)))
-        {
-            if ((x >= _left(child) && x <= _right(child)
-                    &&
-                    y >= _top(child) && y <= _bottom(child))
-                && (ContextMenuUnderPointer(data, child, x, y)))
-                return TRUE;
-        }
-    }
-
-    if (!(muiAreaData(obj)->mad_Flags & MADF_CANDRAW))
-        return FALSE;
-    if (!(AREA_CONTEXTMENU(muiAreaData(obj))))
-        return FALSE;
-
-    return TRUE;
+    return AREA_CONTEXTMENU(muiAreaData(obj)) ? TRUE : FALSE;
 }
 
 /**************/
@@ -2848,6 +2821,57 @@ static struct MenuItem *FindCaseShortcut(struct MenuItem *item, UBYTE key)
             return sub;
     }
     return NULL;
+}
+
+/* IDCMP_MENUVERIFY (only windows of programs that get MUI 4/5 ask for
+ * it): MUIM_Menustrip_WillOpen before a menu opens, the message answered
+ * after it (or by the window's closing). Not inlined: the guard stays off
+ * HandleWindowEvent's frame, which every event (a resize's whole redraw
+ * too) runs under. */
+static __attribute__((noinline)) void MenuVerify(Object *oWin,
+    struct MUI_WindowData *data, struct IntuiMessage *imsg)
+{
+    struct ZuneWindowGuard guard = {0};
+
+    if (data->wd_Menustrip && imsg->Code == MENUHOT)
+    {
+        guard.menu_message = imsg;
+        ZuneWatchWindow(oWin, &guard);
+        DoMethod(data->wd_Menustrip, MUIM_Menustrip_WillOpen);
+        if (guard.closed)
+            return;
+        ZuneUnwatchWindow(oWin, &guard);
+    }
+    ReplyMsg((struct Message *)imsg);
+}
+
+/* IDCMP_MENUPICK, after the message was replied: the item's object gets
+ * its check state and MUIA_Menuitem_Trigger (a copy of the item: the
+ * notifications may rebuild the menus), then the application and the
+ * window MUIA_..._MenuAction and the application the item's ID. Not
+ * inlined: the copy stays off HandleWindowEvent's frame. */
+static __attribute__((noinline)) void MenuPick(Object *oWin,
+    struct MUI_WindowData *data, UWORD code)
+{
+    struct MenuItem *item, selected;
+    Object *item_obj, *app = NULL;
+    IPTR udata = 0;
+
+    if (!data->wd_Menu || MENUNUM(code) == NOMENU || ITEMNUM(code) == NOITEM
+        || !(item = ItemAddress(data->wd_Menu, code))
+        || !(item_obj = (Object *) GTMENUITEM_USERDATA(item)))
+        return;
+    selected = *item;
+    if (selected.Flags & CHECKIT)
+        set(item_obj, MUIA_Menuitem_Checked, !!(selected.Flags & CHECKED));
+    set(item_obj, MUIA_Menuitem_Trigger, (IPTR) &selected);
+    if (get(oWin, MUIA_ApplicationObject, &app) && app
+        && get(item_obj, MUIA_UserData, &udata))
+    {
+        set(app, MUIA_Application_MenuAction, udata);
+        set(oWin, MUIA_Window_MenuAction, udata);
+        DoMethod(app, MUIM_Application_ReturnID, udata);
+    }
 }
 
 /* Reply to imsg if handled */
@@ -2938,58 +2962,15 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
         break;
 
     case IDCMP_MENUVERIFY:
-    {
-        struct ZuneWindowGuard guard = {0};
-        if (data->wd_Menustrip && imsg->Code == MENUHOT)
-        {
-            guard.menu_message = imsg;
-            ZuneWatchWindow(oWin, &guard);
-            DoMethod(data->wd_Menustrip, MUIM_Menustrip_WillOpen);
-            if (guard.closed) return TRUE;
-            ZuneUnwatchWindow(oWin, &guard);
-        }
-        ReplyMsg((struct Message *)imsg);
+        MenuVerify(oWin, data, imsg);
         return TRUE;
-    }
+
     case IDCMP_MENUPICK:
     {
         UWORD code = imsg->Code;
         ReplyMsg((struct Message *)imsg);
         replied = TRUE;
-
-        if (data->wd_Menu)
-        {
-            if (MENUNUM(code) != NOMENU
-                && ITEMNUM(code) != NOITEM)
-            {
-                struct MenuItem *item =
-                    ItemAddress(data->wd_Menu, code);
-                if (item)
-                {
-                    Object *item_obj = (Object *) GTMENUITEM_USERDATA(item);
-                    struct MenuItem selected = *item;
-                    item = &selected;
-                    if (item_obj)
-                    {
-                        Object *app = NULL;
-                        IPTR udata = 0;
-
-                        if (item->Flags & CHECKIT)
-                            set(item_obj, MUIA_Menuitem_Checked,
-                                ! !(item->Flags & CHECKED));
-
-                        set(item_obj, MUIA_Menuitem_Trigger, (IPTR) item);
-
-                        if (get(oWin, MUIA_ApplicationObject, &app) && app
-                            && get(item_obj, MUIA_UserData, &udata)) {
-                            set(app, MUIA_Application_MenuAction, udata);
-                            set(oWin, MUIA_Window_MenuAction, udata);
-                            DoMethod(app, MUIM_Application_ReturnID, udata);
-                        }
-                    }
-                }
-            }
-        }
+        MenuPick(oWin, data, code);
         break;
     }
 
@@ -3646,8 +3627,8 @@ static void HandleInputEvent(Object *win, struct MUI_WindowData *data,
         if (!UpdatePointer(win, data, event->MouseX, event->MouseY, &cursor))
             goto finished;
 
-        if (ContextMenuUnderPointer(data, data->wd_RootObject,
-                event->MouseX, event->MouseY))
+        if (ObjectUnderPointer(data, data->wd_RootObject,
+                event->MouseX, event->MouseY, ContextMenuUnderPointerCheck))
         {
             AROS_ATOMIC_OR(iWin->Flags, WFLG_RMBTRAP);
         }
