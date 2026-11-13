@@ -1080,13 +1080,13 @@ get_intframe(Object *obj, struct MUI_AreaData *data,
  * a valid frame request. Mutate Area instance data without layout, drawing
  * or allocation ownership transfer; return no status.
  */
-static void set_inner_sizes(Object *obj, struct MUI_AreaData *data);
+static void area_frame_sizes(Object *obj, struct MUI_AreaData *data,
+    BOOL msizes);
 /* If a borrowed frame-title string exists, resolve frame and title font and
  * store title offsets in BYTE fields from preferences. Requires live
  * RenderInfo and font resources. Sets the object font to the title font and
  * does not restore it here. No status or overflow guarantee is provided.
  */
-static void set_title_sizes(Object *obj, struct MUI_AreaData *data);
 /* Restore the embedded event registration to mouse buttons, then for
  * selected RelVerify objects clear Pressed (silently on cancel) and
  * Selected. Stop an active repeat timer. Requires live Window/application;
@@ -1597,8 +1597,7 @@ static IPTR Area__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                and needed to suppress frame for external images */
             data->mad_Frame = tag->ti_Data;
             if (muiGlobalInfo(obj)) {
-                set_inner_sizes(obj, data);
-                set_title_sizes(obj, data);
+                area_frame_sizes(obj, data, FALSE);
             }
             break;
 
@@ -3271,17 +3270,20 @@ get_intframe(Object *obj, struct MUI_AreaData *data,
     }
 }
 
-/* Resolve the frame and copy its inner spacing into components not
- * explicitly initialized by the caller. Requires connected preferences and
- * a valid frame request. Mutate Area instance data without layout, drawing
- * or allocation ownership transfer; return no status.
- */
-static void set_inner_sizes(Object *obj, struct MUI_AreaData *data)
+/* The frame's sizes after a setup or a new MUIA_Frame: the inner spacings
+ * not set by the program from the frame (MUI 3.8 drops them in the later
+ * stages of fitting a window into the screen); with a frame title the
+ * object's font becomes the title font, which Setup replaces with its own
+ * afterwards, and the title's room above and below the frame line from the
+ * settings; with msizes (Setup) the box's offsets too. */
+static __attribute__((noinline)) void area_frame_sizes(Object *obj,
+    struct MUI_AreaData *data, BOOL msizes)
 {
-    const struct MUI_FrameSpec_intern *frame;
     struct MUI_FrameSpec_intern tempframe;
+    const struct MUI_FrameSpec_intern *frame =
+        get_intframe(obj, data, &tempframe);
+    const struct ZuneFrameGfx *zframe;
 
-    frame = get_intframe(obj, data, &tempframe);
     // Use frame inner spacing when not hardcoded
     if (!(data->mad_Flags & MADF_INNERLEFT))
         data->mad_InnerLeft = frame->innerLeft;
@@ -3305,23 +3307,9 @@ static void set_inner_sizes(Object *obj, struct MUI_AreaData *data)
         if (!(data->mad_Flags & MADF_INNERBOTTOM))
             data->mad_InnerBottom = 0;
     }
-}
 
-/* If a borrowed frame-title string exists, resolve frame and title font and
- * store title offsets in BYTE fields from preferences. Requires live
- * RenderInfo and font resources. Sets the object font to the title font and
- * does not restore it here. No status or overflow guarantee is provided.
- */
-static void set_title_sizes(Object *obj, struct MUI_AreaData *data)
-{
+    zframe = zune_zframe_get(obj, frame);
     if (data->mad_FrameTitle) {
-        const struct ZuneFrameGfx *zframe;
-        const struct MUI_FrameSpec_intern *frame;
-        struct MUI_FrameSpec_intern tempframe;
-
-        frame = get_intframe(obj, data, &tempframe);
-        zframe = zune_zframe_get(obj, frame);
-
         _font(obj) = zune_font_get(obj, MUIV_Font_Title);
 
         switch (muiGlobalInfo(obj)->mgi_Prefs->group_title_position) {
@@ -3337,7 +3325,7 @@ static void set_title_sizes(Object *obj, struct MUI_AreaData *data)
                 data->mad_TitleHeightAbove);
             data->mad_TitleHeightBelow =
                 data->mad_TitleHeightAdd - data->mad_TitleHeightAbove;
-            return;
+            goto done;
         case GROUP_TITLE_POSITION_CENTERED:
             /* rounded up like MUI 3.9 (the 9 pixel title font of
              * MUI-Demo's "Available Demos" puts the line on row 5) */
@@ -3353,6 +3341,9 @@ static void set_title_sizes(Object *obj, struct MUI_AreaData *data)
         data->mad_TitleHeightBelow =
             data->mad_TitleHeightAdd - data->mad_TitleHeightAbove;
     }
+done:
+    if (msizes)
+        area_update_msizes(obj, data, frame, zframe);
 }
 
 /****** Area.mui/MUIM_Setup ************
@@ -3393,9 +3384,6 @@ static IPTR Area__MUIM_Setup(struct IClass *cl, Object *obj,
                              struct MUIP_Setup *msg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
-    const struct ZuneFrameGfx *zframe;
-    const struct MUI_FrameSpec_intern *frame;
-    struct MUI_FrameSpec_intern tempframe;
 
     /* Handler nodes are made at the first setup that needs them and kept
      * until dispose */
@@ -3410,13 +3398,7 @@ static IPTR Area__MUIM_Setup(struct IClass *cl, Object *obj,
      * group adds 8,5 against a plain one's 4,3; TinyMeterPrefs' window
      * was 549x237 against 553x250 without it). Zune dropped it here. */
 
-    set_inner_sizes(obj, data);
-    set_title_sizes(obj, data);
-
-    frame = get_intframe(obj, data, &tempframe);
-    zframe = zune_zframe_get(obj, frame);
-
-    area_update_msizes(obj, data, frame, zframe);
+    area_frame_sizes(obj, data, TRUE);
 
     if (data->mad_Flags & MADF_OWNBG) {
         data->mad_Background =
@@ -3636,9 +3618,9 @@ static IPTR Area__MUIM_Hide(struct IClass *cl, Object *obj,
         zune_imspec_hide(AREA_SELBACK(data));
     }
 
-    if (data->mad_Live && data->mad_Live->ContextZMenu) {
-        zune_close_menu(data->mad_Live->ContextZMenu);
-        data->mad_Live->ContextZMenu = NULL;
+    if (data->mad_Live && AREA_CONTEXTZMENU(data->mad_Live)) {
+        zune_close_menu(data->mad_Live->x->ContextZMenu);
+        data->mad_Live->x->ContextZMenu = NULL;
     }
 
     return TRUE;
@@ -3984,7 +3966,7 @@ static IPTR event_button(Class *cl, Object *obj, struct IntuiMessage *imsg)
         break;
 
     case MENUUP:
-        if (data->mad_Live->ContextZMenu)
+        if (AREA_CONTEXTZMENU(data->mad_Live))
             return zune_area_menu(obj, imsg);
         break;
     }
@@ -4007,7 +3989,8 @@ static IPTR event_motion(Class *cl, Object *obj, struct IntuiMessage *imsg)
 {
     struct MUI_AreaData *data = INST_DATA(cl, obj);
 
-    if ((imsg->Qualifier & IEQUALIFIER_RBUTTON) && data->mad_Live->ContextZMenu)
+    if ((imsg->Qualifier & IEQUALIFIER_RBUTTON)
+        && AREA_CONTEXTZMENU(data->mad_Live))
         return zune_area_menu(obj, imsg);
 
     if (imsg->Qualifier & IEQUALIFIER_LEFTBUTTON) {

@@ -39,13 +39,17 @@ static void areamenu_events(Object *obj, struct MUI_AreaLive *live,
 
 /* imsg: MENUDOWN over an object with a context menu, MENUUP or a move
  * with the right button held while its menu is open. Returns
- * MUI_EventHandlerRC_Eat. */
+ * MUI_EventHandlerRC_Eat. The open menu is kept in the live block's
+ * extension (made here: only objects with a context menu need it). */
 IPTR zune_area_menu(Object *obj, struct IntuiMessage *imsg)
 {
     struct MUI_AreaLive *live = muiAreaData(obj)->mad_Live;
+    struct MUI_AreaLiveX *x = zune_area_livex(obj, live);
 
-    if (imsg->Class == IDCMP_MOUSEMOVE)
-        zune_mouse_update(live->ContextZMenu, 0);
+    if (!x)
+        ;
+    else if (imsg->Class == IDCMP_MOUSEMOVE)
+        zune_mouse_update(x->ContextZMenu, 0);
     else if (imsg->Code == MENUDOWN)
     {
         Object *menuobj = (Object *)DoMethod(obj, MUIM_ContextMenuBuild,
@@ -61,9 +65,9 @@ IPTR zune_area_menu(Object *obj, struct IntuiMessage *imsg)
             get(menuobj, MUIA_Menuitem_NewMenu, &newmenu);
             if (newmenu)
             {
-                if (live->ContextZMenu)
-                    zune_close_menu(live->ContextZMenu);
-                live->ContextZMenu = zune_open_menu(_window(obj), newmenu);
+                if (x->ContextZMenu)
+                    zune_close_menu(x->ContextZMenu);
+                x->ContextZMenu = zune_open_menu(_window(obj), newmenu);
             }
             areamenu_events(obj, live, live->ehn.ehn_Events
                 | IDCMP_MOUSEMOVE);
@@ -71,7 +75,7 @@ IPTR zune_area_menu(Object *obj, struct IntuiMessage *imsg)
     }
     else
     {
-        struct MenuItem *item = zune_leave_menu(live->ContextZMenu);
+        struct MenuItem *item = zune_leave_menu(x->ContextZMenu);
 
         areamenu_events(obj, live, IDCMP_MOUSEBUTTONS);
         if (item)
@@ -84,8 +88,8 @@ IPTR zune_area_menu(Object *obj, struct IntuiMessage *imsg)
             set(itemobj, MUIA_Menuitem_Trigger, item);
             DoMethod(obj, MUIM_ContextMenuChoice, (IPTR)itemobj);
         }
-        zune_close_menu(live->ContextZMenu);
-        live->ContextZMenu = NULL;
+        zune_close_menu(x->ContextZMenu);
+        x->ContextZMenu = NULL;
     }
     return MUI_EventHandlerRC_Eat;
 }

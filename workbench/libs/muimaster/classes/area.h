@@ -560,21 +560,23 @@ struct MUI_AreaLiveX
 {
     struct MUI_EventHandlerNode hiehn;  /* to simulate MUIM_HandleInput */
     struct MUI_InputHandlerNode Timer;  /* MUIA_Timer */
+    struct ZMenu *ContextZMenu;         /* the open context menu */
 };
 
 /* Per-object state of an object that reacts to input, made at its first
- * setup (80 bytes with AllocVec's) */
+ * setup (72 bytes with AllocVec's) */
 struct MUI_AreaLive
 {
     struct MUI_EventHandlerNode ehn;
     struct MUI_EventHandlerNode ccn;    /* gross hack for control char */
     struct MUI_AreaLiveX *x;            /* NULL until needed */
-    struct ZMenu *ContextZMenu;
-    LONG ClickX;                /* x position of the initial SELECTDOWN click */
-    LONG ClickY;                /* y position of the initial SELECTDOWN click */
     struct MUI_ImageSpec_intern *SelBack;   /* selected state background */
     ULONG Timeval;              /* MUIA_Timer, just to trigger notifications */
+    WORD ClickX;                /* x position of the initial SELECTDOWN click */
+    WORD ClickY;                /* y position of the initial SELECTDOWN click */
 };
+/* The open context menu of a live block, or NULL */
+#define AREA_CONTEXTZMENU(live) ((live)->x ? (live)->x->ContextZMenu : NULL)
 
 /* Attributes few objects set, made when one is: MUIA_FixWidthTxt,
  * MUIA_FixHeightTxt, MUIA_ContextMenu, MUIA_PointerType */
