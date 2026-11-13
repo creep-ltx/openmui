@@ -4114,7 +4114,91 @@ horizontal bar). The window's inner spacing in the MUI 5 identity stays
 MUI 3.8's (4 against MUI 5's 8). UP-Balance: real MUI 5 shows its own 3D bar
 over the class's flat line, OpenMUI the class's line.
 
+## Rewrite: List (2026-11-13, branch `rw-list`)
+
+The first class of the "rewrite for m68k" phase (roadmap): List, the largest class
+(`classes/list.o` 24,716 bytes of code), with what only it uses (`listx.c`, the list module
+`Zlist.mui`, `classes/list_private.h`). Its instance data stays private to `list.c`,
+`listx.c` and `modules.c`; Listview, Dirlist, Volumelist, Poplist and third-party subclasses
+only use attributes and methods, which are unchanged. Same rules as the rounds before.
+
+| commit | what | effect |
+|---|---|---|
+| 87153834 | **Rows in one array**: `struct ListEntry` is 8 bytes (data, WORD height, UWORD flags) in one array, the title at index -1, instead of a pointer per row to an entry allocated from the list's pool (24 bytes + 4 per column; the per-column widths were measured but never read). **A format is one block** (the columns, the preparse and string arrays, the room for the column mapping) instead of three or four AllocVecs; `struct ColumnInfo` 64 -> 32 bytes. **Shared hooks**: the scrollbar notifications' and the layout hook are one `static const` hook each, entered directly (register arguments, no HookEntry), the data found from the object through List's class; the default compare hook (Stricmp, what a NULL hook does) gone. `MUI_ListData` 392 -> 324 bytes (MUI 3.8: 390). Sort, Move and Exchange move rows as two longwords; the heap sinks by swaps | no allocation per insert; a list without a construct hook holds no pool puddle: MUI-Demo first program -7.4 KB, each further -6.6 KB; insert 1000 473 -> 402 ms |
+| 3e3b9bf2 | **The common cell**: a plain string (no preparse, escape, newline or tab) is measured with one TextLength() when the list's RastPort already has the list's font in the plain style (no ZText, no RastPort copy); drawn, it is measured on the RastPort it is drawn on, set up as zune_text_draw() sets it. MUIM_Draw picks its rows in one place, the four backgrounds are one function. AROS leftovers out | insert 1000 402 -> 263 ms, full redraw -1 %, list active and scroll page -2 % |
+| 7227b555 | **The dispatcher as a table**: 44 methods by ID in ascending order (the compiler checks the order), halved to find one; bit 0 of a function's address marks the methods after which the entries are measured again; Compare, Display and Construct, sent by the thousand, tested first. OM_NEW sets only what is not 0 | dispatcher 918 -> 178 bytes + a 344-byte table; sort 1000 102 -> 94 ms, insert 1000 263 -> 248 |
+
+**List's code 24,716 -> 23,876 bytes (-840)**; Zlist.mui 5,920 -> 5,880. Library code
+(`size`) 236,172 -> 235,332 bytes; file (stripped) 252,656 -> 251,912.
+
+**Memory** (MUI-Demo cold, OS 3.1, `m.sh`, FS-UAE, the same session, bytes):
+
+| | first program | each further |
+|---|---:|---:|
+| MUI 3.8 | 460,296 | 210,632-218,888 |
+| lean (85a64a82) | 460,240 | 204,528-204,592 |
+| rw-list | **452,848** | **197,976-198,040** |
+
+**opbench** (FS-UAE cycle-exact, ms, median of 9; lean three instances, rw-list two; MUI 3.8
+from speed round 3):
+
+| operation | MUI 3.8 | lean | rw-list | rw-list / lean |
+|---|---:|---:|---:|---:|
+| list insert 1 | 10.3 | 8.44-8.47 | 8.16-8.29 | 0.97-0.98 |
+| list insert 100 | 830.5-833.2 | 85.2-85.9 | 60.9-62.4 | 0.71-0.73 |
+| list insert 1000 | 6648.6-6661.5 | 472.8-473.2 | 247.6-248.8 | 0.52-0.53 |
+| list active | 21.1-21.2 | 19.1-19.3 | 18.7-18.9 | 0.98-0.99 |
+| list scroll line | 14.6 | 13.3 | 13.2-13.3 | 0.99-1.00 |
+| list scroll page | 44.4-44.5 | 40.1-40.4 | 39.2-39.5 | 0.98-0.99 |
+| list sort 1000 | 658.1-659.4 | 109.8-111.0 | 93.9-94.4 | 0.86 |
+| full redraw | 140.5-150.8 | 149.6-149.8 | 148.2 | 0.99 |
+| relayout | 207.1-207.3 | 193.7-194.0 | 192.5-192.7 | 0.99 |
+| uniconify | 440.8-456.5 | 371.6-373.4 | 370.1-371.5 | 1.00 |
+
+The other operations as lean's, within the spread of its instances (app+windows create
+232.2-235.4 against 233.1-235.7, iconify 77.1-77.2 against 77.1-78.3, register page 52.1-53.5
+against 52.8-54.4).
+
+**Tried and not taken** (measured):
+
+- A format parser without ReadArgs: proven equal to dos.library's ReadArgs for List's template
+  on 40,117 columns, the same on OS 3.1 and OS 3.2.1 (`tests/lean/fmtargs.c`, which keeps the
+  model: a newline or `;` ends a column, `P==x` is `x`, a value given twice fails, a switch may
+  repeat, no `+`, 32 bits), but 476 bytes more code than the ReadArgs call; ReadArgs is not in
+  any opbench operation.
+- OM_GET as a table (196 bytes less): its frame went 20 -> 24-36 bytes in every form tried.
+- The keys of MUIM_HandleEvent as tables: 28 bytes more than GCC's jump table.
+- One function for MUIA_List_Active's special values in OM_NEW and OM_SET: OM_SET's frame +4
+  (as `listslim` found); OM_NEW now needs only Top, Bottom and the clamp.
+
+**Checked** (emulators): `make check` after every commit (tests/check_list_sort.py follows the
+new layout: the rows in place, the allocation failure now the array's growth);
+`-fstack-usage` of every function of list.c, listx.c (Zlist), listview.c, dirlist.c,
+volumelist.c, poplist.c and modules.c against lean: none larger (CalcDimsOfEntry 164 -> 64
+with the text engine's locals in a function of its own, ParseListFormat 272 -> 252, Clear,
+Insert, Remove, OM_DISPOSE, SiftEntries smaller; two frames that grew on the way were fixed:
+an `asm` barrier in Zlist's end_edit where GCC kept the instance offset in a register for an
+8-bit displacement, and rows moved as longwords instead of 8-byte struct copies); stackrun
+(FS-UAE, side by side, twice): MUI-Demo 5,048 -> 5,044, Layout 2,268, Virtual 2,212, Pages
+2,240, Slidorama 2,304 on both (one first run of the branch gave Slidorama 2,328; it has no
+list, and the second run gave 2,304 again: its own variation, as round `upx` saw); listclip: the same 4,181 row checksums as lean after every
+step; demopix (Amiberry, both libraries fresh, the OpenMUI side): all 27 shots byte-identical to
+lean's; the suite (all 182 programs of mui3, mcc and mui5 on OS 3.1, Amiberry, three
+instances per library, lean's library and the branch's side by side): program by program the
+same status and windows (147 ok, 21 exited, 9 no window, 2 frozen, 2 frozen at quit, 1 reset:
+the same programs), except SpeedBar demo6 at 448 against 449 pixels in the lean run, 449 on both
+when run again alone (its known flip); the memory in use with the windows open 840 bytes lower
+everywhere (the code), more where a program's lists hold entries (MultiRen -18 KB, PopPH demo
+-6.9 KB, xSysInfo -5.3 KB, AmFTP -4.3 KB).
+
 ## Left open
+
+- **Rewrite for m68k (2026-11-13, after `rw-list`)**: List done (code -840 bytes, memory per
+  MUI-Demo -7 KB, list insert 1000 -48 %, sort -14 %); its biggest functions (OM_SET 1,944,
+  Draw 1,926, HandleEvent 1,882, OM_NEW 1,254 bytes) are still the AROS-derived C at -Os:
+  GCC's switches are already compact and every table tried cost frame bytes; a smaller List
+  needs those rewritten as a whole, not trimmed. ReadArgs-free formats: ready in
+  `tests/lean/fmtargs.c` if code can be paid for. Next: Window (roadmap).
 
 - **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
   with the trap recorder off (AllocMem inside intuition, called through Notify's OM_NEW), not

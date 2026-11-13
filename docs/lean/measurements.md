@@ -466,7 +466,7 @@ list pools), lean's 166 KB. Own instance data, bytes:
 | Area (every object) | 108 | 136 | 114 |
 | Group (Zune's List, Listview, Scrollbar too) | 42 | 168 | 96 |
 | Numeric | 60 | 98 | 98 |
-| List | 390 | 420 | 420 |
+| List | 390 | 420 | 420 (2026-11-13 `rw-list`: 324) |
 
 - Group: the virtual-group state (event node, offsets, extents, the paint
   clip; 68 bytes) is a block made at OM_NEW for virtual groups only; the
@@ -621,6 +621,28 @@ Memory (MUI-Demo cold, OS 3.1, `m.sh`, FS-UAE, the same session, bytes):
 | speed3 | 459,992 | 204,512-204,576 | 266,472 |
 
 Library code 236,160 -> 235,944 bytes.
+
+## Rewrite: List (2026-11-13, branch `rw-list`)
+
+README.md "Rewrite: List" has the steps. Figures (FS-UAE, OS 3.1, emulator):
+
+| | lean (85a64a82) | rw-list |
+|---|---:|---:|
+| List's code (`classes/list.o`) | 24,716 | 23,876 |
+| Zlist.mui code | 5,920 | 5,880 |
+| library code (`size`) | 236,172 | 235,332 |
+| library file, stripped | 252,656 | 251,912 |
+| List instance data (MUI 3.8: 390) | 392 | 324 |
+| a row (entry) | 24 + 4 per column, pooled, + a 4-byte pointer | 8, in one array |
+| struct ColumnInfo | 64 | 32 |
+| a format's blocks | 3-4 AllocVecs | 1 |
+| MUI-Demo first program (MUI 3.8: 460,296) | 460,240 | 452,848 |
+| MUI-Demo each further (MUI 3.8: 210,632-218,888) | 204,528-204,592 | 197,976-198,040 |
+
+The per-program saving is mostly the pool puddles: every list with an entry held at least one
+1 KB puddle for its rows; now only lists whose construct hook allocates from the pool (or a
+program's MUIA_List_Pool) have one, and the rows are one AllocVec'd array (8 bytes per row,
+doubled as it grows).
 
 ## Tools
 

@@ -330,6 +330,27 @@ opening, creation's allocations (MUI 3.8 pools), a disabled object's event handl
 it). Details in
 [README.md](README.md#speed-round-3-against-mui-5-the-os-calls-per-operation-the-getattr-calls-2026-11-12-gate-3).
 
+## Rewrite for m68k (started 2026-11-13, branch `rw-list`)
+
+The partner's decision: "We must rewrite the bloated AROS parts. OpenMUI is for m68k machines,
+not x86/64." Class by class, the largest first, each as its own branch with the gates' rules
+(the same behaviour and pixels, not slower, memory per program not more, no stack frame larger,
+MUI 3 programs pay nothing for MUI 4/5): data structures for a 16/32-bit machine with little
+memory, the common case first, AROS portability layers and generality removed, assembly only
+where a measured hot loop pays. Order:
+
+1. **List** (done 2026-11-13, `rw-list`): rows as one array of 8-byte entries, one block per
+   format, shared hooks, the plain-cell fast path, the dispatcher as a table. Memory per
+   MUI-Demo -7 KB, list insert 1000 -48 %, sort -14 %. Details in
+   [README.md](README.md#rewrite-list-2026-11-13-branch-rw-list).
+2. Window.
+3. Group.
+4. Area.
+5. Application.
+6. String.
+7. The text engine (textengine.c).
+8. Image and frame drawing (imspec, frames).
+
 ## Later (wanted, not scheduled)
 
 1. Hand-written 68000 assembly in the hottest drawing and layout loops.

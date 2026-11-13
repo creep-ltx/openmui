@@ -8,7 +8,17 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
-Nothing yet.
+### Changed
+
+- **List rewritten for 68k machines (first part)**: a list's rows are now one
+  compact array (8 bytes a row, no memory block per row), a list format is one
+  block, and the common case, a row of plain text, is measured and drawn
+  without the text engine's general path. Each MUI-Demo now takes about 7 KB
+  less memory (first program 452,848 bytes against MUI 3.8's 460,296);
+  inserting 1000 entries takes half the time (248 against 473 ms; MUI 3.8
+  6,650 ms), sorting 1000 14 % less (94 ms; MUI 3.8 658 ms), redrawing a
+  window 1 % less. The library's code is 840 bytes smaller. Programs see no
+  difference: the same attributes, methods, hooks and pixels.
 
 ## 0.1b2 (2026-11-13, the first public beta)
 
