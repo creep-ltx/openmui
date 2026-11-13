@@ -6,7 +6,7 @@ is in the group's extra block (struct GroupExtra), at VIRT within it."""
 CHILDLIST = 2           # childlist (struct MinList)
 LAYOUT_HOOK = 14        # layout_hook
 FLAGS = 18              # flags (ULONG)
-EXTRA = 34              # x (struct GroupExtra *)
+EXTRA = 26              # x (struct GroupExtra *)
 EXTRA_SIZE = 96         # a virtual group's extra block
 VIRT = 28               # offsetof(struct GroupExtra, virt)
 GROUP_CHANGING = 1 << 4

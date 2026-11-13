@@ -95,12 +95,13 @@ struct GroupExtra
 };
 #define GROUP_EXTRA_SMALL offsetof(struct GroupExtra, virt)
 
-/* Every group, list, listview and scrollbar carries this: 38 bytes (68
+/* Every group, list, listview and scrollbar carries this: 36 bytes (68
  * before the 68000 rewrite, MUI 3.8's 42). The fields read on every
  * child walk and every draw sit on longword boundaries of the object
- * (Group's data starts 2 bytes past one: hence active_page first). Counts,
- * spacings and sizes are WORDs (MUI's sizes are, MUI_MAXMAX is 10000).
- * horiz_spacing and vert_spacing are indexed by the axis. */
+ * (Group's data starts 2 bytes past one: hence active_page first), and
+ * the size keeps a subclass's data (List's) on the boundaries it had.
+ * Counts, spacings and sizes are WORDs (MUI's sizes are, MUI_MAXMAX is
+ * 10000). horiz_spacing and vert_spacing are indexed by the axis. */
 struct MUI_GroupData
 {
     WORD active_page;
@@ -111,12 +112,11 @@ struct MUI_GroupData
     struct Hook *layout_hook;
     ULONG flags;                /* GROUP_* (a UWORD costs stack in the
                                  * recursive methods) */
+    ULONG weight_sum;           /* a horiz/vert group's, along its axis */
+    struct GroupExtra *x;       /* NULL unless titled, a grid or virtual */
     WORD horiz_spacing;         /* -1 until setup, unless set */
     WORD vert_spacing;
     UWORD num_children;
-    UWORD num_visible_children; /* for horiz/vert group only */
-    ULONG weight_sum;           /* a horiz/vert group's, along its axis */
-    struct GroupExtra *x;       /* NULL unless titled, a grid or virtual */
 };
 
 /* The fields of an Area's data by axis (0 horizontal, 1 vertical), as
@@ -2779,7 +2779,6 @@ static void group_minmax_1d(struct MUI_GroupData *data,
         else if (same)
             maxmin = MAX(maxmin, AXP(child, a)[AX_MIN]);
     }
-    data->num_visible_children = nvis;
 
     t[b] = t[b + 4] = 0;
     t[b + 2] = MUI_MAXMAX;
@@ -3572,7 +3571,6 @@ static __attribute__((noinline)) void group_disappear(
     BOOL any = FALSE;
     struct MinNode *n;
     Object *child;
-    UWORD nvis = 0;
     ULONG wsum = 0;
 
     FOR_CHILD(children, n, child)
@@ -3625,12 +3623,9 @@ static __attribute__((noinline)) void group_disappear(
 
     FOR_CHILD(children, n, child)
     {
-        if (IS_HIDDEN(child))
-            continue;
-        nvis++;
-        wsum += (UWORD)AXP(child, a)[AX_WEIGHT];
+        if (!IS_HIDDEN(child))
+            wsum += (UWORD)AXP(child, a)[AX_WEIGHT];
     }
-    data->num_visible_children = nvis;
     data->weight_sum = wsum;
 }
 
@@ -3674,11 +3669,15 @@ static __attribute__((noinline)) void group_sizes_1d(
     ULONG weight_sum = data->weight_sum, total_weight;
     WORD total_size, total_init_size = 0, remainder, samesize = 0;
     WORD left;
+    UWORD nvis = 0;
 
     group_disappear(data, children, a, length);
+    /* the children laid out (counted here, not kept from AskMinMax) */
+    FOR_CHILD(children, n, child)
+        if (!IS_HIDDEN(child))
+            nvis++;
     total_weight = weight_sum;
-    total_size = length - (data->num_visible_children - 1)
-        * (&data->horiz_spacing)[a];
+    total_size = length - (nvis - 1) * (&data->horiz_spacing)[a];
 
     // weight constraints: the ideal size of each object, and their total
     left = total_size;
