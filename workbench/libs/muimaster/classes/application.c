@@ -4737,11 +4737,12 @@ static IPTR deep_call(struct MUI_ApplicationData *data, ZuneDeepFunc fn,
     return result;
 }
 
-/* The same for code outside this class (window opening): app is the
- * window's application object, NULL before it has one. */
-IPTR zune_deep_call(Object *app, ZuneDeepFunc fn, struct IClass *cl,
-    Object *obj, Msg msg)
+/* The same for code outside this class (window opening): the application
+ * is obj's (a Notify object's), none before it has one. */
+IPTR zune_deep_call(ZuneDeepFunc fn, struct IClass *cl, Object *obj, Msg msg)
 {
+    struct MUI_GlobalInfo *mgi = muiNotifyData(obj)->mnd_GlobalInfo;
+    Object *app = mgi ? mgi->mgi_ApplicationObject : NULL;
     struct IClass *c = app ? OCLASS(app) : NULL;
 
     while (c && !(c->cl_ID && !strcmp((char *)c->cl_ID, MUIC_Application)))

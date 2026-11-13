@@ -6882,64 +6882,126 @@ static __attribute__((noinline)) IPTR Window__MUIM_Refit(struct IClass *cl,
     return 0;
 }
 
+/* The methods Window answers, by MethodID (unsigned, ascending: the
+ * dispatcher halves the table to find one; the compiler checks the order).
+ * OM_SET, which opens and closes the window, is tested before. */
+static const struct { ULONG id; APTR method; } window_methods[] =
+{
+    { OM_NEW, (APTR)Window__OM_NEW },
+    { OM_DISPOSE, (APTR)Window__OM_DISPOSE },
+    { OM_GET, (APTR)Window__OM_GET },
+    { MUIM_FindObject, (APTR)Window__MUIM_FindUData },
+    { MUIM_Window_AddEventHandler, (APTR)Window__MUIM_AddEventHandler },
+    { MUIM_Window_GetMenuCheck, (APTR)Window__MUIM_GetMenuCheck },
+    { MUIM_Window_GetMenuState, (APTR)Window__MUIM_GetMenuState },
+    { MUIM_Export, (APTR)Window__MUIM_Export },
+    { MUIM_Window_ToBack, (APTR)Window__MUIM_Arrange },
+    { MUIM_Window_SetMenuCheck, (APTR)Window__MUIM_SetMenuCheck },
+    { MUIM_Window_ScreenToFront, (APTR)Window__MUIM_Arrange },
+    { MUIM_Window_SetMenuState, (APTR)Window__MUIM_SetMenuState },
+    { MUIM_Window_ActionIconify, (APTR)Window__MUIM_ActionIconify },
+    { MUIM_Window_ToFront, (APTR)Window__MUIM_Arrange },
+    { MUIM_Window_SetCycleChain, (APTR)Window__MUIM_SetCycleChain },
+    { MUIM_Window_RemEventHandler, (APTR)Window__MUIM_RemEventHandler },
+    { MUIM_Window_ScreenToBack, (APTR)Window__MUIM_Arrange },
+    { MUIM_Window_Snapshot, (APTR)Window__MUIM_Snapshot },
+    { MUIM_Window_Cleanup, (APTR)Window__MUIM_Cleanup },
+    { MUIM_FindUData, (APTR)Window__MUIM_FindUData },
+    { MUIM_Window_Setup, (APTR)Window__MUIM_Setup },
+    { MUIM_SetUData, (APTR)Window__MUIM_SetUData },
+    { MUIM_SetUDataOnce, (APTR)Window__MUIM_SetUDataOnce },
+    { MUIM_Import, (APTR)Window__MUIM_Import },
+    { MUIM_GetUData, (APTR)Window__MUIM_GetUData },
+    { MUIM_ConnectParent, (APTR)Window__MUIM_ConnectParent },
+    { MUIM_DisconnectParent, (APTR)Window__MUIM_DisconnectParent },
+    { MUIM_Window_AddControlCharHandler, (APTR)Window__MUIM_AddControlCharHandler },
+    { MUIM_Window_AllocGadgetID, (APTR)Window__MUIM_AllocGadgetID },
+    { MUIM_Window_DrawBackground, (APTR)Window__MUIM_DrawBackground },
+    { MUIM_Window_DragObject, (APTR)Window__MUIM_DragObject },
+    { MUIM_Window_FreeGadgetID, (APTR)Window__MUIM_FreeGadgetID },
+    { MUIM_Window_RecalcDisplay, (APTR)Window__MUIM_RecalcDisplay },
+    { MUIM_Window_RemControlCharHandler, (APTR)Window__MUIM_RemControlCharHandler },
+    { MUIM_Window_UpdateMenu, (APTR)Window__MUIM_UpdateMenu },
+    { MUIM_Window_Refresh, (APTR)Window__MUIM_Refresh },
+    { MUIM_Window_Refit, (APTR)Window__MUIM_Refit },
+};
+_Static_assert((ULONG)OM_NEW < (ULONG)OM_DISPOSE, "window_methods order");
+_Static_assert((ULONG)OM_DISPOSE < (ULONG)OM_GET, "window_methods order");
+_Static_assert((ULONG)OM_GET < (ULONG)MUIM_FindObject, "window_methods order");
+_Static_assert((ULONG)MUIM_FindObject < (ULONG)MUIM_Window_AddEventHandler, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_AddEventHandler < (ULONG)MUIM_Window_GetMenuCheck, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_GetMenuCheck < (ULONG)MUIM_Window_GetMenuState, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_GetMenuState < (ULONG)MUIM_Export, "window_methods order");
+_Static_assert((ULONG)MUIM_Export < (ULONG)MUIM_Window_ToBack, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_ToBack < (ULONG)MUIM_Window_SetMenuCheck, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_SetMenuCheck < (ULONG)MUIM_Window_ScreenToFront, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_ScreenToFront < (ULONG)MUIM_Window_SetMenuState, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_SetMenuState < (ULONG)MUIM_Window_ActionIconify, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_ActionIconify < (ULONG)MUIM_Window_ToFront, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_ToFront < (ULONG)MUIM_Window_SetCycleChain, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_SetCycleChain < (ULONG)MUIM_Window_RemEventHandler, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_RemEventHandler < (ULONG)MUIM_Window_ScreenToBack, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_ScreenToBack < (ULONG)MUIM_Window_Snapshot, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_Snapshot < (ULONG)MUIM_Window_Cleanup, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_Cleanup < (ULONG)MUIM_FindUData, "window_methods order");
+_Static_assert((ULONG)MUIM_FindUData < (ULONG)MUIM_Window_Setup, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_Setup < (ULONG)MUIM_SetUData, "window_methods order");
+_Static_assert((ULONG)MUIM_SetUData < (ULONG)MUIM_SetUDataOnce, "window_methods order");
+_Static_assert((ULONG)MUIM_SetUDataOnce < (ULONG)MUIM_Import, "window_methods order");
+_Static_assert((ULONG)MUIM_Import < (ULONG)MUIM_GetUData, "window_methods order");
+_Static_assert((ULONG)MUIM_GetUData < (ULONG)MUIM_ConnectParent, "window_methods order");
+_Static_assert((ULONG)MUIM_ConnectParent < (ULONG)MUIM_DisconnectParent, "window_methods order");
+_Static_assert((ULONG)MUIM_DisconnectParent < (ULONG)MUIM_Window_AddControlCharHandler, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_AddControlCharHandler < (ULONG)MUIM_Window_AllocGadgetID, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_AllocGadgetID < (ULONG)MUIM_Window_DrawBackground, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_DrawBackground < (ULONG)MUIM_Window_DragObject, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_DragObject < (ULONG)MUIM_Window_FreeGadgetID, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_FreeGadgetID < (ULONG)MUIM_Window_RecalcDisplay, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_RecalcDisplay < (ULONG)MUIM_Window_RemControlCharHandler, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_RemControlCharHandler < (ULONG)MUIM_Window_UpdateMenu, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_UpdateMenu < (ULONG)MUIM_Window_Refresh, "window_methods order");
+_Static_assert((ULONG)MUIM_Window_Refresh < (ULONG)MUIM_Window_Refit, "window_methods order");
+
+/* The function of a method in window_methods, NULL if Window has none
+ * (a function of its own: its search is off the stack when the method
+ * runs) */
+static __attribute__((noinline)) APTR WindowMethod(ULONG id)
+{
+    const ULONG *lo = &window_methods[0].id,
+        *hi = &window_methods[sizeof(window_methods)
+            / sizeof(window_methods[0]) - 1].id, *p;
+
+    while (lo <= hi)
+    {
+        ULONG m;
+
+        p = lo + (((hi - lo) >> 2) << 1);
+        if ((m = *p) == id)
+            return (APTR)p[1];
+        if (m < id)
+            lo = p + 2;
+        else
+            hi = p - 2;
+    }
+    return NULL;
+}
+
 BOOPSI_DISPATCHER(IPTR, Window_Dispatcher, cl, obj, msg)
 {
-    IPTR (*method)(struct IClass *, Object *, APTR);
+    IPTR (*method)(struct IClass *, Object *, Msg);
 
-    switch (msg->MethodID)
-    {
-    case MUIM_Window_SetCycleChain: method = (APTR)Window__MUIM_SetCycleChain; break;
-    case OM_NEW: method = (APTR)Window__OM_NEW; break;
-    case OM_DISPOSE: method = (APTR)Window__OM_DISPOSE; break;
-    case OM_GET: method = (APTR)Window__OM_GET; break;
-    case MUIM_FindUData:
-    case MUIM_FindObject: method = (APTR)Window__MUIM_FindUData; break;
-    case MUIM_SetUDataOnce: method = (APTR)Window__MUIM_SetUDataOnce; break;
-    case MUIM_GetUData: method = (APTR)Window__MUIM_GetUData; break;
-    case MUIM_SetUData: method = (APTR)Window__MUIM_SetUData; break;
-    case MUIM_Window_AddEventHandler: method = (APTR)Window__MUIM_AddEventHandler; break;
-    case MUIM_Window_RemEventHandler: method = (APTR)Window__MUIM_RemEventHandler; break;
-    case MUIM_ConnectParent: method = (APTR)Window__MUIM_ConnectParent; break;
-    case MUIM_DisconnectParent: method = (APTR)Window__MUIM_DisconnectParent; break;
-    case MUIM_Window_RecalcDisplay: method = (APTR)Window__MUIM_RecalcDisplay; break;
-    case MUIM_Window_Refit: method = (APTR)Window__MUIM_Refit; break;
-    case MUIM_Window_Setup: method = (APTR)Window__MUIM_Setup; break;
-    case MUIM_Window_Cleanup: method = (APTR)Window__MUIM_Cleanup; break;
-    case MUIM_Window_AddControlCharHandler: method = (APTR)Window__MUIM_AddControlCharHandler; break;
-    case MUIM_Window_RemControlCharHandler: method = (APTR)Window__MUIM_RemControlCharHandler; break;
-    case MUIM_Window_DragObject: method = (APTR)Window__MUIM_DragObject; break;
-    case MUIM_Window_AllocGadgetID: method = (APTR)Window__MUIM_AllocGadgetID; break;
-    case MUIM_Window_FreeGadgetID: method = (APTR)Window__MUIM_FreeGadgetID; break;
-    case MUIM_Window_GetMenuCheck: method = (APTR)Window__MUIM_GetMenuCheck; break;
-    case MUIM_Window_SetMenuCheck: method = (APTR)Window__MUIM_SetMenuCheck; break;
-    case MUIM_Window_GetMenuState: method = (APTR)Window__MUIM_GetMenuState; break;
-    case MUIM_Window_SetMenuState: method = (APTR)Window__MUIM_SetMenuState; break;
-    case MUIM_Window_DrawBackground: method = (APTR)Window__MUIM_DrawBackground; break;
-    case MUIM_Window_ToFront:
-    case MUIM_Window_ToBack:
-    case MUIM_Window_ScreenToFront:
-    case MUIM_Window_ScreenToBack: method = (APTR)Window__MUIM_Arrange; break;
-    case MUIM_Window_ActionIconify: method = (APTR)Window__MUIM_ActionIconify; break;
-    case MUIM_Window_Snapshot: method = (APTR)Window__MUIM_Snapshot; break;
-    case MUIM_Window_UpdateMenu: method = (APTR)Window__MUIM_UpdateMenu; break;
-    case MUIM_Window_Refresh: method = (APTR)Window__MUIM_Refresh; break;
-    case MUIM_Export: method = (APTR)Window__MUIM_Export; break;
-    case MUIM_Import: method = (APTR)Window__MUIM_Import; break;
-    case OM_SET:
+    if (msg->MethodID == OM_SET)
 #if defined(ZUNE68_GCC_NATIVE) && defined(__mc68000__)
         /* Opening a window draws all of it: see zune_deep_call() */
-        if (muiNotifyData(obj)->mnd_GlobalInfo)
-            return zune_deep_call(
-                muiNotifyData(obj)->mnd_GlobalInfo->mgi_ApplicationObject,
-                (IPTR (*)(struct IClass *, Object *, Msg))Window__OM_SET,
-                cl, obj, msg);
-#endif
+        return zune_deep_call(
+            (IPTR (*)(struct IClass *, Object *, Msg))Window__OM_SET,
+            cl, obj, msg);
+#else
         return Window__OM_SET(cl, obj, (struct opSet *)msg);
-    default:
-        return DoSuperMethodA(cl, obj, msg);
-    }
-
-    return method(cl, obj, msg);
+#endif
+    if ((method = WindowMethod(msg->MethodID)))
+        return method(cl, obj, msg);
+    return DoSuperMethodA(cl, obj, msg);
 }
 BOOPSI_DISPATCHER_END
 

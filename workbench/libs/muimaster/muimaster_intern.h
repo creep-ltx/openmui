@@ -193,9 +193,10 @@ BOOL ZUNE_FreeExternalClass(Class *cl, struct Library *base);
 /* classes/application.c: MUI's private application list object */
 Object *zune_applist_get(void);
 void zune_applist_free(void);
-/* classes/application.c: run fn(cl, obj, msg) on a spare stack of app's
- * when little stack is left (68k native builds) */
-IPTR zune_deep_call(Object *app, IPTR (*fn)(struct IClass *, Object *, Msg),
+/* classes/application.c: run fn(cl, obj, msg) on a spare stack of the
+ * application of obj (a Notify object: its global info's) when little
+ * stack is left (68k native builds) */
+IPTR zune_deep_call(IPTR (*fn)(struct IClass *, Object *, Msg),
     struct IClass *cl, Object *obj, Msg msg);
 /* classes/popstring.c: a Popstring subclass's OM_NEW sets Popstring's hooks
  * through the superclass, in Popstring's frame */
