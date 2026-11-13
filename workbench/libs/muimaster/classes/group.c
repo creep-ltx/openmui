@@ -3181,16 +3181,17 @@ IPTR Group__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 {
     struct MUI_GroupData *data = GDATA(cl, obj);
     struct MUI_MinMax *mi;
+    WORD super_minwidth, super_minheight;
 
     /* our superclass first fills in its size with frame, inner spacing
      * etc. (and points the message at the group's own minmax) */
     DoSuperMethodA(cl, obj, (Msg) msg);
     mi = msg->MinMaxInfo;
-    if (data->flags & GROUP_VIRTUAL)
-    {
-        VX(data)->saved_minwidth = mi->MinWidth;
-        VX(data)->saved_minheight = mi->MinHeight;
-    }
+    /* kept here, not in the virtual state: a layout hook may get
+     * MUIA_Virtgroup_MinWidth/Height during MINMAX and sees the last
+     * minimum, as before the rewrite */
+    super_minwidth = mi->MinWidth;
+    super_minheight = mi->MinHeight;
 
     group_ask_children(&data->childlist, msg->MethodID,
         data->layout_hook != NULL);
@@ -3207,12 +3208,10 @@ IPTR Group__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     if (data->flags & GROUP_VIRTUAL)
     {
         /* MUI 3.8/3.9 keep eight pixels of virtual content visible */
-        LONG w = VX(data)->saved_minwidth, h = VX(data)->saved_minheight;
-
         VX(data)->saved_minwidth = mi->MinWidth;
         VX(data)->saved_minheight = mi->MinHeight;
-        mi->MinWidth = w + 8;
-        mi->MinHeight = h + 8;
+        mi->MinWidth = super_minwidth + 8;
+        mi->MinHeight = super_minheight + 8;
     }
     return 0;
 }
