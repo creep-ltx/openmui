@@ -4072,6 +4072,48 @@ when `ENV(ARC):MUI/<base>.cfg` is missing). A real MUI's `ENV:MUI`, `MUI:` and `
   page icons (Rawimage.mcc needs it) were missing on a machine set up by `putlib.sh` alone; it
   puts it now.
 
+## Spot's UP-MCC: what its classes rely on, and bundled (2026-11-13, branch `upmcc`)
+
+Spot (spotUP) released UP-MCC 1.0: eleven MUI 3.8 custom classes with a flat,
+dark look, a preferences class and up-mcc.library (github.com/spotUP/selecta,
+MIT). On OpenMUI its UP-Demo was grey with a black box behind every label and
+much too tall; real MUI 5 drew one dark face. Its class sources were read;
+MUI was measured black box with three probes (Amiberry, OS 3.1 + MUI 3.8,
+OS 3.2.1 + MUI 5):
+
+| probe | MUI 3.8 and MUI 5 | OpenMUI lean |
+|---|---|---|
+| `probe/bgfill.c` | a group with its own background and MUIA_FillArea FALSE paints the gaps between its children (only the box under a child that paints nothing is left) | painted only its frame ring |
+| `probe/gforward.c` | a set() of Group_HorizSpacing/VertSpacing/Spacing/Horiz/Columns/Rows stays with the group | passed on to every child group |
+| `probe/strbg.c` | MUI 3.8: String ignores its own MUIA_Background, but get(MUIA_Gadget_Gadget) gives the string gadget whose StringExtend background pens a program may change; MUI 5: keeps its own background, no gadget | neither |
+
+| commit | change |
+|---|---|
+| 828cc579 Group | gaps painted whatever FillArea; spacing, Horiz, Columns, Rows not forwarded |
+| bc811670 String | MUI 4/5 programs keep a String's own background; MUI 3.8 programs get the string gadget and its background pen |
+| 241f514d Group, String | paid for: the forwarding filter as a sorted table (348 -> 156 bytes + 64), the gadget in the MUI 4/5 module |
+| 48bf7637 Release | UP-MCC bundled (vendor/upmcc as released: classes, up-mcc.library, Inter, Dark/Light themes, licences, headers), installer 2.4 |
+
+UP-Demo now matches real MUI 5 at 640x256 and 640x512 (256 colours) in
+OpenMUI's MUI 5 identity: the dark face, the compact layout (each widget
+within the window margin of MUI 5's place), the search field's face and
+placeholder. As MUI 3.8 (Automatic: UP-Demo opens version 19) its window does
+not open, as on real MUI 3.8: its smallest height (387 pixels at 640x256, 546
+at 640x512) is more than the screen, and MUI 3.8 has no scrollable fallback.
+
+Figures: library 274,640 -> 274,708 bytes; MUI-Demo cold first program
+460,176 -> 460,240 (MUI 3.8 460,296), FS-UAE; no stack frame larger than
+lean's (-fstack-usage per function), stackrun the same (Slidorama 2,320 ->
+2,304); opbench all 26 within 1 % or faster; demopix as before (InputHandler's
+difference is its timer text); the suite's 135 mui3/mcc programs and UP-Demo
+behave as in sp3-s6 (the eight that froze first under load were fine alone).
+
+**Left open:** MUI 5 puts a too large window's scrollbars into the window
+border; OpenMUI's scroll wrap puts them inside (UP-Demo shows an inner
+horizontal bar). The window's inner spacing in the MUI 5 identity stays
+MUI 3.8's (4 against MUI 5's 8). UP-Balance: real MUI 5 shows its own 3D bar
+over the class's flat line, OpenMUI the class's line.
+
 ## Left open
 
 - **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
