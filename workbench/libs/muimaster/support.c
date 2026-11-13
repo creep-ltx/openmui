@@ -395,6 +395,61 @@ void ZuneTraceOutput(CONST_STRPTR fmt, ...)
 }
 #endif
 
+/* The library's small blocks: every object (the rootclass part, which
+ * Notify makes and frees itself) and the notification nodes come from
+ * one exec pool shared by all programs, under Forbid (its calls never
+ * wait). exec's own AllocMem/FreeMem walk the whole free list of a
+ * fragmented machine for every block: about 30 % of an application's
+ * creation on a 68020 (opbench prof), where MUI 3.8 pools its objects.
+ * Sizes are rounded to longwords; the same size frees the block. */
+static APTR zune_pool;
+
+APTR zune_pool_alloc(ULONG size)
+{
+    ULONG *p, *q, n;
+
+    size = (size + 3) & ~3UL;
+    Forbid();
+    if (!zune_pool)
+        zune_pool = CreatePool(MEMF_ANY, ZUNE_POOL_PUDDLE, ZUNE_POOL_THRESH);
+    p = zune_pool ? AllocPooled(zune_pool, size) : NULL;
+    Permit();
+    if ((q = p))
+    {
+        /* cleared four longwords a turn */
+        n = size >> 2;
+        switch (n & 3)
+        {
+        case 3: *q++ = 0;   /* fall through */
+        case 2: *q++ = 0;   /* fall through */
+        case 1: *q++ = 0;
+        }
+        for (n >>= 2; n; n--)
+        {
+            q[0] = 0; q[1] = 0; q[2] = 0; q[3] = 0;
+            q += 4;
+        }
+    }
+    return p;
+}
+
+void zune_pool_free(APTR block, ULONG size)
+{
+    if (!block)
+        return;
+    Forbid();
+    FreePooled(zune_pool, block, (size + 3) & ~3UL);
+    Permit();
+}
+
+/* At expunge: every object is gone by then */
+void zune_pool_delete(void)
+{
+    if (zune_pool)
+        DeletePool(zune_pool);
+    zune_pool = NULL;
+}
+
 Object *ZuneNextObject(APTR iterator)
 {
     struct _Object **cursor = iterator;

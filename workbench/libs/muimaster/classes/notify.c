@@ -411,7 +411,7 @@ static struct NotifyNode *CreateNNode(struct MUI_NotifyData *data,
     /* The node and its parameters are one allocation: half the blocks
      * and their Exec overhead for every notification. */
     nodesize = (nodesize + sizeof(IPTR) - 1) & ~(sizeof(IPTR) - 1);
-    if (!(nnode = AllocMem(nodesize + paramsize * sizeof(IPTR), MEMF_ANY)))
+    if (!(nnode = zune_pool_alloc(nodesize + paramsize * sizeof(IPTR))))
         return NULL;
     if (isix)
         ((struct NotifyNodeIX *)nnode)->ix = ix;
@@ -459,7 +459,7 @@ static void DeleteNNode(struct MUI_NotifyData *data,
         nnode->nn_Active = NN_REMOVED;
     else
     {
-        FreeMem(nnode, NNodeSize(nnode)); /* parameters included */
+        zune_pool_free(nnode, NNodeSize(nnode)); /* parameters included */
     }
 }
 
@@ -491,9 +491,20 @@ IPTR Notify__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     struct TagItem *tags = msg->ops_AttrList;
     struct TagItem *tag;
 
-    obj = (Object *) DoSuperMethodA(cl, obj, (Msg) msg);
-    if (!obj)
-        return FALSE;
+    /* rootclass's part made here, from the library's pool (support.c):
+     * obj is the true class until rootclass; the instance cleared and the
+     * class's object count kept, as rootclass does */
+    {
+        struct IClass *tc = (struct IClass *)obj;
+        struct _Object *o = zune_pool_alloc(tc->cl_InstOffset
+            + tc->cl_InstSize + sizeof(struct _Object));
+
+        if (!o)
+            return FALSE;
+        o->o_Class = tc;
+        tc->cl_ObjectCount++;
+        obj = BASEOBJECT(o);
+    }
 
     data = INST_DATA(cl, obj);
 
@@ -556,14 +567,18 @@ IPTR Notify__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
             DeleteNNode(data, (struct NotifyNode *)node);
         }
         if (!list->walk)
-            mui_free(list);
+            zune_pool_free(list, sizeof(struct NotifyList));
         data->mnd_NotifyList = NULL;
     }
+    /* rootclass's part: OM_NEW made the object */
     {
-        IPTR rc;
-        rc = DoSuperMethodA(cl, obj, msg);
-        return rc;
+        struct IClass *tc = OCLASS(obj);
+
+        tc->cl_ObjectCount--;
+        zune_pool_free(_OBJECT(obj), tc->cl_InstOffset + tc->cl_InstSize
+            + sizeof(struct _Object));
     }
+    return TRUE;
 }
 
 /* Match one tag against a live registered node and synchronously deliver
@@ -702,7 +717,7 @@ static void check_notify(NNode nnode, Object *obj, struct TagItem *tag)
 
         if (nnode->nn_Active == NN_REMOVED)
         {
-            FreeMem(nnode, NNodeSize(nnode)); /* parameters included */
+            zune_pool_free(nnode, NNodeSize(nnode)); /* parameters included */
         }
         else
             nnode->nn_Active = FALSE;
@@ -790,7 +805,7 @@ IPTR Notify__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
     }
     list->walk = walk.previous;
     if (list->disposed && !list->walk)
-        mui_free(list);
+        zune_pool_free(list, sizeof(struct NotifyList));
 
     return 0;
 }
@@ -1229,7 +1244,7 @@ IPTR Notify__MUIM_Notify(struct IClass *cl, Object *obj,
     if (data->mnd_NotifyList == NULL)
     {
         if (!(data->mnd_NotifyList = (struct MinList *)
-                mui_alloc_struct(struct NotifyList)))
+                zune_pool_alloc(sizeof(struct NotifyList))))
               return FALSE;
         NewList((struct List *)data->mnd_NotifyList);
     }

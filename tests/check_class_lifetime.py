@@ -96,6 +96,11 @@ class Harness:
         self.trap(self.symbols['_ZUNE_GetExternalClass'], self.external_class)
         if '_ZuneTraceOutput' in self.symbols:
             self.trap(self.symbols['_ZuneTraceOutput'], lambda: None)
+        # The library's pool of small blocks (support.c): objects and
+        # notification nodes, freed with their size
+        if '_zune_pool_alloc' in self.symbols:
+            self.trap(self.symbols['_zune_pool_alloc'], self.pool_alloc)
+            self.trap(self.symbols['_zune_pool_free'], self.pool_free)
 
     def trap(self, address, fn):
         def callback(opcode, pc):
@@ -119,6 +124,22 @@ class Harness:
 
     def free_vec(self):
         del self.allocations[self.cpu.r_reg(9)]
+
+    def pool_alloc(self):
+        result = 0 if self.fail_alloc else self.alloc(
+            self.mem.r32(self.cpu.r_sp() + 4))
+        self.fail_alloc = False
+        self.cpu.w_reg(0, result)
+
+    def pool_free(self):
+        address = self.mem.r32(self.cpu.r_sp() + 4)
+        if address:
+            self.pool_release(address, self.mem.r32(self.cpu.r_sp() + 8))
+
+    def pool_release(self, address, size):
+        assert self.allocations.get(address) == size, \
+            ('pool free size', hex(address), size, self.allocations.get(address))
+        del self.allocations[address]
 
     def obtain(self):
         self.lock_depth += 1

@@ -26,11 +26,11 @@ class NotifyHarness(Harness):
         self.dead = False
         self.mem.w32(self.symbols['_UtilityBase'], UTILITY)
         self.mem.w16(CLASS + 32, 0)
+        self.mem.w32(OBJECT - 4, CLASS)  # OCLASS: Notify frees the object
         self.trap(UTILITY - 48, self.next_tag)
         self.trap(EXEC - 258, self.rem_head)
-        # notification nodes are AllocMem blocks freed with their size
-        self.trap(EXEC - 198, self.alloc_vec)
-        self.trap(EXEC - 210, self.free_mem_sized)
+        # notification nodes and lists are pool blocks freed with their
+        # size (Harness.pool_alloc, pool_release below)
         self.trap(self.symbols['_DoSuperMethodA'], self.super_method)
         self.trap(self.symbols['_DoMethodA'], self.method)
         self.ret = self.blob(b'\x4e\x75')
@@ -64,10 +64,13 @@ class NotifyHarness(Harness):
             self.mem.w_block(address, self.freed[address])
             super().free_vec()
 
-    def free_mem_sized(self):
-        address, size = self.cpu.r_reg(9), self.cpu.r_reg(0)
+    def pool_release(self, address, size):
+        # The object itself: rootclass's part, which Notify frees
+        if address == OBJECT - 12:
+            self.super_method()
+            return
         assert self.allocations.get(address) == size, \
-            ('FreeMem size', hex(address), size, self.allocations.get(address))
+            ('pool free size', hex(address), size, self.allocations.get(address))
         self.freed[address] = bytes([0xa5]) * size
         self.mem.w_block(address, self.freed[address])
         del self.allocations[address]
@@ -191,17 +194,17 @@ def check(path):
             assert h.mem.r32(storage) == value, (library, hex(attr), h.mem.r32(storage))
         h.finish()
 
-    # list header (AllocVec), node with its parameters (one AllocMem block
-    # in the lean edition; upstream allocates the parameters separately)
+    # list header, node with its parameters (one block in the lean
+    # edition; upstream allocates the parameters separately): both from
+    # the library's pool (support.c) since rw-app
     for failed_call in [1, 2]:
         h = NotifyHarness(path)
         calls = [0]
         def allocate():
             calls[0] += 1
             h.fail_alloc = calls[0] == failed_call
-            h.alloc_vec()
-        h.trap(EXEC - 684, allocate)
-        h.trap(EXEC - 198, allocate)
+            h.pool_alloc()
+        h.trap(h.symbols['_zune_pool_alloc'], allocate)
         assert not h.add(1)
         h.fire()
         assert not h.events

@@ -313,6 +313,8 @@ _zune_pen_spec_to_intern
 _zune_penspec_cleanup
 _zune_penspec_fill_rgb
 _zune_penspec_setup
+_zune_pool_alloc
+_zune_pool_free
 _zune_text_compact
 _zune_text_destroy
 _zune_text_init_plain

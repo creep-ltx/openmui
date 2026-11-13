@@ -8,6 +8,7 @@
 #include "muimaster_intern.h"
 #include "penspec.h"
 #include "classfile.h"
+#include "support.h"
 
 struct DosLibrary *DOSBase;
 struct Library *UtilityBase;
@@ -98,6 +99,7 @@ void L_ExpungeLib(struct Library *library)
     ZUNE_CloseClassFiles(library);  /* their classes are freed by now */
 #endif
     zune_vector_free_templates();
+    zune_pool_delete();
     if (CyberGfxBase) CloseLibrary(CyberGfxBase);
     CyberGfxBase = NULL;
     Locale_Deinitialize();

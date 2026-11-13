@@ -36,6 +36,17 @@ struct Rectangle;
 struct Object;
 struct Library;
 
+/* support.c: the library's pool of small blocks (cleared) */
+#ifndef ZUNE_POOL_PUDDLE
+#define ZUNE_POOL_PUDDLE 4096
+#endif
+#ifndef ZUNE_POOL_THRESH
+#define ZUNE_POOL_THRESH 1024
+#endif
+APTR zune_pool_alloc(ULONG size);
+void zune_pool_free(APTR block, ULONG size);
+void zune_pool_delete(void);
+
 #define mui_alloc(x) AllocVec(x,MEMF_CLEAR)
 #define mui_alloc_struct(x) ((x *)AllocVec(sizeof(x),MEMF_CLEAR))
 #define mui_free(x) FreeVec(x)
