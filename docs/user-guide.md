@@ -48,7 +48,7 @@ Then it installs:
 | From the archive | Goes to |
 |---|---|
 | `Libs/muimaster.library` | the first `LIBS:` drawer (normally `SYS:Libs`) |
-| `Libs/Zune/*` | `LIBS:Zune` (OpenMUI's own class files and modules) |
+| `Libs/OpenMUI/*` | `LIBS:OpenMUI` (OpenMUI's own class files and modules) |
 | `Libs/MUI/*` | `LIBS:MUI` of the first `LIBS:` drawer, never into a real MUI's own `MUI:Libs/mui` |
 | `Prefs/OpenMUI` | `SYS:Prefs/OpenMUI` |
 | `Locale/Catalogs/*` | `LOCALE:Catalogs/<language>` (optional) |
@@ -71,7 +71,7 @@ Then it installs:
 - **Your settings are kept.** MUI's settings (`ENVARC:MUI`) are not read or
   changed by OpenMUI, except when you ask for an import (see
   [Preferences](#the-preferences-program)). On an update, OpenMUI's own
-  settings (`ENVARC:Zune`) are kept.
+  settings (`ENVARC:OpenMUI`) are kept.
 
 ### Updating
 
@@ -83,6 +83,13 @@ removed the same way first. A second library `zunemaster.library` that
 earlier test builds installed is taken away: OpenMUI is one library now. If
 one is still there after that and it is your own, it is moved to the backup
 and put back by *Uninstall* and *Use real MUI*.
+
+Earlier test builds kept their class files in `LIBS:Zune` and their settings
+in `ENVARC:Zune` and `ENV:Zune`. An update moves the settings to
+`ENVARC:OpenMUI` and `ENV:OpenMUI` (a file already there is not replaced; the
+old one then stays where it is), and takes the earlier build's own files out
+of `LIBS:Zune`. Anything else in `LIBS:Zune` is yours: it goes to the backup
+and comes back with *Uninstall* or *Use real MUI*.
 
 Novice level installs everything without questions. Intermediate and Expert
 ask whether to install the translations. Pretend mode changes nothing.
@@ -111,7 +118,8 @@ SYS:OpenMUI/Data/OpenMUISwitch STATUS       ; what is installed where
 ```
 
 `UNINSTALL` and the other actions also take `SETTINGS` (with `UNINSTALL`:
-remove `ENV:Zune` and `ENVARC:Zune` too), `QUIET` and `HOME=<drawer>`.
+remove `ENV:OpenMUI` and `ENVARC:OpenMUI` too, and an earlier test build's
+`ENV:Zune` and `ENVARC:Zune`), `QUIET` and `HOME=<drawer>`.
 
 ## Uninstalling
 
@@ -120,7 +128,7 @@ Use the *Uninstall* icon in `SYS:OpenMUI`, or run *Install* again and choose
 
 It deletes every file OpenMUI installed, puts back every file of yours it had
 replaced, and removes the drawers it made when they are empty. It asks
-whether to keep your OpenMUI settings (`ENVARC:Zune`). Your MUI keeps working.
+whether to keep your OpenMUI settings (`ENVARC:OpenMUI`). Your MUI keeps working.
 From Workbench the `SYS:OpenMUI` drawer itself is deleted a little later by a
 script, because a Workbench window of the drawer locks it.
 
@@ -130,8 +138,8 @@ script, because a Workbench window of the drawer locks it.
 System, Windows, Groups, Buttons, Cycles, Sliders, Scrollbars, Listviews,
 Strings, Navigation, Special and Frames, and the settings pages of the
 bundled classes that have one. The buttons at the bottom are Save, Use, Test,
-Revert and Cancel. *Save* keeps the settings in `ENVARC:Zune` (and `ENV:Zune`),
-*Use* only in `ENV:Zune` until the next reboot.
+Revert and Cancel. *Save* keeps the settings in `ENVARC:OpenMUI` (and
+`ENV:OpenMUI`), *Use* only in `ENV:OpenMUI` until the next reboot.
 
 The Project menu has *Import MUI 3.8 settings...*. It reads MUI 3.8's files
 in `ENVARC:MUI` (only reads them) and copies each program's own file into
@@ -139,10 +147,14 @@ OpenMUI's settings, unless OpenMUI already has one for that program. MUI 3.8's
 global settings are shown in the editor; *Save* or *Use* keeps them,
 *Cancel* goes back.
 
-Settings that OpenMUI keeps in `ENV:Zune` and `ENVARC:Zune` are separate from
-MUI's (`ENV:MUI`, `ENVARC:MUI`). The names `Zune` in these paths and in
-`LIBS:Zune` are not renamed yet, because programs and earlier installations
-depend on them.
+Settings that OpenMUI keeps in `ENV:OpenMUI` and `ENVARC:OpenMUI` are separate
+from MUI's (`ENV:MUI`, `ENVARC:MUI`).
+
+Earlier test builds kept their settings in `ENVARC:Zune` and `ENV:Zune`.
+Installing over such a build moves them to the new names. If they are still
+there (OpenMUI copied in by hand, say), the library uses them until OpenMUI
+has settings of its own, and the preferences program copies them over the
+first time it runs; the old files are left as they are.
 
 ## "Behave as"
 
@@ -175,8 +187,8 @@ program keeps what it got.
 
 ### The file
 
-The setting is a text file, `ENV:Zune/BehaveAs` (saved copy:
-`ENVARC:Zune/BehaveAs`). You can edit it by hand.
+The setting is a text file, `ENV:OpenMUI/BehaveAs` (saved copy:
+`ENVARC:OpenMUI/BehaveAs`). You can edit it by hand.
 
 - The first line is the setting for all programs: `Auto`, `MUI3.8`, `MUI4`
   or `MUI5`. (`MUI3` and `3.8` are accepted for MUI 3.8, "Automatic" for Auto.)
@@ -208,10 +220,10 @@ the file by hand, run OpenMUI prefs and press *Use*, or reboot.
 - A class that a program opens itself with `OpenLibrary` (not through MUI)
   gets the identity by the version the class asks for.
 
-## The files in LIBS:Zune
+## The files in LIBS:OpenMUI
 
 About 45 rarely used classes and parts of the library are files of their own
-in `LIBS:Zune`, and are loaded the first time a program needs one. This keeps
+in `LIBS:OpenMUI`, and are loaded the first time a program needs one. This keeps
 the library, and the memory a program takes, small. Class files are named
 `<Name>.mui` (for example `Register.mui`, `Gauge.mui`, `Popasl.mui`). Parts of
 the library that are not classes are `Z<name>.mui` (for example `Zmenu.mui`
@@ -233,7 +245,7 @@ from datatypes).
 | A program looks wrong or does not open a window | Try the other identity for it: add it to the "Behave as" list as MUI 3.8 or as MUI 5, save, start it again. |
 | A MUI 4/5 program misses features | Give it MUI 5 in the list: it may ask only for version 19. |
 | A change in "Behave as" does nothing | It holds for programs started after saving. Quit the program and start it again. |
-| A feature is missing (no context menu, no requester) | Check that `LIBS:Zune` is complete: run *Install* again ("Install this version over it"). |
+| A feature is missing (no context menu, no requester) | Check that `LIBS:OpenMUI` is complete: run *Install* again ("Install this version over it"). |
 | You want your real MUI back | *Use real MUI* in `SYS:OpenMUI`, then reboot. |
 | You want OpenMUI gone | *Uninstall* in `SYS:OpenMUI`. |
 | Something else is wrong | Check `OpenMUISwitch STATUS`, then report it. |
@@ -247,7 +259,7 @@ Open an issue at <https://github.com/creep-ltx/openmui/issues>. Please say:
 - the OpenMUI version (`Version LIBS:muimaster.library FULL`),
 - your Amiga model, CPU, memory and OS version,
 - whether the program works with your real MUI, if you have one,
-- your `ENV:Zune/BehaveAs`, if you changed it.
+- your `ENV:OpenMUI/BehaveAs`, if you changed it.
 
 "Works" reports are welcome too: which program, which version.
 

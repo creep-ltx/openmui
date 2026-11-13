@@ -31,16 +31,17 @@ What is in it
   installed it as zunemaster.library for the preferences program; the
   installer takes that copy away, into its backup if it was not its own).
 - About 45 rarely used classes and parts of the library as files of their
-  own in LIBS:Zune, loaded the first time a program needs one.
+  own in LIBS:OpenMUI, loaded the first time a program needs one.
 - The OpenMUI preferences program (SYS:Prefs/OpenMUI).
 - [PLUGINS] MUI classes: NList, NListtree, TextEditor, BetterString,
   TheBar, Busy, Listtree and others, with their preference pages.
 - Translations, an SDK with examples, and the full source.
 
-The library file keeps the name muimaster.library, the library version
-stays [VERSION], and the settings stay in ENV:Zune and
-ENVARC:Zune, the classes in LIBS:Zune: programs and earlier installations
-depend on them. They may be renamed in a later release.
+The library file keeps the name muimaster.library and the library version
+stays [VERSION]: programs depend on them. OpenMUI's own drawers are
+LIBS:OpenMUI (its classes) and ENVARC:OpenMUI / ENV:OpenMUI (its
+settings). Earlier test builds used LIBS:Zune, ENVARC:Zune and ENV:Zune:
+installing over one moves the settings and takes the old files away.
 
 Each program gets the MUI it asks for
 -------------------------------------
@@ -64,8 +65,9 @@ Double-click Install (Installer 43 or newer: on OS 3.1 use Installer
 - installs a bundled MUI class only when you do not have the same or a
   newer one yourself. The classes that come with a real MUI stay as they
   are for that MUI; OpenMUI uses its own;
-- keeps your settings (ENVARC:Zune) on an update, and does not touch
-  MUI's (ENVARC:MUI);
+- keeps your settings (ENVARC:OpenMUI) on an update (an earlier test
+  build's in ENVARC:Zune are moved there), and does not touch MUI's
+  (ENVARC:MUI);
 - removes an earlier test build installed as Zune68k lean (the drawer
   SYS:Zune68k and SYS:Prefs/Zune) first, and puts your own files back.
 Novice, Intermediate and Expert levels and pretend mode work.

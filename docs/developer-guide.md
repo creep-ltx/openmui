@@ -10,7 +10,7 @@ with MUI's programming interface.
 ## What OpenMUI supports
 
 OpenMUI is one library, `muimaster.library`, plus class files in
-`LIBS:Zune` and bundled add-on classes in `LIBS:MUI`. It implements MUI's
+`LIBS:OpenMUI` and bundled add-on classes in `LIBS:MUI`. It implements MUI's
 public programming interface: the built-in classes (Notify, Family,
 Application, Window, Area, Rectangle, Group, Image, Text, String, List,
 Listview, Numeric, Slider, Prop, Scrollbar, Cycle, Radio, Popstring and the
@@ -30,8 +30,8 @@ notes (`docs/lean/README.md`, "MUI 4/5 programs" and the rounds after it):
 
 | Area | What |
 |---|---|
-| Classes (as files in `LIBS:Zune`) | Fontpanel (with Fontdisplay), Filepanel, Selectorpanel, Keyadjust, Title (with MUI 5's register tab look), Datamap (with Objectmap), Textdata, Selectgroup, Process |
-| Classes (add-on files) | Hyperlink (`LIBS:MUI/Hyperlink.mcc`; about:, amigados:, workbench: in the class, other URIs through `openurl.library`). Pixmap (`LIBS:Zune/Pixmap.mui`) and Rawimage (`Rawimage.mcc`) with MUI 5's zlib-compressed ("Z") images |
+| Classes (as files in `LIBS:OpenMUI`) | Fontpanel (with Fontdisplay), Filepanel, Selectorpanel, Keyadjust, Title (with MUI 5's register tab look), Datamap (with Objectmap), Textdata, Selectgroup, Process |
+| Classes (add-on files) | Hyperlink (`LIBS:MUI/Hyperlink.mcc`; about:, amigados:, workbench: in the class, other URIs through `openurl.library`). Pixmap (`LIBS:OpenMUI/Pixmap.mui`) and Rawimage (`Rawimage.mcc`) with MUI 5's zlib-compressed ("Z") images |
 | Attributes and methods | `MUIM_FindObject`, `MUIA_FrameVisible`, `MUIA_FrameDynamic` (the second is kept, not acted on), List's sort mark on a sortable column title, MUI 5 column attributes of List, MUI 5's scrollable contents for a window larger than the screen (only for programs that get MUI 5), `MUIA_Text_Shorten` elided texts, drawn pointer shapes, RGB text pens |
 | Settings pages | Listtree and Busy (MUI 3.8's items) |
 
@@ -55,7 +55,7 @@ would be wrong for somebody, so each program sees the MUI it asked for:
 - Exec 40.10 (OS 3.1) and 47.8 (OS 3.2) pass the version asked for in D2 (the
   base is in D0). Open takes D0 when it is not the base, else D2.
 - The identity is the first match of: the program's line in the list
-  (`ENV:Zune/BehaveAs`), the "Behave as" setting for all programs unless
+  (`ENV:OpenMUI/BehaveAs`), the "Behave as" setting for all programs unless
   Automatic, then Automatic (0 to 19 gives MUI 3.8, 20 MUI 4, 21 and up
   MUI 5). The file format is in the [user guide](user-guide.md#the-file).
 - It is decided at the program's first open and remembered for the task
@@ -155,6 +155,18 @@ m68k-amigaos-gcc -noixemul -Os -I../include -o HelloZune HelloZune.c -lmui
 The archive has an `Examples` drawer (HelloZune, HGroup, VGroup, VHGroup,
 VHGroup2, HVGroup, Notify, TheBarDemo). Open `muimaster.library` by that name
 (the second name `zunemaster.library` is gone).
+
+OpenMUI's own drawers: `LIBS:OpenMUI` (its class files and modules; an
+external class is looked for as `OpenMUI/<name>`, `Classes/OpenMUI/<name>`,
+then `MUI/<name>` in `LIBS:`), `ENVARC:OpenMUI` and `ENV:OpenMUI` (settings:
+`global.prefs`, `<base>.prefs` per application, `BehaveAs`, `fontfamilies`,
+`PublicScreens.iff`), `LIBS:OpenMUI/Images` (external image classes), and the
+catalogs `System/Prefs/OpenMUI.catalog` and `System/Classes/OpenMUI/`.
+Earlier test builds used the name Zune for all of these. A program that
+writes its own settings with `MUIM_Application_Save` gets
+`ENV(ARC):MUI/<base>.cfg`, as with MUI (an earlier build's
+`ENV(ARC):Zune/<base>.cfg` is still read when that is missing). OpenMUI's own
+settings never go into a real MUI's `ENV:MUI`.
 
 ## The test tools
 

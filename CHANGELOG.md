@@ -32,6 +32,27 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 - Swedish: Color is Färg, Mark is Markering, Top/Bottom are
   Överkant/Nederkant, and the tape image labels read naturally (Spela upp,
   Spela bakåt, Paus, Stopp, Spela in, Upp, Ner).
+- **OpenMUI's own drawers are named OpenMUI** ("it's not Zune anymore"):
+  the class files and modules are in `LIBS:OpenMUI` (was `LIBS:Zune`), the
+  settings in `ENVARC:OpenMUI` and `ENV:OpenMUI` (was `ENVARC:Zune`,
+  `ENV:Zune`: global and per-program settings, `BehaveAs`, window positions,
+  font families, public screens), external images in `LIBS:OpenMUI/Images`,
+  the catalogs `System/Prefs/OpenMUI.catalog` and `System/Classes/OpenMUI/`.
+  The archive's `Libs/Zune` is `Libs/OpenMUI`. A real MUI's `ENV:MUI`, `MUI:`
+  and `LIBS:MUI` are untouched as before.
+- **Updating an earlier build moves its settings.** The installer (2.3)
+  moves `ENVARC:Zune` and `ENV:Zune` to the new names (a file already there
+  is not replaced; the old one stays), takes the earlier build's files out
+  of `LIBS:Zune` with its record, and keeps anything else there (yours) in
+  the backup, so that *Uninstall* and *Use real MUI* put it back.
+  OpenMUISwitch 1.2 does the moving (`MIGRATE`); `UNINSTALL SETTINGS`
+  removes both the new and the old settings drawers.
+- If an earlier build's settings are still in `ENV:Zune` (OpenMUI copied in
+  by hand), the library reads them, never writes them, until OpenMUI has
+  its own; OpenMUI prefs copies them over the first time it runs. The
+  library grew 200 bytes; the first program (MUI-Demo, FS-UAE) takes
+  460,176 bytes (459,992 before, MUI 3.8 460,296); no stack frame grew.
+- The Aminet pair is always `OpenMUI.lha` and `OpenMUI.readme`.
 
 (No 0.1b1 archive or tag has been published at the time of writing;
 everything below is in the first beta.)
@@ -102,8 +123,8 @@ to 2026-11-12. Details, measurements and the reasons are in
 - **The rename:** the library's texts, the prefs program (`SYS:Prefs/OpenMUI`),
   the installer drawer (`SYS:OpenMUI`), the switch tool (`OpenMUISwitch`) and
   the archive (`OpenMUI-0.1b1-DATE-amigaos3-m68k.lha`). The library file
-  `muimaster.library`, its version numbers, `LIBS:Zune`, `ENV:Zune` and
-  `ENVARC:Zune` keep their names for now.
+  `muimaster.library` and its version numbers keep their names; `LIBS:Zune`,
+  `ENV:Zune` and `ENVARC:Zune` were renamed later (see Unreleased).
 - GitHub workflows and release tools name OpenMUI.
 
 ### Fixed

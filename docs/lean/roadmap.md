@@ -443,3 +443,9 @@ it). Details in
   own OM_SET; Voyager's set shown to be its own (its content List's answer differs); the group spare-pixel
   rule measured further and left; Popscreen's WindowHook measured and left. Details in
   [README.md](README.md#compatibility-round-4-the-identitys-records-mui-5s-geometry-for-mui-45-programs-the-spare-pixels-the-iconify-setting-2026-11-12).
+- *2026-11-13 (branch `rename1`)*: OpenMUI's own drawers renamed (`LIBS:OpenMUI`,
+  `ENV:OpenMUI`, `ENVARC:OpenMUI`, the catalogs), an earlier installation's settings moved by the
+  installer (OpenMUISwitch `MIGRATE`), the user's files in `LIBS:Zune` kept in the backup, the old
+  settings read by the library until moved and copied once by OpenMUI prefs; the Aminet pair is
+  `OpenMUI.lha`. First program 460,176 bytes (MUI 3.8 460,296), no frame larger. Details in
+  [README.md](README.md#openmuis-own-drawers-libsopenmui-envopenmui-envarcopenmui-2026-11-1213-branch-rename1).

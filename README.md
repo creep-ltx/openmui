@@ -72,7 +72,7 @@ classes keep their own licences and notices (`LEGAL`, `ACKNOWLEDGEMENTS`).
   has "Behave as" (Automatic, MUI 3.8, MUI 4, MUI 5) and a list of programs
   with a MUI of their own.
 - **Lean:** about 45 rarely used classes and parts of the library are files of
-  their own in `LIBS:Zune`, loaded the first time a program needs one.
+  their own in `LIBS:OpenMUI`, loaded the first time a program needs one.
 - **OpenMUI preferences** (`SYS:Prefs/OpenMUI`), with an import of MUI 3.8's
   settings.
 - **Bundled MUI classes** with their preference pages: NList, NListtree,
@@ -88,10 +88,12 @@ and double-click *Install* (Installer 43 or newer; on OS 3.1 use Installer
 43.3 from Aminet). The `ReadMe` inside has the details. An earlier Zune68k lean
 test build is removed first and your own files put back.
 
-Paths that keep their old names for now, because programs and earlier
-installations depend on them: the library file `muimaster.library`, the
-library version numbers, `LIBS:Zune`, `ENV:Zune`
-and `ENVARC:Zune`. They may change in a later release.
+OpenMUI's own drawers are `LIBS:OpenMUI` (its classes) and `ENVARC:OpenMUI` /
+`ENV:OpenMUI` (its settings). Earlier test builds used `LIBS:Zune`,
+`ENVARC:Zune` and `ENV:Zune`: installing over one moves the settings to the
+new names and takes its files out of `LIBS:Zune`. The library file
+`muimaster.library` and its version numbers keep their names: programs
+depend on them.
 
 ## Build
 

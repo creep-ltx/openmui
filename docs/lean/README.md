@@ -3992,6 +3992,86 @@ open" stay for when code must be paid for.
 - **Memory** (`m.sh`, FS-UAE): first program 459,992, each further 204,512-204,576 bytes.
 - **Frames and stackrun**: above.
 
+## OpenMUI's own drawers: LIBS:OpenMUI, ENV:OpenMUI, ENVARC:OpenMUI (2026-11-12/13, branch `rename1`)
+
+Our partner: "LIBS:OpenMUI, because it's not Zune anymore". From `lean` at 22fdd9d4.
+
+| commit | change |
+|---|---|
+| 2927978f | `LIBS:Zune` -> `LIBS:OpenMUI` (class files, modules, Pixmap.mui; search paths `OpenMUI/`, `Classes/OpenMUI/`, `MUI/`; images `LIBS:OpenMUI/Images`), `ENV(ARC):Zune` -> `ENV(ARC):OpenMUI` (every settings file), catalogs `System/Prefs/OpenMUI.catalog` and `System/Classes/OpenMUI/`, build folder `$(BUILD)/OpenMUI`, package `Libs/OpenMUI`; the library reads an earlier build's settings while there are none of its own; prefs imports them once; OpenMUISwitch 1.2 `MIGRATE`; installer 2.3; tests and scripts |
+| f060f493 | The Aminet pair is `OpenMUI.lha` / `OpenMUI.readme` |
+| 9f8611cd, then the docs commit | putlib.sh puts Pixmap.mui too; this section, the guides, readmes, changelog |
+
+Kept on purpose: the library file name and version numbers, the record's `ZUNE68K-MANIFEST`
+header, the C identifiers, the AROS source folders (`workbench/classes/zune`, `workbench/prefs/Zune`),
+the SDK's `<zune/...>` headers, the credits, the `Z*.mui` module names; the old names still read as
+fallbacks: `sys:prefs/Zune` (the settings menu item, when `SYS:Prefs/OpenMUI` is missing),
+`ENV:SYS/def_Zune` (the second default icon), `ENV(ARC):Zune/<base>.cfg` (MUIM_Application_Load
+when `ENV(ARC):MUI/<base>.cfg` is missing). A real MUI's `ENV:MUI`, `MUI:` and `LIBS:MUI` as before.
+
+### An earlier installation
+
+- **Installer** (an update of an OpenMUI or Zune68k lean installation only): after the earlier
+  record has taken its files away, `OpenMUISwitch MIGRATE QUIET HOME=SYS:OpenMUI <LIBS>/Zune`
+  moves `ENVARC:Zune` and `ENV:Zune` entry by entry into the OpenMUI drawers (a name already there
+  is not replaced: the old file stays), and moves what is left in `LIBS:Zune` (the user's) to
+  `Data/Backup` as `Z<n>-<name>`, appended to the record as `REPLACED`/`BACKUP` with no file of
+  ours in its place. A file put back into a drawer that no longer exists gets the drawer made.
+  `UNINSTALL SETTINGS` deletes both name pairs. A fresh install over a foreign `LIBS:Zune` leaves
+  it alone.
+- **Library** (no migration done, e.g. copied in by hand): `Lock("ENV:OpenMUI")`, else
+  `Lock("ENV:Zune")`; `global.prefs` from ENV/ENVARC:OpenMUI, else ENV/ENVARC:Zune, and the
+  program's own file from the drawer the global one came from; BehaveAs `OpenMUI/BehaveAs`, else
+  `Zune/BehaveAs`; fontfamilies likewise. Never written. The settings files are now read by one
+  helper, `cfg_read(obj, which, name)` (`"%s:%s/%s.prefs"`): the first version with four literal
+  paths per place cost +232 bytes and 8 bytes of Configdata OM_NEW's frame; with the helper
+  configdata.o is +96 bytes and OM_NEW's frame 316 -> 48, the helper's 260 (a 224-byte name
+  buffer, so that both together, 312, stay within the 316 of before). Cost on the path with no
+  settings at all: one failing Lock more per application.
+- **OpenMUI prefs**: saves to the new drawers only; at start, a new drawer that is empty (or has
+  no global.prefs while the old one has) gets every old file it lacks copied in; the old files stay.
+
+### Tested
+
+- `make check` after each commit; `-fstack-usage` of every function against `lean`: none larger
+  (Configdata OM_NEW 316 -> 48; new: cfg_read 260; OpenMUISwitch's and the prefs program's new
+  helpers out of their callers' frames).
+- Size, stripped: library 252,388 -> 252,588 (+200), prefs 102,632 -> 103,600, OpenMUISwitch
+  14,080 -> 15,472, Fontpanel.mui 11,960 -> 12,076.
+- Memory (MUI-Demo cold, a1200-31-mui38 with OpenMUI in LIBS:, `m.sh`, FS-UAE, two runs each, lean
+  and the branch side by side): first program **459,992 -> 460,176** (MUI 3.8 460,296), each
+  further 204,576 -> 204,528-204,592, library alone 266,472 -> 266,640.
+- Installer (FS-UAE, every drive state checksummed on the host):
+  - a1200-31-mui38, InstallerNG 1.5, fresh: 262 files, class files in `LIBS:OpenMUI`, catalogs in
+    `System/Classes/OpenMUI`, Slidorama loads `LIBS:OpenMUI/Levelmeter.mui` etc.; prefs Save ->
+    `ENVARC:OpenMUI/global.prefs` + `BehaveAs`; Use real MUI (19.35), Use OpenMUI (21.227),
+    Uninstall SETTINGS: drive identical to before.
+  - the same machine, update: `lean`'s archive installed, its prefs saved (`ENVARC:zune`, lower
+    case), a program's own file, a file and a drawer of "the user's" in `LIBS:Zune`, a conflicting
+    `fontfamilies` in both drawers; then the new archive: settings byte-identical in
+    `ENVARC:OpenMUI`, the conflicting file kept on both sides, `LIBS:Zune` gone, the two user
+    entries `Z1-MyImages`, `Z2-Mine.txt` in the backup and the record; programs read
+    `ENV:OpenMUI` only (snoop); Use real MUI put them back into `LIBS:Zune` (made again), Use
+    OpenMUI took them away again, Uninstall SETTINGS: the drive as before plus only the user's
+    `LIBS:Zune` files.
+  - a1200-31 without MUI: fresh with Installer 43.3 (TheBarDemo, prefs), Uninstall: drive as
+    before; `lean` + settings, then the new library copied in by hand: it reads `ENV:Zune` and
+    `Zune/BehaveAs` (snoop), and the new prefs copies the settings into `ENV(ARC):OpenMUI` and
+    shows them; then the update with InstallerNG running on `lean`'s OpenMUI: as on the MUI 3.8
+    machine; Uninstall without SETTINGS keeps `ENVARC:OpenMUI`.
+- fullcheck (Amiberry, `lean` and the branch side by side): identical windows, lost 608 / 200 /
+  AppWindow 264 for both; class files from `LIBS:OpenMUI`, no Z*.mui module.
+- demopix: 17 of 27 pixel-identical with MUI 3.8 (speed3: 18); every OpenMUI window
+  pixel-identical to speed3's but Layout (random placement): the difference is InputHandler's
+  counter on the MUI 3.8 side.
+- The suite's mui3 group (90 programs, Amiberry, three parts at once) against `sp3-s6`: 86 the
+  same; freeciv, ami2ha and amiatari2600 "frozen" under the load (load 18-20, other sessions'
+  emulators too) and the same as `lean` and `sp3-s6` when run again (`lean` beside it);
+  SimpleMail's own reset at quit as always. So 89 of 90 as before.
+- Found on the way: `putlib.sh` did not put Pixmap.mui (made with the plugins), so OpenMUI prefs'
+  page icons (Rawimage.mcc needs it) were missing on a machine set up by `putlib.sh` alone; it
+  puts it now.
+
 ## Left open
 
 - **Stability (2026-11-12, after `stab2`)**: Popup's demo reset once at one N of a fault sweep
