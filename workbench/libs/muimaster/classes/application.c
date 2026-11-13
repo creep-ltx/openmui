@@ -46,95 +46,14 @@
 #include "muimaster_intern.h"
 #include "mui.h"
 #include "support.h"
+#include "application_private.h"
+#include "modules.h"
 
 #include <string.h>
 
 extern struct Library *MUIMasterBase;
 
 
-struct TrackingNode
-{
-    struct MinNode tn_Node;
-    Object *tn_Application;
-};
-
-#define ZUNE_STACK_LOW   6000  /* see zune_deep_call() */
-#define ZUNE_STACK_SPARE 8192
-
-struct MUI_ApplicationData
-{
-    struct MUI_GlobalInfo   app_GlobalInfo;
-    APTR                    app_WindowFamily; /* delegates window list */
-    struct MinList          app_IHList;
-    struct MinList          app_MethodQueue;
-    struct SignalSemaphore  app_MethodSemaphore;
-    struct MinList          app_ReturnIDQueue;
-    struct Hook             *app_BrokerHook;
-    struct MsgPort          *app_BrokerPort;
-    struct MsgPort          *app_TimerPort;
-    struct timerequest      *app_TimerReq;
-    struct Task             *app_Task;
-    CxObj                   *app_Broker;
-    Object                  *app_Menustrip;
-    Object                  *app_AboutWin;
-    APTR                    app_RIDMemChunk;
-    STRPTR                  app_Author;
-    STRPTR                  app_Base;
-    STRPTR                  app_Copyright;
-    STRPTR                  app_Description;
-    STRPTR                  app_HelpFile;
-    STRPTR                  app_Title;
-    STRPTR                  app_Version;
-    BOOL                    app_VersionAllocated;
-    STRPTR                  app_Version_Number;
-    STRPTR                  app_Version_Date;
-    STRPTR                  app_Version_Extra;
-    struct MinList          app_Timers;     /* timerequest_ext.link */
-    ULONG                   app_MenuAction; /* Remember last action */
-    BOOL                    app_ForceQuit;
-    BOOL                    app_Iconified;
-    BOOL                    app_SingleTask;
-    BOOL                    app_Active;
-    BYTE                    app_BrokerPri;
-    struct TrackingNode     app_TrackingNode;
-    BOOL                    app_is_TNode_in_list;
-    ULONG searchwinid;
-    /* Remembered window positions, made when the first one is stored:
-     * a LONG byte count (the serialized header), then app_WinPosCap
-     * records. NULL until needed: a 300-record array was 6 KB in every
-     * application. */
-    LONG                    *app_WinPos;
-    ULONG                   app_WinPosCap;
-    struct MsgPort          *app_RexxPort;
-    struct RexxMsg          *app_RexxMsg;
-    struct Hook             *app_RexxHook;
-    struct MUI_Command      *app_Commands;
-    STRPTR                  app_RexxString;
-    BOOL                    app_UseRexx;
-    struct MsgPort          *app_AppPort; /* Port for AppIcon/AppMenu/AppWindow */
-    struct AppIcon          *app_AppIcon;
-    struct DiskObject       *app_DiskObject; /* This is only pointer to
-                                              * client-managed object */
-    struct NewMenu          *app_LegacyMenu; /* borrowed source table */
-    Object                  *app_DropObject; /* borrowed notification target */
-    struct DiskObject       *app_DefaultDiskObject; /* This is complete
-                                                     * object managed by
-                                                     * the class */
-    struct MsgPort          *app_CfgNotifyPort;   /* notification of changes to the prefs file */
-    struct NotifyRequest    app_CfgNotifyRequest;
-    STRPTR                  app_CfgNotifyName;
-    BOOL                    app_NotifyStarted;  /* file notifications set up */
-    struct DateStamp        app_Created;        /* prefs older than this were read */
-    APTR                    app_SpareStack;     /* see zune_deep_call() */
-    BOOL                    app_SpareBusy;
-    struct AppMenuItem      *app_AppMenu;  /* Tools menu item while iconified */
-};
-
-#define WINPOS(data) ((struct windowpos *)((data)->app_WinPos + 1))
-
-/* CxSender id of the settings' iconification hotkey */
-#define ICONIFY_HOTKEY_ID 0x5A49434F
-#define WINPOS_MAX (MAXWINS - 1)
 
 /* Make room for at least cap records (at most WINPOS_MAX), cleared. */
 static BOOL winpos_grow(struct MUI_ApplicationData *data, ULONG cap)
@@ -160,12 +79,6 @@ static BOOL winpos_grow(struct MUI_ApplicationData *data, ULONG cap)
     return TRUE;
 }
 
-struct timerequest_ext
-{
-    struct timerequest treq;
-    struct MUI_InputHandlerNode *ihn;
-    struct MinNode link;    /* in app_Timers until RemInputHandler */
-};
 
 /****** Application.mui/MUIC_Application ************
 *
@@ -1054,31 +967,7 @@ struct timerequest_ext
 #include "native_version.h"
 
 
-/*
- * MethodQueueNode
- */
-struct MQNode
-{
-    struct MinNode    mq_Node;
-    Object           *mq_Dest;
-    LONG              mq_Count; /* argument count and private MQF_* flags */
-    IPTR             *mq_Msg;
-};
 
-/* Public PushMethod counts use only the low four bits. */
-#define MQF_OWNED_WINDOWS (1UL << 31)
-
-/*
- * FilePrefHeader
- */
-struct FilePrefHeader
-{
-    UBYTE ph_Version;
-    UBYTE ph_Type;
-    UBYTE ph_Flags[4];
-};
-
-#define ID_MUIO MAKE_ID('M','U','I','O')
 
 /*
  * Allocates an MethodQueue Method
@@ -1088,7 +977,7 @@ struct FilePrefHeader
  * nonnegative and fit the allocation arithmetic; this helper does not
  * validate it.
  */
-static struct MQNode *CreateMQNode(LONG count)
+struct MQNode *CreateMQNode(LONG count)
 {
     struct MQNode *mq;
 
@@ -1105,7 +994,7 @@ static struct MQNode *CreateMQNode(LONG count)
 /*
  * Free an IQ Method got from CreateIQMethod()
  */
-static void FreeWindowList(struct List *windows)
+void FreeWindowList(struct List *windows)
 {
     struct Node *node;
 
@@ -1120,7 +1009,7 @@ static void FreeWindowList(struct List *windows)
  * executed. Do not free its borrowed destination or referenced argument
  * storage. No result is returned.
  */
-static void DeleteMQNode(struct MQNode *mq)
+void DeleteMQNode(struct MQNode *mq)
 {
     /* Only internal reopen requests transfer ownership of their arguments.
      * Ordinary PushMethod argument pointers remain the caller's property.
@@ -1130,7 +1019,7 @@ static void DeleteMQNode(struct MQNode *mq)
     mui_free(mq);
 }
 
-static void EnqueueMethod(struct MUI_ApplicationData *data, struct MQNode *mq)
+void EnqueueMethod(struct MUI_ApplicationData *data, struct MQNode *mq)
 {
     ObtainSemaphore(&data->app_MethodSemaphore);
     AddTail((struct List *)&data->app_MethodQueue, (struct Node *)mq);
@@ -1140,14 +1029,6 @@ static void EnqueueMethod(struct MUI_ApplicationData *data, struct MQNode *mq)
 }
 
 
-/*
- * Queue of Return IDs
- */
-struct RIDNode
-{
-    struct MinNode  rid_Node;
-    ULONG           rid_Value;
-};
 
 
 /* Allocate a cleared return-ID node, store the ULONG value, and return
@@ -1280,7 +1161,7 @@ static Object *find_application_by_base(struct IClass *cl, Object *obj,
  * configuration unowned.
  */
 /* The application's windows (the Family's list); NULL without memory */
-static struct MinList *app_windows(struct MUI_ApplicationData *data)
+struct MinList *app_windows(struct MUI_ApplicationData *data)
 {
     struct MinList *children = NULL;
 
@@ -1289,7 +1170,7 @@ static struct MinList *app_windows(struct MUI_ApplicationData *data)
 }
 
 /* One method with one argument on every window */
-static void app_each_window(struct MUI_ApplicationData *data, ULONG method,
+void app_each_window(struct MUI_ApplicationData *data, ULONG method,
     IPTR arg)
 {
     struct MinList *children = app_windows(data);
@@ -1711,18 +1592,7 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
             break;
 
         case MUIA_Application_UsedClasses:
-            {
-                STRPTR *list = (STRPTR *) tag->ti_Data;
-                if (!list)
-                    break;
-                while (*list)
-                {
-                    struct IClass *icl = MUI_GetClass(*list);
-                    if (icl)
-                        MUI_FreeClass(icl);
-                    ++list;
-                }
-            }
+            zune_app_usedclasses((STRPTR *)tag->ti_Data);
             break;
 
         case MUIA_Application_Commands:
@@ -1755,61 +1625,11 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
     data->app_UseRexx =
         GetTagData(MUIA_Application_UseRexx, TRUE, msg->ops_AttrList) ? TRUE : FALSE;
 
-    /* create MUIA_Application_Version if NULL */
+    /* MUIA_Application_Version made of Version_Number and the others
+     * (AROS's attributes, the module) */
     if (data->app_Version == NULL
         && data->app_Title != NULL && data->app_Version_Number != NULL)
-    {
-        STRPTR result = NULL;
-        ULONG length = 0;
-
-        /* Calculate length */
-        length = strlen("$VER: ") + strlen(data->app_Title) + 1 /* space */
-            + strlen(data->app_Version_Number) + 1 /* NULL */ ;
-
-        if (data->app_Version_Date != NULL)
-        {
-            length += 1 /* space */  + 1        /* ( */
-                + strlen(data->app_Version_Date) + 1 /* ) */ ;
-        }
-
-        if (data->app_Version_Extra != NULL)
-        {
-            length += 1 /* space */  + 1        /* [ */
-                + strlen(data->app_Version_Extra) + 1 /* ] */ ;
-        }
-
-        /* Allocate memory */
-        result = AllocVec(length, MEMF_ANY);
-
-        if (result != NULL)
-        {
-            result[0] = '\0';
-
-            /* Format string */
-            strlcat(result, "$VER: ", length);
-            strlcat(result, data->app_Title, length);
-            strlcat(result, " ", length);
-            strlcat(result, data->app_Version_Number, length);
-
-            if (data->app_Version_Date != NULL)
-            {
-                strlcat(result, " (", length);
-                strlcat(result, data->app_Version_Date, length);
-                strlcat(result, ")", length);
-            }
-
-            if (data->app_Version_Extra != NULL)
-            {
-                strlcat(result, " [", length);
-                strlcat(result, data->app_Version_Extra, length);
-                strlcat(result, "]", length);
-            }
-
-            data->app_Version = result;
-            data->app_VersionAllocated = TRUE;
-        }
-
-    }
+        zune_app_version(data);
 
     if (bad_childs)
     {
@@ -2201,83 +2021,8 @@ static IPTR Application__OM_SET(struct IClass *cl, Object *obj,
 
                     nnset(obj, MUIA_ShowMe, !data->app_Iconified);
 
-                    /* Inform workbench.library: an icon and a Tools menu
-                     * item, as the settings say (System page) */
-                    if (data->app_Iconified)
-                    {
-                        struct ZunePrefsNew *prefs =
-                            data->app_GlobalInfo.mgi_Prefs;
-                        STRPTR appname =
-                            data->app_Title ? data->
-                            app_Title : (STRPTR) "Unnamed";
-                        struct DiskObject *dobj =
-                            (struct DiskObject *)XGET(obj,
-                            MUIA_Application_DiskObject);
-
-                        if (prefs->iconification_show_menu && ZUNE_WB())
-                            data->app_AppMenu = AddAppMenuItemA(0L, 0L,
-                                appname, data->app_AppPort, NULL);
-                        if (!prefs->iconification_show_icon)
-                            break;
-                        if (dobj == NULL && ZUNE_ICON())
-                        {
-                            /* Get default AppIcon in ENV:SYS or ENVARC:SYS */
-                            dobj = GetDefDiskObject(WBAPPICON);
-                            if (dobj)
-                                data->app_DefaultDiskObject = dobj;
-                            else
-                            {
-                                /* First default: ENV:SYS/def_MUI.info */
-                                dobj = GetDiskObject("ENV:SYS/def_MUI");
-                                if (dobj)
-                                    data->app_DefaultDiskObject = dobj;
-                                else
-                                {
-                                    /* Second default: ENV:SYS/def_Zune.info */
-                                    dobj =
-                                        GetDiskObject("ENV:SYS/def_Zune");
-                                    if (dobj)
-                                        data->app_DefaultDiskObject = dobj;
-                                    else
-                                    {
-                                        /* Third default: default tool icon */
-                                        dobj = GetDefDiskObject(WBTOOL);
-                                        if (dobj)
-                                            data->app_DefaultDiskObject =
-                                                dobj;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (dobj == NULL || !ZUNE_WB())
-                            break;
-
-                        dobj->do_CurrentX = NO_ICON_POSITION;
-                        dobj->do_CurrentY = NO_ICON_POSITION;
-
-                        data->app_AppIcon =
-                            AddAppIconA(0L, 0L, appname, data->app_AppPort,
-                            BNULL, dobj, NULL);
-                    }
-                    else
-                    {
-                        if (data->app_AppMenu)
-                        {
-                            RemoveAppMenuItem(data->app_AppMenu);
-                            data->app_AppMenu = NULL;
-                        }
-                        if (data->app_AppIcon)
-                        {
-                            RemoveAppIcon(data->app_AppIcon);
-                            data->app_AppIcon = NULL;
-                        }
-                        if (data->app_DefaultDiskObject)
-                        {
-                            FreeDiskObject(data->app_DefaultDiskObject);
-                            data->app_DefaultDiskObject = NULL;
-                        }
-                    }
+                    /* Workbench's icon and Tools menu item: the module */
+                    zune_app_iconify(data, obj, data->app_Iconified);
                 }
             }
             break;
@@ -2780,7 +2525,7 @@ static IPTR Application__MUIM_RemInputHandler(struct IClass *cl,
 void _zune_window_message(struct IntuiMessage *imsg);   /* from window.c */
 
 /* Queue an id for the next MUIM_Application_NewInput. */
-static BOOL application_return_id(struct MUI_ApplicationData *data,
+BOOL application_return_id(struct MUI_ApplicationData *data,
     ULONG id)
 {
     struct RIDNode *rid = CreateRIDNode(data, id);
@@ -2791,239 +2536,6 @@ static BOOL application_return_id(struct MUI_ApplicationData *data,
     return TRUE;
 }
 
-/* MUI's standard ARexx commands. They take precedence over the
- * application's own commands of the same name, as in MUI 3.9. */
-enum { REXX_QUIT, REXX_HIDE, REXX_DEACTIVATE, REXX_SHOW, REXX_ACTIVATE,
-    REXX_INFO, REXX_HELP, REXX_BUILTINS };
-
-static const struct
-{
-    CONST_STRPTR name;
-    CONST_STRPTR template;
-} rexx_builtins[REXX_BUILTINS] = {
-    {"quit", "FORCE/S"}, {"hide", NULL}, {"deactivate", NULL},
-    {"show", NULL}, {"activate", NULL}, {"info", "ITEM/A"},
-    {"help", "FILE/A"}
-};
-
-/* MUI 3.8 and 3.9 reply -4 when the arguments do not match the template
- * (an INFO item it does not know too), MUI 3.8 -3 for a command it does
- * not know (measured with wasabi arexx). */
-#define REXX_BAD_ARGS (-4)
-#define REXX_UNKNOWN (-3)
-
-static void rexx_help_section(BPTR fh, CONST_STRPTR title)
-{
-    FPrintf(fh, (STRPTR)"%s\n\nCommand      Template\n"
-        "-------      --------\n", (IPTR)title);
-}
-
-static void rexx_help_line(BPTR fh, CONST_STRPTR name, CONST_STRPTR template)
-{
-    if (!template || template == MC_TEMPLATE_ID)
-        template = "";
-    FPrintf(fh, (STRPTR)"%-12s %s\n", (IPTR)name, (IPTR)template);
-}
-
-static LONG rexx_help(struct MUI_ApplicationData *data, CONST_STRPTR file)
-{
-    struct MUI_Command *cmd;
-    BPTR fh = Open((STRPTR)file, MODE_NEWFILE);
-    int i;
-
-    if (!fh)
-        return RETURN_ERROR;
-    rexx_help_section(fh, "Standard-Commands:");
-    for (i = 0; i < REXX_BUILTINS; i++)
-        rexx_help_line(fh, rexx_builtins[i].name, rexx_builtins[i].template);
-    if (data->app_Commands && data->app_Commands->mc_Name)
-    {
-        FPrintf(fh, (STRPTR)"\n\nCommands for application \"%s\":\n\n"
-            "Command      Template\n-------      --------\n",
-            (IPTR)(data->app_Title ? data->app_Title : (STRPTR)""));
-        for (cmd = data->app_Commands; cmd->mc_Name; cmd++)
-            rexx_help_line(fh, cmd->mc_Name, cmd->mc_Template);
-    }
-    Close(fh);
-    return RETURN_OK;
-}
-
-static LONG rexx_info(struct MUI_ApplicationData *data, CONST_STRPTR item)
-{
-    static const char *const items[] = {
-        "base", "title", "author", "copyright", "description", "version",
-        "screen", NULL
-    };
-    CONST_STRPTR value = NULL;
-    STRPTR copy;
-    int i;
-
-    for (i = 0; items[i] && Stricmp((STRPTR)item, (STRPTR)items[i]); i++)
-        ;
-    switch (i)
-    {
-    case 0: value = data->app_Base; break;
-    case 1: value = data->app_Title; break;
-    case 2: value = data->app_Author; break;
-    case 3: value = data->app_Copyright; break;
-    case 4: value = data->app_Description; break;
-    case 5: value = data->app_Version; break;
-    case 6: value = ""; break;
-    default: return REXX_BAD_ARGS;
-    }
-    copy = StrDup(value ? value : (CONST_STRPTR)"?");
-    if (!copy)
-        return RETURN_FAIL;
-    FreeVec(data->app_RexxString);
-    data->app_RexxString = copy;
-    return RETURN_OK;
-}
-
-static LONG rexx_builtin(struct MUI_ApplicationData *data, Object *obj,
-    int which, IPTR *args)
-{
-    switch (which)
-    {
-    case REXX_QUIT:
-        data->app_ForceQuit = args[0] ? TRUE : FALSE;
-        if (!application_return_id(data, MUIV_Application_ReturnID_Quit))
-            return RETURN_FAIL;
-        break;
-    case REXX_HIDE:
-    case REXX_SHOW:
-        set(obj, MUIA_Application_Iconified, which == REXX_HIDE);
-        break;
-    case REXX_DEACTIVATE:
-    case REXX_ACTIVATE:
-        set(obj, MUIA_Application_Active, which == REXX_ACTIVATE);
-        break;
-    case REXX_INFO:
-        return rexx_info(data, (CONST_STRPTR)args[0]);
-    case REXX_HELP:
-        return rexx_help(data, (CONST_STRPTR)args[0]);
-    }
-    return RETURN_OK;
-}
-
-/*
- * MUIM_Application_InputBuffered : process all pending events
- */
-static void application_rexx(struct MUI_ApplicationData *data, Object *obj,
-    struct RexxMsg *rmsg)
-{
-    struct MUI_Command *cmd = data->app_Commands;
-    struct RexxMsg *previous_msg = data->app_RexxMsg;
-    STRPTR previous_string = data->app_RexxString;
-    STRPTR command = (STRPTR)rmsg->rm_Args[0];
-    CONST_STRPTR template = NULL;
-    ULONG length = 0, parameters = 0;
-    LONG result = RETURN_ERROR;
-    int builtin;
-    IPTR *args = NULL;
-    STRPTR arguments = NULL;
-    struct RDArgs *rdargs = NULL, *parsed = NULL;
-
-    data->app_RexxMsg = rmsg;
-    data->app_RexxString = NULL;
-    rmsg->rm_Result2 = 0;
-    if (!command)
-        goto done;
-    while (*command == ' ' || *command == '\t') command++;
-    while (command[length] && command[length] != ' '
-        && command[length] != '\t') length++;
-    for (builtin = 0; builtin < REXX_BUILTINS; builtin++)
-    {
-        if (length == strlen(rexx_builtins[builtin].name)
-            && Strnicmp(command, (STRPTR)rexx_builtins[builtin].name,
-                length) == 0)
-            break;
-    }
-    if (builtin < REXX_BUILTINS)
-    {
-        template = rexx_builtins[builtin].template;
-        parameters = 1;
-    }
-    else
-    {
-        while (cmd && cmd->mc_Name)
-        {
-            if (length == strlen(cmd->mc_Name)
-                && Strnicmp(command, cmd->mc_Name, length) == 0)
-                break;
-            cmd++;
-        }
-        if (!cmd || !cmd->mc_Name)
-        {
-            result = data->app_RexxHook
-                ? (LONG)CallHookPkt(data->app_RexxHook, obj, rmsg)
-                : REXX_UNKNOWN;
-            goto done;
-        }
-        if ((STRPTR)cmd->mc_Template == MC_TEMPLATE_ID)
-        {
-            /* A plain return id; MUI ignores any arguments. */
-            result = application_return_id(data, cmd->mc_Parameters)
-                ? RETURN_OK : RETURN_FAIL;
-            goto done;
-        }
-        if (!cmd->mc_Hook)
-            goto done;
-        template = cmd->mc_Template;
-        parameters = cmd->mc_Parameters;
-    }
-    if (template)
-    {
-        STRPTR tail = command + length;
-        if (parameters > (ULONG)-1 / sizeof(IPTR))
-            goto done;
-        args = AllocVec((parameters ? parameters : 1) * sizeof(IPTR),
-            MEMF_ANY | MEMF_CLEAR);
-        while (*tail == ' ' || *tail == '\t') tail++;
-        length = strlen(tail);
-        arguments = AllocVec(length + 2, MEMF_ANY);
-        rdargs = AllocDosObject(DOS_RDARGS, NULL);
-        if (!args || !arguments || !rdargs)
-            goto done;
-        CopyMem(tail, arguments, length);
-        arguments[length] = '\n';
-        arguments[length + 1] = 0;
-        rdargs->RDA_Source.CS_Buffer = arguments;
-        rdargs->RDA_Source.CS_Length = length + 1;
-        rdargs->RDA_Source.CS_CurChr = 0;
-        rdargs->RDA_Flags |= RDAF_NOPROMPT;
-        parsed = ReadArgs((STRPTR)template, (LONG *)args, rdargs);
-        if (!parsed)
-        {
-            result = REXX_BAD_ARGS;
-            goto done;
-        }
-    }
-    if (builtin < REXX_BUILTINS)
-    {
-        IPTR none = 0;
-        result = rexx_builtin(data, obj, builtin, args ? args : &none);
-    }
-    else
-        result = CallHookPkt(cmd->mc_Hook, obj, args);
-
-done:
-    if (parsed) FreeArgs(parsed);
-    if (rdargs) FreeDosObject(DOS_RDARGS, rdargs);
-    FreeVec(arguments);
-    FreeVec(args);
-    rmsg->rm_Result1 = result;
-    if (result == 0 && (rmsg->rm_Action & RXFF_RESULT)
-        && data->app_RexxString)
-    {
-        rmsg->rm_Result2 = (IPTR)CreateArgstring(data->app_RexxString,
-            strlen(data->app_RexxString));
-        if (!rmsg->rm_Result2)
-            rmsg->rm_Result1 = RETURN_FAIL;
-    }
-    FreeVec(data->app_RexxString);
-    data->app_RexxString = previous_string;
-    data->app_RexxMsg = previous_msg;
-}
 
 static IPTR application_input(struct IClass *, Object *, ULONG *, BOOL);
 /****** Application.mui/MUIM_Application_InputBuffered ************
@@ -3209,43 +2721,8 @@ static IPTR application_input(struct IClass *cl, Object *obj,
 
             while ((msg = (CxMsg *) GetMsg(data->app_BrokerPort)))
             {
-                switch (CxMsgType(msg))
-                {
-                case CXM_COMMAND:
-                    switch (CxMsgID(msg))
-                    {
-                    case CXCMD_DISABLE:
-                        set(obj, MUIA_Application_Active, FALSE);
-                        break;
-
-                    case CXCMD_ENABLE:
-                        set(obj, MUIA_Application_Active, TRUE);
-                        break;
-
-                    case CXCMD_APPEAR:
-                    case CXCMD_DISAPPEAR:
-                        /* No default handling - application needs to be in
-                         * control of this */
-                        break;
-
-                    case CXCMD_KILL:
-                        SetSignal(SIGBREAKF_CTRL_C, SIGBREAKF_CTRL_C);
-                        break;
-                    }
-                    break;
-
-                case CXM_IEVENT:
-                    if (CxMsgID(msg) == ICONIFY_HOTKEY_ID)
-                        set(obj, MUIA_Application_Iconified,
-                            !data->app_Iconified);
-                    break;
-                }
-
-                if (data->app_BrokerHook)
-                {
-                    CallHookPkt(data->app_BrokerHook, obj, msg);
-                }
-
+                /* Exchange's commands and the hotkey: the module */
+                zune_app_cxmsg(data, obj, msg);
                 ReplyMsg((struct Message *)msg);
             }
         }
@@ -3263,7 +2740,12 @@ static IPTR application_input(struct IClass *cl, Object *obj,
                  * CreateRexxMsg (wasabi arexx) */
                 if (ZUNE_REXX()
                     && (rmsg->rm_Action & RXCODEMASK) == RXCOMM)
-                    application_rexx(data, obj, rmsg);
+                {
+                    /* the commands: the module (without it, failed) */
+                    rmsg->rm_Result1 = RETURN_FAIL;
+                    rmsg->rm_Result2 = 0;
+                    zune_app_rexx(data, obj, rmsg);
+                }
 
                 ReplyMsg((struct Message *)rmsg);
             }
@@ -3297,29 +2779,9 @@ static IPTR application_input(struct IClass *cl, Object *obj,
             while ((appmsg =
                     (struct AppMessage *)GetMsg(data->app_AppPort)))
             {
-                if (((appmsg->am_Type == AMTYPE_APPICON
-                    && appmsg->am_NumArgs == 0 && appmsg->am_ArgList == NULL)
-                    || appmsg->am_Type == AMTYPE_APPMENUITEM)
-                    && (XGET(obj, MUIA_Application_Iconified) == TRUE))
-                {
-                    /* Reply before removing AppIcon */
-                    ReplyMsg((struct Message *)appmsg);
-                    set(obj, MUIA_Application_Iconified, FALSE);
-                    continue;
-                }
-                else if (appmsg->am_Type == AMTYPE_APPICON
-                    && appmsg->am_NumArgs > 0 && data->app_DropObject)
-                {
-                    /* Workbench owns the message until ReplyMsg. Deliver
-                     * synchronously, just like AppWindow notifications. */
-                    set(data->app_DropObject, MUIA_AppMessage, (IPTR)appmsg);
-                }
-                else if (appmsg->am_Type == AMTYPE_APPWINDOW)
-                {
-                    set((Object *) appmsg->am_UserData, MUIA_AppMessage,
-                        appmsg);
-                }
-
+                /* icons dropped, the AppIcon or menu item: the module,
+                 * which may reply itself */
+                if (!zune_app_appmsg(data, obj, appmsg))
                 ReplyMsg((struct Message *)appmsg);
             }
         }
@@ -3509,39 +2971,6 @@ static IPTR Application__MUIM_PushMethod(struct IClass *cl, Object *obj,
 *       allocation; do not retain them as permanent identifiers.
 *
 */
-static IPTR Application__MUIM_UnpushMethod(struct IClass *cl, Object *obj,
-    struct MUIP_Application_UnpushMethod *msg)
-{
-    D(bug("[Application__MUIM_UnpushMethod] dest %p id %p method %u\n",
-        msg->dest, msg->methodid, msg->method));
-
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-
-    struct MQNode *current, *next;
-    ULONG removed = 0;
-
-    ObtainSemaphore(&data->app_MethodSemaphore);
-    ForeachNodeSafe(&data->app_MethodQueue, current, next)
-    {
-        D(bug("[Application__MUIM_UnpushMethod] examine dest %p id %p "
-            "method %u\n",
-            current->mq_Dest, current, current->mq_Msg[0]));
-        if (((msg->dest == NULL) || (msg->dest == current->mq_Dest))
-            && ((msg->methodid == 0) || (msg->methodid == (IPTR)current))
-            && ((msg->method == 0) || (msg->method == current->mq_Msg[0]))
-        )
-        {
-            Remove((struct Node*)current);
-            DeleteMQNode(current);
-            removed++;
-            D(bug("[Application__MUIM_UnpushMethod] current %p removed\n",
-                current));
-        }
-    }
-    ReleaseSemaphore(&data->app_MethodSemaphore);
-
-    return removed;
-}
 
 
 /****** Application.mui/MUIM_Application_ReturnID ************
@@ -3683,26 +3112,6 @@ static IPTR Application__MUIM_SetUDataOnce(struct IClass *cl, Object *obj,
 *       application alive.
 *
 */
-static IPTR Application__MUIM_AboutMUI(struct IClass *cl, Object *obj,
-    struct MUIP_Application_AboutMUI *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-
-    if (!data->app_AboutWin)
-    {
-        data->app_AboutWin = AboutmuiObject,
-            msg->refwindow ? MUIA_Window_RefWindow : TAG_IGNORE,
-            (IPTR)msg->refwindow, MUIA_Window_LeftEdge,
-            MUIV_Window_LeftEdge_Centered, MUIA_Window_TopEdge,
-            MUIV_Window_TopEdge_Centered, MUIA_Aboutmui_Application, (IPTR)obj,
-            End;
-    }
-
-    if (data->app_AboutWin)
-        set(data->app_AboutWin, MUIA_Window_Open, TRUE);
-
-    return 0;
-}
 
 
 /* Close each currently open window and try to collect its borrowed pointer
@@ -3711,62 +3120,7 @@ static IPTR Application__MUIM_AboutMUI(struct IClass *cl, Object *obj,
  * information. The eventual OpenWindows call consumes the allocations; keep
  * all referenced windows alive.
  */
-static struct List *Application__CloseWindows(struct IClass *cl, Object *obj)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct MinList *children = NULL;
-    struct List *windows = NULL;
-    Object *cstate;
-    Object *child;
 
-    children = app_windows(data);
-    if (!children)
-        return NULL;
-
-    /* remember which windows were open, so they can be re-opened after a
-     * configdata change. Windows that were already closed are left alone. */
-    windows = AllocVec(sizeof(struct List), MEMF_CLEAR);
-    if (windows)
-        NewList(windows);
-
-    cstate = (Object *) children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (XGET(child, MUIA_Window_Open))
-        {
-            if (windows)
-            {
-                struct Node *n = AllocVec(sizeof(struct Node), MEMF_CLEAR);
-
-                if (n)
-                {
-                    n->ln_Name = (STRPTR)child;
-                    AddTail(windows, n);
-                }
-            }
-            D(bug("[MUI:App] %s: closing window %p\n", __func__, child));
-            set(child, MUIA_Window_Open, FALSE);
-        }
-    }
-    return windows;
-}
-
-static void QueueOpenWindows(Object *obj, struct MUI_ApplicationData *data,
-    struct List *windows)
-{
-    struct MQNode *mq = CreateMQNode(2);
-
-    if (!mq)
-    {
-        FreeWindowList(windows);
-        return;
-    }
-    mq->mq_Dest = obj;
-    mq->mq_Msg[0] = MUIM_Application_OpenWindows;
-    mq->mq_Msg[1] = (IPTR)windows;
-    mq->mq_Count |= MQF_OWNED_WINDOWS;
-    EnqueueMethod(data, mq);
-}
 
 /****** Application.mui/MUIM_Application_SetConfigdata ************
 *
@@ -3804,26 +3158,6 @@ static void QueueOpenWindows(Object *obj, struct MUI_ApplicationData *data,
 *       windows. Queue failure leaves the windows closed.
 *
 */
-static IPTR Application__MUIM_SetConfigdata(struct IClass *cl, Object *obj,
-    struct MUIP_Application_SetConfigdata *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct List *windows;
-
-    /* close all currently open windows and remember them, so they can be
-     * re-opened with the new settings afterwards */
-    windows = Application__CloseWindows(cl, obj);
-
-    data->app_GlobalInfo.mgi_Configdata = msg->configdata;
-    get(data->app_GlobalInfo.mgi_Configdata, MUIA_Configdata_ZunePrefs,
-        &data->app_GlobalInfo.mgi_Prefs);
-    if (data->app_NotifyStarted)
-        DoMethod(data->app_GlobalInfo.mgi_Configdata,
-            MUIM_Configdata_SetupNotify);
-
-    QueueOpenWindows(obj, data, windows);
-    return 0;
-}
 
 /****** Application.mui/MUIM_Application_SetConfigItem ************
 *
@@ -3874,112 +3208,6 @@ static IPTR Application__MUIM_SetConfigdata(struct IClass *cl, Object *obj,
 *       queue-failure limitations; no rollback or success status is provided.
 *
 */
-static IPTR Application__MUIM_SetConfigItem(struct IClass *cl, Object *obj,
-    struct MUIP_Application_SetConfigItem *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    if (data->app_GlobalInfo.mgi_Configdata) {
-        switch (msg->item) {
-            /*
-            case MUICFG_Window_Spacing_Left:
-            case MUICFG_Window_Spacing_Right:
-            case MUICFG_Window_Spacing_Top:
-            case MUICFG_Window_Buttons:
-            case MUICFG_Window_Spacing_Bottom:
-            case MUICFG_Window_Positions:
-            case MUICFG_Window_Redraw:
-            case MUICFG_Window_Refresh:
-            case MUICFG_Radio_HSpacing:
-            case MUICFG_Radio_VSpacing:
-            case MUICFG_Group_HSpacing:
-            case MUICFG_Group_VSpacing:
-            case MUICFG_Cycle_MenuCtrl_Position:
-            case MUICFG_Cycle_MenuCtrl_Level:
-            case MUICFG_Cycle_MenuCtrl_Speed:
-            case MUICFG_Cycle_Menu_Recessed:
-            case MUICFG_Listview_Font_Leading:
-            case MUICFG_Listview_Smoothed:
-            case MUICFG_Listview_SmoothVal:
-            case MUICFG_Listview_Refresh:
-            case MUICFG_Listview_Multi:
-            case MUICFG_GroupTitle_Position:
-            case MUICFG_GroupTitle_Color:
-            case MUICFG_Scrollbar_Type:
-            case MUICFG_Scrollbar_Arrangement:
-            case MUICFG_Balance_Look:
-            case MUICFG_Dragndrop_Look:
-            case MUICFG_Drag_Autostart:
-            case MUICFG_Drag_Autostart_Length:
-            case MUICFG_Drag_LeftButton:
-            case MUICFG_Drag_MiddleButton:
-            case MUICFG_Register_TruncateTitles:
-            case MUICFG_Screen_Mode:
-            case MUICFG_Screen_Mode_ID:
-            case MUICFG_Screen_Width:
-            case MUICFG_Screen_Height:
-            case MUICFG_PublicScreen_PopToFront:
-            case MUICFG_Iconification_ShowIcon:
-            case MUICFG_Iconification_ShowMenu:
-            case MUICFG_Iconification_OnStartup:
-            case MUICFG_Interfaces_EnableARexx:
-            case MUICFG_BubbleHelp_FirstDelay:
-            case MUICFG_BubbleHelp_NextDelay: */
-            case MUICFG_Keyboard_Press:
-            case MUICFG_Keyboard_Toggle:
-            case MUICFG_Keyboard_Up:
-            case MUICFG_Keyboard_Down:
-            case MUICFG_Keyboard_PageUp:
-            case MUICFG_Keyboard_PageDown:
-            case MUICFG_Keyboard_Top:
-            case MUICFG_Keyboard_Bottom:
-            case MUICFG_Keyboard_Left:
-            case MUICFG_Keyboard_Right:
-            case MUICFG_Keyboard_WordLeft:
-            case MUICFG_Keyboard_WordRight:
-            case MUICFG_Keyboard_LineStart:
-            case MUICFG_Keyboard_LineEnd:
-            case MUICFG_Keyboard_NextGadget:
-            case MUICFG_Keyboard_PrevGadget:
-            case MUICFG_Keyboard_GadgetOff:
-            case MUICFG_Keyboard_CloseWindow:
-            case MUICFG_Keyboard_NextWindow:
-            case MUICFG_Keyboard_PrevWindow:
-            case MUICFG_Keyboard_Help:
-            case MUICFG_Keyboard_Popup:
-            case MUICFG_Drag_LMBModifier:
-            case MUICFG_Drag_MMBModifier:
-            case MUICFG_Iconification_Hotkey:
-                DoMethod(data->app_GlobalInfo.mgi_Configdata, MUIM_Configdata_SetString, msg->item, msg->data);
-                break;
-            case MUICFG_Font_Normal:
-            case MUICFG_Font_List:
-            case MUICFG_Font_Tiny:
-            case MUICFG_Font_Fixed:
-            case MUICFG_Font_Title:
-            case MUICFG_Font_Big:
-            case MUICFG_Font_Button:
-            case MUICFG_Font_Knob:
-            case MUICFG_String_Background:
-            case MUICFG_String_Text:
-            case MUICFG_String_ActiveBackground:
-            case MUICFG_String_ActiveText:
-            case MUICFG_String_Cursor:
-            case MUICFG_String_MarkedBackground:
-            case MUICFG_String_MarkedText:
-            case MUICFG_ActiveObject_Color:
-            case MUICFG_PublicScreen:
-                {
-                    struct List *windows;
-
-                    windows = Application__CloseWindows(cl, obj);
-                    DoMethod(data->app_GlobalInfo.mgi_Configdata, MUIM_Configdata_SetString, msg->item, msg->data);
-                    QueueOpenWindows(obj, data, windows);
-                }
-                break;
-        }
-    }
-    return 0;
-}
 
 
 /****** Application.mui/MUIM_Application_OpenWindows ************
@@ -4010,62 +3238,6 @@ static IPTR Application__MUIM_SetConfigItem(struct IClass *cl, Object *obj,
 *       internal Family without taking ownership of its list.
 *
 */
-static IPTR Application__MUIM_OpenWindows(struct IClass *cl, Object *obj,
-    struct MUIP_Application_OpenWindows *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-
-    /* a list of windows to open was passed (e.g. the ones closed by
-     * Application__CloseWindows before a configdata change) - open exactly
-     * those and free the list */
-    if (msg->windows)
-    {
-        struct Node *n;
-
-        while ((n = (struct Node *)RemHead(msg->windows)))
-        {
-            struct MinList *children = NULL;
-            Object *cstate, *child;
-
-            /* A window may have been removed and disposed since queuing.
-             * Compare pointers in the live family before using the target.
-             * Re-read after each open, which can itself change membership.
-             */
-            children = app_windows(data);
-            if (children)
-            {
-                cstate = (Object *)children->mlh_Head;
-                while ((child = NextObject(&cstate)))
-                    if (child == (Object *)n->ln_Name)
-                    {
-                        set(child, MUIA_Window_Open, TRUE);
-                        break;
-                    }
-            }
-            FreeVec(n);
-        }
-        FreeVec(msg->windows);
-        return 0;
-    }
-
-    /* otherwise open all windows of the application */
-    {
-        struct MinList *children = NULL;
-        Object *cstate;
-        Object *child;
-
-        children = app_windows(data);
-        if (!children)
-            return 0;
-
-        cstate = (Object *) children->mlh_Head;
-        while ((child = NextObject(&cstate)))
-        {
-            set(child, MUIA_Window_Open, TRUE);
-        }
-    }
-    return 0;
-}
 
 
 /****** Application.mui/MUIM_Application_OpenConfigWindow ************
@@ -4099,36 +3271,6 @@ static IPTR Application__MUIM_OpenWindows(struct IClass *cl, Object *obj,
 *       application object remains alive.
 *
 */
-static IPTR Application__MUIM_OpenConfigWindow(struct IClass *cl,
-    Object *obj, struct MUIP_Application_OpenConfigWindow *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct TagItem tags[] = {
-        {SYS_Asynch, TRUE},
-        {SYS_Input, 0},
-        {SYS_Output, 0},
-        {NP_StackSize, AROS_STACKSIZE},
-        {TAG_DONE}
-    };
-    char cmd[255];
-    CONST_STRPTR prefs = "sys:prefs/OpenMUI";
-    BPTR lock = Lock((STRPTR)prefs, SHARED_LOCK);
-
-    if (lock)
-        UnLock(lock);
-    else
-        prefs = "sys:prefs/Zune";
-
-    snprintf(cmd, 255, "%s %s %ld", prefs,
-        data->app_Base ? data->app_Base : (STRPTR) "", (long)obj);
-
-    if (SystemTagList(cmd, tags) == -1)
-    {
-        return 0;
-    }
-
-    return 1;
-}
 
 /****** Application.mui/MUIM_Application_Execute ************
 *
@@ -4159,25 +3301,6 @@ static IPTR Application__MUIM_OpenConfigWindow(struct IClass *cl,
 *       to masks inherit NewInput's limitations.
 *
 */
-static IPTR Application__MUIM_Execute(Class *CLASS, Object *self,
-    Msg message)
-{
-    IPTR signals = 0L;
-
-    while
-        (DoMethod(self, MUIM_Application_NewInput, (IPTR) & signals)
-        != MUIV_Application_ReturnID_Quit)
-    {
-        if (signals)
-        {
-            signals = Wait(signals | SIGBREAKF_CTRL_C);
-            if (signals & SIGBREAKF_CTRL_C)
-                break;
-        }
-    }
-
-    return 0;
-}
 
 
 /****** Application.mui/MUIM_Application_UpdateMenus ************
@@ -4204,26 +3327,6 @@ static IPTR Application__MUIM_Execute(Class *CLASS, Object *self,
 *       is not a success report for menu allocation or attachment.
 *
 */
-static IPTR Application__MUIM_UpdateMenus(struct IClass *cl, Object *obj,
-    Msg message)
-{
-    struct List *wlist = NULL;
-    APTR wstate;
-    Object *curwin;
-
-    get(obj, MUIA_Application_WindowList, &wlist);
-
-    if (wlist)
-    {
-        wstate = wlist->lh_Head;
-        while ((curwin = NextObject(&wstate)))
-        {
-            DoMethod(curwin, MUIM_Window_UpdateMenu);
-        }
-    }
-
-    return 0;
-}
 
 /****** Application.mui/MUIM_Application_Load ************
 *
@@ -4268,110 +3371,6 @@ static IPTR Application__MUIM_UpdateMenus(struct IClass *cl, Object *obj,
  * objects' state in ENV(ARC):MUI/<base>.cfg; earlier Zune68 versions used
  * ENV(ARC):Zune, which is still read. Like MUI, Save creates the MUI drawer
  * when it is missing. */
-static IPTR Application__MUIM_LoadSave(struct IClass *cl, Object *obj,
-    struct MUIP_Application_Load *message)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    BOOL save = message->MethodID == MUIM_Application_Save;
-    struct IFFHandle *iff;
-    char buf[280];
-    CONST_STRPTR name = message->name;
-    CONST_STRPTR env = NULL;
-    BPTR fh;
-    Object *dataspace;
-
-    if (!data->app_Base)
-        return 0;
-
-    dataspace = MUI_NewObject(MUIC_Dataspace, TAG_DONE);
-    if (!dataspace)
-        return 0;
-
-    if (save)
-        app_each_window(data, MUIM_Export, (IPTR)dataspace);
-
-    if (message->name == MUIV_Application_Load_ENV)
-        env = "ENV";
-    else if (message->name == MUIV_Application_Load_ENVARC)
-        env = "ENVARC";
-    if (env)
-    {
-        snprintf(buf, sizeof(buf), "%s:MUI/%s.cfg", env, data->app_Base);
-        name = buf;
-    }
-
-    fh = Open(name, save ? MODE_NEWFILE : MODE_OLDFILE);
-    if (!fh && env)
-    {
-        if (save)
-        {
-            BPTR dir;
-
-            snprintf(buf, sizeof(buf), "%s:MUI", env);
-            if ((dir = CreateDir(buf)))
-            {
-                UnLock(dir);
-                snprintf(buf, sizeof(buf), "%s:MUI/%s.cfg", env,
-                    data->app_Base);
-                fh = Open(buf, MODE_NEWFILE);
-            }
-        }
-        else
-        {
-            snprintf(buf, sizeof(buf), "%s:Zune/%s.cfg", env,
-                data->app_Base);
-            fh = Open(buf, MODE_OLDFILE);
-        }
-    }
-    if (fh)
-    {
-        if (ZUNE_IFFPARSE() && (iff = AllocIFF()))
-        {
-            iff->iff_Stream = (IPTR) fh;
-
-            InitIFFasDOS(iff);
-
-            if (!OpenIFF(iff, save ? IFFF_WRITE : IFFF_READ))
-            {
-                if (!save)
-                {
-                    if (!StopChunk(iff, ID_PREF, ID_MUIO)
-                        && !ParseIFF(iff, IFFPARSE_SCAN))
-                        DoMethod(dataspace, MUIM_Dataspace_ReadIFF, iff,
-                            ID_PREF, ID_MUIO);
-                }
-                else if (!PushChunk(iff, ID_PREF, ID_FORM, IFFSIZE_UNKNOWN))
-                {
-                    if (!PushChunk(iff, ID_PREF, ID_PRHD,
-                            sizeof(struct FilePrefHeader)))
-                    {
-                        struct FilePrefHeader head;
-                        BOOL written;
-
-                        memset(&head, 0, sizeof(head));
-                        written = WriteChunkBytes(iff, &head,
-                            sizeof(head)) == sizeof(head);
-                        PopChunk(iff);
-                        if (written)
-                            DoMethod(dataspace, MUIM_Dataspace_WriteIFF,
-                                iff, ID_PREF, ID_MUIO);
-                    }
-                    PopChunk(iff);
-                }
-                CloseIFF(iff);
-            }
-            FreeIFF(iff);
-        }
-        Close(fh);
-    }
-
-    if (!save)
-        app_each_window(data, MUIM_Import, (IPTR)dataspace);
-
-    MUI_DisposeObject(dataspace);
-
-    return 0;
-}
 
 /****** Application.mui/MUIM_Application_Save ************
 *
@@ -4442,74 +3441,7 @@ static IPTR Application__MUIM_CheckRefresh(struct IClass *cl, Object *obj,
 }
 
 /* Older menu entry points share the modern menu objects and their state. */
-static IPTR Application__Menu(struct IClass *cl, Object *obj, ULONG *msg,
-    BOOL setting, ULONG attr)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct MinList *children = NULL;
-    Object *state, *child, *strip, *item;
-    IPTR value = 0;
 
-    children = app_windows(data);
-    if (!children) return 0;
-    state = (Object *)children->mlh_Head;
-    while ((child = NextObject(&state)))
-    {
-        strip = NULL;
-        get(child, MUIA_Window_Menustrip, &strip);
-        if (!strip) strip = data->app_Menustrip;
-        item = strip ? (Object *)DoMethod(strip, MUIM_FindUData, msg[1]) : NULL;
-        if (!item) continue;
-        if (setting)
-            set(item, attr, msg[2]);
-        else
-        {
-            get(item, attr, &value);
-            return value;
-        }
-    }
-    return 0;
-}
-
-static IPTR Application__MUIM_ShowHelp(struct IClass *cl, Object *obj,
-    struct MUIP_Application_ShowHelp *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct Library *AmigaGuideBase;
-    struct NewAmigaGuide nag;
-    APTR context;
-    Object *window = msg->window;
-    STRPTR name = msg->name ? (STRPTR)msg->name : data->app_HelpFile;
-
-    if (!name || !*name) return FALSE;
-    AmigaGuideBase = OpenLibrary("amigaguide.library", 39);
-    if (!AmigaGuideBase) return FALSE;
-    memset(&nag, 0, sizeof(nag));
-    if (window == (Object *)-1)
-    {
-        struct MinList *children = NULL;
-        Object *state;
-        children = app_windows(data);
-        window = NULL;
-        if (children)
-        {
-            state = (Object *)children->mlh_Head;
-            while ((window = NextObject(&state)))
-                if (XGET(window, MUIA_Window_Open)) break;
-        }
-    }
-    if (window)
-        get(window, MUIA_Window_Screen, &nag.nag_Screen);
-    nag.nag_Name = name;
-    nag.nag_Node = msg->node;
-    nag.nag_Line = msg->line;
-    set(obj, MUIA_Application_Sleep, TRUE);
-    context = OpenAmigaGuideA(&nag, NULL);
-    if (context) CloseAmigaGuide(context);
-    set(obj, MUIA_Application_Sleep, FALSE);
-    CloseLibrary(AmigaGuideBase);
-    return context != NULL;
-}
 
 /*
  * The class dispatcher
@@ -4861,15 +3793,6 @@ BOOPSI_DISPATCHER(IPTR, Application_Dispatcher, cl, obj, msg)
     case OM_REMMEMBER: method = (APTR)Application__OM_REMMEMBER; break;
     case MUIM_Application_AddInputHandler: method = (APTR)Application__MUIM_AddInputHandler; break;
     case MUIM_Application_RemInputHandler: method = (APTR)Application__MUIM_RemInputHandler; break;
-    case MUIM_Application_GetMenuCheck:
-        return Application__Menu(cl, obj, (ULONG *)msg, FALSE, MUIA_Menuitem_Checked);
-    case MUIM_Application_GetMenuState:
-        return Application__Menu(cl, obj, (ULONG *)msg, FALSE, MUIA_Menuitem_Enabled);
-    case MUIM_Application_SetMenuCheck:
-        return Application__Menu(cl, obj, (ULONG *)msg, TRUE, MUIA_Menuitem_Checked);
-    case MUIM_Application_SetMenuState:
-        return Application__Menu(cl, obj, (ULONG *)msg, TRUE, MUIA_Menuitem_Enabled);
-    case MUIM_Application_ShowHelp: method = (APTR)Application__MUIM_ShowHelp; break;
     case MUIM_Application_Input:
         return DEEP(Application__MUIM_Input, cl, obj, msg);
     case MUIM_Application_InputBuffered:
@@ -4877,24 +3800,31 @@ BOOPSI_DISPATCHER(IPTR, Application_Dispatcher, cl, obj, msg)
     case MUIM_Application_NewInput:
         return DEEP(Application__MUIM_NewInput, cl, obj, msg);
     case MUIM_Application_PushMethod: method = (APTR)Application__MUIM_PushMethod; break;
-    case MUIM_Application_UnpushMethod: method = (APTR)Application__MUIM_UnpushMethod; break;
     case MUIM_Application_ReturnID: method = (APTR)Application__MUIM_ReturnID; break;
     case MUIM_FindUData:
     case MUIM_FindObject: method = (APTR)Application__MUIM_FindUData; break;
     case MUIM_GetUData: method = (APTR)Application__MUIM_GetUData; break;
     case MUIM_SetUData: method = (APTR)Application__MUIM_SetUData; break;
     case MUIM_SetUDataOnce: method = (APTR)Application__MUIM_SetUDataOnce; break;
-    case MUIM_Application_AboutMUI: method = (APTR)Application__MUIM_AboutMUI; break;
-    case MUIM_Application_SetConfigdata: method = (APTR)Application__MUIM_SetConfigdata; break;
-    case MUIM_Application_SetConfigItem: method = (APTR)Application__MUIM_SetConfigItem; break;
-    case MUIM_Application_OpenWindows: method = (APTR)Application__MUIM_OpenWindows; break;
-    case MUIM_Application_OpenConfigWindow: method = (APTR)Application__MUIM_OpenConfigWindow; break;
-    case MUIM_Application_Execute:
-    case MUIM_Application_Run: method = (APTR)Application__MUIM_Execute; break;
-    case MUIM_Application_UpdateMenus: method = (APTR)Application__MUIM_UpdateMenus; break;
-    case MUIM_Application_Load:
-    case MUIM_Application_Save: method = (APTR)Application__MUIM_LoadSave; break;
     case MUIM_Application_CheckRefresh: method = (APTR)Application__MUIM_CheckRefresh; break;
+    /* the rarely used ones: the application module (appx.c) */
+    case MUIM_Application_AboutMUI:
+    case MUIM_Application_ShowHelp:
+    case MUIM_Application_OpenConfigWindow:
+    case MUIM_Application_SetConfigdata:
+    case MUIM_Application_SetConfigItem:
+    case MUIM_Application_OpenWindows:
+    case MUIM_Application_Load:
+    case MUIM_Application_Save:
+    case MUIM_Application_UnpushMethod:
+    case MUIM_Application_UpdateMenus:
+    case MUIM_Application_Execute:
+    case MUIM_Application_Run:
+    case MUIM_Application_GetMenuCheck:
+    case MUIM_Application_GetMenuState:
+    case MUIM_Application_SetMenuCheck:
+    case MUIM_Application_SetMenuState:
+        method = (APTR)zune_app_method; break;
     default:
         return DoSuperMethodA(cl, obj, msg);
     }

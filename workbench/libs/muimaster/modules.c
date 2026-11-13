@@ -32,7 +32,7 @@ extern struct Library *MUIMasterBase;
 static CONST_STRPTR const module_names[ZMOD_COUNT] = {
     MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient,
     MUIC_Zwintitle, MUIC_Zframes, MUIC_Zlist, MUIC_Zmui45,
-    MUIC_Zprefs
+    MUIC_Zprefs, MUIC_Zapp
 };
 
 /* Modules a process could not load: not tried again while the library
@@ -582,3 +582,21 @@ ZMC(zune_window_menu_verify, ZMOD_MUI45, ZuneMui45Module, menu_verify, 3, 0);
 /* Configdata's setters (configset.c): the prefs program's; without the
  * module a setting is not changed */
 ZMC(zune_configdata_set, ZMOD_PREFS, ZunePrefsModule, configdata_set, 3, 0);
+
+/* Application's rarely used parts (appx.c); see modules.h for what each
+ * does without the module */
+#define ZMC_OFS_ZuneAppModule_method 0
+#define ZMC_OFS_ZuneAppModule_rexx 4
+#define ZMC_OFS_ZuneAppModule_iconify 8
+#define ZMC_OFS_ZuneAppModule_cxmsg 12
+#define ZMC_OFS_ZuneAppModule_appmsg 16
+#define ZMC_OFS_ZuneAppModule_version 20
+#define ZMC_OFS_ZuneAppModule_usedclasses 24
+ZMC(zune_app_method, ZMOD_APP, ZuneAppModule, method, 3, 0);
+ZMC(zune_app_rexx, ZMOD_APP, ZuneAppModule, rexx, 3, 0);
+ZMC(zune_app_iconify, ZMOD_APP, ZuneAppModule, iconify, 3, 0);
+ZMC(zune_app_cxmsg, ZMOD_APP, ZuneAppModule, cxmsg, 3, 0);
+ZMC(zune_app_appmsg, ZMOD_APP, ZuneAppModule, appmsg, 3, 0);
+ZMC(zune_app_version, ZMOD_APP, ZuneAppModule, version, 1, 0);
+ZMC(zune_app_usedclasses, ZMOD_APP, ZuneAppModule, usedclasses,
+    1 + ZMC_GUARD, 0);

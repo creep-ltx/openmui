@@ -84,7 +84,7 @@ extern const struct __MUIBuiltinClass _MUI_Settings_desc;
 extern const struct __MUIBuiltinClass _MUI_Zmenu_desc, _MUI_Zpicture_desc,
     _MUI_Zdragdrop_desc, _MUI_Zrequest_desc, _MUI_Zgradient_desc,
     _MUI_Zwintitle_desc, _MUI_Zframes_desc, _MUI_Zlist_desc,
-    _MUI_Zmui45_desc, _MUI_Zprefs_desc;
+    _MUI_Zmui45_desc, _MUI_Zprefs_desc, _MUI_Zapp_desc;
 
 static const struct __MUIBuiltinClass *const builtins[] = {
     &_MUI_Notify_desc,
@@ -217,6 +217,9 @@ static const struct __MUIBuiltinClass *const builtins[] = {
 #endif
 #if ZUNE_BUILTIN_ZPREFS
     &_MUI_Zprefs_desc,
+#endif
+#if ZUNE_BUILTIN_ZAPP
+    &_MUI_Zapp_desc,
 #endif
 };
 

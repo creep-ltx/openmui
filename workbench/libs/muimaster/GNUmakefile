@@ -128,7 +128,7 @@ SOURCES = \
   classes/volumelist.c classes/window.c \
   classes/zmenu.c classes/zpicture.c classes/zdragdrop.c classes/zrequest.c \
   classes/zgradient.c classes/zwintitle.c classes/zframes.c \
-  classes/zlist.c classes/zmui45.c classes/zprefs.c
+  classes/zlist.c classes/zmui45.c classes/zprefs.c classes/zapp.c
 # The functions the checks trap, kept out of line in an LTO build (above).
 # `make trapped-list` regenerates the list from a run of the checks on an
 # LTO=0 build (tests/symbols.py records every name they look up).
@@ -156,7 +156,7 @@ CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   selectgroup process dtpic register bitmap bodychunk chunkyimage \
   settingsgroup settings crawling \
   zmenu zpicture zdragdrop zrequest zgradient zwintitle zframes \
-  zlist zmui45 zprefs
+  zlist zmui45 zprefs zapp
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
 CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
 CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/OpenMUI/$(shell echo $(c) | sed 's/^./\U&/').mui)

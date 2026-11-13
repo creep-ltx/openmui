@@ -136,6 +136,9 @@ typedef void (*VOID_FUNC)(void);
 #ifndef ZUNE_BUILTIN_ZPREFS
 #define ZUNE_BUILTIN_ZPREFS 1
 #endif
+#ifndef ZUNE_BUILTIN_ZAPP
+#define ZUNE_BUILTIN_ZAPP 1
+#endif
 #ifndef ZUNE_BUILTIN_FRAMEADJUST
 #define ZUNE_BUILTIN_FRAMEADJUST 1
 #endif

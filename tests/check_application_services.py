@@ -23,6 +23,7 @@ FIELDS = dict(family=28, handlers=32, methods=44, ids=102, timer=122,
 
 class ApplicationHarness(NotifyHarness):
     def __init__(self, path):
+        self.class_blocks = {}
         super().__init__(path)
         self.mem.w16(CLASS + 32, 64)
         self.queues = {}
@@ -196,6 +197,21 @@ class ApplicationHarness(NotifyHarness):
         self.mem.w32(msg + 40, self.blob(command.encode() + b'\0'))
         self.queues[REXX_PORT].append(msg)
         return msg
+
+    # The application module's class (Zapp.zmod, appx.c: the rarely used
+    # methods, ARexx, AppMessages) stays until the library's expunge, as
+    # every module does: its block is kept out of the counted allocations.
+    def make_class(self):
+        super().make_class()
+        cl = self.cpu.r_reg(0)
+        if cl:
+            self.class_blocks[cl] = self.allocations.pop(cl)
+
+    def free_class(self):
+        cl = self.cpu.r_reg(8)
+        if cl in self.class_blocks:
+            self.allocations[cl] = self.class_blocks.pop(cl)
+        super().free_class()
 
     def finish(self):
         self.check_freed()

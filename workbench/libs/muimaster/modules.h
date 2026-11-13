@@ -31,6 +31,7 @@
 /* Zmui45.mui: mui45.c, pointer45.c, textmark45.c, rtgtext45.c, makeobj45.c */
 #define MUIC_Zmui45     "Zmui45.zmod"
 #define MUIC_Zprefs     "Zprefs.zmod"       /* Zprefs.mui: configset.c */
+#define MUIC_Zapp       "Zapp.zmod"         /* Zapp.mui: appx.c */
 
 /* Numbers, not an enum: modules.c's call stubs give them to the
  * assembler */
@@ -44,7 +45,8 @@
 #define ZMOD_LIST 7
 #define ZMOD_MUI45 8
 #define ZMOD_PREFS 9
-#define ZMOD_COUNT 10
+#define ZMOD_APP 10
+#define ZMOD_COUNT 11
 
 /* The only method of a module class; answered with no object */
 #define MUIM_ZuneModule_Get 0xDA4D0001
@@ -345,6 +347,37 @@ struct ZunePrefsModule
 {
     IPTR (*configdata_set)(Object *, Msg, const struct ZuneCfgTables *);
 };
+
+/* Application's rarely used parts (appx.c, classes/application_private.h):
+ * the library's functions of these names call them */
+struct MUI_ApplicationData;
+struct RexxMsg;
+struct AppMessage;
+struct ZuneAppModule
+{
+    IPTR (*method)(struct IClass *, Object *, Msg);
+    void (*rexx)(struct MUI_ApplicationData *, Object *, struct RexxMsg *);
+    void (*iconify)(struct MUI_ApplicationData *, Object *, BOOL);
+    void (*cxmsg)(struct MUI_ApplicationData *, Object *, APTR);
+    BOOL (*appmsg)(struct MUI_ApplicationData *, Object *,
+        struct AppMessage *);
+    void (*version)(struct MUI_ApplicationData *);
+    void (*usedclasses)(STRPTR *);
+};
+/* the methods: 0 without the module */
+IPTR zune_app_method(struct IClass *cl, Object *obj, Msg msg);
+/* an ARexx command: the message's result fields stay as the library set
+ * them (RETURN_FAIL) without the module */
+void zune_app_rexx(struct MUI_ApplicationData *data, Object *obj,
+    struct RexxMsg *rmsg);
+/* Workbench's icon and menu item while iconified: none without it */
+void zune_app_iconify(struct MUI_ApplicationData *data, Object *obj, BOOL on);
+/* a commodities message, an AppMessage (TRUE: replied already) */
+void zune_app_cxmsg(struct MUI_ApplicationData *data, Object *obj, APTR msg);
+BOOL zune_app_appmsg(struct MUI_ApplicationData *data, Object *obj,
+    struct AppMessage *appmsg);
+void zune_app_version(struct MUI_ApplicationData *data);
+void zune_app_usedclasses(STRPTR *list);
 IPTR zune_configdata_set(Object *obj, Msg msg, const struct ZuneCfgTables *t);
 
 /* In a module built as a file: take the library bases over again before

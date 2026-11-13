@@ -260,6 +260,7 @@ __MUI_Title_desc
 __MUI_Virtgroup_desc
 __MUI_Volumelist_desc
 __MUI_Window_desc
+__MUI_Zapp_desc
 __MUI_Zdragdrop_desc
 __MUI_Zframes_desc
 __MUI_Zgradient_desc
