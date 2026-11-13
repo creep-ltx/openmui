@@ -89,9 +89,10 @@ SYS:OpenMUI/Data/OpenMUISwitch MUI|OPENMUI|UNINSTALL|STATUS.
 
 Status
 ------
-A public beta, tested in emulators (FS-UAE, Amiberry), not yet on a
-real Amiga. 184 real MUI programs and class demos (YAM, AmIRC, AmFTP,
-IBrowse, NList, TextEditor, TheBar and many more) are tested against real
+A public beta. An earlier build is in daily use on an A1200 (PiStorm,
+Emu68); the figures below come from emulators (FS-UAE, Amiberry). 184
+real MUI programs and class demos (YAM, AmIRC, AmFTP, IBrowse, NList,
+TextEditor, TheBar and many more) are tested against real
 MUI 3.8 and MUI 5. MUI-Demo on OS 3.1 with 4 MB fast RAM: 460 KB for the
 first program (MUI 3.8: 460 KB), 205 KB for each further one (MUI 3.8:
 211-219 KB, MUI 5: 427-435 KB). Speed (cycle-exact emulation): at least
