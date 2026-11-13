@@ -330,6 +330,20 @@ opening, creation's allocations (MUI 3.8 pools), a disabled object's event handl
 it). Details in
 [README.md](README.md#speed-round-3-against-mui-5-the-os-calls-per-operation-the-getattr-calls-2026-11-12-gate-3).
 
+Round 4, "prove it" (branch `draw1`, 2026-11-13): targets of 25 % below MUI 3.8 for the window
+opening, full redraw, relayout, resize, register page and uniconify, and memory toward 400 KB /
+185 KB; measured on the A600's 68000 too (MUI 3.8 copied onto an a600-31 instance). Reached:
+none of the 25 % targets (open+close 0.79-0.81, uniconify 0.79-0.80, register page 0.85, popup
+0.81, full redraw 0.98-1.06; the resize is the OS's own 218.7 ms). Found and fixed: clip regions
+nobody needed (Register titles, page backgrounds, List repaints), the window's background
+painted twice at an opening, ScreenToFront's vertical-blank wait at every opening,
+InitRastPort per text measured; and, added by the partner, the window border arrows (they
+scrolled nothing; now MUI 3.8's 8 pixels and repeat) and a Virtgroup scroll 40x slower than
+MUI 3.8 (2.87 s -> 93 ms a step). Memory not reached (first program +2.4 KB of code). What a
+25 % redraw needs is the library's own CPU per draw: the Group, Area and text-engine rewrites
+below. Details in
+[README.md](README.md#prove-it-drawing-and-memory-2026-11-13-branch-draw1).
+
 ## Rewrite for m68k (started 2026-11-13, branch `rw-list`)
 
 The partner's decision: "We must rewrite the bloated AROS parts. OpenMUI is for m68k machines,
@@ -349,7 +363,9 @@ where a measured hot loop pays. Order:
    MUI 5's case-sensitive shortcuts and MENUVERIFY and the snapshot's file editing in modules.
    Window code -12.7 %, library -3.1 KB, first program -4.4 KB, each further -1.3 KB, speed
    as lean. Details in [README.md](README.md#rewrite-window-2026-11-13-branch-rw-window).
-3. Group.
+3. Group (draw1 measured it: the background machinery, the gap sweep and Area's dispatch are
+   most of the library's 38-41 % of a full redraw; a full redraw makes the same OS calls as
+   MUI 3.8, so a faster redraw has to come from here).
 4. Area.
 5. Application.
 6. String.

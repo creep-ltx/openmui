@@ -4277,7 +4277,188 @@ and the Urltext demo on the branch) and ran with the same windows on both when r
 the memory in use with the windows open 4.1 KB lower in the median (the code, and one pool per
 opened window), up to 8.6 KB (YAM 2.9 and 2.10, several windows).
 
+## Prove it: drawing and memory (2026-11-13, branch `draw1`)
+
+Our partner: what people want is a MUI 3/4/5-compatible library that is faster and lighter than
+MUI, and he doubted we could still get major improvements over MUI 3.8 ("prove me wrong").
+Promised: a measured round with targets against real MUI 3.8 (black box), reported honestly.
+From `lean` at f39ccec7. All figures are **emulator figures** (FS-UAE 3.2.35 cycle-exact):
+a1200-31-mui38 (A1200, 68EC020 14 MHz, OS 3.1, 4 MB fast) and a600-31 (A600, 68000 7 MHz,
+OS 3.1, given 4 MB fast RAM: its 1 MB of chip RAM alone is too little for opbench's program
+on MUI 3.8 and on OpenMUI).
+
+### Targets and results
+
+ms per operation, `opbench`, median of 9 (A1200) or 5 (A600); MUI 3.8 three instances, lean
+two, draw1 four, over two rounds swapped:
+
+| target | MUI 3.8 | lean | draw1 | draw1 / MUI 3.8 | target | reached |
+|---|---:|---:|---:|---:|---:|---|
+| window open+close | 520.4-535.7 | 440.1-441.1 | 420.1-421.7 | 0.79-0.81 | 0.75 | no |
+| full redraw | 140.6-150.9 | 148.2-148.4 | 148.4-148.5 | 0.98-1.06 | 0.75 | no |
+| relayout | 197.6-207.3 | 192.6-193.0 | 192.8-192.9 | 0.93-0.98 | 0.75 | no |
+| window resize | 220.4-230.1 | 220.1 | 220.0-220.1 | 0.96-1.00 | 0.75 | no (OS floor 218.7) |
+| register page | 53.6-53.8 | 53.4-54.5 | 45.4-45.6 | 0.85 | 0.75 | no |
+| uniconify | 446.0-452.8 | 370.4-371.4 | 356.2-357.0 | 0.79-0.80 | 0.75 | no |
+| (popup open+close) | 120.0 | 120.0 | 97.1-98.1 | 0.81 | - | - |
+
+Memory (MUI-Demo cold, OS 3.1, `m.sh`, FS-UAE, same session, bytes):
+
+| | first program | each further |
+|---|---:|---:|
+| MUI 3.8 | 460,296 | 210,632-218,888 |
+| lean | 448,488 | 196,704-196,768 |
+| draw1 | 450,848-450,896 | 196,728-196,776 |
+| target | ≤ 400,000 | ≤ 185,000 |
+
+Not reached; the first program is 2.4 KB **larger** (the code of the fixes below and of the
+border-arrow fix; nothing was moved out this round). Library code (`size`) 232,248 -> 234,428.
+
+The 68000 (a600-31 + 4 MB fast, two rounds each, ms):
+
+| operation | MUI 3.8 | lean | draw1 | draw1 / MUI 3.8 |
+|---|---:|---:|---:|---:|
+| window open+close | 1762.5-1780.6 | 1536.1-1537.8 | 1473.2-1484.9 | 0.83-0.84 |
+| full redraw | 469.8-476.1 | 511.3-512.5 | 505.3-506.7 | 1.06-1.08 |
+| relayout | 696.4-704.2 | 698.3-700.2 | 693.3-693.7 | 0.98-1.00 |
+| window resize | 609.0-620.4 | 589.4-590.3 | 590.3-591.8 | 0.95-0.97 |
+| register page | 160.8 | 193.8-196.1 | 158.0-158.3 | 0.98 |
+| uniconify | 1534.2-1542.4 | 1367.9-1370.6 | 1290.8-1303.4 | 0.84-0.85 |
+| app+windows create | 929.1-937.6 | 957.8-959.0 | 935.0-962.2 | 1.00-1.04 |
+| list insert 1 | 32.3-32.5 | 33.1-33.6 | 33.3-33.5 | 1.03 |
+| list insert 1000 | 23,973-24,027 | 1022.5-1024.3 | 1014.5-1019.5 | 0.04 |
+| button click | 91.4-92.2 | 72.5-72.9 | 72.7-72.9 | 0.79-0.80 |
+
+On the 68000 OpenMUI is slower than MUI 3.8 in the full redraw (1.06-1.08), application
+creation (1.00-1.04) and a single list insert (1.03); on the 68020 the full redraw is even.
+Everything else as on the A1200 (`res/ob-a600-*` in the round's scratch).
+
+### Where the time goes (what the counts and profiles show)
+
+- **The OS part is large and fixed.** `t/floor.c` (the same windows without MUI): opening and
+  closing opbench's window with its menu strip costs the OS 140-148 ms of the 420 (open 61-64,
+  close 53-57, menus 12-13 + 12-13); a resize by ChangeWindowBox until IDCMP_NEWSIZE **218.7 ms
+  with no MUI at all** (MUI 3.8 220-230, OpenMUI 220.1): intuition does the resize on its own
+  schedule, the redraw runs inside that wait. 25 % below MUI 3.8 is below the OS's floor there.
+- **A full redraw is CPU and blitter bound with the same OS work as MUI 3.8.** pcsample: 58-61 %
+  of it in ROM, 15 % of all samples in graphics' WaitBlit loop (ROM 0x72c4) and 7 % in RectFill's
+  per-plane setup; the library's own code 38-41 %. Per call (`tests/native/drawcost.c`, opbench's
+  screen, 68020): Text of 9 characters ~500 us, a 1-pixel line by RectFill 173 us, by Move+Draw
+  176 us (horizontal 100 px: 179 against 305), InstallClipRegion on+off 2.0-2.1 ms, InitRastPort
+  68-95 us, WritePixel 75 us, a 600x400 RectFill 14.4 ms. OpenMUI's full redraw: 55 Text, 190
+  RectFill, 59 Draw, 13 BltTemplate; MUI 3.8's: 54 Text, 268 RectFill, 9 blits. Painted twice
+  (`tests/lean/scripts/overdraw.py`): 7.2 % of a full redraw's pixels (frames over their
+  boxes); MUI 3.8 11.7 %. So the redraw is not wasteful in OS terms: 25 % would need the
+  library's CPU part halved and less blitting than MUI 3.8 does.
+- **A clip region costs ~2 ms** (two InstallClipRegion) and was used where nothing needed it:
+  a Register tab title, a page switch's background, a List repaint whose rows all fit.
+- **The window opening painted its background twice**: WindowBackground (117,740 pixels, the
+  whole inside) and then every group's gaps and every inherited background again (overdraw
+  52 % of the opening's pixels). MUI 3.8 paints the new window once in its layer backfill hook and
+  fills 72,846 top-level pixels in 61 RectFill at an opening against 124,609 in 268 at a redraw
+  (black box).
+- **ScreenToFront waits for a vertical blank** (ScreenDepth calls WaitTOF; found by counting
+  every intuition call, `opbench count` built with `-DSC_ALLINTUI`): OpenMUI called it at every
+  window opening even when the screen was in front; MUI 3.8 calls it at an opening but not at an
+  uniconify. That wait made opening times jump in 20-32 ms steps.
+- **InitRastPort per text measured**: ~90 per window opening, 68-95 us each.
+- **A Virtgroup scroll** (found with the border arrows, below): 2.87 s per 8-pixel step with
+  80 buttons (MUI 3.8 71 ms): a region with one ClearRectRegion per child, and every child drawn.
+
+### The fixes (before -> after, A1200; MUI 3.8 in brackets)
+
+| commit | what | effect |
+|---|---|---|
+| d69cb491 Register | a tab title that fits its tab is drawn without a clip (a page switch redraws two tabs) | register page 53.6 -> 45.5 ms (53.7) together with the next |
+| d69cb491 Group | a page switch's background painted as gap bands (group_fill_gaps), not under a region clip, when the background is position-free | (above) InstallClipRegion 6 -> 0 per switch |
+| d69cb491 List | a full repaint whose rows all end inside the area installs no clip at once; a row or text that leaves it still asks for one | InstallClipRegion 2 -> 0 per redraw; no time change (the clip was installed while the blitter filled the list's background) |
+| d69cb491 Window, Group, Area | the first draw after WindowBackground (opening, refresh, resize clear) leaves the group gaps and Area fills that would paint the window background again (`mri_BgFresh`, only for a position-free background) | opening RectFill 191 -> 173, pixels 244,554 -> 196,136 |
+| d69cb491 Window | no ScreenToFront when the screen is in front already | WaitTOF 1 -> 0 per opening; window open+close 440 -> 420, uniconify 370 -> 357, popup 120 -> 97 (120) |
+| d69cb491 text | text measuring copies a blank RastPort made once (`zune_blank_rp`) | InitRastPort 91 -> 2 per opening (no time change on opbench: it overlapped the previous close's blitter work) |
+| 9a070c75 Scrollgroup | the window border arrows scroll (below) and a Virtgroup scroll step draws only what the step uncovers | step 2,872 -> 93 ms (71) |
+| 7ff5fa44 Group, Area | the common draw as fast as lean's again (the band sweep inlined again, its heap part compiled out there; the fresh test a field read) | full redraw 148.6-149.1 -> 148.4-148.5 (lean 148.2-148.4) |
+
+Tried and not taken: Menuitem_FillNewMenu asking its parent once per fill instead of once per
+item (~100 of 400 GetAttr per opening): Menuitem_FillNewMenu's frame 68 -> 72 in every form
+tried (it recurses); the band sweep out of line only (748 bytes smaller, full redraw +0.3 ms);
+LAYERS_NOBACKFILL at opening: OpenMUI already opens with it by default ("redraw without clear"),
+a measured 47 ms per opening against the layer's default backfill (`drawcost.c`).
+
+### The window border arrows (added to the round by our partner)
+
+Found in the Window rewrite: the border arrows of a Scrollgroup with
+MUIA_Scrollgroup_UseWinBorder scrolled nothing (lean too). MUI 3.8, black box
+(`tests/lean/borderarrows.c`, `borderhold.c`, `sgstep.c`):
+
+- a click scrolls 8 pixels, the window border's arrows and the group's own (OpenMUI's own
+  stepped 1), whatever the font (topaz 8 and courier 13 the same);
+- held: 8 pixels at the press, nothing for about 300 ms, then 8 more each step (50 ms);
+- the border props show the Virtgroup's position (demopix "Virtual": lean 432 pixels off MUI 3.8,
+  draw1 36: the knobs).
+
+Cause: in border mode the Scrollgroup hid its bars (MUIA_ShowMe FALSE), so their Prop never got
+MUIM_Show, where it links itself to the window's border gadget (the gadget's UserData, which the
+window's IDCMPUPDATE handling needs); after a close and reopen a Prop also kept the closed
+window's gadget. Fixed (9a070c75): the bars stay shown (no place in the group; Group's draw
+skips a MADF_BORDERGADGET child), the Prop links again at every Show, the bars' step is
+MUIA_Prop_DeltaFactor 8, and a held border arrow steps at the press and then from a timer
+(300 ms, then 50 ms: MUIM_Window_ArrowRepeat, a 20-byte node allocated for the hold only);
+buttongclass's own repeats and its release message only say whether it is held
+(IEQUALIFIER_REPEAT set while held, on OS 3.1 and 3.2.1). The scrolling it enables showed the
+step time: 2.87 s; fixed in the same commit (a group with more than 32 children paints its gaps
+as bands with heap arrays instead of a region of a ClearRectRegion per child; MUI_Redraw leaves
+an object outside the installed clip region).
+
+Results: borderarrows identical to MUI 3.8 (clicks, reopen); borderhold identical vertically,
+horizontally the same pattern within the timing of the two step speeds; sgstep's clicks
+identical; OpenMUI on OS 3.2.1 (a1200-32-mui5 with MUI 5 moved aside) gives OS 3.1's numbers.
+MUI 5 itself: inconclusive (the probe finds seven small border gadgets in MUI 5's window and its
+clicks at their centres scrolled nothing; the window did not come back after the reopen).
+The suite's programs that contain MUIA_Scrollgroup_UseWinBorder (IBrowse 2.5 and 3.0,
+CManager, Voyager, YAM 2.9, TinyMeterPrefs, AmigaMARK, the HTMLtext demo; Amiberry, lean's
+library and draw1's side by side): the same status and windows on both, memory in use with the
+windows open +1.6 KB (the code); Voyager reset (lean) / froze (draw1) at its second quit, its
+known quit bug ("Compatibility round 3").
+
+### Checked (emulators)
+
+- `make check` after every library commit (d69cb491, 9a070c75, 7ff5fa44; the native-init check
+  traps InitRastPort now, the library calls it once at start).
+- `-fstack-usage` of all 4,096 library and class-file functions against lean: none larger; new:
+  group_fill_gaps_ool 896 (the page switch and >32 children, reached as a tail call, so not on
+  top of group_draw_frame_and_gaps' 1,152), group_page_gaps 276, register_title_clip 40,
+  WindowArrow 36, Window__MUIM_ArrowRepeat 36. Frames that grew on the way and were brought back:
+  RenderRegisterTabItem (the title's clip test a helper with four packed arguments), Radio's
+  Setup (kept InitRastPort), Scrollgroup's OM_NEW (the step set after creation), MUI_Redraw
+  (the clip test a helper), RefreshWindow and WindowOpen (the fresh flag a plain store).
+- Pixels: pagepix (20), scrollpix (17), radiopix set, listclip (4,181 rows) byte-identical to
+  lean; demopix (Amiberry): 26 of 27 shots pixel-identical to lean's, the 27th (Virtual) closer to
+  MUI 3.8 (the border knobs, above); 17 of 27 identical to MUI 3.8 as lean (InputHandler's
+  counter and Layout's random places as always).
+- opbench all 27 against lean, four instances over two rounds: every operation within lean's
+  spread or faster (full redraw 148.4-148.5 against 148.2-148.4, list active and row scroll
+  within the spread of lean's own runs this session).
+- stackrun: see "Left open" (the instances did not answer under the host's load this session).
+
 ## Left open
+
+- **Prove it: drawing and memory (2026-11-13, after `draw1`)**: the 25 % targets against MUI 3.8
+  were not reached: window open+close 0.79-0.81, uniconify 0.79-0.80, register page 0.85, popup
+  0.81, relayout 0.93-0.98, full redraw 0.98-1.06, resize 0.96-1.00 (A1200, emulator). The
+  resize is the OS's own 218.7 ms (`t/floor.c` in the round's scratch: no MUI at all), the open+close
+  carries 140-148 ms of OS work. A full redraw makes the same OS calls as MUI 3.8 and paints
+  less twice than it (7.2 % against 11.7 %); 15 % of its time is the CPU waiting for the
+  blitter, 38-41 % the library's code: what is left is the library's CPU per draw (the background
+  machinery, Area's dispatch, frames, the text engine), the Group rewrite of the m68k phase.
+  On the 68000 (a600-31 + 4 MB fast) the full redraw is 1.06-1.08 of MUI 3.8, application
+  creation 1.00-1.04, a list insert 1.03. Memory: first program 450,872 bytes (lean 448,488,
+  MUI 3.8 460,296), each further 196.7 KB; the ≤ 400 KB / ≤ 185 KB targets need the object
+  pool and per-object sizes (Area 114 against MUI 3.8's 108 bytes; 159 allocations per
+  application against MUI 3.8's 31 plus pools), not done this round. Tried and not taken:
+  Menuitem_FillNewMenu's parent asked once (frame +4). Not run this round: stackrun (the
+  FS-UAE and Amiberry instances did not answer under the host's load; the frame comparison of
+  every function is the round's check), fullcheck. MUI 5's border arrows not measured (the
+  probe does not find its arrows).
 
 - **Rewrite for m68k (2026-11-13, after `rw-window`)**: Window done (code -12.7 %, memory per
   MUI-Demo -1.3 KB and ~1 KB per further opened window, OM_SET's frame 172 -> 64). Its biggest

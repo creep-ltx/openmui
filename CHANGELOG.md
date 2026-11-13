@@ -8,8 +8,27 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+### Fixed
+
+- **The window border's scroll arrows** (a Scrollgroup with
+  MUIA_Scrollgroup_UseWinBorder, as in MUI-Demo's "Virtual" window) scrolled
+  nothing; they now scroll 8 pixels a click, and held they repeat after a
+  short pause, as in MUI 3.8. The border scrollers' knobs now show the
+  position. A Scrollgroup's own arrows also step 8 pixels (they stepped 1).
+- **Scrolling a large virtual group** was very slow: an 8-pixel step of a
+  group of 80 buttons took 2.9 s on a 68020 (MUI 3.8: 71 ms); now 93 ms.
+
 ### Changed
 
+- **Window openings, page switches and popups draw less**: a window that has
+  just been painted with its background no longer paints the same background
+  again behind its groups; Register tabs, page switches and list repaints no
+  longer set up clip regions when nothing can spill over (each cost about
+  2 ms on a 68020); opening a window on the front screen no longer waits for
+  the next display frame. Window open+close 440 -> 420 ms (MUI 3.8 520-536),
+  uniconify 370 -> 357 (446-453), a Register page 54 -> 45.5 (54), a popup
+  120 -> 97 (120); on a 68000 the window opening 1537 -> 1479 ms (MUI 3.8
+  1763-1781) and a Register page 195 -> 158 (161). Pixels as before.
 - **List rewritten for 68k machines (first part)**: a list's rows are now one
   compact array (8 bytes a row, no memory block per row), a list format is one
   block, and the common case, a row of plain text, is measured and drawn

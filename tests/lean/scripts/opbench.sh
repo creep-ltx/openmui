@@ -9,6 +9,8 @@
 # its MUI:Libs is moved aside first, so OpenMUI is the only muimaster.library and no MUI 5 class
 # file is found). ARGS = opbench's options before REPS (v21 = open version 21: OpenMUI's MUI 5
 # identity; count / time = the OS calls per operation, tests/native/syscount.h).
+# CFGX = one more FS-UAE setting (e.g. 'fast_memory = 4096': the a600-31 machine has 1 MB of chip
+# RAM only, too little for opbench's application under MUI 3.8 or OpenMUI).
 # Compare outputs with opbench-compare.py.
 set -u
 ZWORK=${ZWORK:-$HOME/.cache/zune68-lean}
@@ -17,6 +19,7 @@ S=$(cd "$(dirname "$0")" && pwd)
 export WASABI_HOST=127.0.0.1 WASABI_PORT=$PORT
 CFG=(--config 'uae_cpu_cycle_exact = true' --config 'uae_blitter_cycle_exact = true'
      --config 'uae_cycle_exact = true' --config "warp_mode = ${WARP:-1}")
+[ -n "${CFGX:-}" ] && CFG+=(--config "$CFGX")
 MACH=${MACH:-a1200-31-mui38}
 boot() {
   amiga-test $MACH stop --as $NAME >/dev/null 2>&1

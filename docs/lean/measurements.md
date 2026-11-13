@@ -667,6 +667,31 @@ The first program's 4.4 KB: 3.1 KB of library code and 1.3 KB of data (the main 
 each further MUI-Demo 1.3 KB (its main window; the eight sub-windows are not opened). Every
 further opened window saves about 1 KB more.
 
+## Prove it: drawing and memory (2026-11-13, branch `draw1`)
+
+FS-UAE cycle-exact; opbench medians, MUI 3.8 / lean / draw1 (docs/lean/README.md "Prove it"):
+
+| | MUI 3.8 | lean | draw1 |
+|---|---:|---:|---:|
+| A1200 window open+close | 520.4-535.7 | 440.1-441.1 | 420.1-421.7 |
+| A1200 full redraw | 140.6-150.9 | 148.2-148.4 | 148.4-148.5 |
+| A1200 relayout | 197.6-207.3 | 192.6-193.0 | 192.8-192.9 |
+| A1200 window resize | 220.4-230.1 | 220.1 | 220.0-220.1 |
+| A1200 register page | 53.6-53.8 | 53.4-54.5 | 45.4-45.6 |
+| A1200 uniconify | 446.0-452.8 | 370.4-371.4 | 356.2-357.0 |
+| A1200 popup open+close | 120.0 | 120.0 | 97.1-98.1 |
+| A600 (68000, +4 MB fast) window open+close | 1762.5-1780.6 | 1536.1-1537.8 | 1473.2-1484.9 |
+| A600 full redraw | 469.8-476.1 | 511.3-512.5 | 505.3-506.7 |
+| A600 register page | 160.8 | 193.8-196.1 | 158.0-158.3 |
+| A600 uniconify | 1534.2-1542.4 | 1367.9-1370.6 | 1290.8-1303.4 |
+| Virtgroup 8-pixel scroll step, 80 buttons (sgstep.c) | 71.1 | 2,871.7 | 92.6 |
+
+OS floor (no MUI, t/floor.c): window open 61-64 ms, close 53-57, menu strip 12-13 + 12-13;
+ChangeWindowBox to IDCMP_NEWSIZE 218.7 ms. drawcost.c (opbench's screen, 68020): Text 9 chars
+500 us, RectFill 1x20 173 us, Move+Draw 176, InstallClipRegion pair 2.0-2.1 ms, InitRastPort
+68-95 us. Memory (MUI-Demo cold): first program 450,848-450,896 bytes (lean 448,488, MUI 3.8
+460,296), each further 196,728-196,776.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
