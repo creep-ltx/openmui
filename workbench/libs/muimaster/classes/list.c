@@ -706,6 +706,59 @@ static void DisplayEntry(struct IClass *cl, Object *obj, int entry_pos)
 }
 
 
+/* The common cell: a string without a preparse, escapes, newlines or
+ * tabs, which the text engine would take as one plain chunk
+ * (zune_text_init_plain): its length, -1 for any other */
+static LONG List_PlainLen(CONST_STRPTR pre, CONST_STRPTR s)
+{
+    LONG n;
+
+    if ((pre && *pre) || !s || !*s)
+        return -1;
+    for (n = 0; s[n]; n++)
+        if (s[n] == '\33' || s[n] == '\n' || s[n] == '\t' || n == 32767)
+            return -1;
+    return n;
+}
+
+/* A plain cell's width as zune_text_get_bounds() measures it, when the
+ * list's RastPort already has the list's font in the plain style (no
+ * copy of it needed): -1 otherwise */
+static LONG List_PlainWidth(Object *obj, CONST_STRPTR pre, CONST_STRPTR s)
+{
+    struct RastPort *rp;
+    LONG len = List_PlainLen(pre, s);
+
+    if (len < 0 || !muiRenderInfo(obj) || !(rp = muiRenderInfo(obj)->mri_RastPort)
+        || rp->Font != _font(obj) || rp->AlgoStyle)
+        return -1;
+    return TextLength(rp, s, len);
+}
+
+/* Any other cell's text size through the text engine: its width in
+ * *width, its height returned, -1 for none. Without an allocation for a
+ * plain string; its ZText off CalcDimsOfEntry's frame. */
+static __attribute__((noinline)) LONG List_TextSize(Object *obj,
+    CONST_STRPTR pre, CONST_STRPTR s, LONG *width)
+{
+    ZText *text, local_text;
+    ZTextLine local_line;
+    ZTextChunk local_chunk;
+    BOOL borrowed = zune_text_init_plain(&local_text, &local_line,
+        &local_chunk, pre, s);
+    LONG h;
+
+    text = borrowed ? &local_text : zune_text_new(pre, s, ZTEXT_ARG_NONE, 0);
+    if (!text)
+        return -1;
+    zune_text_get_bounds(text, obj);
+    *width = text->width;
+    h = text->height;
+    if (!borrowed)
+        zune_text_destroy(text);
+    return h;
+}
+
 /**************************************************************************
  Determine the dims of a single entry and adapt the columninfo according
  to it. pos might be ENTRY_TITLE. Returns 0 if pos entry needs to
@@ -736,47 +789,37 @@ static int CalcDimsOfEntry(struct IClass *cl, Object *obj, int pos)
             ret |= zune_list_cell_dims(obj, data, entry, j);
             continue;
         }
-        /* Plain strings without an allocation, as List_DrawEntry does:
-         * this runs for every column of every inserted entry */
-        ZText *text, local_text;
-        ZTextLine local_line;
-        ZTextChunk local_chunk;
-        BOOL borrowed = zune_text_init_plain(&local_text, &local_line,
-            &local_chunk, data->preparses[j], data->strings[j]);
+        /* this runs for every column of every inserted entry: a plain
+         * string is measured at once */
+        LONG width, th;
+        if ((width = List_PlainWidth(obj, data->preparses[j],
+            data->strings[j])) >= 0)
+            th = _font(obj)->tf_YSize;
+        else if ((th = List_TextSize(obj, data->preparses[j],
+            data->strings[j], &width)) < 0)
+            continue;
 
-        text = borrowed ? &local_text : zune_text_new(data->preparses[j],
-            data->strings[j], ZTEXT_ARG_NONE, 0);
-        if (text != NULL)
+        /* Row pitch includes the Listview font leading preference.
+         * Rows are drawn entry_maxheight apart: only a new maximum
+         * (below) moves the other rows, not this entry's own height
+         * growing from 0 as it is measured */
+        height = th + data->prefs_linespacing;
+        if (height > entry->height)
+            entry->height = height;
+
+        /* a SORTABLE column's title has room for the sort mark
+         * (zune_list_draw_sort_mark: a triangle two half-lines wide
+         * and a gap on each side), as on MUI 5 */
+        if (pos == ENTRY_TITLE && data->ci[j].sortable)
+            width += (_font(obj)->tf_YSize + 1) / 2 * 2 + 5;
+
+        if (width > data->ci[j].entries_width)
         {
-            zune_text_get_bounds(text, obj);
-
-            /* Row pitch includes the Listview font leading preference.
-             * Rows are drawn entry_maxheight apart: only a new maximum
-             * (below) moves the other rows, not this entry's own height
-             * growing from 0 as it is measured */
-            height = text->height + data->prefs_linespacing;
-            if (height > entry->height)
-                entry->height = height;
-            LONG width = text->width;
-
-            /* a SORTABLE column's title has room for the sort mark
-             * (zune_list_draw_sort_mark: a triangle two half-lines wide
-             * and a gap on each side), as on MUI 5 */
-            if (pos == ENTRY_TITLE && data->ci[j].sortable)
-                width += (_font(obj)->tf_YSize + 1) / 2 * 2 + 5;
-
-            if (width > data->ci[j].entries_width)
-            {
-                /* This entry has a greater width for this column than any
-                 * other entry, so we store this value
-                 */
-                data->ci[j].entries_width = width;
-                /* column width changed, redraw all entries later */
-                ret = 1;
-            }
-
-            if (!borrowed)
-                zune_text_destroy(text);
+            /* This entry has a greater width for this column than any
+             * other entry, so we store this value */
+            data->ci[j].entries_width = width;
+            /* column width changed, redraw all entries later */
+            ret = 1;
         }
     }
     if (entry->height > data->entry_maxheight)
@@ -1463,11 +1506,7 @@ static BOOL List_CanScroll(Object *obj, struct MUI_ListData *data)
     LockLayer(0, layer);
     for (cr = layer->ClipRect; cr; cr = cr->Next)
     {
-#ifdef ZUNE68_GCC_NATIVE
         if (cr->obscured)
-#else
-        if (cr->lobs)
-#endif
         {
             visible = FALSE;
             break;
@@ -2277,6 +2316,23 @@ static void List_NeedClip(Object *obj, struct MUI_ListData *data,
     }
 }
 
+/* zune_text_get_bounds() of a plain text (zune_text_init_plain()) on the
+ * list's RastPort, given the list's font in the plain style first, as
+ * zune_text_draw() gives it */
+static __attribute__((noinline)) void List_PlainBounds(Object *obj,
+    ZText *text, ZTextChunk *chunk)
+{
+    struct RastPort *rp = _rp(obj);
+    struct TextFont *font = _font(obj);
+
+    if (rp->Font != font)
+        SetFont(rp, font);
+    if (rp->AlgoStyle != FS_NORMAL)
+        SetSoftStyle(rp, FS_NORMAL, AskSoftStyle(rp));
+    text->width = chunk->cwidth = TextLength(rp, chunk->str, chunk->clen);
+    text->height = chunk->cheight = font->tf_YSize;
+}
+
 /**************************************************************************
  Draw an entry at entry_pos at the given row. To draw the title, set pos to
  ENTRY_TITLE. lc is the entry area's clip, NULL when one is installed.
@@ -2325,9 +2381,14 @@ static __attribute__((noinline)) VOID List_DrawEntry(struct IClass *cl, Object *
             /*
              * We need the bounds so that embedded
              * images are (correctly) rendered and to
-             * vertically align the entry.
+             * vertically align the entry. A plain string's are its
+             * length on the RastPort it is drawn on, set up as
+             * zune_text_draw() sets it: no RastPort copy.
              */
-            zune_text_get_bounds(text, obj);
+            if (borrowed && !data->ci[col].elide)
+                List_PlainBounds(obj, &local_text, &local_chunk);
+            else
+                zune_text_get_bounds(text, obj);
             /* centred, rounding down like MUI 3.9, which puts the
              * leading above the text (tests/native/listvisible.c) */
             y_offset = y + (row_height - text->height + 1) / 2;
@@ -2412,6 +2473,17 @@ static BOOL List_DrawBars(Object *obj, struct MUI_ListData *data, LONG y,
     return FALSE;
 }
 
+/* The background of the entry area's rows from y on, h pixels high, in
+ * step with the scrolled entries */
+static __attribute__((noinline)) void List_Backfill(Object *obj,
+    struct MUI_ListData *data, LONG y, LONG h)
+{
+    Object *area = data->area;
+
+    DoMethod(obj, MUIM_DrawBackground, _mleft(area), y, _mwidth(area), h,
+        0, y - _mtop(area) + data->entries_first * data->entry_maxheight, 0);
+}
+
 /**************************************************************************
  MUIM_Draw
 **************************************************************************/
@@ -2422,7 +2494,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     int entry_pos, y;
     struct ListClip clip = { (APTR)-1, FALSE };
     int start, end, exposed_start = 0, exposed_end = 0;
-    BOOL scrolling = FALSE;
+    BOOL scrolling = FALSE, full;
     BOOL scroll_caused_damage = FALSE;
     struct MUI_ImageSpec_intern *highlight;
     IPTR ret = (IPTR)0;
@@ -2480,11 +2552,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     entries_bottom = _mbottom(area);
 
     if ((msg->flags & MADF_DRAWUPDATE) == 0 || data->update == UPDATEMODE_ALL)
-    {
-        DoMethod(obj, MUIM_DrawBackground, _mleft(area),
-            _mtop(area), _mwidth(area), entries_height,
-            0, data->entries_first * data->entry_maxheight, 0);
-    }
+        List_Backfill(obj, data, _mtop(area), entries_height);
 
     /* A full repaint or a scroll clips at once, as it nearly always
      * draws a cut-off last row: a clip installed later would wait for
@@ -2574,10 +2642,7 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         if (bottom > entries_bottom)
             List_NeedClip(obj, data, &clip);
 
-        DoMethod(obj, MUIM_DrawBackground, _mleft(area), top,
-            _mwidth(area), bottom - top + 1, 0,
-            top - _mtop(area) + data->entries_first
-            * data->entry_maxheight, 0);
+        List_Backfill(obj, data, top, bottom - top + 1);
         exposed_start = start;
         exposed_end = end;
         scrolling = TRUE;
@@ -2586,76 +2651,80 @@ IPTR List__MUIM_Draw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
         y = data->entries_top_pixel;
     }
 
-    for (entry_pos = start;
-        entry_pos < end && entry_pos < data->entries_num; entry_pos++)
+    /* Which rows: all (a full draw: their background is drawn), on a
+     * scroll the uncovered ones, the changed ones and the highlighted
+     * ones, else the entry update_pos or the rows marked to render (with
+     * their background) */
+    full = !(msg->flags & MADF_DRAWUPDATE) || data->update == UPDATEMODE_ALL;
+    if (end > data->entries_num)
+        end = data->entries_num;
+    for (entry_pos = start; entry_pos < end; entry_pos++,
+        y += data->entry_maxheight)
     {
         struct ListEntry *entry = &data->entries[entry_pos];
+        BOOL back;
 
-        if (!(msg->flags & MADF_DRAWUPDATE) ||
-            ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_ALL) ||
-            (scrolling && ((entry_pos >= exposed_start && entry_pos < exposed_end)
-                || (entry->flags & (ENTRY_RENDER | ENTRY_SELECTED))
-                || entry_pos == data->entries_active)) ||
-            ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_ENTRY
-                && data->update_pos == entry_pos) ||
-            ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_NEEDED
-                && (entry->flags & ENTRY_RENDER)))
+        if (full)
+            back = FALSE;
+        else if (scrolling)
         {
-            /* a cut-off row: its highlight and background too */
-            if (y < _mtop(area)
-                || y + data->entry_maxheight - 1 > entries_bottom)
-                List_NeedClip(obj, data, &clip);
+            back = (entry->flags & ENTRY_RENDER) != 0;
+            if (!back && !(entry->flags & ENTRY_SELECTED)
+                && entry_pos != data->entries_active
+                && (entry_pos < exposed_start || entry_pos >= exposed_end))
+                continue;
+        }
+        else if (data->update == UPDATEMODE_ENTRY)
+        {
+            if (entry_pos != data->update_pos)
+                continue;
+            back = TRUE;
+        }
+        else if (data->update == UPDATEMODE_NEEDED
+            && (entry->flags & ENTRY_RENDER))
+            back = TRUE;
+        else
+            continue;
 
-            /* Choose appropriate highlight image */
+        /* a cut-off row: its highlight and background too */
+        if (y < _mtop(area)
+            || y + data->entry_maxheight - 1 > entries_bottom)
+            List_NeedClip(obj, data, &clip);
 
-            if (entry_pos == data->entries_active
-                && (entry->flags & ENTRY_SELECTED) && !data->read_only)
-                highlight = data->list_selcur;
-            else if (entry_pos == data->entries_active && !data->read_only)
-                highlight = data->list_cursor;
-            else if (entry->flags & ENTRY_SELECTED)
-                highlight = data->list_select;
-            else
-                highlight = NULL;
+        /* Choose appropriate highlight image */
+        if (entry_pos == data->entries_active && !data->read_only)
+            highlight = (entry->flags & ENTRY_SELECTED)
+                ? data->list_selcur : data->list_cursor;
+        else if (entry->flags & ENTRY_SELECTED)
+            highlight = data->list_select;
+        else
+            highlight = NULL;
 
-            /* Draw highlight or background */
-
-            if (highlight != NULL)
-            {
-                /* A masked highlight must not blend with pixels copied
-                 * from a different phase of the previous highlight. */
-                if (scrolling && !zune_imspec_is_solid(highlight))
-                    DoMethod(obj, MUIM_DrawBackground, _mleft(area), y,
-                        _mwidth(area), data->entry_maxheight, 0,
-                        y - _mtop(area) +
-                        data->entries_first * data->entry_maxheight, 0);
-                zune_imspec_draw(highlight, muiRenderInfo(obj),
-                    _mleft(area), y, _mwidth(area),
-                    data->entry_maxheight,
-                    0, y - data->entries_top_pixel, 0);
-            }
-            else if ((scrolling && (entry->flags & ENTRY_RENDER)) ||
-            ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_ENTRY
-                && data->update_pos == entry_pos) ||
-            ((msg->flags & MADF_DRAWUPDATE) && data->update == UPDATEMODE_NEEDED
-                && (entry->flags & ENTRY_RENDER)))
-            {
-                DoMethod(obj, MUIM_DrawBackground, _mleft(area), y,
-                    _mwidth(area), data->entry_maxheight, 0,
-                    y - _mtop(area) +
-                    data->entries_first * data->entry_maxheight, 0);
-            }
-
-            if (!highlight && data->stripes && (entry_pos & 1))
+        /* Draw highlight or background */
+        if (highlight != NULL)
+        {
+            /* A masked highlight must not blend with pixels copied
+             * from a different phase of the previous highlight. */
+            if (scrolling && !zune_imspec_is_solid(highlight))
+                List_Backfill(obj, data, y, data->entry_maxheight);
+            zune_imspec_draw(highlight, muiRenderInfo(obj),
+                _mleft(area), y, _mwidth(area),
+                data->entry_maxheight,
+                0, y - data->entries_top_pixel, 0);
+        }
+        else
+        {
+            if (back)
+                List_Backfill(obj, data, y, data->entry_maxheight);
+            if (data->stripes && (entry_pos & 1))
             {
                 SetAPen(_rp(obj), _pens(obj)[MPEN_HALFSHINE]);
                 RectFill(_rp(obj), _mleft(area), y,
                     _mright(area), y + data->entry_maxheight - 1);
             }
-            List_DrawEntry(cl, obj, entry_pos, y, &clip);
-            data->entries[entry_pos].flags &= ~ENTRY_RENDER;
         }
-        y += data->entry_maxheight;
+        List_DrawEntry(cl, obj, entry_pos, y, &clip);
+        data->entries[entry_pos].flags &= ~ENTRY_RENDER;
     }
 
     data->update = 0;
@@ -4760,9 +4829,6 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 /**************************************************************************
  Dispatcher
 **************************************************************************/
-#if !defined(ZUNE68_GCC_NATIVE)
-#include "../listx.c"
-#endif
 
 /* The sizes CalcWidths measures (List__MUIM_AskMinMax) depend on the
  * entries, the format, the title, the hooks and the font. Every method
