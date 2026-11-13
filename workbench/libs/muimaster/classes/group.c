@@ -2169,48 +2169,40 @@ static int group_collect_children(struct IClass *cl, Object *obj,
  * walk up the parents per gap. kids is sorted here. More children than
  * GROUP_GAP_CHILDREN: the arrays in one block of memory. */
 #define GROUP_GAP_CHILDREN 32
-/* A gap: its columns and first row (its last row is its band's) */
-struct gap { WORD x0, x1, y0; };
+struct gap { WORD x0, x1, y0, y1; };
 
-static void group_paint_gap(Object *obj, const struct gap *g, WORD y1,
-    LONG pen, ULONG flags)
+static void group_paint_gap(Object *obj, const struct gap *g, LONG pen,
+    ULONG flags)
 {
     if (pen >= 0)
-        RectFill(_rp(obj), g->x0, g->y0, g->x1, y1);
+        RectFill(_rp(obj), g->x0, g->y0, g->x1, g->y1);
     else
         zune_draw_background(obj, g->x0, g->y0, g->x1 - g->x0 + 1,
-            y1 - g->y0 + 1, g->x0, g->y0, flags);
+            g->y1 - g->y0 + 1, g->x0, g->y0, flags);
 }
-
-/* A band edge: the box's (k 0), the top of child k - 1 (k > 0) or the row
- * below child -k - 1 (k < 0) */
-struct gedge { WORD y, k; };
 
 static __attribute__((noinline)) void group_fill_gaps(Object *obj,
     struct Rectangle *kids, int n, ULONG flags)
 {
-    struct gedge ebuf[2 * GROUP_GAP_CHILDREN + 2], *edges = ebuf, *e, *ee;
+    WORD ysbuf[2 * GROUP_GAP_CHILDREN + 2];
     struct gap gbuf[2 * (GROUP_GAP_CHILDREN + 1)];
-    ULONG abuf[1], *act = abuf;     /* the children covering the band */
+    WORD *ys = ysbuf, *y;
     struct gap *pend = gbuf, *cur = gbuf + GROUP_GAP_CHILDREN + 1, *g, *p;
     struct Rectangle *k, *end = kids + n;
     APTR heap = NULL;
     WORD left = _mleft(obj), right = _mright(obj);
     LONG pen;
     BOOL merge;
-    int npend = 0, nw = (n + 31) >> 5, i;
-    WORD pend_y1 = 0;   /* the pending gaps' last row */
+    int npend = 0;
 
     if (n > GROUP_GAP_CHILDREN)
     {
         if (!(heap = AllocVec(2 * (n + 1) * sizeof(struct gap)
-                + (2 * n + 2) * sizeof(struct gedge) + nw * sizeof(ULONG),
-                MEMF_ANY)))
+                + (2 * n + 2) * sizeof(WORD), MEMF_ANY)))
             return;
         pend = heap;
         cur = pend + n + 1;
-        edges = (struct gedge *)(cur + n + 1);
-        act = (ULONG *)(edges + 2 * n + 2);
+        ys = (WORD *)(cur + n + 1);
     }
     if (zune_background_fill_pen(obj, &pen) && pen >= 0)
     {
@@ -2230,87 +2222,66 @@ static __attribute__((noinline)) void group_fill_gaps(Object *obj,
         pend->x0 = left;
         pend->x1 = right;
         pend->y0 = _mtop(obj);
-        if (_mbottom(obj) >= pend->y0 && right >= left)
-            group_paint_gap(obj, pend, _mbottom(obj), pen, flags);
+        pend->y1 = _mbottom(obj);
+        if (pend->y1 >= pend->y0 && right >= left)
+            group_paint_gap(obj, pend, pen, flags);
         return;
     }
 
-    /* the children by their left edge, so that each band's gaps come out
-     * in order (few and nearly in order: insertion) */
-    for (k = kids + 1; k < end; k++)
+    /* the band edges, sorted (few and nearly in order); the children by
+     * their left edge, so that each band's gaps come out in order */
+    y = ys;
+    *y++ = _mtop(obj);
+    *y++ = _mbottom(obj) + 1;
+    for (k = kids; k < end; k++)
     {
+        WORD *s;
         struct Rectangle r = *k, *m;
 
         for (m = k; m > kids && m[-1].MinX > r.MinX; m--)
             *m = m[-1];
         *m = r;
-    }
-    /* the band edges by y; a band runs from one edge to the next, and
-     * the children covering it are those begun and not ended (a bit
-     * each, in the order of their left edges): no test of every child
-     * in every band */
-    e = edges;
-    e->y = _mtop(obj), e->k = 0, e++;
-    e->y = _mbottom(obj) + 1, e->k = 0, e++;
-    for (i = 0; i < 2 * n; i++)
-    {
-        struct gedge t, *m;
-
-        t.k = (i >> 1) + 1;
-        t.y = kids[i >> 1].MinY;
-        if (i & 1)
-            t.k = -t.k, t.y = kids[i >> 1].MaxY + 1;
-        for (m = e++; m > edges && m[-1].y > t.y; m--)
-            *m = m[-1];
-        *m = t;
-    }
-    ee = e;
-    for (i = 0; i < nw; i++)
-        act[i] = 0;
-
-    for (e = edges; ; )
-    {
-        WORD y0 = e->y, y1, x = left;
-        int ncur, w;
-
-        /* the edges at y0 */
-        do
+        *y = r.MinY;
+        for (s = y++; s > ys && s[-1] > s[0]; s--)
         {
-            if (e->k > 0)
-                act[(e->k - 1) >> 5] |= 1UL << ((e->k - 1) & 31);
-            else if (e->k < 0)
-                act[(-e->k - 1) >> 5] &= ~(1UL << ((-e->k - 1) & 31));
-        } while (++e < ee && e->y == y0);
-        if (e == ee)
-            break;
-        y1 = e->y - 1;
+            WORD t = s[0]; s[0] = s[-1]; s[-1] = t;
+        }
+        *y = r.MaxY + 1;
+        for (s = y++; s > ys && s[-1] > s[0]; s--)
+        {
+            WORD t = s[0]; s[0] = s[-1]; s[-1] = t;
+        }
+    }
+    for (; ys + 1 < y; ys++)
+    {
+        WORD y0 = ys[0], y1 = ys[1] - 1, x = left;
+        int ncur;
 
+        if (y0 > y1)
+            continue;
         /* Bands split at every child edge, so a child covers a band fully
          * or not at all */
         g = cur;
-        for (w = 0; w < nw; w++)
-        {
-            ULONG m = act[w];
-
-            for (k = kids + (w << 5); m; m >>= 1, k++)
-                if (m & 1)
+        for (k = kids; k < end; k++)
+            if (k->MinY <= y0 && k->MaxY >= y1)
+            {
+                if (k->MinX > x)
                 {
-                    if (k->MinX > x)
-                    {
-                        g->x0 = x;
-                        g->x1 = k->MinX - 1;
-                        g->y0 = y0;
-                        g++;
-                    }
-                    if (k->MaxX >= x)
-                        x = k->MaxX + 1;
+                    g->x0 = x;
+                    g->x1 = k->MinX - 1;
+                    g->y0 = y0;
+                    g->y1 = y1;
+                    g++;
                 }
-        }
+                if (k->MaxX >= x)
+                    x = k->MaxX + 1;
+            }
         if (right >= x)
         {
             g->x0 = x;
             g->x1 = right;
             g->y0 = y0;
+            g->y1 = y1;
             g++;
         }
         ncur = g - cur;
@@ -2329,16 +2300,15 @@ static __attribute__((noinline)) void group_fill_gaps(Object *obj,
                     continue;
                 }
             }
-            group_paint_gap(obj, p, pend_y1, pen, flags);
+            group_paint_gap(obj, p, pen, flags);
         }
         g = pend;
         pend = cur;
         cur = g;
         npend = ncur;
-        pend_y1 = y1;
     }
     for (p = pend; p < pend + npend; p++)
-        group_paint_gap(obj, p, pend_y1, pen, flags);
+        group_paint_gap(obj, p, pen, flags);
     if (heap)
         FreeVec(heap);
 }
@@ -4272,6 +4242,31 @@ static void group_virt_events(Object *obj, struct GroupVirtual *v,
     DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) &v->ehn);
 }
 
+/* A virtual group's offset on axis a (0 x, 1 y) after an autoscroll tick:
+ * four pixels towards the pointer when it is outside the box on that axis,
+ * within the area */
+static __attribute__((noinline)) LONG group_autoscroll(Object *obj,
+    struct GroupVirtual *v, struct IntuiMessage *im, LONG a)
+{
+    struct MUI_AreaData *ad = muiAreaData(obj);
+    WORD lo = (&ad->mad_Box.Left)[a] + (&ad->mad_addleft)[a];
+    WORD size = (&ad->mad_Box.Width)[a] - (&ad->mad_subwidth)[a];
+    WORD at = (&im->MouseX)[a];
+    LONG off = (&v->virt_offx)[a];
+
+    if (at < lo)
+        off = off >= 4 ? off - 4 : 0;
+    else if (at > lo + size - 1)
+    {
+        off += 4;
+        if (off > (&v->virt_mwidth)[a] - size)
+            off = (&v->virt_mwidth)[a] - size;
+        if (off < 0)
+            off = 0;
+    }
+    return off;
+}
+
 /*
  * Handle virtual-group mouse/tick autoscroll only; never delegate to Area
  * here (a superclass with IDCMP_MOUSEBUTTONS handlers may call it without
@@ -4309,34 +4304,12 @@ IPTR Group__MUIM_HandleEvent(struct IClass *cl, Object *obj,
     case IDCMP_INTUITICKS:
         if ((v->ehn.ehn_Events & IDCMP_INTUITICKS) && !inside)
         {
-            /* four pixels towards the pointer on each axis it is
-             * outside the box, within the area */
-            LONG o[2];
-            int a;
+            LONG x = group_autoscroll(obj, v, im, 0);
+            LONG y = group_autoscroll(obj, v, im, 1);
 
-            for (a = 0; a < 2; a++)
-            {
-                struct MUI_AreaData *ad = muiAreaData(obj);
-                WORD lo = (&ad->mad_Box.Left)[a] + (&ad->mad_addleft)[a];
-                WORD size = (&ad->mad_Box.Width)[a] - (&ad->mad_subwidth)[a];
-                WORD at = (&im->MouseX)[a];
-                LONG off = (&v->virt_offx)[a];
-
-                if (at < lo)
-                    off = off >= 4 ? off - 4 : 0;
-                else if (at > lo + size - 1)
-                {
-                    off += 4;
-                    if (off > (&v->virt_mwidth)[a] - size)
-                        off = (&v->virt_mwidth)[a] - size;
-                    if (off < 0)
-                        off = 0;
-                }
-                o[a] = off;
-            }
-            if (o[0] != v->virt_offx || o[1] != v->virt_offy)
-                SetAttrs(obj, MUIA_Virtgroup_Left, o[0],
-                    MUIA_Virtgroup_Top, o[1], MUIA_Group_Forward, FALSE,
+            if (x != v->virt_offx || y != v->virt_offy)
+                SetAttrs(obj, MUIA_Virtgroup_Left, x,
+                    MUIA_Virtgroup_Top, y, MUIA_Group_Forward, FALSE,
                     TAG_DONE);
         }
         break;
