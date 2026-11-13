@@ -54,7 +54,7 @@
  * MUIM_DrawBackground would only hand the request on to its parent.
  * Objects inheriting a background skip such levels instead of making two
  * method calls per level. */
-static inline BOOL Group_PassesBackground(Object *obj)
+static inline __attribute__((always_inline)) BOOL Group_PassesBackground(Object *obj)
 {
     struct MUI_AreaData *ad = muiAreaData(obj);
 
