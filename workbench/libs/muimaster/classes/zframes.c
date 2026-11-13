@@ -1,14 +1,17 @@
 /* The round frame module (modules.h): frame types 5, 7, 8, A and B
- * (frame_round.c), which no default setting uses. The library takes the
- * drawing functions from its table (zune_round_frames_get()). */
+ * (frame_round.c), which no default setting uses, and Area's background
+ * under them (arearound.c). The library takes the drawing functions from
+ * its table (zune_round_frames_get()). */
 
 #define ZUNE_FRAMES_MODULE
+#define zune_area_round_background zmod_area_round_background
 #include "../frame_round.c"
+#include "../arearound.c"
 #include <clib/alib_protos.h>
 #include "support.h"
 
 static const struct ZuneFramesModule frames_module = {
-    zune_round_frames
+    zune_round_frames, zmod_area_round_background
 };
 
 BOOPSI_DISPATCHER(IPTR, Zframes_Dispatcher, cl, obj, msg)

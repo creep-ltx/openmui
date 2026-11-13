@@ -213,7 +213,16 @@ struct ZuneFrameGfx;
 struct ZuneFramesModule
 {
     const struct ZuneFrameGfx *frames;
+    UBYTE (*area_round_background)(Object *, ULONG,
+        const struct ZuneFrameGfx *, BOOL);
 };
+/* area_round_background: Area's background under a rounded frame
+ * (arearound.c); nothing drawn without the module (nor the frame) */
+UBYTE zune_area_round_background(Object *obj, ULONG flags,
+    const struct ZuneFrameGfx *zframe, BOOL drawframe);
+/* Area's custom backfill of a rectangle (classes/area.c) */
+IPTR zune_area_custom_backfill(Object *obj, LONG left, LONG top, LONG width,
+    LONG height);
 const struct ZuneFrameGfx *zune_round_frames_get(void);
 
 /* List's in-place editing and drag and drop (listx.c); the library's

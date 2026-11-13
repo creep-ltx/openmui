@@ -46,6 +46,7 @@ extern struct Library *MUIMasterBase;
 #if !defined(ZUNE68_GCC_NATIVE)
 #include "areadrag.c"
 #include "areamenu.c"
+#include "arearound.c"
 #endif
 #include "penspec.h"
 
@@ -1807,6 +1808,7 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 #define STORE *(msg->opg_Storage)
 
     struct MUI_AreaData *data = INST_DATA(cl, obj);
+    ULONG bit;
 
     switch (msg->opg_AttrID) {
     case MUIA_TextColor:
@@ -1829,16 +1831,16 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_CustomBackfill:
-        STORE = !!(data->mad_Flags2 & MADF2_CUSTOMBACKFILL);
-        return TRUE;
+        bit = MADF2_CUSTOMBACKFILL;
+        goto flag2;
 
     case MUIA_ControlChar:
         STORE = data->mad_ControlChar;
         return TRUE;
 
     case MUIA_CycleChain:
-        STORE = ((data->mad_Flags & MADF_CYCLECHAIN) != 0);
-        return TRUE;
+        bit = MADF_CYCLECHAIN;
+        goto flag;
 
     case MUIA_Disabled:
         STORE = !!data->mad_DisableCount; /* BOOLEAN */
@@ -1890,16 +1892,16 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_Pressed:
-        STORE = !!(data->mad_Flags & MADF_PRESSED);
-        return TRUE;
+        bit = MADF_PRESSED;
+        goto flag;
 
     case MUIA_RightEdge:
         STORE = (IPTR)_right(obj);
         return TRUE;
 
     case MUIA_Selected:
-        STORE = !!(data->mad_Flags & MADF_SELECTED);
-        return TRUE;
+        bit = MADF_SELECTED;
+        goto flag;
 
     case MUIA_PointerType:
         STORE = AREA_POINTERTYPE(data);
@@ -1910,8 +1912,8 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_ShowMe:
-        STORE = !!(data->mad_Flags & MADF_SHOWME);
-        return TRUE;
+        bit = MADF_SHOWME;
+        goto flag;
 
     case MUIA_Timer:
         STORE = data->mad_Live ? data->mad_Live->Timeval : 0;
@@ -1952,7 +1954,9 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_KnowsDisabled:
-        STORE = !!(data->mad_Flags2 & MADF2_KNOWSDISABLED);
+        bit = MADF2_KNOWSDISABLED;
+    flag2:
+        STORE = !!(data->mad_Flags2 & bit);
         return TRUE;
 
     case MUIA_FrameVisible:     /* MUI 4/5: in the module; MUI 3.8 */
@@ -1962,11 +1966,13 @@ static IPTR Area__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return zune_area_mui45(obj, msg->opg_AttrID, 0, msg->opg_Storage);
 
     case MUIA_Draggable:
-        STORE = !!(data->mad_Flags & MADF_DRAGGABLE);
-        return TRUE;
+        bit = MADF_DRAGGABLE;
+        goto flag;
 
     case MUIA_Dropable:
-        STORE = !!(data->mad_Flags & MADF_DROPABLE);
+        bit = MADF_DROPABLE;
+    flag:
+        STORE = !!(data->mad_Flags & bit);
         return TRUE;
     }
 
@@ -2143,7 +2149,7 @@ void __area_finish_minmax(Object *obj, struct MUI_MinMax *MinMaxInfo)
  * reserved offsets are zero, including explicit DrawBackground requests.
  * Keep this in the normal background path so parent and layer clips apply.
  */
-static IPTR Area_CustomBackfill(Object *obj, LONG left, LONG top,
+IPTR zune_area_custom_backfill(Object *obj, LONG left, LONG top,
     LONG width, LONG height)
 {
     struct MUI_AreaData *data = muiAreaData(obj);
@@ -2260,9 +2266,6 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
     struct MUI_ImageSpec_intern *background;
     struct Rectangle r, r2, rects[4];
     int i, bgtop, bgleft, bgw, bgh, numrects;
-    struct Region *clipregion = NULL;
-    APTR cliphandle = NULL;
-    BOOL use_clipping = FALSE;
 
     /* Virtual groups paint their contents inside BeginPaint/EndPaint.
      * Their surrounding frame background only needs a full redraw.
@@ -2282,67 +2285,32 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
     /* Corner hints only for a plain bevel drawn now, over an untitled
      * box, by an object not showing a selected state and with no custom
      * backfill (see the end of this function) */
-    plain = drawframe && !zframe->customframe && zframe->border_radius == 0
+    plain = drawframe && !zframe->customframe
         && !data->mad_FrameTitle
         && (data->mad_Flags & (MADF_SELECTED | MADF_SHOWSELSTATE))
             != (MADF_SELECTED | MADF_SHOWSELSTATE)
         && !(data->mad_Flags2 & MADF2_CUSTOMBACKFILL);
 
-    /* For rounded frames, draw parent background in corner areas first */
-    if (zframe->border_radius > 0) {
+    if (zframe->customframe)
         bgtop = data->mad_TitleHeightAbove;
-        bgleft = _left(obj);
-        bgw = _width(obj);
-        bgh = _height(obj) - bgtop;
-        bgtop += _top(obj);
+    else
+        bgtop = data->mad_TitleHeightAbove + zframe->itop;
 
-        /* Draw parent background for the entire area first - this fills the corners
-         * that will be outside the rounded frame */
-        DoMethod(obj, MUIM_DrawParentBackground, bgleft, bgtop, bgw, bgh, bgleft,
-                 bgtop, flags);
-    } else {
-        /* For non-rounded frames, use traditional inner area calculation */
-        if (zframe->customframe)
-            bgtop = data->mad_TitleHeightAbove;
-        else
-            bgtop = data->mad_TitleHeightAbove + zframe->itop;
-
-        bgleft = _left(obj);
-        bgw = _width(obj);
-        bgh = _height(obj) - bgtop;
-        bgtop += _top(obj);
-        /* A frame that is not redrawn keeps its pixels */
-        if (!drawframe) {
-            bgleft += zframe->ileft;
-            bgw -= zframe->ileft + zframe->iright;
-            bgh -= zframe->ibottom;
-        }
+    bgleft = _left(obj);
+    bgw = _width(obj);
+    bgh = _height(obj) - bgtop;
+    bgtop += _top(obj);
+    /* A frame that is not redrawn keeps its pixels */
+    if (!drawframe) {
+        bgleft += zframe->ileft;
+        bgw -= zframe->ileft + zframe->iright;
+        bgh -= zframe->ibottom;
     }
 
     r.MinX = bgleft;
     r.MinY = bgtop;
     r.MaxX = bgleft + bgw - 1;
     r.MaxY = bgtop + bgh - 1;
-
-    /* For rounded frames, set up clipping to draw object background only inside
-     * rounded area */
-    if (zframe->border_radius > 0) {
-        struct MUI_FrameSpec_intern tempframe;
-        const struct MUI_FrameSpec_intern *current_frame =
-            get_intframe(obj, data, &tempframe);
-
-        // Use the current frame's border_radius, not the zframe default
-        ULONG actual_radius = current_frame->border_radius;
-        clipregion =
-            zune_frame_create_clip_region(bgleft, bgtop, bgw, bgh, actual_radius);
-        if (clipregion) {
-            cliphandle = MUI_AddClipRegion(data->mad_RenderInfo, clipregion);
-            /* On failure MUI_AddClipRegion has already disposed of it. */
-            if (cliphandle != (APTR)-1)
-                use_clipping = TRUE;
-            clipregion = NULL;
-        }
-    }
 
     if (data->mad_Flags & MADF_FILLAREA) {
         /* MUI 3.9 passes a custom backfill the whole box (below a frame
@@ -2391,7 +2359,7 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
     for (i = 0; i < numrects; i++) {
         if ((data->mad_Flags2 & (MADF2_CUSTOMBACKFILL |
                 MADF2_BACKFILL_ACTIVE)) == MADF2_CUSTOMBACKFILL) {
-            Area_CustomBackfill(obj, rects[i].MinX, rects[i].MinY,
+            zune_area_custom_backfill(obj, rects[i].MinX, rects[i].MinY,
                 rects[i].MaxX - rects[i].MinX + 1,
                 rects[i].MaxY - rects[i].MinY + 1);
         } else if (!background) {
@@ -2402,9 +2370,8 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
                    __LINE__)); */
             /* An inherited window background over a window just painted
              * with it (its opening, a refresh) is the pixels there */
-            if (zframe->border_radius == 0
-                && (!data->mad_RenderInfo->mri_BgFresh
-                    || !area_on_fresh_window(obj, data))) {
+            if (!data->mad_RenderInfo->mri_BgFresh
+                || !area_on_fresh_window(obj, data)) {
                 /* Non-rounded frames: draw background normally */
                 zune_draw_background(obj, rects[i].MinX, rects[i].MinY,
                          rects[i].MaxX - rects[i].MinX + 1,
@@ -2426,11 +2393,6 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
         }
     }
 
-    /* Remove clipping region if we used one */
-    if (use_clipping && cliphandle != (APTR)-1) {
-        MUI_RemoveClipRegion(data->mad_RenderInfo, cliphandle);
-    }
-
     if (drawframe && muiGlobalInfo(obj)->mgi_Prefs->window_redraw ==
             WINDOW_REDRAW_WITHOUT_CLEAR) {
         if (bgtop > _top(obj) && !(flags & MADF_DRAWALL)) {
@@ -2440,7 +2402,7 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
              * (which is the case if MADF_DRAWALL is setted) */
             DoMethod(obj, MUIM_DrawParentBackground, bgleft, _top(obj), bgw,
                      bgtop - _top(obj), bgleft, _top(obj), data->mad_Flags);
-            if (!zframe->customframe && zframe->border_radius == 0)
+            if (!zframe->customframe)
                 corners |= AREA_TITLE_GAP_FILLED;
             /* That covered the top-right corner of the frame */
             if (plain && area_parent_background_is_pen(obj, MPEN_BACKGROUND))
@@ -2716,6 +2678,12 @@ static __attribute__((noinline)) IPTR area_draw_general(Object *obj,
     /* Background drawing */
     if (frameonly)
         drawframe = TRUE;
+    /* A rounded frame: the parent's background in its corners, the
+     * object's clipped to its inside (the round frame module); a virtual
+     * group's frame background only at a full redraw */
+    else if (zframe->border_radius > 0
+        && (flags & MADF_DRAWALL || !(data->mad_Flags & MADF_ISVIRTUALGROUP)))
+        corners = zune_area_round_background(obj, flags, zframe, drawframe);
     else
         corners = Area_Draw_handle_background(obj, data, flags, zframe,
             drawframe);
@@ -3134,7 +3102,7 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
 
     if ((data->mad_Flags2 & (MADF2_CUSTOMBACKFILL |
             MADF2_BACKFILL_ACTIVE)) == MADF2_CUSTOMBACKFILL)
-        return Area_CustomBackfill(obj, msg->left, msg->top,
+        return zune_area_custom_backfill(obj, msg->left, msg->top,
             msg->width, msg->height);
 
     if ((msg->flags & MADF_SELECTED) && (msg->flags & MADF_SHOWSELSTATE) &&

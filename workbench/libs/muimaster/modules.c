@@ -523,6 +523,11 @@ const struct ZuneFrameGfx *zune_round_frames_get(void)
  * editor that was never opened needs no ending) and takes no drop. The
  * sort mark on a SORTABLE column's title (MUI 4/5 lists; MUI 3.8's
  * format has no SORTABLE, so MUI 3 programs never get there). */
+#define ZMC_OFS_ZuneFramesModule_area_round_background 4
+ZMC_CHECK(ZuneFramesModule, area_round_background, 4);
+ZMC(zune_area_round_background, ZMOD_FRAMES, ZuneFramesModule,
+    area_round_background, 4, 0);
+
 ZMC(zune_list_edit, ZMOD_LIST, ZuneListModule, edit, 4, 0);
 ZMC(zune_list_end_edit, ZMOD_LIST, ZuneListModule, end_edit, 4, 1);
 ZMC(zune_list_layout_editor, ZMOD_LIST, ZuneListModule, layout_editor, 2,
