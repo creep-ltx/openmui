@@ -3475,6 +3475,107 @@ void zune_applist_free(void)
  * Header-only method IDs are not silently implemented here; messages must
  * contain the fields required by the selected handler.
  */
+/* UnpushMethod (Popasl sends it when disposed with its requester's
+ * process) and UpdateMenus (every menu item that changes sends it) stay
+ * in the library, not the module */
+static IPTR Application__MUIM_UnpushMethod(struct IClass *cl, Object *obj,
+    struct MUIP_Application_UnpushMethod *msg)
+{
+    D(bug("[Application__MUIM_UnpushMethod] dest %p id %p method %u\n",
+        msg->dest, msg->methodid, msg->method));
+
+    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
+
+    struct MQNode *current, *next;
+    ULONG removed = 0;
+
+    ObtainSemaphore(&data->app_MethodSemaphore);
+    ForeachNodeSafe(&data->app_MethodQueue, current, next)
+    {
+        D(bug("[Application__MUIM_UnpushMethod] examine dest %p id %p "
+            "method %u\n",
+            current->mq_Dest, current, current->mq_Msg[0]));
+        if (((msg->dest == NULL) || (msg->dest == current->mq_Dest))
+            && ((msg->methodid == 0) || (msg->methodid == (IPTR)current))
+            && ((msg->method == 0) || (msg->method == current->mq_Msg[0]))
+        )
+        {
+            Remove((struct Node*)current);
+            DeleteMQNode(current);
+            removed++;
+            D(bug("[Application__MUIM_UnpushMethod] current %p removed\n",
+                current));
+        }
+    }
+    ReleaseSemaphore(&data->app_MethodSemaphore);
+
+    return removed;
+}
+
+static IPTR Application__MUIM_UpdateMenus(struct IClass *cl, Object *obj,
+    Msg message)
+{
+    struct List *wlist = NULL;
+    APTR wstate;
+    Object *curwin;
+
+    get(obj, MUIA_Application_WindowList, &wlist);
+
+    if (wlist)
+    {
+        wstate = wlist->lh_Head;
+        while ((curwin = NextObject(&wstate)))
+        {
+            DoMethod(curwin, MUIM_Window_UpdateMenu);
+        }
+    }
+
+    return 0;
+}
+
+/* MUIM_Application_Get/SetMenuCheck/State (MUI V4, which old programs
+ * with MUIA_Application_Menu use: in the library, not the module): the
+ * first menu item with the MenuID in each window's menustrip, or the
+ * application's for a window without one */
+static __attribute__((noinline)) IPTR app_menu(
+    struct MUI_ApplicationData *data, ULONG id, IPTR value, BOOL setting,
+    ULONG attr)
+{
+    struct MinList *children;
+    Object *state, *child, *strip, *item;
+
+    if (!(children = app_windows(data)))
+        return 0;
+    state = (Object *)children->mlh_Head;
+    while ((child = NextObject(&state)))
+    {
+        strip = NULL;
+        get(child, MUIA_Window_Menustrip, &strip);
+        if (!strip) strip = data->app_Menustrip;
+        item = strip ? (Object *)DoMethod(strip, MUIM_FindUData, id) : NULL;
+        if (!item) continue;
+        if (setting)
+        {
+            set(item, attr, value);
+            continue;
+        }
+        value = 0;
+        get(item, attr, &value);
+        return value;
+    }
+    return 0;
+}
+
+static IPTR Application__Menu(struct IClass *cl, Object *obj, ULONG *msg)
+{
+    return app_menu(INST_DATA(cl, obj), msg[1], msg[2],
+        msg[0] == MUIM_Application_SetMenuCheck
+        || msg[0] == MUIM_Application_SetMenuState,
+        msg[0] == MUIM_Application_GetMenuCheck
+        || msg[0] == MUIM_Application_SetMenuCheck
+        ? MUIA_Menuitem_Checked : MUIA_Menuitem_Enabled);
+}
+
 /* The methods Application answers, by MethodID (unsigned, ascending: the
  * dispatcher halves the table to find one; the compiler checks the order).
  * The rarely used ones go to the application module (zune_app_method).
@@ -3490,19 +3591,19 @@ static const struct { ULONG id; APTR method; } app_methods[]
     { OM_ADDMEMBER, (APTR)Application__OM_ADDMEMBER },
     { OM_REMMEMBER, (APTR)Application__OM_REMMEMBER },
     { MUIM_FindObject, (APTR)Application__MUIM_FindUData },
-    { MUIM_Application_UnpushMethod, (APTR)zune_app_method },
+    { MUIM_Application_UnpushMethod, (APTR)Application__MUIM_UnpushMethod },
     { MUIM_Application_Save, (APTR)zune_app_method },
     { MUIM_Application_SetConfigItem, (APTR)zune_app_method },
     { MUIM_Application_CheckRefresh, (APTR)Application__MUIM_CheckRefresh },
     { MUIM_Application_Execute, (APTR)zune_app_method },
     { MUIM_Application_ShowHelp, (APTR)zune_app_method },
     { MUIM_Application_ReturnID, (APTR)Application__MUIM_ReturnID },
-    { MUIM_Application_SetMenuState, (APTR)zune_app_method },
+    { MUIM_Application_SetMenuState, (APTR)Application__Menu },
     { MUIM_Application_OpenConfigWindow, (APTR)zune_app_method },
     { MUIM_Application_PushMethod, (APTR)Application__MUIM_PushMethod },
-    { MUIM_Application_GetMenuState, (APTR)zune_app_method },
-    { MUIM_Application_SetMenuCheck, (APTR)zune_app_method },
-    { MUIM_Application_GetMenuCheck, (APTR)zune_app_method },
+    { MUIM_Application_GetMenuState, (APTR)Application__Menu },
+    { MUIM_Application_SetMenuCheck, (APTR)Application__Menu },
+    { MUIM_Application_GetMenuCheck, (APTR)Application__Menu },
     { MUIM_FindUData, (APTR)Application__MUIM_FindUData },
     { MUIM_SetUData, (APTR)Application__MUIM_SetUData },
     { MUIM_SetUDataOnce, (APTR)Application__MUIM_SetUDataOnce },
@@ -3514,7 +3615,7 @@ static const struct { ULONG id; APTR method; } app_methods[]
     { MUIM_Application_SetConfigdata, (APTR)zune_app_method },
     { MUIM_Application_OpenWindows, (APTR)zune_app_method },
     { MUIM_Application_Run, (APTR)zune_app_method },
-    { MUIM_Application_UpdateMenus, (APTR)zune_app_method },
+    { MUIM_Application_UpdateMenus, (APTR)Application__MUIM_UpdateMenus },
 };
 _Static_assert((ULONG)OM_NEW < (ULONG)OM_DISPOSE, "app_methods order");
 _Static_assert((ULONG)OM_DISPOSE < (ULONG)OM_SET, "app_methods order");

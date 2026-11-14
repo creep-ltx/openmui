@@ -9,8 +9,8 @@
  * menu item while iconified, Exchange's commands and the hotkey,
  * AppMessages, MUIM_Application_Load/Save, ShowHelp, AboutMUI,
  * OpenConfigWindow, new settings (SetConfigdata, SetConfigItem and the
- * reopening of the windows), the old menu methods, UpdateMenus, Execute,
- * MUI 4's UnpushMethod and UsedClasses, AROS's version attributes. A
+ * reopening of the windows), Execute,
+ * MUI 4's UsedClasses, AROS's version attributes. A
  * MUI 3 program that uses none of them never loads it. The library calls
  * these through modules.c under the names below. */
 
@@ -314,39 +314,6 @@ done:
     data->app_RexxMsg = previous_msg;
 }
 
-static IPTR Application__MUIM_UnpushMethod(struct IClass *cl, Object *obj,
-    struct MUIP_Application_UnpushMethod *msg)
-{
-    D(bug("[Application__MUIM_UnpushMethod] dest %p id %p method %u\n",
-        msg->dest, msg->methodid, msg->method));
-
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-
-    struct MQNode *current, *next;
-    ULONG removed = 0;
-
-    ObtainSemaphore(&data->app_MethodSemaphore);
-    ForeachNodeSafe(&data->app_MethodQueue, current, next)
-    {
-        D(bug("[Application__MUIM_UnpushMethod] examine dest %p id %p "
-            "method %u\n",
-            current->mq_Dest, current, current->mq_Msg[0]));
-        if (((msg->dest == NULL) || (msg->dest == current->mq_Dest))
-            && ((msg->methodid == 0) || (msg->methodid == (IPTR)current))
-            && ((msg->method == 0) || (msg->method == current->mq_Msg[0]))
-        )
-        {
-            Remove((struct Node*)current);
-            DeleteMQNode(current);
-            removed++;
-            D(bug("[Application__MUIM_UnpushMethod] current %p removed\n",
-                current));
-        }
-    }
-    ReleaseSemaphore(&data->app_MethodSemaphore);
-
-    return removed;
-}
 
 static IPTR Application__MUIM_AboutMUI(struct IClass *cl, Object *obj,
     struct MUIP_Application_AboutMUI *msg)
@@ -662,26 +629,6 @@ static IPTR Application__MUIM_Execute(Class *CLASS, Object *self,
     return 0;
 }
 
-static IPTR Application__MUIM_UpdateMenus(struct IClass *cl, Object *obj,
-    Msg message)
-{
-    struct List *wlist = NULL;
-    APTR wstate;
-    Object *curwin;
-
-    get(obj, MUIA_Application_WindowList, &wlist);
-
-    if (wlist)
-    {
-        wstate = wlist->lh_Head;
-        while ((curwin = NextObject(&wstate)))
-        {
-            DoMethod(curwin, MUIM_Window_UpdateMenu);
-        }
-    }
-
-    return 0;
-}
 
 static IPTR Application__MUIM_LoadSave(struct IClass *cl, Object *obj,
     struct MUIP_Application_Load *message)
@@ -788,34 +735,6 @@ static IPTR Application__MUIM_LoadSave(struct IClass *cl, Object *obj,
     return 0;
 }
 
-static IPTR Application__Menu(struct IClass *cl, Object *obj, ULONG *msg,
-    BOOL setting, ULONG attr)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct MinList *children = NULL;
-    Object *state, *child, *strip, *item;
-    IPTR value = 0;
-
-    children = app_windows(data);
-    if (!children) return 0;
-    state = (Object *)children->mlh_Head;
-    while ((child = NextObject(&state)))
-    {
-        strip = NULL;
-        get(child, MUIA_Window_Menustrip, &strip);
-        if (!strip) strip = data->app_Menustrip;
-        item = strip ? (Object *)DoMethod(strip, MUIM_FindUData, msg[1]) : NULL;
-        if (!item) continue;
-        if (setting)
-            set(item, attr, msg[2]);
-        else
-        {
-            get(item, attr, &value);
-            return value;
-        }
-    }
-    return 0;
-}
 
 static IPTR Application__MUIM_ShowHelp(struct IClass *cl, Object *obj,
     struct MUIP_Application_ShowHelp *msg)
@@ -1014,21 +933,9 @@ IPTR zune_app_method(struct IClass *cl, Object *obj, Msg msg)
     case MUIM_Application_Load:
     case MUIM_Application_Save:
         return Application__MUIM_LoadSave(cl, obj, (APTR)msg);
-    case MUIM_Application_UnpushMethod:
-        return Application__MUIM_UnpushMethod(cl, obj, (APTR)msg);
-    case MUIM_Application_UpdateMenus:
-        return Application__MUIM_UpdateMenus(cl, obj, msg);
     case MUIM_Application_Execute:
     case MUIM_Application_Run:
         return Application__MUIM_Execute(cl, obj, msg);
-    case MUIM_Application_GetMenuCheck:
-        return Application__Menu(cl, obj, (ULONG *)msg, FALSE, MUIA_Menuitem_Checked);
-    case MUIM_Application_GetMenuState:
-        return Application__Menu(cl, obj, (ULONG *)msg, FALSE, MUIA_Menuitem_Enabled);
-    case MUIM_Application_SetMenuCheck:
-        return Application__Menu(cl, obj, (ULONG *)msg, TRUE, MUIA_Menuitem_Checked);
-    case MUIM_Application_SetMenuState:
-        return Application__Menu(cl, obj, (ULONG *)msg, TRUE, MUIA_Menuitem_Enabled);
     }
     return 0;
 }
