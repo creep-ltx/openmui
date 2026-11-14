@@ -206,6 +206,12 @@ void zune_app_rexx(struct MUI_ApplicationData *data, Object *obj,
     STRPTR arguments = NULL;
     struct RDArgs *rdargs = NULL, *parsed = NULL;
 
+    /* This module has its own copies of the library bases, taken when it
+     * was loaded (classfile.h): rexxsyslib.library may have been opened
+     * by the library after that (the first ARexx message), so the copy is
+     * brought up to date here (CreateArgstring below) */
+    if (!ZUNE_REXX())
+        return;
     data->app_RexxMsg = rmsg;
     data->app_RexxString = NULL;
     rmsg->rm_Result2 = 0;
@@ -908,7 +914,12 @@ void zune_app_iconify(struct MUI_ApplicationData *data, Object *obj,
 void zune_app_cxmsg(struct MUI_ApplicationData *data, Object *obj, APTR m)
 {
     CxMsg *msg = m;
-    ULONG id = CxMsgID(msg);
+    ULONG id;
+
+    /* the module's copy of CxBase, as in zune_app_rexx() */
+    if (!ZUNE_CX())
+        return;
+    id = CxMsgID(msg);
 
     if (CxMsgType(msg) == CXM_COMMAND)
     {
