@@ -8,12 +8,11 @@
 #define zune_app_cxmsg zmod_app_cxmsg
 #define zune_app_appmsg zmod_app_appmsg
 #define zune_app_version zmod_app_version
-#define zune_app_usedclasses zmod_app_usedclasses
 #include "../appx.c"
 
 static const struct ZuneAppModule app_module = {
     zmod_app_method, zmod_app_rexx, zmod_app_iconify, (APTR)zmod_app_cxmsg,
-    zmod_app_appmsg, zmod_app_version, zmod_app_usedclasses
+    zmod_app_appmsg, zmod_app_version
 };
 
 BOOPSI_DISPATCHER(IPTR, Zapp_Dispatcher, cl, obj, msg)

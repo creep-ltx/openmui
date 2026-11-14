@@ -362,7 +362,6 @@ struct ZuneAppModule
     BOOL (*appmsg)(struct MUI_ApplicationData *, Object *,
         struct AppMessage *);
     void (*version)(struct MUI_ApplicationData *);
-    void (*usedclasses)(STRPTR *);
 };
 /* the methods: 0 without the module */
 IPTR zune_app_method(struct IClass *cl, Object *obj, Msg msg);
@@ -377,7 +376,6 @@ void zune_app_cxmsg(struct MUI_ApplicationData *data, Object *obj, APTR msg);
 BOOL zune_app_appmsg(struct MUI_ApplicationData *data, Object *obj,
     struct AppMessage *appmsg);
 void zune_app_version(struct MUI_ApplicationData *data);
-void zune_app_usedclasses(STRPTR *list);
 IPTR zune_configdata_set(Object *obj, Msg msg, const struct ZuneCfgTables *t);
 
 /* In a module built as a file: take the library bases over again before

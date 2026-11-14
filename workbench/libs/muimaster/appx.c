@@ -7,10 +7,8 @@
 /* Application's rarely used parts, in the application module Zapp.mui
  * (classes/zapp.c, modules.h): ARexx commands, Workbench's icon and
  * menu item while iconified, Exchange's commands and the hotkey,
- * AppMessages, MUIM_Application_Load/Save, ShowHelp, AboutMUI,
- * OpenConfigWindow, new settings (SetConfigdata, SetConfigItem and the
- * reopening of the windows), Execute,
- * MUI 4's UsedClasses, AROS's version attributes. A
+ * AppMessages, ShowHelp, AboutMUI, OpenConfigWindow, Execute, AROS's
+ * version attributes. A
  * MUI 3 program that uses none of them never loads it. The library calls
  * these through modules.c under the names below. */
 
@@ -62,17 +60,6 @@
 
 extern struct Library *MUIMasterBase;
 
-/*
- * FilePrefHeader
- */
-struct FilePrefHeader
-{
-    UBYTE ph_Version;
-    UBYTE ph_Type;
-    UBYTE ph_Flags[4];
-};
-
-#define ID_MUIO MAKE_ID('M','U','I','O')
 
 /* MUI's standard ARexx commands. They take precedence over the
  * application's own commands of the same name, as in MUI 3.9. */
@@ -336,247 +323,10 @@ static IPTR Application__MUIM_AboutMUI(struct IClass *cl, Object *obj,
     return 0;
 }
 
-static struct List *Application__CloseWindows(struct IClass *cl, Object *obj)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct MinList *children = NULL;
-    struct List *windows = NULL;
-    Object *cstate;
-    Object *child;
 
-    children = app_windows(data);
-    if (!children)
-        return NULL;
 
-    /* remember which windows were open, so they can be re-opened after a
-     * configdata change. Windows that were already closed are left alone. */
-    windows = AllocVec(sizeof(struct List), MEMF_CLEAR);
-    if (windows)
-        NewList(windows);
 
-    cstate = (Object *) children->mlh_Head;
-    while ((child = NextObject(&cstate)))
-    {
-        if (XGET(child, MUIA_Window_Open))
-        {
-            if (windows)
-            {
-                struct Node *n = AllocVec(sizeof(struct Node), MEMF_CLEAR);
 
-                if (n)
-                {
-                    n->ln_Name = (STRPTR)child;
-                    AddTail(windows, n);
-                }
-            }
-            D(bug("[MUI:App] %s: closing window %p\n", __func__, child));
-            set(child, MUIA_Window_Open, FALSE);
-        }
-    }
-    return windows;
-}
-
-static void QueueOpenWindows(Object *obj, struct MUI_ApplicationData *data,
-    struct List *windows)
-{
-    struct MQNode *mq = CreateMQNode(2);
-
-    if (!mq)
-    {
-        FreeWindowList(windows);
-        return;
-    }
-    mq->mq_Dest = obj;
-    mq->mq_Msg[0] = MUIM_Application_OpenWindows;
-    mq->mq_Msg[1] = (IPTR)windows;
-    mq->mq_Count |= MQF_OWNED_WINDOWS;
-    EnqueueMethod(data, mq);
-}
-
-static IPTR Application__MUIM_SetConfigdata(struct IClass *cl, Object *obj,
-    struct MUIP_Application_SetConfigdata *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    struct List *windows;
-
-    /* close all currently open windows and remember them, so they can be
-     * re-opened with the new settings afterwards */
-    windows = Application__CloseWindows(cl, obj);
-
-    data->app_GlobalInfo.mgi_Configdata = msg->configdata;
-    get(data->app_GlobalInfo.mgi_Configdata, MUIA_Configdata_ZunePrefs,
-        &data->app_GlobalInfo.mgi_Prefs);
-    if (data->app_NotifyStarted)
-        DoMethod(data->app_GlobalInfo.mgi_Configdata,
-            MUIM_Configdata_SetupNotify);
-
-    QueueOpenWindows(obj, data, windows);
-    return 0;
-}
-
-static IPTR Application__MUIM_SetConfigItem(struct IClass *cl, Object *obj,
-    struct MUIP_Application_SetConfigItem *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    if (data->app_GlobalInfo.mgi_Configdata) {
-        switch (msg->item) {
-            /*
-            case MUICFG_Window_Spacing_Left:
-            case MUICFG_Window_Spacing_Right:
-            case MUICFG_Window_Spacing_Top:
-            case MUICFG_Window_Buttons:
-            case MUICFG_Window_Spacing_Bottom:
-            case MUICFG_Window_Positions:
-            case MUICFG_Window_Redraw:
-            case MUICFG_Window_Refresh:
-            case MUICFG_Radio_HSpacing:
-            case MUICFG_Radio_VSpacing:
-            case MUICFG_Group_HSpacing:
-            case MUICFG_Group_VSpacing:
-            case MUICFG_Cycle_MenuCtrl_Position:
-            case MUICFG_Cycle_MenuCtrl_Level:
-            case MUICFG_Cycle_MenuCtrl_Speed:
-            case MUICFG_Cycle_Menu_Recessed:
-            case MUICFG_Listview_Font_Leading:
-            case MUICFG_Listview_Smoothed:
-            case MUICFG_Listview_SmoothVal:
-            case MUICFG_Listview_Refresh:
-            case MUICFG_Listview_Multi:
-            case MUICFG_GroupTitle_Position:
-            case MUICFG_GroupTitle_Color:
-            case MUICFG_Scrollbar_Type:
-            case MUICFG_Scrollbar_Arrangement:
-            case MUICFG_Balance_Look:
-            case MUICFG_Dragndrop_Look:
-            case MUICFG_Drag_Autostart:
-            case MUICFG_Drag_Autostart_Length:
-            case MUICFG_Drag_LeftButton:
-            case MUICFG_Drag_MiddleButton:
-            case MUICFG_Register_TruncateTitles:
-            case MUICFG_Screen_Mode:
-            case MUICFG_Screen_Mode_ID:
-            case MUICFG_Screen_Width:
-            case MUICFG_Screen_Height:
-            case MUICFG_PublicScreen_PopToFront:
-            case MUICFG_Iconification_ShowIcon:
-            case MUICFG_Iconification_ShowMenu:
-            case MUICFG_Iconification_OnStartup:
-            case MUICFG_Interfaces_EnableARexx:
-            case MUICFG_BubbleHelp_FirstDelay:
-            case MUICFG_BubbleHelp_NextDelay: */
-            case MUICFG_Keyboard_Press:
-            case MUICFG_Keyboard_Toggle:
-            case MUICFG_Keyboard_Up:
-            case MUICFG_Keyboard_Down:
-            case MUICFG_Keyboard_PageUp:
-            case MUICFG_Keyboard_PageDown:
-            case MUICFG_Keyboard_Top:
-            case MUICFG_Keyboard_Bottom:
-            case MUICFG_Keyboard_Left:
-            case MUICFG_Keyboard_Right:
-            case MUICFG_Keyboard_WordLeft:
-            case MUICFG_Keyboard_WordRight:
-            case MUICFG_Keyboard_LineStart:
-            case MUICFG_Keyboard_LineEnd:
-            case MUICFG_Keyboard_NextGadget:
-            case MUICFG_Keyboard_PrevGadget:
-            case MUICFG_Keyboard_GadgetOff:
-            case MUICFG_Keyboard_CloseWindow:
-            case MUICFG_Keyboard_NextWindow:
-            case MUICFG_Keyboard_PrevWindow:
-            case MUICFG_Keyboard_Help:
-            case MUICFG_Keyboard_Popup:
-            case MUICFG_Drag_LMBModifier:
-            case MUICFG_Drag_MMBModifier:
-            case MUICFG_Iconification_Hotkey:
-                DoMethod(data->app_GlobalInfo.mgi_Configdata, MUIM_Configdata_SetString, msg->item, msg->data);
-                break;
-            case MUICFG_Font_Normal:
-            case MUICFG_Font_List:
-            case MUICFG_Font_Tiny:
-            case MUICFG_Font_Fixed:
-            case MUICFG_Font_Title:
-            case MUICFG_Font_Big:
-            case MUICFG_Font_Button:
-            case MUICFG_Font_Knob:
-            case MUICFG_String_Background:
-            case MUICFG_String_Text:
-            case MUICFG_String_ActiveBackground:
-            case MUICFG_String_ActiveText:
-            case MUICFG_String_Cursor:
-            case MUICFG_String_MarkedBackground:
-            case MUICFG_String_MarkedText:
-            case MUICFG_ActiveObject_Color:
-            case MUICFG_PublicScreen:
-                {
-                    struct List *windows;
-
-                    windows = Application__CloseWindows(cl, obj);
-                    DoMethod(data->app_GlobalInfo.mgi_Configdata, MUIM_Configdata_SetString, msg->item, msg->data);
-                    QueueOpenWindows(obj, data, windows);
-                }
-                break;
-        }
-    }
-    return 0;
-}
-
-static IPTR Application__MUIM_OpenWindows(struct IClass *cl, Object *obj,
-    struct MUIP_Application_OpenWindows *msg)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-
-    /* a list of windows to open was passed (e.g. the ones closed by
-     * Application__CloseWindows before a configdata change) - open exactly
-     * those and free the list */
-    if (msg->windows)
-    {
-        struct Node *n;
-
-        while ((n = (struct Node *)RemHead(msg->windows)))
-        {
-            struct MinList *children = NULL;
-            Object *cstate, *child;
-
-            /* A window may have been removed and disposed since queuing.
-             * Compare pointers in the live family before using the target.
-             * Re-read after each open, which can itself change membership.
-             */
-            children = app_windows(data);
-            if (children)
-            {
-                cstate = (Object *)children->mlh_Head;
-                while ((child = NextObject(&cstate)))
-                    if (child == (Object *)n->ln_Name)
-                    {
-                        set(child, MUIA_Window_Open, TRUE);
-                        break;
-                    }
-            }
-            FreeVec(n);
-        }
-        FreeVec(msg->windows);
-        return 0;
-    }
-
-    /* otherwise open all windows of the application */
-    {
-        struct MinList *children = NULL;
-        Object *cstate;
-        Object *child;
-
-        children = app_windows(data);
-        if (!children)
-            return 0;
-
-        cstate = (Object *) children->mlh_Head;
-        while ((child = NextObject(&cstate)))
-        {
-            set(child, MUIA_Window_Open, TRUE);
-        }
-    }
-    return 0;
-}
 
 static IPTR Application__MUIM_OpenConfigWindow(struct IClass *cl,
     Object *obj, struct MUIP_Application_OpenConfigWindow *msg)
@@ -630,110 +380,6 @@ static IPTR Application__MUIM_Execute(Class *CLASS, Object *self,
 }
 
 
-static IPTR Application__MUIM_LoadSave(struct IClass *cl, Object *obj,
-    struct MUIP_Application_Load *message)
-{
-    struct MUI_ApplicationData *data = INST_DATA(cl, obj);
-    BOOL save = message->MethodID == MUIM_Application_Save;
-    struct IFFHandle *iff;
-    char buf[280];
-    CONST_STRPTR name = message->name;
-    CONST_STRPTR env = NULL;
-    BPTR fh;
-    Object *dataspace;
-
-    if (!data->app_Base)
-        return 0;
-
-    dataspace = MUI_NewObject(MUIC_Dataspace, TAG_DONE);
-    if (!dataspace)
-        return 0;
-
-    if (save)
-        app_each_window(data, MUIM_Export, (IPTR)dataspace);
-
-    if (message->name == MUIV_Application_Load_ENV)
-        env = "ENV";
-    else if (message->name == MUIV_Application_Load_ENVARC)
-        env = "ENVARC";
-    if (env)
-    {
-        snprintf(buf, sizeof(buf), "%s:MUI/%s.cfg", env, data->app_Base);
-        name = buf;
-    }
-
-    fh = Open(name, save ? MODE_NEWFILE : MODE_OLDFILE);
-    if (!fh && env)
-    {
-        if (save)
-        {
-            BPTR dir;
-
-            snprintf(buf, sizeof(buf), "%s:MUI", env);
-            if ((dir = CreateDir(buf)))
-            {
-                UnLock(dir);
-                snprintf(buf, sizeof(buf), "%s:MUI/%s.cfg", env,
-                    data->app_Base);
-                fh = Open(buf, MODE_NEWFILE);
-            }
-        }
-        else
-        {
-            snprintf(buf, sizeof(buf), "%s:Zune/%s.cfg", env,
-                data->app_Base);
-            fh = Open(buf, MODE_OLDFILE);
-        }
-    }
-    if (fh)
-    {
-        if (ZUNE_IFFPARSE() && (iff = AllocIFF()))
-        {
-            iff->iff_Stream = (IPTR) fh;
-
-            InitIFFasDOS(iff);
-
-            if (!OpenIFF(iff, save ? IFFF_WRITE : IFFF_READ))
-            {
-                if (!save)
-                {
-                    if (!StopChunk(iff, ID_PREF, ID_MUIO)
-                        && !ParseIFF(iff, IFFPARSE_SCAN))
-                        DoMethod(dataspace, MUIM_Dataspace_ReadIFF, iff,
-                            ID_PREF, ID_MUIO);
-                }
-                else if (!PushChunk(iff, ID_PREF, ID_FORM, IFFSIZE_UNKNOWN))
-                {
-                    if (!PushChunk(iff, ID_PREF, ID_PRHD,
-                            sizeof(struct FilePrefHeader)))
-                    {
-                        struct FilePrefHeader head;
-                        BOOL written;
-
-                        memset(&head, 0, sizeof(head));
-                        written = WriteChunkBytes(iff, &head,
-                            sizeof(head)) == sizeof(head);
-                        PopChunk(iff);
-                        if (written)
-                            DoMethod(dataspace, MUIM_Dataspace_WriteIFF,
-                                iff, ID_PREF, ID_MUIO);
-                    }
-                    PopChunk(iff);
-                }
-                CloseIFF(iff);
-            }
-            FreeIFF(iff);
-        }
-        Close(fh);
-    }
-
-    if (!save)
-        app_each_window(data, MUIM_Import, (IPTR)dataspace);
-
-    MUI_DisposeObject(dataspace);
-
-    return 0;
-}
 
 
 static IPTR Application__MUIM_ShowHelp(struct IClass *cl, Object *obj,
@@ -901,17 +547,6 @@ void zune_app_version(struct MUI_ApplicationData *data)
     data->app_VersionAllocated = TRUE;
 }
 
-/* MUIA_Application_UsedClasses (MUI 4): each class loaded and given back */
-void zune_app_usedclasses(STRPTR *list)
-{
-    while (*list)
-    {
-        struct IClass *icl = MUI_GetClass(*list);
-        if (icl)
-            MUI_FreeClass(icl);
-        ++list;
-    }
-}
 
 /* The methods the library's dispatcher sends here */
 IPTR zune_app_method(struct IClass *cl, Object *obj, Msg msg)
@@ -924,15 +559,6 @@ IPTR zune_app_method(struct IClass *cl, Object *obj, Msg msg)
         return Application__MUIM_ShowHelp(cl, obj, (APTR)msg);
     case MUIM_Application_OpenConfigWindow:
         return Application__MUIM_OpenConfigWindow(cl, obj, (APTR)msg);
-    case MUIM_Application_SetConfigdata:
-        return Application__MUIM_SetConfigdata(cl, obj, (APTR)msg);
-    case MUIM_Application_SetConfigItem:
-        return Application__MUIM_SetConfigItem(cl, obj, (APTR)msg);
-    case MUIM_Application_OpenWindows:
-        return Application__MUIM_OpenWindows(cl, obj, (APTR)msg);
-    case MUIM_Application_Load:
-    case MUIM_Application_Save:
-        return Application__MUIM_LoadSave(cl, obj, (APTR)msg);
     case MUIM_Application_Execute:
     case MUIM_Application_Run:
         return Application__MUIM_Execute(cl, obj, msg);
