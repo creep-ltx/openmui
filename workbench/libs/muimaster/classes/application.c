@@ -979,7 +979,7 @@ static BOOL winpos_grow(struct MUI_ApplicationData *data, ULONG cap)
  */
 struct MQNode *CreateMQNode(LONG count)
 {
-    struct MQNode *mq = zune_pool_alloc(sizeof(struct MQNode)
+    struct MQNode *mq = zune_mem_alloc(sizeof(struct MQNode)
         + count * sizeof(IPTR));
 
     if (mq)
@@ -1015,7 +1015,7 @@ void DeleteMQNode(struct MQNode *mq)
      */
     if ((ULONG)mq->mq_Count & MQF_OWNED_WINDOWS)
         FreeWindowList((struct List *)mq->mq_Msg[1]);
-    zune_pool_free(mq, sizeof(struct MQNode)
+    zune_mem_free(mq, sizeof(struct MQNode)
         + (mq->mq_Count & 0xffff) * sizeof(IPTR));
 }
 
@@ -1040,7 +1040,7 @@ static struct RIDNode *CreateRIDNode(struct MUI_ApplicationData *data,
 {
     struct RIDNode *rid;
 
-    if ((rid = zune_pool_alloc(sizeof(struct RIDNode))))
+    if ((rid = zune_mem_alloc(sizeof(struct RIDNode))))
     {
         rid->rid_Value = retid;
     }
@@ -1054,7 +1054,7 @@ static struct RIDNode *CreateRIDNode(struct MUI_ApplicationData *data,
 static void DeleteRIDNode(struct MUI_ApplicationData *data,
     struct RIDNode *rid)
 {
-    zune_pool_free(rid, sizeof(struct RIDNode));
+    zune_mem_free(rid, sizeof(struct RIDNode));
 }
 
 

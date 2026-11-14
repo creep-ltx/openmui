@@ -79,10 +79,10 @@ class ReopenHarness(DisposalHarness):
         if not self.failing():
             super().alloc_vec()
 
-    # the queued method's node comes from the library's pool (rw-app)
-    def pool_alloc(self):
+    # the queued method's node is a sized block (zune_mem_alloc, rw-app)
+    def mem_alloc(self):
         if not self.failing():
-            super().pool_alloc()
+            super().mem_alloc()
 
     def run_queued(self):
         obj, message = self.argument(0), self.argument(1)

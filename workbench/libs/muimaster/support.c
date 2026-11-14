@@ -395,60 +395,24 @@ void ZuneTraceOutput(CONST_STRPTR fmt, ...)
 }
 #endif
 
-/* The library's small blocks: every object (the rootclass part, which
- * Notify makes and frees itself) and the notification nodes come from
- * one exec pool shared by all programs, under Forbid (its calls never
- * wait). exec's own AllocMem/FreeMem walk the whole free list of a
- * fragmented machine for every block: about 30 % of an application's
- * creation on a 68020 (opbench prof), where MUI 3.8 pools its objects.
- * Sizes are rounded to longwords; the same size frees the block. */
-static APTR zune_pool;
-
-APTR zune_pool_alloc(register ULONG size __asm("d0"))
+/* A cleared block for the notification nodes and lists and the
+ * application's queue nodes: AllocMem and FreeMem with the size (no
+ * AllocVec header), register arguments as exec's own, so that no caller's
+ * frame holds pushed arguments. (An exec pool shared by all programs was
+ * tried for these and the objects, 2026-11-14: application creation 3.6 %
+ * faster on a 68020, 1.3 % on a 68000, for 2.9 KB more in the first
+ * program and 1-23 KB in real programs' memory: README "Rewrite:
+ * Application".) */
+APTR zune_mem_alloc(register ULONG size __asm("d0"))
 {
-    ULONG *p, *q, n;
-
-    size = (size + 3) & ~3UL;
-    Forbid();
-    if (!zune_pool)
-        zune_pool = CreatePool(MEMF_ANY, ZUNE_POOL_PUDDLE, ZUNE_POOL_THRESH);
-    p = zune_pool ? AllocPooled(zune_pool, size) : NULL;
-    Permit();
-    if ((q = p))
-    {
-        /* cleared four longwords a turn */
-        n = size >> 2;
-        switch (n & 3)
-        {
-        case 3: *q++ = 0;   /* fall through */
-        case 2: *q++ = 0;   /* fall through */
-        case 1: *q++ = 0;
-        }
-        for (n >>= 2; n; n--)
-        {
-            q[0] = 0; q[1] = 0; q[2] = 0; q[3] = 0;
-            q += 4;
-        }
-    }
-    return p;
+    return AllocMem(size, MEMF_ANY | MEMF_CLEAR);
 }
 
-void zune_pool_free(register APTR block __asm("a1"),
+void zune_mem_free(register APTR block __asm("a1"),
     register ULONG size __asm("d0"))
 {
-    if (!block)
-        return;
-    Forbid();
-    FreePooled(zune_pool, block, (size + 3) & ~3UL);
-    Permit();
-}
-
-/* At expunge: every object is gone by then */
-void zune_pool_delete(void)
-{
-    if (zune_pool)
-        DeletePool(zune_pool);
-    zune_pool = NULL;
+    if (block)
+        FreeMem(block, size);
 }
 
 Object *ZuneNextObject(APTR iterator)

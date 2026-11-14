@@ -26,11 +26,10 @@ class NotifyHarness(Harness):
         self.dead = False
         self.mem.w32(self.symbols['_UtilityBase'], UTILITY)
         self.mem.w16(CLASS + 32, 0)
-        self.mem.w32(OBJECT - 4, CLASS)  # OCLASS: Notify frees the object
         self.trap(UTILITY - 48, self.next_tag)
         self.trap(EXEC - 258, self.rem_head)
-        # notification nodes and lists are pool blocks freed with their
-        # size (Harness.pool_alloc, pool_release below)
+        # notification nodes and lists are sized blocks freed with their
+        # size (Harness.mem_alloc, mem_release below)
         self.trap(self.symbols['_DoSuperMethodA'], self.super_method)
         self.trap(self.symbols['_DoMethodA'], self.method)
         self.ret = self.blob(b'\x4e\x75')
@@ -64,11 +63,7 @@ class NotifyHarness(Harness):
             self.mem.w_block(address, self.freed[address])
             super().free_vec()
 
-    def pool_release(self, address, size):
-        # The object itself: rootclass's part, which Notify frees
-        if address == OBJECT - 12:
-            self.super_method()
-            return
+    def mem_release(self, address, size):
         assert self.allocations.get(address) == size, \
             ('pool free size', hex(address), size, self.allocations.get(address))
         self.freed[address] = bytes([0xa5]) * size
@@ -195,16 +190,16 @@ def check(path):
         h.finish()
 
     # list header, node with its parameters (one block in the lean
-    # edition; upstream allocates the parameters separately): both from
-    # the library's pool (support.c) since rw-app
+    # edition; upstream allocates the parameters separately): both sized
+    # blocks (support.c: zune_mem_alloc) since rw-app
     for failed_call in [1, 2]:
         h = NotifyHarness(path)
         calls = [0]
         def allocate():
             calls[0] += 1
             h.fail_alloc = calls[0] == failed_call
-            h.pool_alloc()
-        h.trap(h.symbols['_zune_pool_alloc'], allocate)
+            h.mem_alloc()
+        h.trap(h.symbols['_zune_mem_alloc'], allocate)
         assert not h.add(1)
         h.fire()
         assert not h.events

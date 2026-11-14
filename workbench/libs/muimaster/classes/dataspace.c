@@ -83,7 +83,9 @@ struct Dataspace_Node
  * and found by id through a hash of DS_HASH chains: an application's
  * settings are about 200 records, and reading them added and looked each
  * up along the whole list (about 300 ms per application on a 68020 with
- * a full global.prefs, opbench prof). */
+ * a full global.prefs, opbench prof). The chains are made with the first
+ * record: an empty Dataspace (an application's Configdata without a
+ * settings file) costs a pointer, not 128 bytes. */
 #define DS_HASH 32
 struct MUI_DataspaceData
 {
@@ -91,7 +93,7 @@ struct MUI_DataspaceData
     APTR pool;
     APTR pool_allocated;
     APTR current_pool;
-    struct Dataspace_Node *hash[DS_HASH];
+    struct Dataspace_Node **hash;   /* DS_HASH chains, or NULL */
     struct DS_Block *blocks;    /* the records ReadIFF added */
 };
 
@@ -124,12 +126,40 @@ static struct Dataspace_Node **ds_chain(struct MUI_DataspaceData *data,
     return &data->hash[(id ^ (id >> 16)) & (DS_HASH - 1)];
 }
 
+/* The chains, made the first time (cleared, from the object's pool);
+ * NULL without memory */
+static struct Dataspace_Node **ds_hash(struct MUI_DataspaceData *data)
+{
+    ULONG *p, i;
+
+    if (!data->hash && (p = AllocPooled(data->current_pool,
+        DS_HASH * sizeof(APTR))))
+    {
+        for (i = 0; i < DS_HASH; i++)
+            p[i] = 0;
+        data->hash = (struct Dataspace_Node **)p;
+    }
+    return data->hash;
+}
+
+/* The chains given back (Clear): made again with the next record. Out of
+ * line with a register argument: Clear's frame. */
+static __attribute__((noinline)) void ds_drop_hash(
+    register struct MUI_DataspaceData *data __asm("a0"))
+{
+    if (data->hash)
+        FreePooled(data->current_pool, data->hash, DS_HASH * sizeof(APTR));
+    data->hash = NULL;
+}
+
 /* The record of id, or NULL */
 static struct Dataspace_Node *ds_find(struct MUI_DataspaceData *data,
     ULONG id)
 {
     struct Dataspace_Node *node;
 
+    if (!data->hash)
+        return NULL;
     for (node = *ds_chain(data, id); node; node = node->hnext)
         if (node->id == id)
             break;
@@ -265,7 +295,7 @@ IPTR Dataspace__MUIM_Add(struct IClass *cl, Object *obj,
     struct MUI_DataspaceData *data = INST_DATA(cl, obj);
     struct Dataspace_Node *node;
 
-    if (NULL == msg->data || msg->len < 1 || msg->id < 1)
+    if (NULL == msg->data || msg->len < 1 || msg->id < 1 || !ds_hash(data))
         return 0;
 
     node = (struct Dataspace_Node *)AllocVecPooled(data->current_pool,
@@ -326,7 +356,7 @@ IPTR Dataspace__MUIM_Clear(struct IClass *cl, Object *obj,
         FreeVecPooled(data->current_pool, b);
     }
     NewList((struct List *)&data->list);
-    memset(data->hash, 0, sizeof(data->hash));
+    ds_drop_hash(data);
 
     return 1;
 }
@@ -535,7 +565,8 @@ static __attribute__((noinline)) void ds_read_records(struct IClass *cl,
         for (p = buffer; ds_record(&p, end, &id, &len); )
             if (id && len > 0)
                 size += sizeof(struct Dataspace_Node) + DS_DATASIZE(len);
-        block = AllocVecPooled(data->current_pool, size);
+        if (ds_hash(data))
+            block = AllocVecPooled(data->current_pool, size);
     }
     if (!block)
     {

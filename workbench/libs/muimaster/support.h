@@ -36,18 +36,10 @@ struct Rectangle;
 struct Object;
 struct Library;
 
-/* support.c: the library's pool of small blocks (cleared) */
-#ifndef ZUNE_POOL_PUDDLE
-#define ZUNE_POOL_PUDDLE 4096
-#endif
-#ifndef ZUNE_POOL_THRESH
-#define ZUNE_POOL_THRESH 1024
-#endif
-/* register arguments, as exec's AllocMem/FreeMem: no pushed arguments on
- * the callers' frames */
-APTR zune_pool_alloc(ULONG size __asm("d0"));
-void zune_pool_free(APTR block __asm("a1"), ULONG size __asm("d0"));
-void zune_pool_delete(void);
+/* support.c: a cleared block freed with its size (AllocMem/FreeMem with
+ * register arguments: no pushed arguments on the callers' frames) */
+APTR zune_mem_alloc(ULONG size __asm("d0"));
+void zune_mem_free(APTR block __asm("a1"), ULONG size __asm("d0"));
 
 #define mui_alloc(x) AllocVec(x,MEMF_CLEAR)
 #define mui_alloc_struct(x) ((x *)AllocVec(sizeof(x),MEMF_CLEAR))
