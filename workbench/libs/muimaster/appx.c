@@ -7,8 +7,8 @@
 /* Application's rarely used parts, in the application module Zapp.mui
  * (classes/zapp.c, modules.h): ARexx commands, Workbench's icon and
  * menu item while iconified, Exchange's commands and the hotkey,
- * AppMessages, ShowHelp, AboutMUI, OpenConfigWindow, Execute, AROS's
- * version attributes. A
+ * AppMessages, ShowHelp, AboutMUI, OpenConfigWindow, AROS's version
+ * attributes. A
  * MUI 3 program that uses none of them never loads it. The library calls
  * these through modules.c under the names below. */
 
@@ -359,25 +359,6 @@ static IPTR Application__MUIM_OpenConfigWindow(struct IClass *cl,
     return 1;
 }
 
-static IPTR Application__MUIM_Execute(Class *CLASS, Object *self,
-    Msg message)
-{
-    IPTR signals = 0L;
-
-    while
-        (DoMethod(self, MUIM_Application_NewInput, (IPTR) & signals)
-        != MUIV_Application_ReturnID_Quit)
-    {
-        if (signals)
-        {
-            signals = Wait(signals | SIGBREAKF_CTRL_C);
-            if (signals & SIGBREAKF_CTRL_C)
-                break;
-        }
-    }
-
-    return 0;
-}
 
 
 
@@ -559,9 +540,6 @@ IPTR zune_app_method(struct IClass *cl, Object *obj, Msg msg)
         return Application__MUIM_ShowHelp(cl, obj, (APTR)msg);
     case MUIM_Application_OpenConfigWindow:
         return Application__MUIM_OpenConfigWindow(cl, obj, (APTR)msg);
-    case MUIM_Application_Execute:
-    case MUIM_Application_Run:
-        return Application__MUIM_Execute(cl, obj, msg);
     }
     return 0;
 }

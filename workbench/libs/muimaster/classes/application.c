@@ -3852,6 +3852,29 @@ static IPTR Application__MUIM_LoadSave(struct IClass *cl, Object *obj,
     return 0;
 }
 
+/* MUIM_Application_Execute/Run (MUI 4): the MUI 5 SDK's demos run their
+ * loop with it; 82 bytes, in the library (as lean) rather than a module
+ * each of them would load */
+static IPTR Application__MUIM_Execute(Class *CLASS, Object *self,
+    Msg message)
+{
+    IPTR signals = 0L;
+
+    while
+        (DoMethod(self, MUIM_Application_NewInput, (IPTR) & signals)
+        != MUIV_Application_ReturnID_Quit)
+    {
+        if (signals)
+        {
+            signals = Wait(signals | SIGBREAKF_CTRL_C);
+            if (signals & SIGBREAKF_CTRL_C)
+                break;
+        }
+    }
+
+    return 0;
+}
+
 /* UnpushMethod (Popasl sends it when disposed with its requester's
  * process) and UpdateMenus (every menu item that changes sends it) stay
  * in the library, not the module */
@@ -3972,7 +3995,7 @@ static const struct { ULONG id; APTR method; } app_methods[]
     { MUIM_Application_Save, (APTR)Application__MUIM_LoadSave },
     { MUIM_Application_SetConfigItem, (APTR)Application__MUIM_SetConfigItem },
     { MUIM_Application_CheckRefresh, (APTR)Application__MUIM_CheckRefresh },
-    { MUIM_Application_Execute, (APTR)zune_app_method },
+    { MUIM_Application_Execute, (APTR)Application__MUIM_Execute },
     { MUIM_Application_ShowHelp, (APTR)zune_app_method },
     { MUIM_Application_ReturnID, (APTR)Application__MUIM_ReturnID },
     { MUIM_Application_SetMenuState, (APTR)Application__Menu },
@@ -3991,7 +4014,7 @@ static const struct { ULONG id; APTR method; } app_methods[]
     { MUIM_Application_Load, (APTR)Application__MUIM_LoadSave },
     { MUIM_Application_SetConfigdata, (APTR)Application__MUIM_SetConfigdata },
     { MUIM_Application_OpenWindows, (APTR)Application__MUIM_OpenWindows },
-    { MUIM_Application_Run, (APTR)zune_app_method },
+    { MUIM_Application_Run, (APTR)Application__MUIM_Execute },
     { MUIM_Application_UpdateMenus, (APTR)Application__MUIM_UpdateMenus },
 };
 _Static_assert((ULONG)OM_NEW < (ULONG)OM_DISPOSE, "app_methods order");
