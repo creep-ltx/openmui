@@ -738,6 +738,27 @@ a600-31 + 4 MB fast RAM, MUI 3.8 copied on; MUI 3.8 on the A1200 from round draw
 The instance data was already MUI 3.8's 108 bytes (since 072a96c4; the table "Instance sizes
 against MUI 3.8" above still shows the 114 of the step before).
 
+## Rewrite: Application (2026-11-14, branch `rw-app`)
+
+README.md "Rewrite: Application" has the steps and every operation. Figures (FS-UAE cycle-exact,
+OS 3.1, emulator; A600 = a600-31 + 4 MB fast RAM, MUI 3.8 copied on; this session's instances):
+
+| | MUI 3.8 | lean (43cfa4f3) | rw-app |
+|---|---:|---:|---:|
+| Application's code (`classes/application.o`) | | 16,120 | 11,484 (+ Zapp.mui 6,932 file, 3,824 code) |
+| library code (`size`) | | 229,884 | 226,268 |
+| library file, stripped | | 246,492 | 242,664 |
+| Application instance data | | 370 | 370 |
+| MUI-Demo first program | 460,296 | 443,040 | 439,760 |
+| MUI-Demo each further | 210,632-218,888 | 193,512-193,576 | 193,584 |
+| A1200 app+windows create (ms) | 235.5-236.3 | 215.2-232.7 | 183.5-189.4 |
+| A1200 prefs+app (empty) | 92.3-93.1 | 53.5-62.3 | 15.9-16.2 |
+| A1200 / A600 prefs+app, full global.prefs | | 321.4-328.0 / 1,371.9 | 57.4 / 237.4 |
+| A600 app+windows create | 947.8 (928.8-945.4) | 900.0-930.1 | 758.4 |
+| A600 prefs+app (empty) | 369.6 | 215.5-222.4 | 66.0-66.9 |
+| A1200 / A600 full redraw | 140.4-150.7 / 472.2 | 133.4-133.8 / 443.2-445.8 | 133.7-133.8 / 444.6-444.8 |
+| stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 4,976 / 2,224 / 2,168 / 2,196 / 2,260 | 4,924 / 2,224 / 2,168 / 2,196 / 2,260 |
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,

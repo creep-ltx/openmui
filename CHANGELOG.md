@@ -20,6 +20,25 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- **Programs start faster, and Application was rewritten for 68k machines.**
+  Making a program's objects takes about a fifth less time than before and
+  than in MUI 3.8 (opbench's window full of gadgets: 183-189 ms on a 68020
+  against MUI 3.8's 236; 758 ms on a 68000 against 929-948), and an
+  application with no windows a sixth of MUI 3.8's time (16 ms against 92).
+  A program that never stored a window position no longer reads and writes
+  its settings file at every quit; the settings are found by hash instead of
+  a search through a list (an application with a full settings file was made
+  in 321 ms, now 57, on a 68020; 1.37 s, now 0.24, on a 68000), and saved key
+  bindings are read once for all programs. What a program reaches only
+  through the user or ARexx (ARexx commands, the icon while iconified,
+  Exchange's commands, dropped icons, the help, the About and settings
+  windows) is a file of its own, `LIBS:OpenMUI/Zapp.mui`, loaded the first
+  time it is used: Application's code is 29 % smaller and the library 3.6 KB.
+  The first program needs 439.8 KB (443.0 before, MUI 3.8 460.3), each
+  further one as before (193.5 KB, MUI 3.8 210.6-218.9).
+- **Fixed on the way:** a damaged settings file whose strings lack their
+  terminators no longer makes the library read past a setting into other
+  memory.
 - **Area rewritten for 68k machines**: the class every visible object is
   built on draws its background and frame in one short step in the common
   case (a plain colour, an ordinary frame): one walk up the window to find

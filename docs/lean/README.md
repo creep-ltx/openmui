@@ -4716,7 +4716,218 @@ the general background 954 and frame 778, the common draw 610, the minmax finish
   A1200 full redraw 133.7 ms, relayout 173.1, creation 224.6; A600 full redraw 443.8, relayout
   611.2, creation 916.5, list insert 1 32.7 (MUI 3.8 32.5-32.8): as the round's figures above.
 
+## Rewrite: Application (2026-11-14, branch `rw-app`)
+
+The fifth class of the "rewrite for m68k" phase (roadmap): Application (`classes/application.o`
+16,120 bytes of code) and what creating an application and its objects costs. After the Area
+round creation on the 68000 stayed 0.97-0.99 of MUI 3.8, within the instances' spread: its time
+was exec's allocator and the classes above Area, it was thought. Same rules as the rounds
+before. All figures are **emulator figures** (FS-UAE cycle-exact; demopix and the suite on
+Amiberry).
+
+### Targets and results
+
+ms per operation, `opbench` (the same binary on every library), FS-UAE cycle-exact; A600 = a600-31
+(68000 7 MHz, OS 3.1) with 4 MB fast RAM and MUI 3.8 copied on, A1200 = a1200-31-mui38 (68EC020
+14 MHz, OS 3.1). Medians of 5 (A600) or 9 (A1200) repetitions per instance; ranges over the
+instances of this session (lean 13 on the A1200 and 7 on the A600, the final build 4 and 2;
+MUI 3.8 two on the A1200, one on the A600; MUI 3.8 of the Area round: A600 929-945, A1200
+235-239). Creation varies 3-7 % between instances of one library (lean 215-230 ms on the
+A1200); side by side in one round: A1200 lean 219.1 and 232.7, rw-app 183.5 and 185.8; A600 lean
+900.0, the build before the last commit 761.6.
+
+| target | MUI 3.8 | lean (before) | rw-app (after) | after / MUI 3.8 | reached |
+|---|---:|---:|---:|---:|---|
+| A600 app+windows create | 947.8 (928.8-945.4) | 900.0-930.1 | 758.4 | 0.80-0.82 | **yes** (-16-18 %) |
+| A1200 app+windows create | 235.5-236.3 | 215.2-232.7 | 183.5-189.4 | 0.78-0.80 | **yes** (-15-19 %) |
+| A600 prefs+app (empty) | 369.6 | 215.5-222.4 | 66.0-66.9 | 0.18 | **yes** (-70 %) |
+| A1200 prefs+app (empty) | 92.3-93.1 | 53.5-62.3 | 15.9-16.2 | 0.17 | **yes** (-71 %) |
+| A1200 prefs+app with a full `ENV:OpenMUI/global.prefs` | | 321.4-328.0 | 57.4 | | (-82 %) |
+| A600 the same | | 1,371.9 | 237.4 | | (-83 %) |
+| memory: first program (MUI-Demo cold) | 460,296 | 443,040 | 439,760 | | **yes** (-3.3 KB) |
+| memory: each further | 210,632-218,888 | 193,512-193,576 | 193,584 | | **yes** (8 bytes more: the hash pointer) |
+| Application code (`classes/application.o`) | | 16,120 | 11,484 (-29 %) | | smaller; the rest in Zapp.mui (3,824) |
+| Application instance data | | 370 | 370 | | (the window positions were on demand already) |
+
+Every operation (A1200 left, A600 right; the same instances):
+
+| operation | A1200 MUI 3.8 | A1200 lean | A1200 rw-app | A600 MUI 3.8 | A600 lean | A600 rw-app |
+|---|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 92.3-93.1 | 53.5-62.3 | 15.9-16.2 | 369.6 | 215.5-222.4 | 66.0-66.9 |
+| app+windows create | 235.5-236.3 | 215.2-232.7 | 183.5-189.4 | 947.8 | 900.0-930.1 | 758.4 |
+| window open+close | 520.3-522.7 | 399.8-402.1 | 399.5-401.9 | 1779.4 | 1400.2-1406.8 | 1401.6-1402.3 |
+| full redraw | 140.4-150.7 | 133.4-133.8 | 133.7-133.8 | 472.2 | 443.2-445.8 | 444.6-444.8 |
+| relayout | 197.5-207.2 | 173.0-173.3 | 173.1-173.4 | 701.4 | 611.3-613.9 | 613.3-613.5 |
+| slider set | 4.04-4.09 | 2.73 | 2.73-2.74 | 15.8 | 10.1-10.2 | 10.2 |
+| notify chain | 7.82-7.93 | 5.65-5.67 | 5.66-5.67 | 30.6 | 21.0-21.2 | 21.0 |
+| cycle set | 2.44 | 2.02 | 2.01-2.02 | 9.44 | 7.87-7.92 | 7.91 |
+| radio set | 15.6 | 8.49-8.52 | 8.50-8.51 | 60.7 | 32.9-33.0 | 32.9 |
+| text set | 2.50-2.51 | 2.39-2.40 | 2.39 | 9.72 | 9.38-9.52 | 9.42-9.45 |
+| list insert 1 | 10.3 | 8.10-8.28 | 8.09-8.23 | 32.5 | 32.7-33.4 | 33.0-33.1 |
+| list insert 100 | 829.5-832.8 | 60.3-62.3 | 61.0-62.4 | 2759.6 | 226.5-231.6 | 230.8-232.1 |
+| list insert 1000 | 6652.4-6661.6 | 247.7-248.9 | 248.2-249.3 | 24026.6 | 1008.4-1019.7 | 1013.5-1014.5 |
+| list active | 21.1 | 18.7-19.1 | 18.7-18.9 | 65.1 | 61.0-62.7 | 61.3-61.9 |
+| list scroll line | 14.6 | 13.2-13.3 | 13.2-13.3 | 40.0 | 37.0-37.7 | 37.4-37.5 |
+| list scroll page | 44.4-44.5 | 39.2-39.7 | 39.3-39.6 | 154.0 | 134.8-136.9 | 135.9-136.3 |
+| list sort 1000 | 658.5-658.8 | 93.6-95.7 | 94.7-94.9 | 2503.8 | 380.2-386.3 | 383.8-386.3 |
+| button click | 22.3-22.4 | 16.6 | 16.6-16.8 | 91.5 | 62.7-69.0 | 66.0-68.9 |
+| string type | 7.49-7.55 | 7.34-7.37 | 7.33-7.37 | 30.7 | 29.1-29.5 | 29.2 |
+| string backspace | 7.45-7.47 | 7.17-7.25 | 7.23-7.25 | 30.4 | 28.6-29.1 | 28.7-28.9 |
+| menu open+close | 13.2 | 13.1-13.5 | 13.1-13.2 | 50.7 | 45.9-50.7 | 46.3-47.6 |
+| iconify | 87.0-89.0 | 75.5-78.6 | 77.5-78.7 | 323.7 | 240.5-269.4 | 247.7-269.1 |
+| uniconify | 449.9-451.3 | 337.0-339.0 | 337.2-339.7 | 1556.4 | 1232.8-1248.1 | 1247.8 |
+| register page | 53.7-53.8 | 42.5-42.6 | 42.5-42.6 | 164.1 | 145.7-146.6 | 145.8-145.9 |
+| popup open+close | 120.0 | 95.0-96.4 | 95.3-96.0 | 416.0 | 340.3-347.5 | 341.2-346.8 |
+| window resize | 230.1 | 220.0-220.4 | 220.1-220.5 | 630.6 | 540.1-590.1 | 528.5-531.8 |
+
+Everything but creation is lean's within the spread of the instances, or a single instance's
+median up to 0.6 % above lean's highest (A1200 list insert 100 62.4 against 62.3, list insert
+1000 249.3 against 248.9, uniconify 339.7 against 339.0, button click 16.8 against 16.6; their
+fastest repetitions as lean's; the same operations in the round's earlier builds were within
+lean's spread). The A600's iconify is bimodal on both libraries (frame
+waits, as in the rounds before); its window resize varies with the boot. One A1200 instance
+(`rwapp-0`) gave figures of a machine not cycle-exact (create 10 ms), and twice before a run
+without the library or without the window: its copy was reused for another machine; left out.
+
+### Where creation's time went
+
+Found with `opbench prof` (pcsample on the 68020) and `opbench count` (the OS calls):
+
+- **A settings file written at every quit**: with window positions remembered on exit (the
+  default) an application read and wrote `ENV:OpenMUI/<base>.prefs` at OM_DISPOSE even without
+  a position to keep, and the file it had created made the next start look in ENV:OpenMUI:
+  five Opens and a write per start and quit (4de4ca2c: create 216 -> 174 ms, prefs+app 56 -> 15
+  ms on the 68020). It shows only from the second start on.
+- **Settings read as lists**: Dataspace (which Configdata is) kept its records in a list; adding
+  one walked the list for its id, finding one walked it again: a full global.prefs is about 200
+  records, O(n²) twice, about 300 ms per application on the 68020 and 1.1 s on the 68000
+  (Node_Next alone 35 % of the profile). And each application parsed its 24 saved key bindings
+  (ParseIX, ~0.3 ms each).
+- **exec's allocator** looked like 30 % of creating opbench's application in the profile (ROM's
+  Allocate and Deallocate; ~276 exec allocations against MUI 3.8's 58 plus 186 AllocPooled), but
+  pooling the objects bought little (below): the profile's ROM bucket was the allocator walking
+  the free list partly for the settings file's I/O and records.
+
+### What was rewritten
+
+| commit | what |
+|---|---|
+| 4de4ca2c | **No settings file written at quit when no window position was ever stored or read** (the file is no longer created empty: it would hold nothing the next start reads) |
+| 26c01d23 | **Dataspace by hash**: the records keep their order in the list (WriteIFF writes them so) and are found through 32 hash chains; ReadIFF adds them directly under the semaphore it holds when the object is a Dataspace or the library's Configdata (no program's subclass could have its own Add). **Key bindings parsed once** for every application |
+| e683deb3 | **A settings file's records in one block** (one allocation instead of ~200); a replaced or removed record of the block is only unlinked. `tests/lean/dsorder.c` (public API: ReadIFF, Add, Remove, Find, WriteIFF, Clear over a full global.prefs): the same output and the same written file on lean, rw-app and MUI 3.8 |
+| 0bcfe438 | **Application's rarely used parts in a module, Zapp.mui** (`appx.c`, `classes/zapp.c`, the instance data in `classes/application_private.h`); one module function takes all its methods (one stub). Without the module they fail as on low memory (an ARexx command answers RETURN_FAIL). What it holds in the end: below |
+| b98a1423 | **Whole functions rewritten**: OM_NEW, OM_SET and OM_GET share one table of the plain attributes (field, I/S/G, BOOL or BYTE), the rest are helpers of their own; the input loop in parts (the signal mask one function for NewInput and the old Input, the timers, the other ports out of line); OM_DISPOSE drains its ports with one helper; PushMethod's and ReturnID's nodes sized blocks without AllocVec's header |
+| 18ea3ede | **The dispatcher a sorted table** (32 methods, order checked by the compiler) searched in assembly that keeps a0-a2, so the dispatcher keeps its arguments in registers (frame 28 -> 24 under every method); NewInput, InputBuffered and Input tested first and run through one deep_call |
+| 3f98009a | **A cached key binding found by its place**: one strcmp per binding (was one per cached binding); 48 entries, defaults and saved |
+| a4f42159 | **Zapp.mui's own copies of rexxsyslib's and commodities' bases brought up to date**: a module copies the library bases when it is loaded (classfile.h); rexxsyslib is opened by the library at the first ARexx message, so a module loaded before (by the iconify hotkey) had a NULL RexxSysBase and the first ARexx command with a result (INFO) crashed the machine. Found by the hotkey test below |
+| 8e39fdd1 | **A block record's data ends in zeros** (a damaged file's string without its terminator, or a 3-byte ULONG, ran into the next record's node: prefsfuzz seed 51) |
+| eb39aef1, 91afd6e4 | **What programs use back in the library**: LoadSeg traces showed WbMan (a MUI 3.8 demo), YAM, IBrowse, AmIRC, MultiRen and Archiver loading the module at start: every menu item that changes sends UpdateMenus, old programs use Get/SetMenuCheck/State, most programs restore their windows' state with MUIM_Application_Load (and Save at quit), some set settings with SetConfigItem (which closes and reopens the windows like SetConfigdata), YAM and IBrowse give MUI 4's MUIA_Application_UsedClasses on MUI 3 too, Popasl sends UnpushMethod when disposed with its requester's process. With these in the library none of them loads Zapp.mui |
+| 6c2e491f | **Execute/Run (MUI 4) in the library again**: the suite showed twelve of the MUI 5 SDK's demos 5 KB higher at their first start; they run their loop with Execute (82 bytes) |
+| a68c456d, 8ef40aac | **The object pool, tried and taken out**: Notify made and freed rootclass's part of every object itself from an exec pool shared by all programs (4 KB puddles), with the notification nodes. Measured at the end, the rest of the round the same: creation 3.6 % faster on the 68020 (174.6 against 179.9 ms side by side), 1.3 % on the 68000; for 2.9 KB more in the first program, 0.8 KB per further MUI-Demo on average (196.4 / 192.3 KB in turn) and 1-23 KB in real programs' memory in the suite (YAM 2.10 +22.9 KB: the holes that created and disposed objects leave in puddles); button click 0.2-0.5 % slower in some instances. Objects come from rootclass again; the notification nodes and lists and the application's queue nodes are sized blocks (`zune_mem_alloc`: AllocMem/FreeMem with register arguments, so no caller's frame grows). Dataspace's hash chains are made with its first record and given back by Clear: an empty Configdata costs a pointer, not 128 bytes |
+
+**In the module (Zapp.mui, 6,932 bytes; 3,824 of code)**: ARexx commands (MUI's built-ins,
+the program's table and hook, the help file), Workbench's icon and Tools menu item while
+iconified, Exchange's commands and the iconify hotkey, AppMessages (icons dropped on the AppIcon
+or an AppWindow), ShowHelp, AboutMUI, OpenConfigWindow and the version string of AROS's version
+attributes: what a program reaches only through the user (or ARexx).
+
+**Not moved**: the window positions (every program with window IDs), PushMethod, ReturnID,
+UnpushMethod, input handlers, Load/Save, SetConfigItem/SetConfigdata and the reopening, the old
+menu methods and UpdateMenus, UsedClasses, Execute/Run (above), the broker's creation (every program has one,
+as on MUI 3.8), the settings file's notification, MUI's private application list (LVO -264,
+small).
+
+**Tried and not taken** (measured): the object pool (above); 2 KB puddles for it (each further
+program a constant 195.9 KB, creation 1 % slower than 4 KB ones); the input loop's checks inline
+again (button click unchanged, +200 bytes); the method search in C (frame 28 -> 32: its call
+clobbers a0/a1) or inlined (40); the input methods as table entries through wrapper functions
+(16 bytes deeper under NewInput).
+
+### Sizes
+
+| | lean (43cfa4f3) | rw-app |
+|---|---:|---:|
+| Application's code (`classes/application.o`) | 16,120 | 11,484 |
+| Zapp.mui (module file; code) | | 6,932 (3,824) |
+| Dataspace / Configdata / Notify / support (code) | 1,772 / 6,700 / 3,432 / 1,340 | 2,496 / 6,928 / 3,348 / 1,380 |
+| library code (`size`) | 229,884 | 226,268 |
+| library file, stripped | 246,492 | 242,664 |
+| library alone in memory (`libonly.sh`) | 260,520 | 257,232 |
+| MUI-Demo first program (MUI 3.8: 460,296) | 443,040 | 439,760 |
+| MUI-Demo each further (MUI 3.8: 210,632-218,888) | 193,512-193,576 | 193,584 |
+
+### Checked (emulators)
+
+The final build (6c2e491f and its docs) unless a step names an earlier one.
+
+- `make check` after every library commit (the white-box checks follow the changes: the sized
+  blocks trapped by name, `tests/check_class_lifetime.py`; the module's class kept out of the
+  leak counts, `check_application_services.py`, as every module stays until expunge).
+- `-fstack-usage` of every library and class-file function against lean: none larger. Smaller:
+  application_input 120 -> 72 (the event loop's frame), OM_NEW 88 -> 76, OM_SET 76 -> 48, OM_GET
+  20 -> 12, MUIM_Input 28 -> 12, OM_DISPOSE 56 -> 52, the dispatcher 28 -> 24 (under every
+  Application method), Dataspace's ReadIFF 48 -> 36 and Remove 28 -> 12, Notify's OM_DISPOSE 40
+  -> 32. Frames that grew on the way and were brought back: Notify's OM_SET (the node's free a
+  register-argument helper), Configdata's SetKey (the cache's lookup and insertion functions of
+  their own), ReadIFF (the records a helper), OM_GET (a register-argument helper), the dispatcher
+  (the search in assembly), Dataspace's Clear and OM_DISPOSE (the hash dropped by a helper), the
+  old menu methods (a helper with lean's frame).
+- stackrun (FS-UAE, lean and the branch side by side, twice each): MUI-Demo **4,976 -> 4,924**,
+  Layout 2,224, Virtual 2,168, Pages 2,196, Slidorama 2,260 on both.
+- fullcheck (FS-UAE): MUI-Demo with its eight sub-windows and the other 18 demos, the same
+  windows at the same places and sizes and the same lost figures as lean (608 / 200 /
+  AppWindow 264), no alert; with a LoadSeg trace (`snooplog.sh`): the same 15 class files as
+  lean, **no module (Z\*.mui)**.
+- Pixels: pagepix (20), radiopix (120 lines; it writes `radiopix.txt` where it runs), scrollpix
+  (17), listclip (4,181 rows) identical to lean; demopix (Amiberry, both libraries' shots): 26 of
+  27 pixel-identical to lean's, the 27th Layout's random places as always (a build of the round
+  before its last commits: 27 of 27), 18 of 27 identical to MUI 3.8 as lean.
+- `tests/lean/dsorder.c`: the same output and file on lean, the branch and MUI 3.8.
+- **Hotkey and ARexx** (`cxtest.sh` in the round's scratch: MUI-Demo with a global.prefs whose
+  iconification hotkey is Ctrl-Alt-Z; the hotkey (commodities -> the broker -> the module ->
+  iconify, the AppIcon), the hotkey again (back), ARexx HIDE, SHOW, INFO TITLE, QUIT): the same
+  on lean and the final build. It found a4f42159 (INFO crashed the machine).
+- rexxfuzz (400 commands into MUI-Demo): the same 419 lines on lean and the final build (every
+  command's answer and status, 18 hidden after a HIDE, memory -1,448 at the end on both).
+- prefsfuzz (seeds 0-60): all 61 ok on both (lean, the final build, and the builds with the pool); the same windows except seed 51 (lean 310x412, the
+  branch 289x392, the undamaged size: above, 8e39fdd1); the branch keeps 8-176 bytes after some
+  seeds where lean kept none (the key cache's copies of the damaged files' new key texts, freed
+  at expunge; 48 entries at most).
+- failsweep (out of memory at the Nth resource call made from library code during MUI-Demo's
+  start, every N; build 8ef40aac, whose code on this path is the final one's): 1,839 N's, **no
+  reset, no freeze**: 1,000 ok, 791 refused cleanly (no window, ended), 46 without a window
+  and 2 with one not ending by themselves (MUI-Demo waits with its window not opened; ended by
+  ARexx QUIT or killed). Lean over N 1,150-1,952 (its count is 1,952): 516 ok, 238 refused,
+  46 and 3 of those two kinds: the same outcomes. (The build with the object pool: 1,880 N's,
+  the same kinds.)
+- The suite: Amiberry, lean and the final build (mui5) or the build before its last commit (mui3,
+  mcc). mui5: 24 of 24 behave the same. mui3: 87 of 100 the same at the first try, mcc 57 of 58;
+  the 14 that differed (programs known to freeze or time out now and then: thebar-demo2,
+  simplemail, newscoaster, md2, amster, amimodradio, ali, rsgui, jmri, haracz, albin, ilona,
+  pvtree, timetext-demo) were run again on lean and the final build: 13 the same, amster froze
+  on lean and ran on the final build. Memory: first run from boot about 3.3 KB lower for every
+  program; second run within 8 bytes of lean for most; 22 lower; the 8 that were higher at
+  first (makecd, amifritzi, nfsgui, amfinger, nlist-demo, archiver, amigaampprefs,
+  nlist102-demo) run again: makecd 0, five +8, amigaampprefs +72, nlist-demo +208, nlist102-demo +272
+  (probably the key binding cache keeping copies of new texts: bounded, freed at expunge; not
+  traced). YAM, AmIRC and IBrowse behave the same.
+
+
 ## Left open
+
+- **Rewrite for m68k (2026-11-14, after `rw-app`)**: Application done (code -29 %, what a program
+  reaches only through the user or ARexx in Zapp.mui; LoadSeg traces of real programs decided
+  what stays) and creation's real costs found (a settings file written at every quit, settings
+  read as lists): creation 0.78-0.82 of MUI 3.8 on both CPUs (it was 0.97-0.99 on the A600), an
+  empty application 0.17-0.18, memory as lean. **The object pool** was tried and taken out
+  (3.6 % on the 68020 for 1-23 KB per program). **The rest of a settings load** (~40 ms on the
+  68020 with a full global.prefs: the file opened and parsed, two failing Opens for the
+  application's own file, ~200 records) could be parsed once for every application: the MUIC
+  chunk kept in the library and checked by a DOS notification the library owns; and each
+  application keeps a 1,208-byte ZunePrefsNew of its own (a shared copy-on-write one would save
+  that per program). A damaged settings file (prefsfuzz seed 51: every record two bytes short)
+  gives another window size than lean: lean read the byte after a 3-byte ULONG from uninitialised
+  pool memory, the branch reads the zero after the record. Next: String (roadmap).
 
 - **Rewrite for m68k (2026-11-13, after `rw-area`)**: Area done (code -8.8 %, the dispatcher's
   frame 84 -> 68, first program -1.5 KB). The A600's full redraw is now 0.93-0.95 of MUI 3.8 and

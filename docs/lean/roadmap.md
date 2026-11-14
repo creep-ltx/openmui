@@ -378,7 +378,17 @@ where a measured hot loop pays. Order:
    MUI 3.8) and -5 % on the A1200, relayout -4 %, Cycle/Radio set -10 %. Creation on the A600
    stays 0.97-0.99 of MUI 3.8 (not Area's time). Details in
    [README.md](README.md#rewrite-area-2026-11-13-branch-rw-area).
-5. Application.
+5. **Application** (done 2026-11-14, `rw-app`): what a program reaches only through the user or
+   ARexx (ARexx commands, iconify's icon, Exchange's commands and AppMessages, help, About, the
+   settings window) in a module, Zapp.mui, decided by LoadSeg traces of real programs;
+   OM_NEW/OM_SET/OM_GET one attribute table, the input loop in parts, the dispatcher a sorted
+   table; creation's real costs found and cut: no settings file written at every quit,
+   Dataspace by hash and a settings file's records in one block, key bindings parsed once (an
+   object pool was tried and taken out: 3.6 % for 1-23 KB per program). Application code -29 %,
+   library -3.6 KB, first program -3.3 KB, each further as lean; creation 0.78-0.82 of MUI 3.8 on
+   both CPUs (was 0.97-0.99 on the A600), an empty application 0.17-0.18, with a full
+   global.prefs -82 %. Details in
+   [README.md](README.md#rewrite-application-2026-11-14-branch-rw-app).
 6. String.
 7. The text engine (textengine.c).
 8. Image and frame drawing (imspec, frames).
