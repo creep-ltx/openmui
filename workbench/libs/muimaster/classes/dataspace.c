@@ -511,6 +511,9 @@ static UBYTE *ds_record(UBYTE **p, UBYTE *end, ULONG *id, LONG *len)
     return q;
 }
 
+/* A record's data in a block: at least one byte more, a longword multiple */
+#define DS_DATASIZE(len) (((len) + 4) & ~3)
+
 /* A chunk's records (ReadIFF): in one block, linked directly, for a
  * Dataspace or the library's Configdata (no program's subclass that could
  * have its own MUIM_Dataspace_Add; the semaphore is held already), else or
@@ -531,7 +534,7 @@ static __attribute__((noinline)) void ds_read_records(struct IClass *cl,
     {
         for (p = buffer; ds_record(&p, end, &id, &len); )
             if (id && len > 0)
-                size += sizeof(struct Dataspace_Node) + ((len + 3) & ~3);
+                size += sizeof(struct Dataspace_Node) + DS_DATASIZE(len);
         block = AllocVecPooled(data->current_pool, size);
     }
     if (!block)
@@ -547,9 +550,15 @@ static __attribute__((noinline)) void ds_read_records(struct IClass *cl,
     for (p = buffer; (d = ds_record(&p, end, &id, &len)); )
         if (id && len > 0)
         {
+            UBYTE *data_end = (UBYTE *)(node + 1) + len;
+
             CopyMem(d, node + 1, len);
+            /* zeros up to the next record: a damaged file's string
+             * without its terminator ends there (prefsfuzz seed 51) */
+            while (data_end < (UBYTE *)(node + 1) + DS_DATASIZE(len))
+                *data_end++ = 0;
             ds_link(data, node, id, len);
-            node = (APTR)((UBYTE *)(node + 1) + ((len + 3) & ~3));
+            node = (APTR)((UBYTE *)(node + 1) + DS_DATASIZE(len));
         }
 }
 
