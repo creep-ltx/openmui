@@ -179,7 +179,8 @@ static IPTR string_menu_build(Object *obj, struct MUI_StringData *data,
     if (!(x = ops->ext(data))) return 0;
     if (!x->edit_menu)
     {
-        struct NewMenu items[] = {
+        /* static: 120 bytes off the stack frame (MUI_MakeObjectA reads it) */
+        static const struct NewMenu items[] = {
             {NM_TITLE, "Edit", NULL, 0, 0, NULL},
             {NM_ITEM, "Cut", "X", 0, 0, (APTR)1},
             {NM_ITEM, "Copy", "C", 0, 0, (APTR)2},
