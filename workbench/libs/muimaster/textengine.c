@@ -644,6 +644,47 @@ ZTextChunk *zune_text_plain_chunk(ZText *text, CONST_STRPTR s)
 }
 
 /**************************************************************************
+ Point the only chunk of a plain ZText (zune_text_plain_chunk) at s, a
+ plain string of len bytes the caller keeps alive, and measure it: the
+ same result as zune_text_get_bounds() for such a text, without the
+ loops and the RastPort copy. The object must be set up.
+**************************************************************************/
+void zune_text_set_plain(ZText *text, ZTextChunk *chunk, STRPTR s,
+    LONG len, Object *obj)
+{
+    ZTextLine *line = (ZTextLine *)text->lines.mlh_Head;
+    struct TextFont *font = _font(obj);
+    struct RastPort *rp = _rp(obj);
+    struct RastPort copy;
+
+    chunk->str = s;
+    chunk->clen = len;
+    /* a styled line has an overhang or extra pixels to measure */
+    if (chunk->style & (FSF_BOLD | FSF_ITALIC | ZTEXT_STYLE_OUTLINE
+        | ZTEXT_STYLE_SHADOW | ZTEXT_STYLE_GHOST))
+    {
+        zune_text_get_bounds(text, obj);
+        return;
+    }
+    /* TextLength only reads the RastPort; a copy is needed only when
+     * its font or soft style is not the object's plain one */
+    if (rp->Font != font || rp->AlgoStyle)
+    {
+        copy = *rp;
+        if (copy.Font != font)
+            SetFont(&copy, font);
+        if (copy.AlgoStyle)
+            SetSoftStyle(&copy, FS_NORMAL, AskSoftStyle(&copy));
+        rp = &copy;
+    }
+    chunk->cheight = line->lheight = text->height = font->tf_YSize;
+    chunk->cwidth = line->lwidth = text->width = TextLength(rp, s, len);
+    line->centreskip = 0;
+    text->styles = chunk->style;
+    text->nontext = 0;
+}
+
+/**************************************************************************
  Completely frees a ZText. The lists are not unlinked node by node: the
  nodes are only freed (those outside the arena) and the ZText with them.
 **************************************************************************/
@@ -865,47 +906,6 @@ void zune_text_get_bounds(ZText *text, Object *obj)
     /* ... and one pixel to a text using bold or italic anywhere */
     if (text->styles & (FSF_BOLD | FSF_ITALIC))
         text->width++;
-}
-
-/**************************************************************************
- Point the only chunk of a plain ZText (zune_text_plain_chunk) at s, a
- plain string of len bytes the caller keeps alive, and measure it: the
- same result as zune_text_get_bounds() for such a text, without the
- loops and the RastPort copy. The object must be set up.
-**************************************************************************/
-void zune_text_set_plain(ZText *text, ZTextChunk *chunk, STRPTR s,
-    LONG len, Object *obj)
-{
-    ZTextLine *line = (ZTextLine *)text->lines.mlh_Head;
-    struct TextFont *font = _font(obj);
-    struct RastPort *rp = _rp(obj);
-    struct RastPort copy;
-
-    chunk->str = s;
-    chunk->clen = len;
-    /* a styled line has an overhang or extra pixels to measure */
-    if (chunk->style & (FSF_BOLD | FSF_ITALIC | ZTEXT_STYLE_OUTLINE
-        | ZTEXT_STYLE_SHADOW | ZTEXT_STYLE_GHOST))
-    {
-        zune_text_get_bounds(text, obj);
-        return;
-    }
-    /* TextLength only reads the RastPort; a copy is needed only when
-     * its font or soft style is not the object's plain one */
-    if (rp->Font != font || rp->AlgoStyle)
-    {
-        copy = *rp;
-        if (copy.Font != font)
-            SetFont(&copy, font);
-        if (copy.AlgoStyle)
-            SetSoftStyle(&copy, FS_NORMAL, AskSoftStyle(&copy));
-        rp = &copy;
-    }
-    chunk->cheight = line->lheight = text->height = font->tf_YSize;
-    chunk->cwidth = line->lwidth = text->width = TextLength(rp, s, len);
-    line->centreskip = 0;
-    text->styles = chunk->style;
-    text->nontext = 0;
 }
 
 /************************************************************/
