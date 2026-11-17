@@ -5,16 +5,13 @@
 
 */
 
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <exec/types.h>
 #include <exec/memory.h>
 
 #include <clib/alib_protos.h>
-#include <intuition/screens.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/graphics.h>
@@ -28,14 +25,40 @@
 #include "imspec.h"
 #include "support.h"
 #include "listimage.h"
+#include "modules.h"
 
 #include "muimaster_intern.h"
 
-//#define MYDEBUG 1
-#include "debug.h"
+extern struct Library *MUIMasterBase;
 
-/* AddTail without the exec call: the text engine builds a list per text
- * and per line on every parse, a dozen nodes for a list row */
+/**************************************************************************
+ MUI's text engine, rewritten for the 68000 (2026-11, rw-draw).
+
+ A text is parsed into lines of chunks: runs of characters in one style,
+ an image (\33I[spec]), a list image (\33O[ptr]) or an alpha picture
+ (\33A[ptr]). The bounds give each chunk its size, each line the sum of
+ its chunks' widths and the largest height, the text the widest line and
+ the sum of the heights. Drawing walks the lines and chunks with x and y
+ advanced by those sizes.
+
+ The common case first: a text without format codes ("plain": one line,
+ one chunk, left aligned) is copied with its line and chunk in one
+ allocation, measured with one TextLength and drawn with one Text. Every
+ other text's lines and chunks come from 192 bytes inline after the ZText,
+ so a parse usually takes one allocation; lists re-parse their entries on
+ every draw. MUI 4/5's colours and effects are drawn by the module Zmui45
+ (texteffect45.c), which a MUI 3 program never needs.
+**************************************************************************/
+
+/* NewList and AddTail without the library calls: a list row's parse
+ * builds a dozen nodes */
+static inline void zt_newlist(struct MinList *list)
+{
+    list->mlh_Head = (struct MinNode *)&list->mlh_Tail;
+    list->mlh_Tail = NULL;
+    list->mlh_TailPred = (struct MinNode *)&list->mlh_Head;
+}
+
 static inline void zt_addtail(struct MinList *list, struct MinNode *node)
 {
     node->mln_Succ = (struct MinNode *)&list->mlh_Tail;
@@ -43,29 +66,6 @@ static inline void zt_addtail(struct MinList *list, struct MinNode *node)
     list->mlh_TailPred->mln_Succ = node;
     list->mlh_TailPred = node;
 }
-
-extern struct Library *MUIMasterBase;
-
-/* A bit of explanation:
-* The most important thing, after the datastructure, is the bounds
-* calculation (especially chunk width).
-* It will determine where to draw. Drawing is then straightforward.
-* From the beginning:
-* the input string is parsed line by line. Each line is formed of chunks
-* of symbols having the same rendering style. As a special case,
-* HiChar is a single letter chunk underlined like MUI 3.9 (ZTEXT_STYLE_HICHAR);
-* a HiIndex character has the underlined soft style.
-* Size calculation is done by calculating for each line the width and
-* height of each chunk, then line width is the sum of widths and line height
-* is the max height. *Text width will be max line width, and text height
-* will be the sum of line heights.* Remember group layout.
-* Chunk width is affected by soft style of text, and maybe other params.
-* Drawing is done line by line, chunk by chunk, incrementing each time
-* the offsets with chunk width or line height.
-*
-* Italic is looking ugly, no ?
-*/
-
 
 struct zune_context
 {
@@ -86,149 +86,9 @@ struct zune_context
     struct MUI_AlphaData *alpha_data;
 };
 
-ZText *zune_text_new(CONST_STRPTR preparse, CONST_STRPTR content,
-    int argtype, TEXT argbyte);
-char *zune_text_iso_string(ZText * text);
-void zune_text_destroy(ZText * text);
-void zune_text_chunk_new(struct zune_context *zc);
-static int strlenlf(const char *str);
-static CONST_STRPTR parse_escape_code(ZTextLine * ztl,
-    struct zune_context *zc, CONST_STRPTR s);
-static ZTextLine *zune_text_parse_line(CONST_STRPTR * s,
-    struct zune_context *zc, int *argtype, int arg);
-void zune_text_get_bounds(ZText * text, Object * obj);
-/* RGB, alpha and soft effects are uncommon on classic screens. Keep
- * their scratch state out of the ordinary text drawing stack frame. */
-static void draw_effect_chunk(ZText *text, ZTextChunk *chunk_node,
-    Object *obj, struct RastPort *rp, LONG x, LONG right)
-{
-    LONG foreground = -1, background = -1;
-    struct ColorMap *cm = _screen(obj)->ViewPort.ColorMap;
-    if ((chunk_node->effects & ZTEXT_RGBPEN) && (muiRenderInfo(obj)->mri_Flags & MUIMRI_TRUECOLOR))
-    {
-        ULONG rgb = chunk_node->pen;
-        foreground = ObtainBestPen(cm, ((rgb >> 16) & 255) * 0x01010101UL,
-            ((rgb >> 8) & 255) * 0x01010101UL, (rgb & 255) * 0x01010101UL, TAG_DONE);
-        if (foreground >= 0) SetAPen(rp, foreground);
-    }
-    else if (chunk_node->dripen != -1)
-        SetAPen(rp, _dri(obj)->dri_Pens[chunk_node->dripen]);
-    else if (chunk_node->pen != -1 && !(chunk_node->effects & ZTEXT_RGBPEN)) SetAPen(rp, chunk_node->pen);
-    if ((chunk_node->effects & ZTEXT_RGBBACK) && (muiRenderInfo(obj)->mri_Flags & MUIMRI_TRUECOLOR))
-    {
-        ULONG rgb = chunk_node->backpen;
-        background = ObtainBestPen(cm, ((rgb >> 16) & 255) * 0x01010101UL,
-            ((rgb >> 8) & 255) * 0x01010101UL, (rgb & 255) * 0x01010101UL, TAG_DONE);
-    }
-    ULONG mode = (chunk_node->effects & ZTEXT_JAM2) ? JAM2 : JAM1;
-    if (chunk_node->effects & ZTEXT_INVERSE) mode |= INVERSVID;
-    if (mode & JAM2) SetBPen(rp, background >= 0 ? background :
-        (chunk_node->effects & ZTEXT_RGBBACK) ? 0 : (chunk_node->backpen & 0xffffff));
-    if (rp->DrawMode != mode) SetDrMd(rp, mode);
-    {
-        LONG len = chunk_node->clen;
-
-        if (text->truncate && x + chunk_node->cwidth > right + 1)
-        {
-            struct TextExtent te;
-
-            len = (right + 1 > x) ? TextFit(rp, chunk_node->str,
-                len, &te, NULL, 1, right + 1 - x, 32767) : 0;
-        }
-        if (len > 0)
-        {
-            LONG tx = rp->cp_x, ty = rp->cp_y;
-            if (chunk_node->style & ZTEXT_STYLE_OUTLINE)
-            { tx++; ty++; Move(rp, tx, ty); }
-            if (chunk_node->style & (ZTEXT_STYLE_OUTLINE | ZTEXT_STYLE_SHADOW))
-            {
-                ULONG pen = GetAPen(rp);
-                SetAPen(rp, _dri(obj)->dri_Pens[SHADOWPEN]);
-                SetDrMd(rp, JAM1);
-                for (LONG dy = -1; dy <= 1; dy++)
-                    for (LONG dx = -1; dx <= 1; dx++)
-                        if ((dx || dy) && ((chunk_node->style & ZTEXT_STYLE_OUTLINE) || (dx == 1 && dy == 1)))
-                        { Move(rp, tx + dx, ty + dy); Text(rp, chunk_node->str, len); }
-                SetAPen(rp, pen); SetDrMd(rp, mode); Move(rp, tx, ty);
-            }
-            BOOL drawn = FALSE;
-#ifdef ZUNE68_GCC_NATIVE
-            if ((chunk_node->effects & (ZTEXT_RGBPEN | ZTEXT_ALPHA)) &&
-                (muiRenderInfo(obj)->mri_Flags & MUIMRI_TRUECOLOR))
-            {
-                ULONG fg = chunk_node->pen, bg = chunk_node->backpen;
-                ULONG rgb[3];
-                if (!(chunk_node->effects & ZTEXT_RGBPEN))
-                {
-                    GetRGB32(cm, GetAPen(rp), 1, rgb);
-                    fg = (rgb[0] & 0xff000000) >> 8 |
-                        (rgb[1] & 0xff000000) >> 16 | rgb[2] >> 24;
-                }
-                if (!(chunk_node->effects & ZTEXT_RGBBACK))
-                {
-                    GetRGB32(cm, GetBPen(rp), 1, rgb);
-                    bg = (rgb[0] & 0xff000000) >> 8 |
-                        (rgb[1] & 0xff000000) >> 16 | rgb[2] >> 24;
-                }
-                drawn = ZuneTextARGB(rp, chunk_node->str, len,
-                    (fg & 0xffffff) | (chunk_node->backpen & 0xff000000),
-                    (bg & 0xffffff) | 0xff000000);
-            }
-#endif
-            if (!drawn) Text(rp, chunk_node->str, len);
-            if (chunk_node->style & ZTEXT_STYLE_GHOST)
-            {
-                UWORD pattern[] = {0x5555, 0xaaaa};
-                ULONG pen = GetAPen(rp);
-                SetAPen(rp, _dri(obj)->dri_Pens[BACKGROUNDPEN]);
-                UWORD *oldpattern = rp->AreaPtrn; BYTE oldsize = rp->AreaPtSz;
-                rp->AreaPtrn = pattern; rp->AreaPtSz = 1; SetDrMd(rp, JAM1);
-                RectFill(rp, tx, ty - rp->Font->tf_Baseline,
-                    rp->cp_x - 1, ty - rp->Font->tf_Baseline + rp->Font->tf_YSize - 1);
-                rp->AreaPtrn = oldpattern; rp->AreaPtSz = oldsize;
-                SetAPen(rp, pen); SetDrMd(rp, mode);
-            }
-        }
-        /* MUI 3.9 underlines a shortcut one pixel short of
-         * its advance, MUI 3.8 the whole advance (demopix), two rows
-         * below the baseline but within the font
-         * (tests/native/ulprobe.c) */
-        if (len > 0 && (chunk_node->style & ZTEXT_STYLE_HICHAR))
-        {
-            struct TextFont *font = _font(obj);
-            WORD y = rp->cp_y - font->tf_Baseline;
-
-            y += MIN(font->tf_Baseline + 2, font->tf_YSize - 1);
-            RectFill(rp, x, y, x + MAX(chunk_node->cwidth -
-                (ZUNE_APP_MUI38(obj) ? 1 : 2), 0), y);
-        }
-    }
-    if (foreground >= 0) ReleasePen(cm, foreground);
-    if (background >= 0) ReleasePen(cm, background);
-}
-
-void zune_text_draw(ZText * text, Object * obj, WORD left, WORD right,
-    WORD top);
-void zune_text_draw_cursor(ZText * text, Object * obj, WORD left,
-    WORD right, WORD top, LONG cursorx, LONG cursory);
-void zune_text_draw_single(ZText * text, Object * obj, WORD left,
-    WORD right, WORD top, LONG xpos, LONG ypos, BOOL cursor);
-int zune_text_get_char_pos(ZText * text, Object * obj, LONG x, LONG y,
-    struct ZTextLine **line_ptr, struct ZTextChunk **chunk_ptr,
-    int *offset_ptr, int *len_ptr);
-int zune_get_xpos_of_line(ZText * text, Object * obj, LONG y, LONG xpixel);
-int zune_text_get_lines(ZText * text);
-int zune_make_cursor_visible(ZText * text, Object * obj, LONG cursorx,
-    LONG cursory, LONG left, LONG top, LONG right, LONG bottom);
-int zune_text_merge(ZText * text, Object * obj, int x, int y,
-    ZText * tomerge);
-
-
-/* Most texts are one line with a chunk or two. Lines and chunks come from
- * space inline after the ZText, so parsing one usually takes a single
- * allocation; texts are re-parsed on every change and list entry draw. */
 #define ZTEXT_ARENA_SIZE 192
 
+/* size bytes of cleared memory: from the arena while it lasts */
 static APTR ztext_alloc(ZText *text, ULONG size)
 {
     APTR mem;
@@ -250,62 +110,399 @@ static void ztext_free(ZText *text, APTR mem)
         mui_free(mem);
 }
 
+/* Make text a plain text with its one line and chunk, the chunk's string
+ * not set (set_plain_parts' callers do) */
+static __attribute__((noinline)) void set_plain_parts(ZText *text,
+    ZTextLine *line, ZTextChunk *chunk)
+{
+    zt_newlist(&text->lines);
+    zt_newlist(&line->chunklist);
+    zt_addtail(&text->lines, (struct MinNode *)line);
+    line->align = ZTL_LEFT;
+    line->lshift = 0;
+    if (chunk)
+    {
+        zt_addtail(&line->chunklist, (struct MinNode *)chunk);
+        chunk->pen = chunk->dripen = -1;
+        chunk->backpen = 0xff000000;
+    }
+}
+
 /**************************************************************************
-...
+ A ZText in the caller's storage for a plain content (no preparse, no
+ escape, newline or tab, at most 32767 characters): FALSE otherwise.
 **************************************************************************/
 BOOL zune_text_init_plain(ZText *text, ZTextLine *line, ZTextChunk *chunk,
     CONST_STRPTR preparse, CONST_STRPTR content)
 {
     ULONG len = 0;
-    if ((preparse && *preparse) || !content || !*content) return FALSE;
-    while (content[len])
+    UBYTE c;
+
+    if ((preparse && *preparse) || !content || !*content)
+        return FALSE;
+    while ((c = content[len]))
     {
-        if (content[len] == '\33' || content[len] == '\n' ||
-            content[len] == '\t' || len == 32767) return FALSE;
+        if ((c < 32 && (c == '\33' || c == '\n' || c == '\t'))
+            || len == 32767)
+            return FALSE;
         len++;
     }
     memset(text, 0, sizeof(*text));
     memset(line, 0, sizeof(*line));
     memset(chunk, 0, sizeof(*chunk));
-    NewList((struct List *)&text->lines);
-    NewList((struct List *)&line->chunklist);
-    zt_addtail(&text->lines, (struct MinNode *)line);
-    zt_addtail(&line->chunklist, (struct MinNode *)chunk);
-    line->align = ZTL_LEFT;
-    line->lshift = 0;
+    set_plain_parts(text, line, chunk);
     chunk->str = (char *)content;
     chunk->clen = len;
-    chunk->pen = chunk->dripen = -1;
-    chunk->backpen = 0xff000000;
     text->plain = TRUE;
     return TRUE;
+}
+
+/************************************************************/
+/* Parsing */
+/************************************************************/
+
+/**************************************************************************
+ Close the chunk the context has gathered (text from text_start to text,
+ or an image, list image or alpha picture) and add it to the line.
+**************************************************************************/
+static void zune_text_chunk_new(struct zune_context *zc)
+{
+    ZTextChunk *ztc;
+
+    /* No char has been processed so we needn't allocate anything */
+    if (zc->text == zc->text_start)
+        return;
+    /* A text chunk carries its string in the same allocation */
+    if (!zc->imspec && !zc->obj && !zc->alpha_data)
+    {
+        LONG len = zc->text - zc->text_start;
+
+        if (!(ztc = ztext_alloc(zc->ztext, sizeof(ZTextChunk) + len + 1)))
+            return;
+        ztc->str = (char *)(ztc + 1);
+        ztc->clen = len;
+        memcpy(ztc->str, zc->text_start, len);
+        ztc->str[len] = 0;
+        ztc->backpen = zc->backpen;
+    }
+    else if (!(ztc = ztext_alloc(zc->ztext, sizeof(ZTextChunk))))
+        return;
+    ztc->style = zc->style;
+    ztc->effects = zc->effects;
+    ztc->dripen = zc->dripen;
+    ztc->pen = zc->pen;
+    if (zc->imspec)
+    {
+        ztc->spec = zc->imspec;
+        zc->imspec = NULL;
+    }
+    else if (zc->obj)
+    {
+        ztc->obj = zc->obj;
+        ztc->clen = zc->object_width;
+        zc->object_width = 0;
+        zc->obj = NULL;
+    }
+    else if (zc->alpha_data)
+    {
+        ztc->alpha_data = zc->alpha_data;
+        zc->alpha_data = NULL;
+    }
+    zt_addtail(&zc->line->chunklist, (struct MinNode *)ztc);
+}
+
+/* "\33P[...]" and "\33p[...]": the text pen or the background as a pen
+ * number or RRGGBB (MUI 4/5 also AARRGGBB, \33P[AA------] the alpha) */
+static void parse_pen(struct zune_context *zc, char c, char *s, char *end)
+{
+    ULONG length = end - s - 1;
+    LONG pen = 0;
+    BOOL alpha_only = c == 'P' && length == 8 && !strncmp(s + 3, "------", 6);
+    BOOL rgb = !alpha_only && (length == 6 || length == 8);
+    ULONG alpha = 255;
+    IPTR value;
+
+    *end = 0;
+    if (alpha_only)
+    {
+        char hex[3] = {s[1], s[2], 0};
+
+        if (HexToIPTR(hex, &value) >= 0)
+            alpha = value;
+    }
+    else if (rgb)
+    {
+        if (HexToIPTR(s + 1, &value) >= 0)
+        {
+            pen = value & 0xffffff;
+            if (length == 8)
+                alpha = value >> 24;
+        }
+    }
+    else if (StrToLong(s + 1, &pen) < 0)
+        pen = 0;
+    *end = ']';
+    if (c == 'P')
+    {
+        if (!alpha_only)
+        {
+            zc->pen = pen;
+            zc->dripen = -1;
+            zc->effects = (zc->effects & ~ZTEXT_RGBPEN) | (rgb ? ZTEXT_RGBPEN : 0);
+        }
+        zc->backpen = (zc->backpen & 0xffffff) | (alpha << 24);
+        zc->effects = (zc->effects & ~ZTEXT_ALPHA) | (alpha != 255 ? ZTEXT_ALPHA : 0);
+    }
+    else
+    {
+        zc->backpen = (zc->backpen & 0xff000000) | (pen & 0xffffff);
+        zc->effects = (zc->effects & ~ZTEXT_RGBBACK) | (rgb ? ZTEXT_RGBBACK : 0);
+    }
+}
+
+/* One letter's style or effect bit: set (lower case) or cleared */
+static const struct { char c; UBYTE effect; UBYTE bits; } zt_codes[] = {
+    {'U', 0, FSF_UNDERLINED}, {'u', 0, FSF_UNDERLINED}, {'b', 0, FSF_BOLD},
+    {'i', 0, FSF_ITALIC},
+    {'t', 0, ZTEXT_STYLE_OUTLINE}, {'T', 0, ZTEXT_STYLE_OUTLINE},
+    {'s', 0, ZTEXT_STYLE_SHADOW}, {'S', 0, ZTEXT_STYLE_SHADOW},
+    {'g', 0, ZTEXT_STYLE_GHOST}, {'G', 0, ZTEXT_STYLE_GHOST},
+    {'B', 1, ZTEXT_JAM2}, {'F', 1, ZTEXT_JAM2},
+    {'V', 1, ZTEXT_INVERSE}, {'v', 1, ZTEXT_INVERSE},
+    {'h', 1, ZTEXT_HIDEIMAGES}, {'H', 1, ZTEXT_HIDEIMAGES},
+};
+/* which of those set their bit (the others clear it) */
+#define ZT_SETS "ubitsgBVh"
+
+/**************************************************************************
+ An escape code: s points at the letter after the ESC. Returns where the
+ text goes on. Only alignments at the beginning of a line affect it
+ (tested in MUI).
+**************************************************************************/
+static CONST_STRPTR parse_escape_code(ZTextLine *ztl,
+    struct zune_context *zc, CONST_STRPTR s)
+{
+    UBYTE c = *s;
+    char *t;
+    int i;
+
+    zune_text_chunk_new(zc);
+    s++;                        /* s now points after the command */
+    zc->text_start = zc->text = s;
+
+    switch (c)
+    {
+    case 'c':
+        zc->align = ztl->align = ZTL_CENTER;
+        return s;
+    case 'r':
+        zc->align = ztl->align = ZTL_RIGHT;
+        return s;
+    case 'l':
+        zc->align = ztl->align = ZTL_LEFT;
+        return s;
+    case 'n':
+        zc->style = FS_NORMAL;
+        return s;
+    case 'I':                  /* image spec */
+    case 'O':                  /* pointer from List_CreateImage */
+    case 'A':                  /* pointer to MUI_AlphaData */
+    case 'p':
+    case 'P':
+        if (*s != '[' || !(t = strchr(s + 1, ']')))
+            return s;
+        if (c == 'p' || c == 'P')
+        {
+            parse_pen(zc, c, (char *)s, t);
+            zc->text = zc->text_start = t + 1;
+            return t + 1;
+        }
+        *t = 0;
+        if (c == 'I')
+        {
+            char *state = strstr(s + 1, ",STATE=");
+
+            if (state)
+                *state = 0;
+            zc->imspec = StrDup(s + 1);
+            if (state)
+            {
+                if (atoi(state + 7))
+                    zc->effects |= ZTEXT_SELECTED;
+                *state = ',';
+            }
+            *t = ']';
+            zc->text = t;
+            if (zc->imspec)
+                zune_text_chunk_new(zc);
+            zc->effects &= ~ZTEXT_SELECTED;
+        }
+        else
+        {
+            IPTR tmp;
+
+            /* the hex-encoded pointer, "$" optional; a NULL one draws
+             * nothing (MUI's autodocs for CreateImage; MUI 4 for alpha) */
+            if (HexToIPTR(s[1] == '$' ? s + 2 : s + 1, &tmp) != -1)
+            {
+                if (tmp == 0)
+                {
+                    *t = ']';
+                    zc->text = zc->text_start = t + 1;
+                    return t + 1;
+                }
+                if (c == 'O')
+                {
+                    char *comma = strchr(s + 1, ',');
+
+                    zc->obj = ((struct ListImage *)tmp)->obj;
+                    if (comma)
+                        zc->object_width = MAX(0, MIN(32767, atoi(comma + 1)));
+                }
+                else
+                    zc->alpha_data = (struct MUI_AlphaData *)tmp;
+            }
+            *t = ']';
+            zc->text = t;
+            zune_text_chunk_new(zc);
+        }
+        zc->text = zc->text_start = t + 1;
+        return t + 1;
+    case '-':                  /* the rest of the line is not parsed */
+        while (*s && *s != '\n')
+            s++;
+        zc->text = s;
+        return s;
+    }
+    if (c >= '0' && c <= '9')   /* pen */
+    {
+        zc->dripen = c - '0';
+        zc->effects &= ~ZTEXT_RGBPEN;
+        return s;
+    }
+    for (i = 0; i < sizeof(zt_codes) / sizeof(zt_codes[0]); i++)
+        if (zt_codes[i].c == c)
+        {
+            UBYTE bits = zt_codes[i].bits;
+
+            if (zt_codes[i].effect)
+                zc->effects = strchr(ZT_SETS, c) ? zc->effects | bits
+                    : zc->effects & ~bits;
+            else
+                zc->style = strchr(ZT_SETS, c) ? zc->style | bits
+                    : zc->style & ~bits;
+            break;
+        }
+    return s;
+}
+
+/**************************************************************************
+ Parse a line into chunks: an escape code ends the current chunk and
+ changes the context for the next. *s_ptr moves to the '\n' or the end.
+ The string is the parser's own copy: image specs are cut in it.
+**************************************************************************/
+static ZTextLine *zune_text_parse_line(CONST_STRPTR *s_ptr,
+    struct zune_context *zc, int *argtype, int arg)
+{
+    CONST_STRPTR s = *s_ptr;
+    ZTextLine *ztl;
+    UBYTE c;
+
+    if (!(ztl = ztext_alloc(zc->ztext, sizeof(ZTextLine))))
+        return NULL;
+    zt_newlist(&ztl->chunklist);
+    ztl->align = zc->align;
+    zc->text_start = zc->text = s;
+    zc->line = ztl;
+
+    while ((c = *s))
+    {
+        if (c < 32)
+        {
+            if (c == '\n')
+                break;
+            if (c == '\33')
+            {
+                if (!*++s)
+                    break;
+                s = parse_escape_code(ztl, zc, s);
+                continue;
+            }
+            if (c == '\t')
+            {
+                zune_text_chunk_new(zc);
+                zc->text_start = "    ";
+                zc->text = zc->text_start + 4;
+                zune_text_chunk_new(zc);
+                zc->text_start = zc->text = ++s;
+                continue;
+            }
+        }
+        if (*argtype != ZTEXT_ARG_NONE
+            && (*argtype == ZTEXT_ARG_HICHAR ? (arg & 0xff) == c
+                || ((arg >> 8) & 0xff) == c : arg == c))
+        {
+            ULONG styleback = zc->style;
+
+            /* HiChar: that letter as a chunk of its own, underlined as
+             * MUI 3.9 does (ZTEXT_STYLE_HICHAR); HiCharIdx: the next
+             * letter, in the underlined soft style (tests/native/
+             * ulprobe.c) */
+            zune_text_chunk_new(zc);
+            if (*argtype == ZTEXT_ARG_HICHAR)
+            {
+                zc->style |= ZTEXT_STYLE_HICHAR;
+                zc->text_start = s;
+                zc->text = ++s;
+                zune_text_chunk_new(zc);
+                zc->text_start = s;
+                zc->style = styleback;
+                *argtype = ZTEXT_ARG_NONE;
+                continue;
+            }
+            zc->style |= FSF_UNDERLINED;
+            zc->text_start = ++s;
+            zc->text = ++s;
+            zune_text_chunk_new(zc);
+            zc->text_start = s;
+            zc->style = styleback;
+            *argtype = ZTEXT_ARG_NONE;
+        }
+        zc->text = ++s;
+    }
+    zune_text_chunk_new(zc);
+    *s_ptr = s;
+    return ztl;
 }
 
 ZText *zune_text_new(CONST_STRPTR preparse, CONST_STRPTR content,
     int argtype, TEXT argbyte)
 {
     ZText *text;
-    /* STRPTR *lines; */
-    /* int i; */
     STRPTR dup_content;
     char local_content[128];
     CONST_STRPTR buf;
-    int preparse_len;
     struct zune_context zc;
+    ULONG preparse_len, content_len = 0, arena_size = ZTEXT_ARENA_SIZE;
+    BOOL plain;
     int arg;
 
-    if (!content) content = "";
+    if (!content)
+        content = "";
     preparse_len = preparse ? strlen(preparse) : 0;
-    BOOL plain = !preparse_len && argtype == ZTEXT_ARG_NONE;
-    ULONG content_len = 0;
+    plain = !preparse_len && argtype == ZTEXT_ARG_NONE;
     if (plain)
     {
-        for (const UBYTE *p = (const UBYTE *)content; *p; p++, content_len++)
-            if (*p < 32 && (*p == '\33' || *p == '\n' || *p == '\t')) plain = FALSE;
+        const UBYTE *p;
+
+        for (p = (const UBYTE *)content; *p; p++, content_len++)
+            if (*p < 32 && (*p == '\33' || *p == '\n' || *p == '\t'))
+                plain = FALSE;
     }
-    else content_len = strlen(content);
-    if (content_len > 32767) plain = FALSE;
-    ULONG arena_size = ZTEXT_ARENA_SIZE;
+    else
+        content_len = strlen(content);
+    if (content_len > 32767)
+        plain = FALSE;
     if (plain)
         arena_size = ((sizeof(ZTextLine) + 3) & ~3UL) +
             (content_len ? (sizeof(ZTextChunk) + content_len + 4) & ~3UL : 0);
@@ -313,35 +510,29 @@ ZText *zune_text_new(CONST_STRPTR preparse, CONST_STRPTR content,
     if (!(text = AllocVec(sizeof(ZText) + arena_size, MEMF_ANY)))
         return NULL;
     text->width = text->height = 0;
-    text->styles = 0;
-    text->nontext = 0;
-    text->truncate = 0;
+    text->styles = text->nontext = text->truncate = 0;
     text->plain = plain && content_len;
-    NewList((struct List *)&text->lines);
     text->arena_next = (UBYTE *)(text + 1);
     text->arena_end = text->arena_next + arena_size;
 
     if (plain)
     {
         ZTextLine *line = ztext_alloc(text, sizeof(*line));
-        NewList((struct List *)&line->chunklist);
-        line->align = ZTL_LEFT;
-        line->lshift = 0;
-        zt_addtail(&text->lines, (struct MinNode *)line);
+        ZTextChunk *chunk = NULL;
+
         if (content_len)
         {
-            ZTextChunk *chunk = ztext_alloc(text, sizeof(*chunk) + content_len + 1);
+            chunk = ztext_alloc(text, sizeof(*chunk) + content_len + 1);
             chunk->str = (char *)(chunk + 1);
             chunk->clen = content_len;
-            chunk->pen = chunk->dripen = -1;
-            chunk->backpen = 0xff000000;
             memcpy(chunk->str, content, content_len + 1);
-            zt_addtail(&line->chunklist, (struct MinNode *)chunk);
         }
+        set_plain_parts(text, line, chunk);
         return text;
     }
+    zt_newlist(&text->lines);
 
-    /* The parser only needs a temporary copy; keep short ones on stack */
+    /* The parser cuts its own copy; short ones on the stack */
     if (preparse_len + content_len < sizeof(local_content))
         dup_content = (STRPTR)local_content;
     else if (!(dup_content = mui_alloc(preparse_len + content_len + 1)))
@@ -349,64 +540,43 @@ ZText *zune_text_new(CONST_STRPTR preparse, CONST_STRPTR content,
         mui_free(text);
         return NULL;
     }
-
     if (preparse_len)
-        strcpy(dup_content, preparse);
+        memcpy(dup_content, preparse, preparse_len);
     strcpy(&dup_content[preparse_len], content);
-
     buf = dup_content;
 
+    memset(&zc, 0, sizeof(zc));
     zc.ztext = text;
-    zc.pen = -1;
-    zc.dripen = -1;
-    zc.style = FS_NORMAL;
-    zc.effects = 0;
+    zc.pen = zc.dripen = -1;
     zc.backpen = 0xff000000;
-    zc.object_width = 0;
     zc.align = ZTL_LEFT;
-    zc.imspec = NULL;
-    zc.obj = NULL;
-    zc.alpha_data = NULL;
+    /* HiChar: lower and upper case in arg */
+    arg = argtype == ZTEXT_ARG_HICHAR
+        ? ToLower(argbyte) | (ToUpper(argbyte) << 8) : argbyte;
 
-    if (argtype == ZTEXT_ARG_HICHAR)
+    for (;;)
     {
-        /* store lower and upper case in arg */
-        arg = ToLower(argbyte) | (ToUpper(argbyte) << 8);
-    }
-    else
-        arg = argbyte;
+        struct ZTextLine *ztl = zune_text_parse_line(&buf, &zc, &argtype, arg);
 
-    /* the other elements are done by other functions */
-
-    while (1)
-    {
-        struct ZTextLine *ztl =
-            zune_text_parse_line(&buf, &zc, &argtype, arg);
-        if (ztl)
-            zt_addtail(&text->lines, (struct MinNode *)ztl);
-        else
+        if (!ztl)
             break;
-        if (*buf == '\n')
-        {
-            buf++;
-            continue;
-        }
-        if (!(*buf))
+        zt_addtail(&text->lines, (struct MinNode *)ztl);
+        if (*buf != '\n')
             break;
+        buf++;
     }
-
     if (dup_content != (STRPTR)local_content)
         mui_free(dup_content);
     return text;
 }
 
 /**************************************************************************
-A parse that is kept (a Text's, from its setup until its cleanup) used a
-part of its 192-byte arena: a button title with a shortcut ("_Ok": a line
-and two chunks) about 120 bytes, a centred word 80. Copy the header and
-the used arena into a block of their size and move every pointer into the
-old block (the list links, the inline chunk strings) by the distance;
-lines and chunks outside the arena stay where they are.
+ A parse that is kept (a Text's, from its setup until its cleanup) used a
+ part of its 192-byte arena: a button title with a shortcut ("_Ok": a line
+ and two chunks) about 120 bytes, a centred word 80. Copy the header and
+ the used arena into a block of their size and move every pointer into the
+ old block (the list links, the inline chunk strings) by the distance;
+ lines and chunks outside the arena stay where they are.
 **************************************************************************/
 #define ZT_MOVED(p) (((UBYTE *)(p) >= lo && (UBYTE *)(p) < hi) \
     ? (APTR)((UBYTE *)(p) + d) : (APTR)(p))
@@ -451,9 +621,9 @@ ZText *zune_text_compact(ZText *text)
 #undef ZT_MOVED
 
 /**************************************************************************
-If a ZText holds nothing but the plain string s (one line, one text
-chunk), return that chunk, so that zune_text_set_plain() can give it a
-new plain string without parsing; otherwise NULL.
+ If a ZText holds nothing but the plain string s (one line, one text
+ chunk), return that chunk, so that zune_text_set_plain() can give it a
+ new plain string without parsing; otherwise NULL.
 **************************************************************************/
 ZTextChunk *zune_text_plain_chunk(ZText *text, CONST_STRPTR s)
 {
@@ -474,497 +644,64 @@ ZTextChunk *zune_text_plain_chunk(ZText *text, CONST_STRPTR s)
 }
 
 /**************************************************************************
-Point the only chunk of a plain ZText (zune_text_plain_chunk) at s, a
-plain string of len bytes the caller keeps alive, and measure it: the
-same result as zune_text_get_bounds() for such a text, without the
-loops and the RastPort copy. The object must be set up.
+ Completely frees a ZText. The lists are not unlinked node by node: the
+ nodes are only freed (those outside the arena) and the ZText with them.
 **************************************************************************/
-void zune_text_set_plain(ZText *text, ZTextChunk *chunk, STRPTR s,
-    LONG len, Object *obj)
+void zune_text_destroy(ZText *text)
 {
-    ZTextLine *line = (ZTextLine *)text->lines.mlh_Head;
-    struct TextFont *font = _font(obj);
-    struct RastPort *rp = _rp(obj);
-    struct RastPort copy;
+    struct MinNode *ln, *lnext, *cn, *cnext;
 
-    chunk->str = s;
-    chunk->clen = len;
-    /* a bold or italic line has an overhang to measure */
-    if (chunk->style & (FSF_BOLD | FSF_ITALIC | ZTEXT_STYLE_OUTLINE | ZTEXT_STYLE_SHADOW | ZTEXT_STYLE_GHOST))
+    for (ln = text->lines.mlh_Head; (lnext = ln->mln_Succ); ln = lnext)
     {
-        zune_text_get_bounds(text, obj);
-        return;
-    }
-    /* TextLength only reads the RastPort; a copy is needed only when
-     * its font or soft style is not the object's plain one */
-    if (rp->Font != font || rp->AlgoStyle)
-    {
-        copy = *rp;
-        if (copy.Font != font)
-            SetFont(&copy, font);
-        if (copy.AlgoStyle)
-            SetSoftStyle(&copy, FS_NORMAL, AskSoftStyle(&copy));
-        rp = &copy;
-    }
-    chunk->cheight = font->tf_YSize;
-    chunk->cwidth = TextLength(rp, s, len);
-    line->lheight = font->tf_YSize;
-    line->lwidth = chunk->cwidth;
-    line->centreskip = 0;
-    text->width = chunk->cwidth;
-    text->height = font->tf_YSize;
-    text->styles = chunk->style;
-    text->nontext = 0;
-    if (text->styles & (FSF_BOLD | FSF_ITALIC))
-        text->width++;
-}
-
-/**************************************************************************
-Completely frees a ZText
-**************************************************************************/
-void zune_text_destroy(ZText * text)
-{
-    struct ZTextLine *ztl;
-    struct ZTextChunk *ztc;
-
-    while ((ztl = (struct ZTextLine *)RemTail((struct List *)&text->lines)))
-    {
-        while ((ztc =
-                (struct ZTextChunk *)RemTail((struct List *)&ztl->
-                    chunklist)))
+        for (cn = ((ZTextLine *)ln)->chunklist.mlh_Head;
+            (cnext = cn->mln_Succ); cn = cnext)
         {
+            ZTextChunk *ztc = (ZTextChunk *)cn;
+
             /* String chunks hold their text inline (zune_text_chunk_new) */
             if (ztc->spec)
             {
-                FreeVec((APTR) ztc->spec);
+                FreeVec((APTR)ztc->spec);
                 if (ztc->image)
-                {
                     zune_imspec_cleanup(ztc->image);
-                }
             }
             ztext_free(text, ztc);
         }
-        ztext_free(text, ztl);
+        ztext_free(text, ln);
     }
     mui_free(text);
-}
-
-/************************************************************/
-/* Parsing */
-/************************************************************/
-
-
-/**************************************************************************
-Allocate and initialize a new text chunk and add it to the list.
-The context contains the values for the chunk to be created.
-**************************************************************************/
-void zune_text_chunk_new(struct zune_context *zc)
-{
-    ZTextChunk *ztc;
-
-    /* No char has been processed so we needn't allocate anything */
-    if (zc->text == zc->text_start)
-        return;
-
-    /* A text chunk carries its string in the same allocation, which
-     * halves allocator traffic when lists re-parse entries per draw */
-    if (!zc->imspec && !zc->obj && !zc->alpha_data)
-    {
-        LONG len = zc->text - zc->text_start;
-
-        if (!(ztc = ztext_alloc(zc->ztext, sizeof(ZTextChunk) + len + 1)))
-            return;
-        ztc->str = (char *)(ztc + 1);
-        ztc->clen = len;
-        memcpy(ztc->str, zc->text_start, len);
-        ztc->str[len] = 0;
-    }
-    else if (!(ztc = ztext_alloc(zc->ztext, sizeof(ZTextChunk))))
-        return;
-
-    ztc->style = zc->style;
-    ztc->effects = zc->effects;
-    if (ztc->str) ztc->backpen = zc->backpen;
-    ztc->dripen = zc->dripen;
-    ztc->pen = zc->pen;
-    if (zc->imspec)
-    {
-        D(bug("zune_text_chunk_new: imspec %s\n", zc->imspec));
-        ztc->spec = zc->imspec;
-        zc->imspec = NULL;
-
-        zt_addtail(&zc->line->chunklist, (struct MinNode *)ztc);
-    }
-    else if (zc->obj)
-    {
-        ztc->obj = zc->obj;
-        ztc->clen = zc->object_width;
-        zc->object_width = 0;
-        zc->obj = NULL;
-
-        zt_addtail(&zc->line->chunklist, (struct MinNode *)ztc);
-    }
-    else if (zc->alpha_data)
-    {
-        ztc->alpha_data = zc->alpha_data;
-        zc->alpha_data = NULL;
-
-        zt_addtail(&zc->line->chunklist, (struct MinNode *)ztc);
-    }
-    else
-    {
-        D(bug("zune_text_chunk_new: string %s\n", ztc->str));
-
-        zt_addtail(&zc->line->chunklist, (struct MinNode *)ztc);
-    }
-}
-
-
-/**************************************************************************
-Calculates the length of the string excluding line feed or 0 byte
-**************************************************************************/
-static int strlenlf(const char *str)
-{
-    char c;
-    int len = 0;
-    while ((c = *str))
-    {
-        if (c == '\n')
-            break;
-        len++;
-        str++;
-    }
-    return len;
-}
-
-/**************************************************************************
-Note: Only alignments at the beginning of a line should affect this line
-(tested in MUI)
-**************************************************************************/
-static CONST_STRPTR parse_escape_code(ZTextLine * ztl,
-    struct zune_context *zc, CONST_STRPTR s)
-{
-    unsigned char c;
-    c = *s;
-
-    zune_text_chunk_new(zc);
-    s++;                        /* s now points after the command */
-    zc->text_start = zc->text = s;
-
-    switch (c)
-    {
-    case 'c':
-        zc->align = ztl->align = ZTL_CENTER;
-        break;
-    case 'r':
-        zc->align = ztl->align = ZTL_RIGHT;
-        break;
-    case 'l':
-        zc->align = ztl->align = ZTL_LEFT;
-        break;
-    case 'n':
-        zc->style = FS_NORMAL;
-        break;
-    case 'U':
-        zc->style &= ~FSF_UNDERLINED;
-        break;
-    case 'u':
-        zc->style |= FSF_UNDERLINED;
-        break;
-    case 'b':
-        zc->style |= FSF_BOLD;
-        break;
-    case 'i':
-        zc->style |= FSF_ITALIC;
-        break;
-    case 't': zc->style |= ZTEXT_STYLE_OUTLINE; break;
-    case 'T': zc->style &= ~ZTEXT_STYLE_OUTLINE; break;
-    case 's': zc->style |= ZTEXT_STYLE_SHADOW; break;
-    case 'S': zc->style &= ~ZTEXT_STYLE_SHADOW; break;
-    case 'g': zc->style |= ZTEXT_STYLE_GHOST; break;
-    case 'G': zc->style &= ~ZTEXT_STYLE_GHOST; break;
-    case 'B': zc->effects |= ZTEXT_JAM2; break;
-    case 'F': zc->effects &= ~ZTEXT_JAM2; break;
-    case 'V': zc->effects |= ZTEXT_INVERSE; break;
-    case 'v': zc->effects &= ~ZTEXT_INVERSE; break;
-    case 'h': zc->effects |= ZTEXT_HIDEIMAGES; break;
-    case 'H': zc->effects &= ~ZTEXT_HIDEIMAGES; break;
-    case 'I':                  /* image spec */
-        {
-            char *t;
-
-            if (*s != '[')
-                break;
-            s++;
-            /* s points on the first char of imagespec.
-             *  Extract it to the trailing ']'.
-             */
-            t = strchr(s, ']');
-            if (t == NULL)
-                break;
-            *t = 0;
-            D(bug("imspec = %s\n", s));
-            char *state = strstr(s, ",STATE=");
-            if (state) *state = 0;
-            zc->imspec = StrDup(s);
-            if (state)
-            {
-                if (atoi(state + 7)) zc->effects |= ZTEXT_SELECTED;
-                *state = ',';
-            }
-            *t = ']';
-            zc->text = t;
-            if (zc->imspec) zune_text_chunk_new(zc);
-            zc->effects &= ~ZTEXT_SELECTED;
-            zc->text = zc->text_start = t + 1;
-            break;
-        }
-    case 'O':                  /* pointer from List_CreateImage */
-        {
-            struct ListImage *li;
-            IPTR tmp;
-            char *t;
-
-            if (*s != '[')
-                break;
-            s++;
-            /* s points on the first char of the hex-encoded pointer created
-             * by MUIM_List_CreateImage. Extract it to the trailing ']'.
-             */
-            t = strchr(s, ']');
-            if (t == NULL)
-                break;
-            *t = 0;
-            if (HexToIPTR(*s == '$' ? s + 1 : s, &tmp) != -1)
-            {
-                D(bug("listimage = %p\n", tmp));
-                if (tmp == 0)
-                {
-                    /* According to the MUI autodocs, the result of
-                     * CreateImage may be NULL, but then \33O[] has to
-                     * simply draw nothing, so it shouldn't be considered
-                     * an error.
-                     * Without this, AROS crashed, if 00000000 was used.
-                     */
-                    *t = ']';
-                    zc->text = t + 1;
-                    zc->text_start = t + 1;
-                    break;
-                }
-                li = (struct ListImage *)tmp;
-                zc->obj = li->obj;
-                char *comma = strchr(s, ',');
-                if (comma) zc->object_width = MAX(0, MIN(32767, atoi(comma + 1)));
-            }
-            *t = ']';
-            zc->text = t;
-            zune_text_chunk_new(zc);
-            zc->text = zc->text_start = t + 1;
-            break;
-        }
-    case 'A':                  /* pointer to MUI_AlphaData */
-        {
-            IPTR tmp;
-            char *t;
-
-            if (*s != '[')
-                break;
-            s++;
-            /* s points on the first char of the hex-encoded pointer created
-             * by MUIM_List_CreateImage. Extract it to the trailing ']'.
-             */
-            t = strchr(s, ']');
-            if (t == NULL)
-                break;
-            *t = 0;
-            if (HexToIPTR(*s == '$' ? s + 1 : s, &tmp) != -1)
-            {
-                D(bug("image = %p\n", tmp));
-                if (tmp == 0)
-                {
-                    /* Draw nothing if image pointer is NULL, as MUI 4 does
-                     * (although undocumented)
-                     */
-                    *t = ']';
-                    zc->text = t + 1;
-                    zc->text_start = t + 1;
-                    break;
-                }
-                zc->alpha_data = (struct MUI_AlphaData *)tmp;
-            }
-            *t = ']';
-            zc->text = t;
-            zune_text_chunk_new(zc);
-            zc->text = zc->text_start = t + 1;
-            break;
-        }
-    case 'p':
-    case 'P':
-        {
-            if (*s != '[') break;
-            char *end = strchr(s + 1, ']');
-            if (!end) break;
-            ULONG length = end - (char *)s - 1;
-            LONG pen = 0;
-            BOOL alpha_only = c == 'P' && length == 8 && !strncmp(s + 3, "------", 6);
-            BOOL rgb = !alpha_only && (length == 6 || length == 8);
-            ULONG alpha = 255;
-            char saved = *end; *end = 0;
-            if (alpha_only)
-            {
-                char hex[3] = {s[1], s[2], 0}; IPTR value;
-                if (HexToIPTR(hex, &value) >= 0) alpha = value;
-            }
-            else if (rgb)
-            {
-                IPTR color;
-                if (HexToIPTR(s + 1, &color) >= 0)
-                { pen = color & 0xffffff; if (length == 8) alpha = color >> 24; }
-            }
-            else if (StrToLong(s + 1, &pen) < 0) pen = 0;
-            *end = saved;
-            if (c == 'P')
-            {
-                if (!alpha_only)
-                {
-                    zc->pen = pen; zc->dripen = -1;
-                    zc->effects = (zc->effects & ~ZTEXT_RGBPEN) | (rgb ? ZTEXT_RGBPEN : 0);
-                }
-                zc->backpen = (zc->backpen & 0xffffff) | (alpha << 24);
-                zc->effects = (zc->effects & ~ZTEXT_ALPHA) | (alpha != 255 ? ZTEXT_ALPHA : 0);
-            }
-            else
-            {
-                zc->backpen = (zc->backpen & 0xff000000) | (pen & 0xffffff);
-                zc->effects = (zc->effects & ~ZTEXT_RGBBACK) | (rgb ? ZTEXT_RGBBACK : 0);
-            }
-            zc->text = zc->text_start = end + 1;
-            break;
-        }
-    case '-':
-        zc->text += strlenlf(s);
-        break;                  /* disable engine */
-
-    default:                   /* some other ESC code? */
-        if (isdigit(c))         /* pen */
-        {
-            zc->dripen = c - '0';
-            zc->effects &= ~ZTEXT_RGBPEN;
-        }
-        break;
-    }
-    return zc->text;
-}
-
-/**************************************************************************
-Parse a text line, and create text chunks.
-Whenever an escape code is encountered, the current chunk
-is terminated, and the escape parameters are stacked until
-a normal character is read. Then a new chunk begins with this char.
-
-s_ptr is a pointer to the text string. After this function has been
-executed it is changed to point to the end of the string (either the '\n'
-or 0 byte)
-
-This is probably a function to rewrite to deal with wide chars.
-
-Note that the contents in s_ptr is overwritten.
-**************************************************************************/
-static ZTextLine *zune_text_parse_line(CONST_STRPTR * s_ptr,
-    struct zune_context *zc, int *argtype, int arg)
-{
-    CONST_STRPTR s;
-    UBYTE c;
-
-    ZTextLine *ztl;
-
-    if (!s_ptr)
-        return NULL;
-    if (!(s = *s_ptr))
-        return NULL;
-    if (!(ztl = ztext_alloc(zc->ztext, sizeof(ZTextLine))))
-        return NULL;
-    NewList((struct List *)&ztl->chunklist);
-
-    ztl->align = zc->align;
-    ztl->lshift = 0;
-    zc->text_start = zc->text = s;
-    zc->line = ztl;
-
-    while ((c = *s))
-    {
-        if (c < 32)
-        {
-            if (c == '\n')
-                break;
-
-            if (c == '\33')
-            {
-                s++;
-                if (*s == 0)
-                    break;
-                s = parse_escape_code(ztl, zc, s);
-                continue;
-            }
-
-            if (c == '\t')
-            {
-                zune_text_chunk_new(zc);
-                zc->text_start = "    ";
-                zc->text = zc->text_start + 4;
-                zune_text_chunk_new(zc);
-                zc->text_start = zc->text = ++s;
-                continue;
-            }
-
-        }
-
-        if (*argtype == ZTEXT_ARG_HICHAR && (((arg & 0xff) == c)
-                || (((arg >> 8) & 0xff) == c)))
-        {
-            ULONG styleback = zc->style;
-            zune_text_chunk_new(zc);
-            zc->style |= ZTEXT_STYLE_HICHAR;
-            zc->text_start = s;
-            zc->text = ++s;
-            zune_text_chunk_new(zc);
-            zc->text_start = s;
-            zc->style = styleback;
-            *argtype = ZTEXT_ARG_NONE;
-            continue;
-        }
-
-        if (*argtype == ZTEXT_ARG_HICHARIDX && arg == c)
-        {
-            ULONG styleback = zc->style;
-            /* underline next char; unlike HiChar, MUI 3.9 uses the
-             * soft style here (tests/native/ulprobe.c) */
-            zune_text_chunk_new(zc);
-            zc->style |= FSF_UNDERLINED;
-            zc->text_start = ++s;
-            zc->text = ++s;
-            zune_text_chunk_new(zc);
-            zc->text_start = s;
-            zc->style = styleback;
-            *argtype = ZTEXT_ARG_NONE;
-        }
-
-        zc->text = ++s;
-    }                           /* while */
-    zune_text_chunk_new(zc);
-    *s_ptr = s;
-    return ztl;
 }
 
 /************************************************************/
 /* Bounds */
 /************************************************************/
 
-void zune_text_get_bounds(ZText * text, Object * obj)
+/* The extent of a chunk in its bold or italic soft style, on the copy of
+ * the RastPort (made now if *rpp is not the copy yet: the style must not
+ * touch the object's own) */
+static __attribute__((noinline)) struct RastPort *style_extent(
+    struct RastPort *rp, struct RastPort *copy, ZTextChunk *chunk,
+    struct TextExtent *te)
+{
+    if (rp != copy)
+    {
+        *copy = *rp;
+        rp = copy;
+    }
+    SetSoftStyle(rp, chunk->style & ~ZTEXT_STYLE_HICHAR, AskSoftStyle(rp));
+    TextExtent(rp, chunk->str, chunk->clen, te);
+    SetSoftStyle(rp, FS_NORMAL, AskSoftStyle(rp));
+    return rp;
+}
+
+#define TE_OVERHANG(te) ((te).te_Extent.MaxX - (te).te_Extent.MinX + 1 \
+    - (te).te_Width)
+
+void zune_text_get_bounds(ZText *text, Object *obj)
 {
     struct RastPort copy, *rp = &copy;
     struct TextFont *font;
-
+    struct TextExtent te;
     ZTextLine *line_node;
     ZTextChunk *chunk_node;
     WORD base_width;
@@ -1004,70 +741,65 @@ void zune_text_get_bounds(ZText * text, Object * obj)
         SetFont(&copy, font);
     }
 
-    for (line_node = (ZTextLine *) text->lines.mlh_Head;
+    for (line_node = (ZTextLine *)text->lines.mlh_Head;
         line_node->node.mln_Succ;
-        line_node = (ZTextLine *) line_node->node.mln_Succ)
+        line_node = (ZTextLine *)line_node->node.mln_Succ)
     {
         line_node->lheight = font->tf_YSize;
         line_node->lwidth = 0;
         line_node->centreskip = 0;
         line_node->lshift = 0;
 
-        for (chunk_node = (ZTextChunk *) line_node->chunklist.mlh_Head;
+        for (chunk_node = (ZTextChunk *)line_node->chunklist.mlh_Head;
             chunk_node->node.mln_Succ;
-            chunk_node = (ZTextChunk *) chunk_node->node.mln_Succ)
+            chunk_node = (ZTextChunk *)chunk_node->node.mln_Succ)
         {
-            if (!chunk_node->str)
-                text->nontext = 1;
-            if (chunk_node->spec)
+            if (chunk_node->str)
             {
-                struct MUI_MinMax minmax;
-
-                chunk_node->image =
-                    zune_imspec_setup((IPTR) chunk_node->spec,
-                    muiRenderInfo(obj));
-                if (!chunk_node->image)
-                    return;
-                zune_imspec_askminmax(chunk_node->image, &minmax);
-                chunk_node->cwidth = minmax.DefWidth;
-                chunk_node->cheight = minmax.DefHeight;
-                line_node->lheight =
-                    MAX(line_node->lheight, chunk_node->cheight);
-            }
-            else if (chunk_node->obj)
-            {
-                struct MUI_MinMax MinMax;
-                struct MUIP_AskMinMax amm = { MUIM_AskMinMax, &MinMax };
-
-                /* Area points the message at the object's own minmax and
-                 * __area_finish_minmax updates it in place. */
-                DoMethodA(chunk_node->obj, (Msg)&amm);
-                __area_finish_minmax(chunk_node->obj, amm.MinMaxInfo);
-                chunk_node->cwidth = chunk_node->clen ? chunk_node->clen : amm.MinMaxInfo->MinWidth;
-                chunk_node->cheight = amm.MinMaxInfo->DefHeight;
-                line_node->lheight =
-                    MAX(line_node->lheight, chunk_node->cheight);
-            }
-            else if (!chunk_node->str && chunk_node->alpha_data)
-            {
-                chunk_node->cwidth = chunk_node->alpha_data->width;
-                chunk_node->cheight = chunk_node->alpha_data->height;
-                line_node->lheight =
-                    MAX(line_node->lheight, chunk_node->cheight);
-            }
-            else if (chunk_node->str)
-            {
-                chunk_node->cheight = font->tf_YSize;
-                chunk_node->cwidth =
-                    TextLength(rp, chunk_node->str, chunk_node->clen);
                 LONG extra = (chunk_node->style & ZTEXT_STYLE_OUTLINE) ? 2 :
-                    (chunk_node->style & (ZTEXT_STYLE_SHADOW | ZTEXT_STYLE_GHOST)) ? 1 : 0;
-                chunk_node->cheight += extra; chunk_node->cwidth += extra;
-                line_node->lheight = MAX(line_node->lheight, chunk_node->cheight);
+                    (chunk_node->style & (ZTEXT_STYLE_SHADOW
+                    | ZTEXT_STYLE_GHOST)) ? 1 : 0;
+
+                chunk_node->cheight = font->tf_YSize + extra;
+                chunk_node->cwidth = TextLength(rp, chunk_node->str,
+                    chunk_node->clen) + extra;
                 text->styles |= chunk_node->style;
-                D(bug("zune_text_get_bounds(%s,%x) => cwidth=%d\n",
-                        chunk_node->str, obj, chunk_node->cwidth));
             }
+            else
+            {
+                text->nontext = 1;
+                if (chunk_node->spec)
+                {
+                    struct MUI_MinMax minmax;
+
+                    chunk_node->image = zune_imspec_setup(
+                        (IPTR)chunk_node->spec, muiRenderInfo(obj));
+                    if (!chunk_node->image)
+                        return;
+                    zune_imspec_askminmax(chunk_node->image, &minmax);
+                    chunk_node->cwidth = minmax.DefWidth;
+                    chunk_node->cheight = minmax.DefHeight;
+                }
+                else if (chunk_node->obj)
+                {
+                    struct MUI_MinMax MinMax;
+                    struct MUIP_AskMinMax amm = { MUIM_AskMinMax, &MinMax };
+
+                    /* Area points the message at the object's own minmax
+                     * and __area_finish_minmax updates it in place. */
+                    DoMethodA(chunk_node->obj, (Msg)&amm);
+                    __area_finish_minmax(chunk_node->obj, amm.MinMaxInfo);
+                    chunk_node->cwidth = chunk_node->clen ? chunk_node->clen
+                        : amm.MinMaxInfo->MinWidth;
+                    chunk_node->cheight = amm.MinMaxInfo->DefHeight;
+                }
+                else if (chunk_node->alpha_data)
+                {
+                    chunk_node->cwidth = chunk_node->alpha_data->width;
+                    chunk_node->cheight = chunk_node->alpha_data->height;
+                }
+            }
+            line_node->lheight = MAX(line_node->lheight, chunk_node->cheight);
             line_node->lwidth += chunk_node->cwidth;
         }
 
@@ -1075,26 +807,14 @@ void zune_text_get_bounds(ZText * text, Object * obj)
          * part of its TextExtent beyond the advance (tests/native/
          * textstyles.c) */
         base_width = line_node->lwidth;
-        chunk_node = (ZTextChunk *) line_node->chunklist.mlh_TailPred;
+        chunk_node = (ZTextChunk *)line_node->chunklist.mlh_TailPred;
         while (chunk_node->node.mln_Pred && !chunk_node->str)
-            chunk_node = (ZTextChunk *) chunk_node->node.mln_Pred;
+            chunk_node = (ZTextChunk *)chunk_node->node.mln_Pred;
         if (chunk_node->node.mln_Pred && chunk_node->str
             && (chunk_node->style & (FSF_BOLD | FSF_ITALIC)))
         {
-            struct TextExtent te;
-
-            if (rp != &copy)
-            {
-                /* the style must not touch the object's RastPort */
-                copy = *rp;
-                rp = &copy;
-            }
-            SetSoftStyle(rp, chunk_node->style & ~ZTEXT_STYLE_HICHAR,
-                AskSoftStyle(rp));
-            TextExtent(rp, chunk_node->str, chunk_node->clen, &te);
-            SetSoftStyle(rp, FS_NORMAL, AskSoftStyle(rp));
-            line_node->centreskip = te.te_Extent.MaxX - te.te_Extent.MinX
-                + 1 - te.te_Width;
+            rp = style_extent(rp, &copy, chunk_node, &te);
+            line_node->centreskip = TE_OVERHANG(te);
             line_node->lwidth += line_node->centreskip;
             /* a line in one style is centred on its advance alone, a
              * line ending in another style with the overhang
@@ -1106,32 +826,21 @@ void zune_text_get_bounds(ZText * text, Object * obj)
          * plus every such part's overhang plus one (demopix: MUI-Demo's
          * title, three bold letters, sits two pixels left of MUI 3.9's
          * place); the sizes stay as above */
-        if ((text->styles & (FSF_BOLD | FSF_ITALIC)) && obj
+        if ((text->styles & (FSF_BOLD | FSF_ITALIC))
             && (_flags(obj) & MADF_SETUP) && ZUNE_APP_MUI38(obj))
         {
             LONG extra = 0;
             BOOL styled = FALSE;
 
-            for (chunk_node = (ZTextChunk *) line_node->chunklist.mlh_Head;
+            for (chunk_node = (ZTextChunk *)line_node->chunklist.mlh_Head;
                 chunk_node->node.mln_Succ;
-                chunk_node = (ZTextChunk *) chunk_node->node.mln_Succ)
+                chunk_node = (ZTextChunk *)chunk_node->node.mln_Succ)
             {
-                struct TextExtent te;
-
                 if (!chunk_node->str
                     || !(chunk_node->style & (FSF_BOLD | FSF_ITALIC)))
                     continue;
-                if (rp != &copy)
-                {
-                    copy = *rp;
-                    rp = &copy;
-                }
-                SetSoftStyle(rp, chunk_node->style & ~ZTEXT_STYLE_HICHAR,
-                    AskSoftStyle(rp));
-                TextExtent(rp, chunk_node->str, chunk_node->clen, &te);
-                SetSoftStyle(rp, FS_NORMAL, AskSoftStyle(rp));
-                extra += te.te_Extent.MaxX - te.te_Extent.MinX + 1
-                    - te.te_Width;
+                rp = style_extent(rp, &copy, chunk_node, &te);
+                extra += TE_OVERHANG(te);
                 styled = TRUE;
             }
             if (styled)
@@ -1140,21 +849,11 @@ void zune_text_get_bounds(ZText * text, Object * obj)
             /* and moves a line starting in italics right by the part of
              * its first letters left of the start (demopix: "Hello User !"
              * in the Virtual demo) */
-            chunk_node = (ZTextChunk *) line_node->chunklist.mlh_Head;
+            chunk_node = (ZTextChunk *)line_node->chunklist.mlh_Head;
             if (chunk_node->node.mln_Succ && chunk_node->str
                 && (chunk_node->style & FSF_ITALIC))
             {
-                struct TextExtent te;
-
-                if (rp != &copy)
-                {
-                    copy = *rp;
-                    rp = &copy;
-                }
-                SetSoftStyle(rp, chunk_node->style & ~ZTEXT_STYLE_HICHAR,
-                    AskSoftStyle(rp));
-                TextExtent(rp, chunk_node->str, chunk_node->clen, &te);
-                SetSoftStyle(rp, FS_NORMAL, AskSoftStyle(rp));
+                rp = style_extent(rp, &copy, chunk_node, &te);
                 if (te.te_Extent.MinX < 0)
                     line_node->lshift = -te.te_Extent.MinX;
             }
@@ -1168,26 +867,89 @@ void zune_text_get_bounds(ZText * text, Object * obj)
         text->width++;
 }
 
+/**************************************************************************
+ Point the only chunk of a plain ZText (zune_text_plain_chunk) at s, a
+ plain string of len bytes the caller keeps alive, and measure it: the
+ same result as zune_text_get_bounds() for such a text, without the
+ loops and the RastPort copy. The object must be set up.
+**************************************************************************/
+void zune_text_set_plain(ZText *text, ZTextChunk *chunk, STRPTR s,
+    LONG len, Object *obj)
+{
+    ZTextLine *line = (ZTextLine *)text->lines.mlh_Head;
+    struct TextFont *font = _font(obj);
+    struct RastPort *rp = _rp(obj);
+    struct RastPort copy;
+
+    chunk->str = s;
+    chunk->clen = len;
+    /* a styled line has an overhang or extra pixels to measure */
+    if (chunk->style & (FSF_BOLD | FSF_ITALIC | ZTEXT_STYLE_OUTLINE
+        | ZTEXT_STYLE_SHADOW | ZTEXT_STYLE_GHOST))
+    {
+        zune_text_get_bounds(text, obj);
+        return;
+    }
+    /* TextLength only reads the RastPort; a copy is needed only when
+     * its font or soft style is not the object's plain one */
+    if (rp->Font != font || rp->AlgoStyle)
+    {
+        copy = *rp;
+        if (copy.Font != font)
+            SetFont(&copy, font);
+        if (copy.AlgoStyle)
+            SetSoftStyle(&copy, FS_NORMAL, AskSoftStyle(&copy));
+        rp = &copy;
+    }
+    chunk->cheight = line->lheight = text->height = font->tf_YSize;
+    chunk->cwidth = line->lwidth = text->width = TextLength(rp, s, len);
+    line->centreskip = 0;
+    text->styles = chunk->style;
+    text->nontext = 0;
+}
+
 /************************************************************/
 /* Drawing                                                  */
 /************************************************************/
 
-// problem is cheight being seldom 0
+/* MUI 3.9 underlines a shortcut one pixel short of its advance, MUI 3.8
+ * the whole advance (demopix), two rows below the baseline but within the
+ * font (tests/native/ulprobe.c) */
+static void draw_hichar(struct RastPort *rp, Object *obj, LONG x, WORD cwidth)
+{
+    struct TextFont *font = _font(obj);
+    WORD y = rp->cp_y - font->tf_Baseline
+        + MIN(font->tf_Baseline + 2, font->tf_YSize - 1);
 
-void zune_text_draw(ZText * text, Object * obj, WORD left, WORD right,
+    RectFill(rp, x, y, x + MAX(cwidth - (ZUNE_APP_MUI38(obj) ? 1 : 2), 0), y);
+}
+
+/* The characters of a chunk at x that fit left of right + 1, for a text
+ * that is truncated (Gauge, MUIA_Text_Shorten's fitting part) */
+#define CHUNK_FIT(text, rp, chunk, x, right) ((text)->truncate \
+    ? chunk_fit(text, rp, chunk, x, right) : (chunk)->clen)
+static LONG chunk_fit(ZText *text, struct RastPort *rp, ZTextChunk *chunk,
+    LONG x, LONG right)
+{
+    struct TextExtent te;
+
+    if (x + chunk->cwidth <= right + 1)
+        return chunk->clen;
+    return right + 1 > x ? TextFit(rp, chunk->str, chunk->clen, &te, NULL, 1,
+        right + 1 - x, 32767) : 0;
+}
+
+void zune_text_draw(ZText *text, Object *obj, WORD left, WORD right,
     WORD top)
 {
     struct RastPort *rp;
-    ULONG pensave;
-    ULONG style = FS_NORMAL;
-
+    ULONG pensave, style = FS_NORMAL;
     ZTextLine *line_node;
     ZTextChunk *chunk_node;
+    LONG len;
 
     if (!text || !obj)
         return;
-
-    D(bug("zune_text_draw(%p) %d %d %d\n", obj, left, right, top));
 
     rp = _rp(obj);
     if (rp->Font != _font(obj))
@@ -1199,77 +961,93 @@ void zune_text_draw(ZText * text, Object * obj, WORD left, WORD right,
 
     if (text->plain)
     {
-        ZTextLine *line = (APTR)text->lines.mlh_Head;
-        ZTextChunk *chunk = (APTR)line->chunklist.mlh_Head;
-        LONG len = chunk->clen;
-        if (text->truncate && left + chunk->cwidth > right + 1)
+        chunk_node = (APTR)((ZTextLine *)text->lines.mlh_Head)
+            ->chunklist.mlh_Head;
+        if ((len = CHUNK_FIT(text, rp, chunk_node, left, right)) > 0)
         {
-            struct TextExtent extent;
-            len = right + 1 > left ? TextFit(rp, chunk->str, len,
-                &extent, NULL, 1, right + 1 - left, 32767) : 0;
-        }
-        if (len > 0)
-        {
-            if (rp->DrawMode != JAM1) SetDrMd(rp, JAM1);
+            if (rp->DrawMode != JAM1)
+                SetDrMd(rp, JAM1);
             Move(rp, left, _font(obj)->tf_Baseline + top);
-            Text(rp, chunk->str, len);
+            Text(rp, chunk_node->str, len);
         }
         return;
     }
 
-    for (line_node = (ZTextLine *) text->lines.mlh_Head;
+    for (line_node = (ZTextLine *)text->lines.mlh_Head;
         line_node->node.mln_Succ;
-        line_node = (ZTextLine *) line_node->node.mln_Succ)
+        line_node = (ZTextLine *)line_node->node.mln_Succ)
     {
-        LONG x;
+        LONG x, w = line_node->lwidth - line_node->centreskip;
 
-        if (line_node->align == ZTL_CENTER)
-            x = (left + right + 1 - (line_node->lwidth
-                - line_node->centreskip)) / 2;
-        else if (line_node->align == ZTL_RIGHT)
-            /* right-aligned the same way: the overhang may stick out
-             * (tests/native/textset.c) */
-            x = right - (line_node->lwidth - line_node->centreskip) + 1;
-        else
-            x = left;
-
-        // like MUI, never truncates the beginning of a line
+        /* right-aligned the same way as centred: the overhang may stick
+         * out (tests/native/textset.c) */
+        x = line_node->align == ZTL_CENTER ? (left + right + 1 - w) / 2 :
+            line_node->align == ZTL_RIGHT ? right - w + 1 : left;
+        /* like MUI, never truncates the beginning of a line */
         if (x < left)
             x = left;
         x += line_node->lshift;
 
-        //D(bug("zune_text_draw(%x,%d,%d,%d, align=%d) : x = %d\n",
-        //obj, left, right, line_node->lwidth, line_node->align, x));
-
-        for (chunk_node = (ZTextChunk *) line_node->chunklist.mlh_Head;
+        for (chunk_node = (ZTextChunk *)line_node->chunklist.mlh_Head;
             chunk_node->node.mln_Succ;
-            chunk_node = (ZTextChunk *) chunk_node->node.mln_Succ)
+            x += chunk_node->cwidth,
+            chunk_node = (ZTextChunk *)chunk_node->node.mln_Succ)
         {
-            /*
-             * Show/Hide stuff should be put in new api calls
-             */
-            if ((chunk_node->effects & ZTEXT_HIDEIMAGES) && !chunk_node->str)
+            WORD ctop = top + (line_node->lheight - chunk_node->cheight) / 2;
+
+            if (chunk_node->str)
             {
-                x += chunk_node->cwidth;
+                if ((chunk_node->style & (FSF_UNDERLINED | FSF_BOLD
+                    | FSF_ITALIC)) != style)
+                {
+                    style = chunk_node->style & (FSF_UNDERLINED | FSF_BOLD
+                        | FSF_ITALIC);
+                    SetSoftStyle(rp, style, 0xff);
+                }
+                Move(rp, x, _font(obj)->tf_Baseline
+                    + (chunk_node->cheight ? ctop : top));
+                /* MUI 4/5's colours and effects: Zmui45 (texteffect45.c);
+                 * hidden images and a selected state are no effects on
+                 * text */
+                if ((chunk_node->effects & ~(ZTEXT_HIDEIMAGES
+                    | ZTEXT_SELECTED)) || (chunk_node->style
+                    & (ZTEXT_STYLE_OUTLINE | ZTEXT_STYLE_SHADOW
+                    | ZTEXT_STYLE_GHOST)))
+                {
+                    zune_text_effect45(text, chunk_node, obj, rp, x, right);
+                    continue;
+                }
+                if (chunk_node->dripen != -1)
+                    SetAPen(rp, _dri(obj)->dri_Pens[chunk_node->dripen]);
+                else if (chunk_node->pen != -1)
+                    SetAPen(rp, chunk_node->pen);
+                if (rp->DrawMode != JAM1)
+                    SetDrMd(rp, JAM1);
+                if ((len = CHUNK_FIT(text, rp, chunk_node, x, right)) > 0)
+                {
+                    Text(rp, chunk_node->str, len);
+                    if (chunk_node->style & ZTEXT_STYLE_HICHAR)
+                        draw_hichar(rp, obj, x, chunk_node->cwidth);
+                }
                 continue;
             }
+            /* Show/Hide stuff should be put in new api calls */
+            if (chunk_node->effects & ZTEXT_HIDEIMAGES)
+                continue;
             if (chunk_node->image)
             {
-                WORD top_im = top;
-                top_im += (line_node->lheight - chunk_node->cheight) / 2;
                 zune_imspec_show(chunk_node->image, obj);
                 pensave = GetAPen(rp);
                 zune_imspec_draw(chunk_node->image, muiRenderInfo(obj), x,
-                    top_im, chunk_node->cwidth,
-                    chunk_node->cheight, 0, 0, !!(chunk_node->effects & ZTEXT_SELECTED));
+                    ctop, chunk_node->cwidth, chunk_node->cheight, 0, 0,
+                    !!(chunk_node->effects & ZTEXT_SELECTED));
                 SetAPen(rp, pensave);
                 zune_imspec_hide(chunk_node->image);
             }
             else if (chunk_node->obj)
             {
                 _left(chunk_node->obj) = x;
-                _top(chunk_node->obj) =
-                    top + (line_node->lheight - chunk_node->cheight) / 2;
+                _top(chunk_node->obj) = ctop;
                 _width(chunk_node->obj) = chunk_node->cwidth;
                 _height(chunk_node->obj) = chunk_node->cheight;
                 DoShowMethod(chunk_node->obj);
@@ -1279,74 +1057,16 @@ void zune_text_draw(ZText * text, Object * obj, WORD left, WORD right,
                 SetAPen(rp, pensave);
                 DoHideMethod(chunk_node->obj);
             }
-            else if (!chunk_node->str && chunk_node->alpha_data)
-            {
 #ifndef ZUNE_NO_CYBERGRAPHICS
-                struct MUI_AlphaData *alpha_data = chunk_node->alpha_data;
-                WORD top_im = top;
-                top_im += (line_node->lheight - chunk_node->cheight) / 2;
-                WritePixelArrayAlpha(alpha_data->data, 0, 0,
-                    alpha_data->width * 4, rp, x, top_im, alpha_data->width,
-                    alpha_data->height, 0xFFFFFFFF);
-#endif
-            }
-            else if (chunk_node->str)
+            else if (chunk_node->alpha_data)
             {
-                if ((chunk_node->style & (FSF_UNDERLINED | FSF_BOLD | FSF_ITALIC)) != style)
-                {
-                    style = chunk_node->style & (FSF_UNDERLINED | FSF_BOLD | FSF_ITALIC);
-                    SetSoftStyle(rp, style, 0xff);
-                }
-                if (chunk_node->cheight == 0)
-                    Move(rp, x, _font(obj)->tf_Baseline + top);
-                else
-                    Move(rp, x,
-                        _font(obj)->tf_Baseline + (line_node->lheight -
-                            chunk_node->cheight) / 2 + top);
-#if 0
-                D(bug
-                    ("zune_text_draw(%p) Moved to %d (baseline=%d, lh=%d, ch=%d, top=%d)\n",
-                        obj,
-                        _font(obj)->tf_Baseline + (line_node->lheight -
-                            chunk_node->cheight) / 2 + top,
-                        _font(obj)->tf_Baseline, line_node->lheight,
-                        chunk_node->cheight, top));
-#endif
-                /* Keep classic text on the direct graphics path. New color
-                 * and effect handling must not cost scratch allocations or
-                 * color-map lookups on ordinary labels and list entries. */
-                if (!chunk_node->effects && !(chunk_node->style &
-                    (ZTEXT_STYLE_OUTLINE | ZTEXT_STYLE_SHADOW | ZTEXT_STYLE_GHOST)))
-                {
-                    LONG len = chunk_node->clen;
-                    if (chunk_node->dripen != -1)
-                        SetAPen(rp, _dri(obj)->dri_Pens[chunk_node->dripen]);
-                    else if (chunk_node->pen != -1) SetAPen(rp, chunk_node->pen);
-                    if (rp->DrawMode != JAM1) SetDrMd(rp, JAM1);
-                    if (text->truncate && x + chunk_node->cwidth > right + 1)
-                    {
-                        struct TextExtent te;
-                        len = right + 1 > x ? TextFit(rp, chunk_node->str,
-                            len, &te, NULL, 1, right + 1 - x, 32767) : 0;
-                    }
-                    if (len > 0)
-                    {
-                        Text(rp, chunk_node->str, len);
-                        if (chunk_node->style & ZTEXT_STYLE_HICHAR)
-                        {
-                            struct TextFont *font = _font(obj);
-                            WORD y = rp->cp_y - font->tf_Baseline +
-                                MIN(font->tf_Baseline + 2, font->tf_YSize - 1);
-                            RectFill(rp, x, y, x + MAX(chunk_node->cwidth -
-                                (ZUNE_APP_MUI38(obj) ? 1 : 2), 0), y);
-                        }
-                    }
-                    x += chunk_node->cwidth;
-                    continue;
-                }
-                draw_effect_chunk(text, chunk_node, obj, rp, x, right);
+                struct MUI_AlphaData *alpha_data = chunk_node->alpha_data;
+
+                WritePixelArrayAlpha(alpha_data->data, 0, 0,
+                    alpha_data->width * 4, rp, x, ctop, alpha_data->width,
+                    alpha_data->height, 0xFFFFFFFF);
             }
-            x += chunk_node->cwidth;
+#endif
         }
         top += line_node->lheight;
     }

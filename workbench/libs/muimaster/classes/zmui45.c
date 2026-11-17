@@ -19,18 +19,20 @@
 #define zune_image_button zmod_image_button
 #define zune_window_case_shortcut zmod_window_case_shortcut
 #define zune_window_menu_verify zmod_window_menu_verify
+#define zune_text_effect45 zmod_text_effect45
 #include "../mui45.c"
 #include "../pointer45.c"
 #include "../textmark45.c"
 #include "../rtgtext45.c"
 #include "../makeobj45.c"
+#include "../texteffect45.c"
 
 static const struct ZuneMui45Module mui45_module = {
     zmod_area_mui45, zmod_string_mui45, zmod_string_draw45,
     zmod_string_pos_at, zmod_string_textinput, zmod_pointer_image,
     zmod_text_shortened45, zmod_text_mark, zmod_text_copy, zmod_text_argb,
     zmod_image_button, zmod_window_case_shortcut, zmod_window_menu_verify,
-    zmod_area_aros45
+    zmod_area_aros45, zmod_text_effect45
 };
 
 BOOPSI_DISPATCHER(IPTR, Zmui45_Dispatcher, cl, obj, msg)
