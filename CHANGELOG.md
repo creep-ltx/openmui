@@ -20,6 +20,16 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- **Typing is faster, and String was rewritten for 68k machines.** A typed
+  key or a backspace in a string gadget takes about a tenth less time than
+  before and 11-17 % less than in MUI 3.8 (6.7 ms on a 68020 against MUI
+  3.8's 7.5-7.9; 26.3 ms on a 68000 against 30.7-31.5): the release of a key
+  the field took is no longer offered to every other object of the window
+  (MUI 3.8 offers neither), and the field draws with fewer text calls. Each
+  string gadget needs 96 bytes instead of 308 (MUI 3.8: 88). The clipboard,
+  the default Cut/Copy/Paste menu and BetterString's Insert are a file of
+  their own, `LIBS:OpenMUI/Zstring.mui`, loaded the first time they are
+  used: the first program needs 436.9 KB (439.8 before, MUI 3.8 460.3).
 - **Programs start faster, and Application was rewritten for 68k machines.**
   Making a program's objects takes about a fifth less time than before and
   than in MUI 3.8 (opbench's window full of gadgets: 183-189 ms on a 68020

@@ -4913,7 +4913,137 @@ The final build (6c2e491f and its docs) unless a step names an earlier one.
   traced). YAM, AmIRC and IBrowse behave the same.
 
 
+## Rewrite: String (2026-11-17, branch `rw-string`)
+
+The sixth class of the "rewrite for m68k" phase (roadmap): String (`classes/string.c`, 15,896
+bytes of code) and what a typed key costs. Same rules as the rounds before. All figures are
+**emulator figures** (FS-UAE cycle-exact; demopix and the suite on Amiberry).
+
+### Targets and results
+
+ms per key, `opbench` (the same binary on every library), FS-UAE cycle-exact; A600 = a600-31
+(68000 7 MHz, OS 3.1) with 4 MB fast RAM and MUI 3.8 copied on, A1200 = a1200-31-mui38 (68EC020
+14 MHz, OS 3.1). Medians of 5 (A600) or 9 (A1200) repetitions per instance; ranges over this
+session's instances (lean 4 on the A1200 and 5 on the A600, the branch's last three builds 6 and
+8, two of each on the final one; MUI 3.8 one and two) and, for MUI 3.8, the Application round's.
+
+| target | MUI 3.8 | lean (before) | rw-string (after) | after / MUI 3.8 | reached |
+|---|---:|---:|---:|---:|---|
+| A1200 string type | 7.49-7.88 | 7.33-7.38 | 6.66-6.68 | 0.85-0.89 | **yes** (-9 % against lean) |
+| A1200 string backspace | 7.45-7.82 | 7.19-7.24 | 6.55-6.61 | 0.84-0.89 | **yes** (-9 %) |
+| A600 string type | 30.7-31.45 | 29.13-29.31 | 26.17-26.39 | 0.83-0.86 | **yes** (-10 %) |
+| A600 string backspace | 30.4-31.22 | 28.58-28.93 | 25.79-26.16 | 0.83-0.86 | **yes** (-10 %) |
+| String code in the library (`classes/string.o`) | | 15,896 (+120 data) | 13,916 | | **-13 %**; the rare parts in Zstring.mui (1,860 code), MUI 4/5's in Zmui45.mui (+984) |
+| String instance data | 88 | 308 | 96 | | MUI 3.8's size nearly |
+| memory: first program (MUI-Demo cold) | 460,296 | 439,760 | 436,936-436,984 | | **yes** (-2.8 KB) |
+| memory: each further | 210,632-218,888 | 193,520-193,584 | 193,376 | | **yes** (-0.1-0.2 KB) |
+
+"Markedly smaller", honestly: the String a MUI 3 program loads is 13 % smaller (2.0 KB); all of
+String's code in all three files together is 5 % larger than lean's one file (16,760 against
+16,016: the clipboard and menu code in the module and the MUI 4/5 module's own copy of the marked
+range code), but a MUI 3 program that does not copy, paste or open the default menu never loads
+the module. The other 25 operations: lean's within the spread of the instances (below).
+
+MUI 4/5 programs (`opbench v21` on a1200-32-mui5, OS 3.2.1, OpenMUI in MUI 5's place, three
+instances each; the branch's builds c11b7907 and 086eeebb): string type 7.44-7.50 against lean 7.53-7.58, backspace 7.40-7.41 against
+7.45-7.46; every other operation within lean's spread. They gain only 1 %: they keep the
+Textinput notification and the key release offered to every handler (MUI 4/5 behaviour).
+
+### Where a typed key's time goes
+
+Leave-out builds and `opbench prof` (pcsample, A1200, lean 7.33 ms per key): without the
+String's redraw 5.77 ms, without its notification too 5.63. So the String's own drawing was
+~1.6 ms, its notification ~0.15 ms, and **~5.6 ms is not the String's**: input.device and
+Intuition (two DoIO per key, press and release), the application loop, and the window's key
+dispatch (HandleRawkey, KeyToObject, MatchMuiKey, InvokeEventHandler ~1.3 ms together).
+`opbench count time`: MUI 3.8 does its editing inside the input.device DoIO (7.5 ms of counted
+time against OpenMUI's 3.7): its String is an Intuition gadget, edited in the input task.
+
+Black box (`tests/native/keyoffers.c string`): with a String active MUI 3.8 calls **no**
+MUIM_HandleEvent for a typed key, press or release (A=0/0 G=0/0 O=0/0). Lean offered the release
+to every other key handler of the window (List, Numeric, Cycle, ...: A=1/1 G=0/1 O=0/1), the
+biggest single cost OpenMUI had and MUI 3.8 has not. The branch, for a program that gets MUI
+3.8, eats the release of a key the String took (A=1/1 G=0/0 O=0/0): -9 % on the 68020 alone.
+Without a String active the order is unchanged (A=1/1 G=1/1 O=1/1 order=AOG/AOG on all three).
+
+### What was rewritten
+
+| commit | what |
+|---|---|
+| 96f66a5f | **Instance data 308 -> 96 bytes** (MUI 3.8: 88, `MUI_GetClass("String.mui")->cl_InstSize`): what only some Strings need (MUI 4/5's Textinput values and marks, a secret's stars, the placeholder, BetterString's focus objects, the edit menu, MUI 3.8's gadget) in an extension made when first set; the five settings pens (5 x 28-byte MUI_PenSpec_intern) as bytes and a bit each; the states as flags. **The clipboard** (copy, cut, paste, Text's copy), **the default context menu** and **BetterString's Insert** in a new module, Zstring.mui (clipboard.c gone from the library). MUI 4/5's own Textinput attributes in Zmui45.mui, their String names by a table. **Draw**: no MaxDispPos TextFit when nothing is scrolled out, the cursor's place from the pen Text() left (no second TextLength); UpdateDisp, click and drag out of line. **A MUI 3.8 program's key**: no MUIA_Textinput_Contents notification, the release of a key the String took not offered to other objects. `tests/lean/strkeys.c pix` (pixel checksums of 73 editing steps), `keyoffers string` |
+| b763dddd | OM_NEW and OM_SET take the shared attributes in one function (184 bytes less) |
+| c11b7907 | The shared attribute table tells flags from fields by a mark, not by size: flags below 256 (AdvanceOnCR, LonelyEditHook, NoInput, StayActive) were written into the instance as field offsets (strkeys found it: no application); `check_string_selection` now makes its String with two of them |
+| 086eeebb | The default context menu's NewMenu template static (Zstring.mui's method frame 204 -> 84; lean's String_ContextBuild had 200) |
+| 75b08553 | **Textinput attributes with no function do not load Zmui45.mui**: Popplaceholder.mcc (a MUI 3 class) gives its String MUIA_Textinput_DefaultPopup at OM_NEW, and every such String made the extension and loaded the MUI 4/5 module (the suite's LoadSeg trace of popph-demo; lean loaded nothing). OM_NEW and OM_SET pass the module only the 18 attributes it takes (a bit each) |
+
+**Tried and not taken**: a 5-argument module call in OM_GET/String_Edit (frames 4-12 bytes larger
+than lean's; a 3-argument noinline wrapper packing op and flag gave lean's frames back).
+
+### Sizes
+
+| | lean (3b4eee2c) | rw-string |
+|---|---:|---:|
+| String's code (`classes/string.o`) | 15,896 (+120 data) | 13,916 |
+| Zstring.mui (stripped file; code) | | 3,304 (1,860) |
+| Zmui45.mui (stripped file; code) | 14,888 (12,520) | 15,872 (13,504) |
+| library code (`size`) | 226,268 | 223,820 |
+| library file, stripped | 242,664 | 239,888 |
+| library alone in memory (`libonly`) | 257,232 | 254,640 |
+| MUI-Demo first program (MUI 3.8: 460,296) | 439,760 | 436,936-436,984 |
+| MUI-Demo each further (MUI 3.8: 210,632-218,888) | 193,520-193,584 | 193,376 |
+
+### Checked (emulators)
+
+The final build (75b08553) unless a step names an earlier one.
+
+- `make check` after every library commit.
+- `-fstack-usage` of every library and class-file function against lean: none larger. Smaller:
+  HandleEvent 144 -> 104, OM_SET 104 -> 76, Setup 52 -> 32, OM_GET 44 -> 32, Cleanup 52 -> 40,
+  Draw 104 -> 100, Export 28 -> 24, Buffer_KillMarked 40 -> 36,
+  Buffer_AddChar 20 -> 16. The largest new ones: string_pens_setup 92, string_set_integer 72,
+  zmod_string_method 84 (was 204 with the menu template on the stack, above lean's
+  String_ContextBuild 200: made static).
+- stackrun (FS-UAE, side by side): MUI-Demo 4,924, Layout 2,224, Virtual 2,168, Pages 2,196,
+  Slidorama 2,260 on both (lean three runs, the final build two; runs where a demo ended early
+  and measured less, Pages 440, Virtual 1,620, Layout 468, came on both; lean's Layout once 2,244).
+- fullcheck (FS-UAE): the same as lean (`full-rws-final` = `full-rws-base`); LoadSeg trace: the
+  same 15 class files, **no module (Z\*.mui)**.
+- Pixels: pagepix, radiopix, scrollpix, listclip identical to lean; demopix (Amiberry, both
+  libraries' shots): 25 of 27 pixel-identical to lean's, the other two InputHandler's
+  timer-cycled text and Layout's random places, as always; every window at the same place and size; `strkeys pix` (73 steps' text, cursor, notifications and pixel checksums) and string45
+  (MUI 5's Integer64) identical to lean.
+- `keyoffers` and `keyoffers string`: above. A String's default context menu (`ctxstr`, built twice,
+  the items' titles and states): the same on lean and the final build.
+- The suite (Amiberry), lean and the final build side by side: mui5 24 of 24 the same, mui3 96
+  of 100, mcc 56 of 58 at the first try; the ones that differed (texteditor-demo and lumiftp
+  froze on the branch, ro, kompensator and wheel-demo on lean: programs known to freeze now and
+  then; htmltext-demo's untitled window, "Left open") run again side by side: the same. Memory:
+  the first run from boot lower for nearly every program (0.5 MB over 134), the second run lower
+  for 45 and the same for 88, animmaker 16 bytes more. A LoadSeg trace of every program (the
+  build before the last two commits): **no program loads Zstring.mui** (YAM, AmIRC, IBrowse,
+  SimpleMail, HotkeyString's test (a BetterString subclass), UP-Demo among them); Zmui45.mui only by popph-demo, a MUI 3
+  program: fixed by 75b08553 (traced again: no module). YAM, AmIRC, IBrowse, SimpleMail, UP-Demo
+  (its fields pixel-identical in the suite's screenshots) and HotkeyStringTest behave the same.
+  The BetterString archive has no demo program: its users here are YAM, SimpleMail and
+  HotkeyString.
+
+
 ## Left open
+
+- **Rewrite for m68k (2026-11-17, after `rw-string`)**: String done (instance data 308 -> 96
+  bytes, its library code -13 %, the clipboard, default menu and BetterString's Insert in
+  Zstring.mui): typing and backspace 0.83-0.89 of MUI 3.8 on both CPUs (lean 0.92-0.99), first
+  program -2.8 KB. **Most of a typed key's time is not the String's** (~5.6 of 7.3 ms on the
+  68020: input.device and Intuition's two DoIO per key, the application loop, the window's key
+  dispatch ~1.3 ms): MUI 3.8 edits inside the input task (its String is an Intuition gadget); the
+  window's key path (HandleRawkey, KeyToObject, MatchMuiKey) is the next place to look. **MUI 4/5
+  programs** gain only 1 % (they keep the Textinput notification and the release offered to every
+  handler, MUI 4/5 behaviour; not measured against real MUI 5's black box for the release). All
+  of String's code in its three files is 5 % larger than lean's one file (the module's own copy of
+  the marked-range code); a MUI 3 program that does not copy, paste or open the default menu loads
+  only the library's part. htmltext-demo's untitled window varies in size from run to run on both
+  libraries (71 or 256 high; once 84 wide on the branch, 87 in the other seven runs): the demo's
+  own timing, not traced. Next: the text engine (roadmap).
 
 - **Rewrite for m68k (2026-11-14, after `rw-app`)**: Application done (code -29 %, what a program
   reaches only through the user or ARexx in Zapp.mui; LoadSeg traces of real programs decided

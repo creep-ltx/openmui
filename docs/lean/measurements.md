@@ -759,6 +759,25 @@ OS 3.1, emulator; A600 = a600-31 + 4 MB fast RAM, MUI 3.8 copied on; this sessio
 | A1200 / A600 full redraw | 140.4-150.7 / 472.2 | 133.4-133.8 / 443.2-445.8 | 133.7-133.8 / 444.6-444.8 |
 | stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 4,976 / 2,224 / 2,168 / 2,196 / 2,260 | 4,924 / 2,224 / 2,168 / 2,196 / 2,260 |
 
+## Rewrite: String (2026-11-17, branch `rw-string`)
+
+README.md "Rewrite: String" has the steps and where a key's time goes. Figures (FS-UAE
+cycle-exact, OS 3.1, emulator; A600 = a600-31 + 4 MB fast RAM, MUI 3.8 copied on; this session's
+instances, MUI 3.8 also the Application round's):
+
+| | MUI 3.8 | lean (3b4eee2c) | rw-string |
+|---|---:|---:|---:|
+| String's code (`classes/string.o`) | | 15,896 | 13,916 (+ Zstring.mui 3,304 file, 1,860 code; Zmui45.mui +984) |
+| library code (`size`) | | 226,268 | 223,820 |
+| library file, stripped | | 242,664 | 239,888 |
+| String instance data | 88 | 308 | 96 |
+| MUI-Demo first program | 460,296 | 439,760 | 436,936-436,984 |
+| MUI-Demo each further | 210,632-218,888 | 193,520-193,584 | 193,376 |
+| A1200 string type / backspace (ms) | 7.49-7.88 / 7.45-7.82 | 7.33-7.38 / 7.19-7.24 | 6.66-6.68 / 6.55-6.61 |
+| A600 string type / backspace | 30.7-31.45 / 30.4-31.22 | 29.13-29.31 / 28.58-28.93 | 26.17-26.39 / 25.79-26.16 |
+| MUI 5 identity (v21, a1200-32-mui5) type / backspace | | 7.53-7.58 / 7.45-7.46 | 7.44-7.50 / 7.40-7.41 |
+| stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 4,924 / 2,224 / 2,168 / 2,196 / 2,260 | the same |
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,

@@ -389,7 +389,14 @@ where a measured hot loop pays. Order:
    both CPUs (was 0.97-0.99 on the A600), an empty application 0.17-0.18, with a full
    global.prefs -82 %. Details in
    [README.md](README.md#rewrite-application-2026-11-14-branch-rw-app).
-6. String.
+6. **String** (done 2026-11-17, `rw-string`): instance data 308 -> 96 bytes (MUI 3.8 88: the
+   rare values in an extension made when first set, the pens as bytes); the clipboard, the
+   default context menu and BetterString's Insert in a module, Zstring.mui; MUI 4/5's Textinput
+   attributes in Zmui45.mui; fewer text calls per drawn key; for a MUI 3 program the release of a
+   key the String took is no longer offered to every other handler (MUI 3.8 offers none). Typing
+   and backspace 0.83-0.89 of MUI 3.8 on both CPUs (lean 0.92-0.99), String's library code -13 %,
+   first program -2.8 KB. Details in
+   [README.md](README.md#rewrite-string-2026-11-17-branch-rw-string).
 7. The text engine (textengine.c).
 8. Image and frame drawing (imspec, frames).
 
