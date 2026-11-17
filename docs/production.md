@@ -40,7 +40,7 @@ into gates that can be checked. OpenMUI 1.0 ships when every gate is green; unti
 
 | Gate | Measured by | Today |
 |---|---|---|
-| Daily use on our partner's A1200 for weeks without an OpenMUI problem | their reports, the crash recorder | in daily use since 2026-11-06 (Zune68 before that) on their A1200 (PiStorm, Emu68), the only MUI on it; the 2026-11-06 build, today's not yet installed |
+| Daily use on our partner's A1200 for weeks without an OpenMUI problem | their reports, the crash recorder | the only MUI on our partner's A1200 (PiStorm, Emu68) since the lean edition began (2026-11-04; Zune68 before that), about three weeks; Spot (beta tester) runs it as his only MUI too; the newest rounds (rewrites since 2026-11-13) not yet on either machine |
 | Public betas on Aminet with feedback handled | issue tracker on GitHub | no public beta yet |
 
 ## 5. Engineering
