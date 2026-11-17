@@ -55,6 +55,15 @@ extern struct Library *MUIMasterBase;
 #define TI_FIRST MUIA_Textinput_Multiline
 #define TI_LAST MUIA_Textinputscroll_HorizBar
 #define IS_TI(tag) ((ULONG)((tag) - TI_FIRST) <= (ULONG)(TI_LAST - TI_FIRST))
+/* The Textinput attributes the module takes at OM_NEW/OM_SET, a bit each
+ * from TI_FIRST (Multiline, WordWrap, IsNumeric, MinVal, MaxVal, Changed,
+ * CursorPos, Editable, MarkStart, MarkEnd, NoInput, SetMin, SetMax, SetVMax,
+ * Styles, SetVMin, Font, ResetMarkOnCursor); the others have no function
+ * and do not load it (Popplaceholder.mcc gives every String
+ * MUIA_Textinput_DefaultPopup) */
+static const ULONG ti_in_module[2] = { 0x493C0001, 0x021009F6 };
+#define TI_IN_MODULE(tag) (ti_in_module[((tag) - TI_FIRST) >> 5] \
+    & (1UL << (((tag) - TI_FIRST) & 31)))
 
 #define MULTILINE(data) ((data)->msd_Flags & MSDF_MULTILINE)
 #define ACTIVE(data) ((data)->msd_Flags & MSDF_ACTIVE)
@@ -589,7 +598,8 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
                 t = MUIA_String_BufferPos;
             else if ((t = ti_alias(t)) == tag->ti_Tag)
             {
-                String_Mui45(obj, data, t, tag, NULL);
+                if (TI_IN_MODULE(t))
+                    String_Mui45(obj, data, t, tag, NULL);
                 continue;
             }
         }
@@ -757,7 +767,8 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         {
             /* MUI 4/5's own Textinput attributes, in the module: 2 when
              * the String is to be redrawn */
-            if (String_Mui45(obj, data, t, tag, NULL) == 2)
+            if (TI_IN_MODULE(t)
+                && String_Mui45(obj, data, t, tag, NULL) == 2)
                 update = TRUE;
             continue;
         }
