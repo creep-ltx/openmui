@@ -1,317 +1,86 @@
 /*
-    Copyright (C) 2003, The AROS Development Team.
+    Copyright (C) 2003-2026, The AROS Development Team.
     All rights reserved.
-    
+
 */
 
+#include <string.h>
 #include <intuition/imageclass.h>
 #include <proto/graphics.h>
 #include <proto/exec.h>
 
-#include "debug.h"
 #include "mui.h"
 #include "imspec_intern.h"
 #include "support.h"
+#include "modules.h"
 
 extern struct Library *MUIMasterBase;
 
-//#define SPACING 1
-#define HSPACING 0
-#define VSPACING 0
+/**************************************************************************
+ The built-in vector images, rewritten for the 68000 (2026-11, rw-draw).
+ The images every window uses (arrows, check mark, radio button, pop-up
+ glyphs) are blitter templates: a radio image or an arrow drawn with
+ RectFill/WritePixel took a dozen calls, each 0.1-0.3 ms on a 68020 whatever
+ its size (tests/native/gfxprims.c); a BltTemplate paints a whole pen's
+ pixels in one call. Each template is built once, from the shape's own
+ geometry, in chip memory, and freed at expunge. Rows are a whole number of
+ longs wide, so a shape of any size has one (lean drew arrows wider than 32
+ pixels span by span). Without a template (32 kept, or no chip memory) the
+ same bits are built in other memory and painted run by run: the same
+ pixels. The rarely shown images (drawer, disks, tape buttons) are in the
+ round frame module (imspec_rare.c), and the cycle image keeps its lines.
+**************************************************************************/
 
-
-/* MUI 3.8/3.9 built-in arrows are chevrons with two pixel wide strokes:
- * 10x5 pointing up or down and 4x8 pointing left or right. Larger areas
- * centre the same shape. */
-/* Glyphs as blitter templates. Drawing a radio image or an arrow takes a
- * dozen RectFill/WritePixel calls, each 0.1-0.3 ms on a 68020 whatever its
- * size (tests/native/gfxprims.c); a BltTemplate paints a whole pen's
- * pixels in one call. Templates are built from the same geometry on first
- * use, in chip memory, and freed at expunge. Rows are 32 bits wide. */
 #define VTEMPLATES 32
-static struct { const void *key; LONG sub; ULONG *data; LONG rows; }
-    vtemplates[VTEMPLATES];
-static int nvtemplates;
-
-static ULONG *template_find(const void *key, LONG sub)
-{
-    int i;
-
-    for (i = 0; i < nvtemplates; i++)
-        if (vtemplates[i].key == key && vtemplates[i].sub == sub)
-            return vtemplates[i].data;
-    return NULL;
-}
-
-static ULONG *template_add(const void *key, LONG sub, LONG rows)
-{
-    ULONG *data = NULL;
-
-    Forbid();
-    if (!(data = template_find(key, sub)) && nvtemplates < VTEMPLATES
-        && (data = AllocMem(rows * sizeof(ULONG), MEMF_CHIP | MEMF_CLEAR)))
-    {
-        vtemplates[nvtemplates].key = key;
-        vtemplates[nvtemplates].sub = sub;
-        vtemplates[nvtemplates].data = data;
-        vtemplates[nvtemplates].rows = rows;
-        nvtemplates++;
-    }
-    Permit();
-    return data;
-}
+static struct { ULONG id; ULONG *data; ULONG size; } vt[VTEMPLATES];
+static UBYTE nvt;
 
 void zune_vector_free_templates(void)
 {
-    while (nvtemplates > 0)
+    while (nvt > 0)
     {
-        nvtemplates--;
-        FreeMem(vtemplates[nvtemplates].data,
-            vtemplates[nvtemplates].rows * sizeof(ULONG));
+        nvt--;
+        FreeMem(vt[nvt].data, vt[nvt].size);
     }
 }
 
-/* Paint the set bits of a template placed at (x, y), width x height,
- * clipped to the box [cl, cr] x [ct, cb]: the same pixels as the clipped
- * rectangle drawing it replaces */
-static void template_blit_clipped(struct RastPort *rp, const ULONG *data,
-    LONG x, LONG y, LONG width, LONG height, LONG pen, LONG cl, LONG ct,
-    LONG cr, LONG cb)
-{
-    LONG l = MAX(x, cl), r = MIN(x + width - 1, cr);
-    LONG t = MAX(y, ct), b = MIN(y + height - 1, cb);
-    UBYTE mode = rp->DrawMode;
-    const UWORD *src;
-    LONG sx;
+/* A shape's id holds all it is made from: the kind and a number */
+/* (sub a signed word: an arrow box too small gives n <= 0, drawn as
+ * nothing) */
+#define VT_ID(kind, sub) ((ULONG)(kind) << 16 | (UWORD)(sub))
+#define VT_ARROWV 1     /* n * 2 + up */
+#define VT_ARROWH 2     /* n * 2 + leftwards */
+#define VT_GLYPH 3      /* the glyph's number */
+#define VT_MX 4         /* selected * 4 + the letter: T, B, F, I */
 
-    if (l > r || t > b)
-        return;
-    /* BltTemplate takes a bit offset below 16 in the first source word */
-    sx = l - x;
-    src = (const UWORD *) (data + (t - y)) + sx / 16;
-    if (rp->FgPen != (BYTE) pen)
-        SetAPen(rp, pen);
-    if (mode != JAM1)
-        SetDrMd(rp, JAM1);
-    BltTemplate((CONST PLANEPTR) src, sx & 15, sizeof(ULONG), rp, l, t,
-        r - l + 1, b - t + 1);
-    if (mode != JAM1)
-        SetDrMd(rp, mode);
-}
-
-static void template_blit(struct RastPort *rp, const ULONG *data, LONG x,
-    LONG y, LONG width, LONG height, LONG pen)
-{
-    template_blit_clipped(rp, data, x, y, width, height, pen, x, y,
-        x + width - 1, y + height - 1);
-}
-
-/* Set the bits [x0, x1] of a 32-bit row, clipped to the row */
-static void template_span(ULONG *row, LONG x0, LONG x1)
-{
-    if (x0 < 0)
-        x0 = 0;
-    if (x1 > 31)
-        x1 = 31;
-    for (; x0 <= x1; x0++)
-        *row |= 0x80000000UL >> x0;
-}
-
-static void arrow_span(struct RastPort *rp, LONG x, LONG y, LONG minx,
-    LONG maxx)
-{
-    LONG x2 = x + 1;
-
-    if (x < minx)
-        x = minx;
-    if (x2 > maxx)
-        x2 = maxx;
-    if (x <= x2)
-        RectFill(rp, x, y, x2, y);
-}
-
-static void arrow_vertical(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, BOOL up)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    LONG n = MIN(height, width / 2), cx = left + width / 2, y0, r;
-
-    if (n < 1)
-        return;
-    y0 = top + (height - n) / 2;
-    /* The spans cover [cx - n, cx + n - 1] x [y0, y0 + n - 1], inside the
-     * box: one template per size and direction */
-    if (2 * n <= 32)
-    {
-        ULONG *data = template_find(arrow_vertical, n * 2 + up);
-
-        if (!data && (data = template_add(arrow_vertical, n * 2 + up, n)))
-            for (r = 0; r < n; r++)
-            {
-                LONG y = up ? r : n - 1 - r;
-
-                template_span(&data[y], n - 1 - r, n - r);
-                template_span(&data[y], n - 1 + r, n + r);
-            }
-        if (data)
-        {
-            template_blit(rport, data, cx - n, y0, 2 * n, n,
-                mri->mri_Pens[MPEN_TEXT]);
-            return;
-        }
-    }
-    SetAPen(rport, mri->mri_Pens[MPEN_TEXT]);
-    for (r = 0; r < n; r++)
-    {
-        LONG y = up ? y0 + r : y0 + n - 1 - r;
-
-        arrow_span(rport, cx - 1 - r, y, left, left + width - 1);
-        arrow_span(rport, cx - 1 + r, y, left, left + width - 1);
-    }
-}
-
-static void arrow_horizontal(struct MUI_RenderInfo *mri, LONG left,
-    LONG top, LONG width, LONG height, BOOL leftwards)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    LONG n = MIN(height / 2, width), x0, y0, r;
-
-    if (n < 1)
-        return;
-    x0 = left + (width - n) / 2;
-    y0 = top + (height - 2 * n) / 2;
-    /* The spans are clipped to [x0, x0 + n - 1] x [y0, y0 + 2n - 1] */
-    if (n <= 32)
-    {
-        ULONG *data = template_find(arrow_horizontal, n * 2 + leftwards);
-
-        if (!data
-            && (data = template_add(arrow_horizontal, n * 2 + leftwards, 2 * n)))
-            for (r = 0; r < n; r++)
-            {
-                LONG x = leftwards ? n - 1 - r : r - 1;
-                LONG xa = x < 0 ? 0 : x, xb = x + 1 > n - 1 ? n - 1 : x + 1;
-
-                if (xa <= xb)
-                {
-                    template_span(&data[r], xa, xb);
-                    template_span(&data[2 * n - 1 - r], xa, xb);
-                }
-            }
-        if (data)
-        {
-            template_blit(rport, data, x0, y0, n, 2 * n,
-                mri->mri_Pens[MPEN_TEXT]);
-            return;
-        }
-    }
-    SetAPen(rport, mri->mri_Pens[MPEN_TEXT]);
-    for (r = 0; r < n; r++)
-    {
-        LONG x = leftwards ? x0 + n - 1 - r : x0 + r - 1;
-
-        arrow_span(rport, x, y0 + r, x0, x0 + n - 1);
-        arrow_span(rport, x, y0 + 2 * n - 1 - r, x0, x0 + n - 1);
-    }
-}
-
-void arrowup_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    arrow_vertical(mri, left, top, width, height, TRUE);
-}
-
-void arrowdown_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    arrow_vertical(mri, left, top, width, height, FALSE);
-}
-
-void arrowleft_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    arrow_horizontal(mri, left, top, width, height, TRUE);
-}
-
-void arrowright_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    arrow_horizontal(mri, left, top, width, height, FALSE);
-}
-
-/* MUI 3.8/3.9 built-in glyphs drawn at their natural size, one bit per
- * pixel with the most significant bit leftmost, centred in the area. */
-static void glyph_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, const UWORD *rows, LONG gw, LONG gh)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    LONG x0 = left + (width - gw) / 2, y0 = top + (height - gh) / 2;
-    LONG y, x, start;
-
-    if (gw <= 16)
-    {
-        ULONG *data = template_find(rows, gh);
-
-        if (!data && (data = template_add(rows, gh, gh)))
-            for (y = 0; y < gh; y++)
-                data[y] = (ULONG) rows[y] << 16;
-        if (data)
-        {
-            template_blit_clipped(rport, data, x0, y0, gw, gh,
-                mri->mri_Pens[MPEN_TEXT], left, top, left + width - 1,
-                top + height - 1);
-            return;
-        }
-    }
-    SetAPen(rport, mri->mri_Pens[MPEN_TEXT]);
-    for (y = 0; y < gh; y++)
-    {
-        if (y0 + y < top || y0 + y >= top + height)
-            continue;
-        for (x = 0; x < gw; x = start)
-        {
-            while (x < gw && !(rows[y] & (0x8000 >> x)))
-                x++;
-            for (start = x; start < gw && (rows[y] & (0x8000 >> start));)
-                start++;
-            if (start > x)
-            {
-                LONG l = MAX(x0 + x, left);
-                LONG r = MIN(x0 + start - 1, left + width - 1);
-
-                if (l <= r)
-                    RectFill(rport, l, y0 + y, r, y0 + y);
-            }
-        }
-    }
-}
-
+/* MUI 3.8/3.9 built-in glyphs at their natural size, one bit per pixel
+ * with the most significant bit leftmost: width, height, the rows */
 static const UWORD checkmark_glyph[] = {
-    0x0038, 0x0060, 0x00c0, 0xe180, 0x7300, 0x3e00, 0x1c00
+    13, 7, 0x0038, 0x0060, 0x00c0, 0xe180, 0x7300, 0x3e00, 0x1c00
+};
+/* MUI 3.9's popup arrow, measured in a PopButton(MUII_PopUp) */
+static const UWORD popup_glyph[] = {
+    10, 10, 0x0000, 0xc0c0, 0x6180, 0x3300, 0x1e00, 0x0c00, 0x0000, 0xffc0,
+    0xffc0, 0x0000
 };
 static const UWORD popfile_glyph[] = {
-    0xff00, 0xc180, 0xc140, 0xc120, 0xc1f0, 0xc030, 0xc030, 0xc030,
+    12, 10, 0xff00, 0xc180, 0xc140, 0xc120, 0xc1f0, 0xc030, 0xc030, 0xc030,
     0xc030, 0xfff0
 };
 static const UWORD popdrawer_glyph[] = {
-    0x03c0, 0x0420, 0xf810, 0xfc10, 0xc7f0, 0xc010, 0xc010, 0xc010,
+    12, 9, 0x03c0, 0x0420, 0xf810, 0xfc10, 0xc7f0, 0xc010, 0xc010, 0xc010,
     0xfff0
 };
-
-void checkbox_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    /* Draw checkmark (only if image is in selected state) */
-    if (state == IDS_SELECTED)
-        glyph_draw(mri, left, top, width, height, checkmark_glyph, 13, 7);
-}
+static const UWORD *const glyphs[] = {
+    checkmark_glyph, popup_glyph, popfile_glyph, popdrawer_glyph
+};
 
 /* MUI 3.8/3.9 radio button: top-left edge (T), bottom-right edge (B),
  * the inside (I) and the selected fill (F), swapping the edge pens with
  * the state. The inside is painted with the background pen and the fill
  * only when selected; the corners outside the outline stay transparent,
  * as MUI 3.9 shows on a white IBrowse page. */
-static const char *const mx_map[] = {
+static const char mx_map[9][18] = {
     "..TTTTTTTTTTTTB..",
     ".TTIIIIIIIIIIIBB.",
     "TTIIIFFFFFFFIIIBB",
@@ -322,156 +91,264 @@ static const char *const mx_map[] = {
     ".TTIIIIIIIIIIIBB.",
     "..TBBBBBBBBBBBB..",
 };
-
-static LONG mx_pen(char c, BOOL selected)
-{
-    switch (c)
-    {
-    case 'T': return selected ? MPEN_SHADOW : MPEN_SHINE;
-    case 'B': return selected ? MPEN_SHINE : MPEN_SHADOW;
-    case 'F': return selected ? MPEN_FILL : MPEN_BACKGROUND;
-    case 'I': return MPEN_BACKGROUND;
-    }
-    return -1;
-}
-
-/* The image as rectangles of one pen, rows with the same span of a pen
- * merged, built once per state: about a dozen RectFill calls instead of
- * one call per row run, most of them single pixels
- * (tests/native/perfbench.c redraw) */
-struct mx_rect
-{
-    BYTE pen, x0, y0, x1, y1;
+static const char mx_letters[] = "TBFI";
+/* The pens of T, B, F, I: unselected, selected */
+static const UBYTE mx_pens[2][4] = {
+    {MPEN_SHINE, MPEN_SHADOW, MPEN_BACKGROUND, MPEN_BACKGROUND},
+    {MPEN_SHADOW, MPEN_SHINE, MPEN_FILL, MPEN_BACKGROUND},
 };
 
-static struct mx_rect mx_rects[2][40];
-static int mx_count[2] = { -1, -1 };
-
-static void mx_build(BOOL selected)
+/* Set the bits [x0, x1] of a row, clipped to [0, max] */
+static void vt_span(ULONG *row, LONG x0, LONG x1, LONG max)
 {
-    struct mx_rect *r = mx_rects[selected];
-    int n = 0, x, y;
-
-    for (y = 0; y < 9; y++)
-    {
-        for (x = 0; x < 17; x++)
-        {
-            LONG pen = mx_pen(mx_map[y][x], selected);
-            int end, i;
-
-            if (pen < 0)
-                continue;
-            for (end = x; end + 1 < 17
-                && mx_pen(mx_map[y][end + 1], selected) == pen;)
-                end++;
-            /* extend a rectangle that ends on the row above */
-            for (i = 0; i < n; i++)
-                if (r[i].pen == pen && r[i].x0 == x && r[i].x1 == end
-                    && r[i].y1 == y - 1)
-                    break;
-            if (i < n)
-                r[i].y1 = y;
-            else if (n < 40)
-            {
-                r[n].pen = pen;
-                r[n].x0 = x;
-                r[n].x1 = end;
-                r[n].y0 = r[n].y1 = y;
-                n++;
-            }
-            x = end;
-        }
-    }
-    /* the rectangles do not overlap: group them by pen */
-    for (x = 1; x < n; x++)
-    {
-        struct mx_rect t = r[x];
-
-        for (y = x; y > 0 && r[y - 1].pen > t.pen; y--)
-            r[y] = r[y - 1];
-        r[y] = t;
-    }
-    mx_count[selected] = n;
+    if (x0 < 0)
+        x0 = 0;
+    if (x1 > max)
+        x1 = max;
+    for (; x0 <= x1; x0++)
+        row[x0 >> 5] |= 0x80000000UL >> (x0 & 31);
 }
 
-void mx_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
-    LONG height, LONG state)
+/* The bits of a shape (rows of stride longs, cleared) */
+static void vt_build(ULONG *rows, LONG stride, ULONG id)
 {
-    struct RastPort *rport = mri->mri_RastPort;
-    BOOL selected = state == IDS_SELECTED;
-    LONG x0 = left + (width - 17) / 2, y0 = top + (height - 9) / 2;
-    LONG pen = -1;
-    int i;
+    LONG sub = (WORD)id, n = sub >> 1, r, x, y;
 
-    if (mx_count[selected] < 0)
-        mx_build(selected);
-    /* One template per pen, clipped to the box like the rectangles */
+    switch (id >> 16)
     {
-        static const char pens[] = "TBFI";
-        BOOL ok = TRUE;
-        int p;
-
-        for (p = 0; p < 4 && ok; p++)
+    case VT_ARROWV:
+        /* MUI 3.8/3.9's arrows are chevrons with two pixel wide strokes:
+         * n rows of two strokes in 2n columns */
+        for (r = 0; r < n; r++)
         {
-            LONG penid = mx_pen(pens[p], selected);
-            ULONG *data = template_find(mx_map, selected * 4 + p);
-            int y, x, any = 0, q;
+            ULONG *row = rows + ((sub & 1) ? r : n - 1 - r) * stride;
 
-            /* letters sharing a pen are drawn by the first of them */
-            for (q = 0; q < p; q++)
-                if (mx_pen(pens[q], selected) == penid)
-                    break;
-            if (q < p)
-                continue;
-            if (!data && (data = template_add(mx_map, selected * 4 + p, 9)))
-                for (y = 0; y < 9; y++)
-                    for (x = 0; x < 17; x++)
-                        if (mx_pen(mx_map[y][x], selected) == penid)
-                            data[y] |= 0x80000000UL >> x;
-            if (!data)
-                ok = FALSE;
-            else
-            {
-                for (y = 0; y < 9; y++)
-                    any |= data[y] != 0;
-                if (any)
-                    template_blit_clipped(rport, data, x0, y0, 17, 9,
-                        mri->mri_Pens[penid], left, top, left + width - 1,
-                        top + height - 1);
-            }
+            vt_span(row, n - 1 - r, n - r, 2 * n - 1);
+            vt_span(row, n - 1 + r, n + r, 2 * n - 1);
         }
-        if (ok)
-            return;
-    }
-    for (i = 0; i < mx_count[selected]; i++)
-    {
-        const struct mx_rect *r = &mx_rects[selected][i];
-        LONG l = MAX(x0 + r->x0, left), rt = MIN(x0 + r->x1, left + width - 1);
-        LONG t = MAX(y0 + r->y0, top), b = MIN(y0 + r->y1, top + height - 1);
-
-        if (l > rt || t > b)
-            continue;
-        if (r->pen != pen)
+        break;
+    case VT_ARROWH:
+        /* n columns in 2n rows */
+        for (r = 0; r < n; r++)
         {
-            pen = r->pen;
-            SetAPen(rport, mri->mri_Pens[pen]);
+            x = (sub & 1) ? n - 1 - r : r - 1;
+            vt_span(rows + r * stride, x, x + 1, n - 1);
+            vt_span(rows + (2 * n - 1 - r) * stride, x, x + 1, n - 1);
         }
-        if (l == rt && t == b)
-            WritePixel(rport, l, t);
-        else
-            RectFill(rport, l, t, rt, b);
+        break;
+    case VT_GLYPH:
+        {
+            const UWORD *g = glyphs[sub];
+
+            for (y = 0; y < g[1]; y++)
+                rows[y] = (ULONG)g[2 + y] << 16;
+        }
+        break;
+    default:
+        /* the radio button's letters drawn in the pen of the letter
+         * sub & 3 (letters sharing a pen are drawn together) */
+        {
+            const UBYTE *pens = mx_pens[sub >> 2];
+            UBYTE pen = pens[sub & 3];
+
+            for (y = 0; y < 9; y++, rows++)
+                for (x = 0; x < 17; x++)
+                {
+                    const char *c = strchr(mx_letters, mx_map[y][x]);
+
+                    if (c && pens[c - mx_letters] == pen)
+                        *rows |= 0x80000000UL >> x;
+                }
+        }
+        break;
     }
 }
 
-void cycle_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
+/**************************************************************************
+ Paint the shape id centred in the box (left, top, width, height) and
+ clipped to it, in its pen (MPEN_TEXT; the radio letters their own). The
+ image drawing functions have the same arguments, so they jump here.
+**************************************************************************/
+static void vt_draw(struct MUI_RenderInfo *mri, ULONG id, LONG left,
+    LONG top, LONG width, LONG height)
+{
+    struct RastPort *rp = mri->mri_RastPort;
+    LONG sub = (WORD)id, n = sub >> 1, w, h, x, y, l, r, t, b, i, stride;
+    ULONG size, *data = NULL;
+    MPen pen = MPEN_TEXT;
+    UBYTE mode;
+
+    switch (id >> 16)
+    {
+    case VT_ARROWV:
+        w = 2 * n;
+        h = n;
+        break;
+    case VT_ARROWH:
+        w = n;
+        h = 2 * n;
+        break;
+    case VT_GLYPH:
+        w = glyphs[sub][0];
+        h = glyphs[sub][1];
+        break;
+    default:
+        w = 17;
+        h = 9;
+        pen = mx_pens[sub >> 2][sub & 3];
+        break;
+    }
+    x = left + (width - w) / 2;
+    y = top + (height - h) / 2;
+    l = MAX(x, left);
+    r = MIN(x + w - 1, left + width - 1);
+    t = MAX(y, top);
+    b = MIN(y + h - 1, top + height - 1);
+    if (l > r || t > b)
+        return;
+    stride = (w + 31) >> 5;
+    size = h * stride * 4;
+    for (i = 0; i < nvt; i++)
+        if (vt[i].id == id)
+        {
+            data = vt[i].data;
+            break;
+        }
+    if (!data)
+    {
+        Forbid();
+        for (i = 0; i < nvt && vt[i].id != id; i++)
+            ;
+        if (i < nvt)
+            data = vt[i].data;
+        else if (nvt < VTEMPLATES
+            && (data = AllocMem(size, MEMF_CHIP | MEMF_CLEAR)))
+        {
+            vt_build(data, stride, id);
+            vt[nvt].id = id;
+            vt[nvt].data = data;
+            vt[nvt].size = size;
+            nvt++;
+        }
+        Permit();
+    }
+    pen = mri->mri_Pens[pen];
+    if (rp->FgPen != (BYTE)pen)
+        SetAPen(rp, pen);
+    mode = rp->DrawMode;
+    if (mode != JAM1)
+        SetDrMd(rp, JAM1);
+    if (data)
+    {
+        /* BltTemplate takes a bit offset below 16 in the first word */
+        BltTemplate((CONST PLANEPTR)((UWORD *)(data + (t - y) * stride)
+            + ((l - x) >> 4)), (l - x) & 15, stride * 4, rp, l, t,
+            r - l + 1, b - t + 1);
+    }
+    else if ((data = AllocMem(size, MEMF_ANY | MEMF_CLEAR)))
+    {
+        /* no template: the same bits painted run by run */
+        vt_build(data, stride, id);
+        for (; t <= b; t++)
+        {
+            const ULONG *row = data + (t - y) * stride;
+
+            for (i = l; i <= r; i = n)
+            {
+#define VT_BIT(px) (row[((px) - x) >> 5] & (0x80000000UL >> (((px) - x) & 31)))
+                while (i <= r && !VT_BIT(i))
+                    i++;
+                for (n = i; n <= r && VT_BIT(n); n++)
+                    ;
+                if (n > i)
+                    RectFill(rp, i, t, n - 1, t);
+#undef VT_BIT
+            }
+        }
+        FreeMem(data, size);
+    }
+    if (mode != JAM1)
+        SetDrMd(rp, mode);
+}
+
+/* The arrows: n rows (columns) as the box allows, centred; none when n is
+ * 0 (vt_draw's box is then empty) */
+static void arrowup_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    LONG n = MIN(height, width / 2);
+
+    vt_draw(mri, VT_ID(VT_ARROWV, n * 2 + 1), left, top, width, height);
+}
+
+static void arrowdown_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    LONG n = MIN(height, width / 2);
+
+    vt_draw(mri, VT_ID(VT_ARROWV, n * 2), left, top, width, height);
+}
+
+static void arrowleft_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    LONG n = MIN(height / 2, width);
+
+    vt_draw(mri, VT_ID(VT_ARROWH, n * 2 + 1), left, top, width, height);
+}
+
+static void arrowright_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    LONG n = MIN(height / 2, width);
+
+    vt_draw(mri, VT_ID(VT_ARROWH, n * 2), left, top, width, height);
+}
+
+static void checkbox_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    /* the check mark only in the selected state */
+    if (state == IDS_SELECTED)
+        vt_draw(mri, VT_ID(VT_GLYPH, 0), left, top, width, height);
+}
+
+static void popup_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    vt_draw(mri, VT_ID(VT_GLYPH, 1), left, top, width, height);
+}
+
+static void popfile_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    vt_draw(mri, VT_ID(VT_GLYPH, 2), left, top, width, height);
+}
+
+static void popdrawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    vt_draw(mri, VT_ID(VT_GLYPH, 3), left, top, width, height);
+}
+
+/* One template per pen of a state; I shares the background pen with F
+ * when unselected */
+static void mx_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    LONG selected = state == IDS_SELECTED, p;
+
+    for (p = 0; p < 3 + selected; p++)
+        vt_draw(mri, VT_ID(VT_MX, selected * 4 + p), left, top, width,
+            height);
+}
+
+static void cycle_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
     LONG height, LONG state)
 {
     struct RastPort *rport = mri->mri_RastPort;
     int bottom = top + height - 1;
     int right = left + width - 1;
-#if BIGGER_ARROW
-    int arrow_top;
-#endif
 
     SetAPen(rport, mri->mri_Pens[MPEN_TEXT]);
 
@@ -487,14 +364,6 @@ void cycle_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
     Move(rport, right - 7, top + 1);
     Draw(rport, right - 6, top + 1);
 
-#if BIGGER_ARROW
-    arrow_top = top + (3 * height / 4) - 3;
-    /* prevent arrow touching bottom */
-    if (arrow_top + 4 >= bottom - 1)
-        arrow_top = bottom - 5;
-
-    RectFill(rport, right - 7, top + 1, right - 6, arrow_top - 1);
-#endif
     /* The small arrow */
     Move(rport, right - 6 - 3, top + 2);
     Draw(rport, right - 7 + 3, top + 2);
@@ -502,29 +371,6 @@ void cycle_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
     Draw(rport, right - 7 + 2, top + 3);
     Move(rport, right - 6 - 1, top + 4);
     Draw(rport, right - 7 + 1, top + 4);
-#if BIGGER_ARROW
-    /* makes arrow bigger */
-    if (arrow_top - top - 2 >= 4)
-    {
-        Move(rport, right - 6 - 3, arrow_top - 1);
-        Draw(rport, right - 7 + 3, arrow_top - 1);
-        Move(rport, right - 6 - 2, arrow_top);
-        Draw(rport, right - 7 + 2, arrow_top);
-        Move(rport, right - 6 - 2, arrow_top + 1);
-        Draw(rport, right - 7 + 2, arrow_top + 1);
-        Move(rport, right - 6 - 1, arrow_top + 2);
-        Draw(rport, right - 7 7 + 1, arrow_top + 2);
-    }
-    else
-    {
-        Move(rport, right - 6 - 3, arrow_top);
-        Draw(rport, right - 7 + 3, arrow_top);
-        Move(rport, right - 6 - 2, arrow_top + 1);
-        Draw(rport, right - 7 + 2, arrow_top + 1);
-        Move(rport, right - 6 - 1, arrow_top + 2);
-        Draw(rport, right - 7 + 1, arrow_top + 2);
-    }
-#endif
 
     /* The right bar */
     SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
@@ -535,474 +381,66 @@ void cycle_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
     Draw(rport, right, bottom);
 }
 
-/* MUI 3.9's popup arrow, measured in a PopButton(MUII_PopUp) */
-static const UWORD popup_glyph[] = {
-    0x0000, 0xc0c0, 0x6180, 0x3300, 0x1e00, 0x0c00, 0x0000, 0xffc0,
-    0xffc0, 0x0000
-};
-
-void popup_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
-    LONG height, LONG state)
-{
-    glyph_draw(mri, left, top, width, height, popup_glyph, 10, 10);
-}
-
-void popfile_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    glyph_draw(mri, left, top, width, height, popfile_glyph, 12, 10);
-}
-
-void popdrawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    glyph_draw(mri, left, top, width, height, popdrawer_glyph, 12, 9);
-}
-
-static void stddrawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-    int bottom = top + height - 1;
-    int x, y;
-
-#define XX(x)   (x * (width - 1) / 100)
-#define YY(y)   (y * (height - 1) / 100)
-#define YOFF    45
-#define XOFF    24
-
-    for (y = 0; y < YY(YOFF); y++)
-    {
-        x = (YY(XOFF) > 1) ? XX(XOFF) * y / (YY(YOFF) - 1) : 1;
-        SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
-        RectFill(rport, left + XX(XOFF) - x, top + y, right - XX(XOFF) + x,
-            top + y);
-        SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-        WritePixel(rport, left + XX(XOFF) - x, top + y);
-        WritePixel(rport, right - XX(XOFF) + x, top + y);
-    }
-
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
-    RectFill(rport, left, top + YY(YOFF), right, bottom);
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(XOFF), top);
-    Draw(rport, right - XX(XOFF), top);
-
-    Move(rport, left, top + YY(YOFF));
-    Draw(rport, left, bottom);
-    Draw(rport, right, bottom);
-    Draw(rport, right, top + YY(YOFF));
-    Draw(rport, left, top + YY(YOFF));
-
-#undef XX
-#undef YY
-#undef YOFF
-#undef XOFF
-}
-
-
-void drawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-
-    stddrawer_draw(mri, left, top, width, height);
-
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(40), top + YY(75));
-    Draw(rport, right - XX(40), top + YY(75));
-
-#undef XX
-#undef YY
-
-}
-
-void harddisk_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-
-    stddrawer_draw(mri, left, top, width, height);
-
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(20), top + YY(75));
-    Draw(rport, left + XX(30), top + YY(75));
-
-#undef XX
-#undef YY
-}
-
-void disk_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
-    LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-    int bottom = top + height - 1;
-    int x, y;
-
-#define XX(x)   (x * (width - 1) / 100)
-#define YY(y)   (y * (height - 1) / 100)
-#define YOFF    29
-#define XOFF    25
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    for (y = 0; y < YY(YOFF); y++)
-    {
-        x = (YY(YOFF) > 1) ? XX(XOFF) * y / (YY(YOFF) - 1) : 1;
-        RectFill(rport, left, top + y, right - XX(XOFF) + x, top + y);
-    }
-    RectFill(rport, left, top + YY(YOFF), right, bottom);
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
-    RectFill(rport, left + XX(33), top, right - XX(33), top + YY(YOFF));
-    RectFill(rport, left + XX(25), top + YY(60), right - XX(25), bottom);
-
-#undef XX
-#undef YY
-#undef YOFF
-#undef XOFF
-}
-
-void ram_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
-    LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right, bottom;
-
-#define XX(x) left + x * (width - 1) / 100
-#define YY(y) top  + y * (height - 1) / 100
-
-    right = left + width - 1;
-    bottom = top + height - 1;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    RectFill(rport, left, top, right, bottom);
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
-    Move(rport, XX(33), YY(25));
-    Draw(rport, XX(33), YY(75));
-
-    Move(rport, XX(71), YY(25));
-    Draw(rport, XX(61), YY(25));
-    Draw(rport, XX(61), YY(75));
-    Draw(rport, XX(71), YY(75));
-
-#undef XX
-#undef YY
-}
-
-void volume_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right, bottom;
-
-#define XX(x) left + x * (width - 1) / 100
-#define YY(y) top  + y * (height - 1) / 100
-
-    right = left + width - 1;
-    bottom = top + height - 1;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    RectFill(rport, left, top, right, bottom);
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
-    Move(rport, XX(10), YY(25));
-    Draw(rport, XX(10), YY(50));
-    Draw(rport, XX(19), YY(75));
-    Draw(rport, XX(28), YY(50));
-    Draw(rport, XX(28), YY(25));
-
-    Move(rport, XX(46), YY(25));
-    Draw(rport, XX(64), YY(25));
-    Draw(rport, XX(64), YY(75));
-    Draw(rport, XX(46), YY(75));
-    Draw(rport, XX(46), YY(25));
-
-    Move(rport, XX(80), YY(25));
-    Draw(rport, XX(80), YY(75));
-    Draw(rport, XX(92), YY(75));
-
-#undef XX
-#undef YY
-}
-
-void network_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-
-    stddrawer_draw(mri, left, top, width, height);
-
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(40), top + YY(75));
-    Draw(rport, right - XX(40), top + YY(75));
-
-#undef XX
-#undef YY
-}
-
-void assign_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int right = left + width - 1;
-
-    stddrawer_draw(mri, left, top, width, height);
-
-#define XX(x) x * (width - 1) / 100
-#define YY(y) y * (height - 1) / 100
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    Move(rport, left + XX(40), top + YY(75));
-    Draw(rport, right - XX(40), top + YY(75));
-
-#undef XX
-#undef YY
-}
-
-void tape_play_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int x, half = height / 2;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-
-    for (x = 0; x < width; x++)
-    {
-        int y = (width > 1) ? half * x / (width - 1) : 1;
-
-        RectFill(rport, left + width - 1 - x, top + half - y,
-            left + width - 1 - x, top + half + y);
-    }
-}
-
-void tape_playback_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int x, half = height / 2;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-
-    for (x = 0; x < width; x++)
-    {
-        int y = (width > 1) ? half * x / (width - 1) : 1;
-
-        RectFill(rport, left + x, top + half - y, left + x, top + half + y);
-    }
-}
-
-void tape_pause_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-    RectFill(rport, left, top, left + width / 4, top + height - 1);
-    RectFill(rport, left + width - 1 - width / 4, top, left + width - 1,
-        top + height - 1);
-}
-
-void tape_stop_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_TEXT]);
-    RectFill(rport, left, top, left + width - 1, top + height - 1);
-}
-
-void tape_record_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int rx = (width - 1) / 2;
-    int ry = (height - 1) / 2;
-    int x = rx, y = 0;          /* ellipse points */
-
-    /* intermediate terms to speed up loop */
-    int t1 = rx * rx, t2 = t1 << 1, t3 = t2 << 1;
-    int t4 = ry * ry, t5 = t4 << 1, t6 = t5 << 1;
-    int t7 = rx * t5, t8 = t7 << 1, t9 = 0L;
-    int d1 = t2 - t7 + (t4 >> 1);       /* error terms */
-    int d2 = (t1 >> 1) - t8 + t5;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-
-    while (d2 < 0)              /* til slope = -1 */
-    {
-
-        /* draw 4 points using symmetry */
-        RectFill(rport, left + rx - x, top + ry + y, left + rx + x,
-            top + ry + y);
-        RectFill(rport, left + rx - x, top + ry - y, left + rx + x,
-            top + ry - y);
-
-        y++;                    /* always move up here */
-        t9 = t9 + t3;
-        if (d1 < 0)             /* move straight up */
-        {
-            d1 = d1 + t9 + t2;
-            d2 = d2 + t9;
-        }
-        else                    /* move up and left */
-        {
-            x--;
-            t8 = t8 - t6;
-            d1 = d1 + t9 + t2 - t8;
-            d2 = d2 + t9 + t5 - t8;
-        }
-    }
-
-    do                          /* rest of top right quadrant */
-    {
-        /* draw 4 points using symmetry */
-        RectFill(rport, left + rx - x, top + ry + y, left + rx + x,
-            top + ry + y);
-        RectFill(rport, left + rx - x, top + ry - y, left + rx + x,
-            top + ry - y);
-
-        x--;                    /* always move left here */
-        t8 = t8 - t6;
-        if (d2 < 0)             /* move up and left */
-        {
-            y++;
-            t9 = t9 + t3;
-            d2 = d2 + t9 + t5 - t8;
-        }
-        else                    /* move straight left */
-        {
-            d2 = d2 + t5 - t8;
-        }
-
-    }
-    while (x >= 0);
-
-}
-
-void tape_up_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int y, half = width / 2;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-
-    for (y = 0; y < height; y++)
-    {
-        int x = (height > 1) ? half * y / (height - 1) : 1;
-
-        RectFill(rport, left + half - x, top + y, left + half + x, top + y);
-    }
-}
-
-void tape_down_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
-    LONG width, LONG height, LONG state)
-{
-    struct RastPort *rport = mri->mri_RastPort;
-    int y, half = width / 2;
-
-    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
-
-    for (y = 0; y < height; y++)
-    {
-        int x = (height > 1) ? half * y / (height - 1) : 1;
-
-        RectFill(rport, left + half - x, top + height - 1 - y,
-            left + half + x, top + height - 1 - y);
-    }
-}
-
-struct vector_image
-{
-    int minwidth;
-    int minheight;
-    VECTOR_DRAW_FUNC draw_func;
-};
-
 /* Sizes as MUI 3.9 reports them for the built-in images
- * (tests/native/imgsizes.c) */
-static const struct vector_image vector_table[] = {
-    {10, 5, arrowup_draw},
-    {10, 5, arrowdown_draw},
-    {4, 8, arrowleft_draw},
-    {4, 8, arrowright_draw},
-    {13, 7, checkbox_draw},
-    {17, 9, mx_draw},
-    {15, 8, cycle_draw},
-    {10, 10, popup_draw},
-    {12, 10, popfile_draw},
-    {12, 9, popdrawer_draw},
+ * (tests/native/imgsizes.c): width, height */
+static const UBYTE vector_sizes[][2] = {
+    {10, 5}, {10, 5}, {4, 8}, {4, 8}, {13, 7}, {17, 9}, {15, 8}, {10, 10},
+    {12, 10}, {12, 9},
+    {13, 8}, {13, 8}, {12, 8}, {12, 5}, {12, 5}, {13, 8}, {13, 8},
+    {4, 7}, {4, 7}, {2, 7}, {6, 7}, {7, 7}, {7, 4}, {7, 4},
+};
+#define VECTOR_COUNT (sizeof(vector_sizes) / sizeof(vector_sizes[0]))
 
-    {13, 8, drawer_draw},
-    {13, 8, harddisk_draw},
-    {12, 8, disk_draw},
-    {12, 5, ram_draw},
-    {12, 5, volume_draw},
-    {13, 8, network_draw},
-    {13, 8, assign_draw},
-
-    {4, 7, tape_play_draw},
-    {4, 7, tape_playback_draw},
-    {2, 7, tape_pause_draw},
-    {6, 7, tape_stop_draw},
-    {7, 7, tape_record_draw},
-    {7, 4, tape_up_draw},
-    {7, 4, tape_down_draw},
+static const VECTOR_DRAW_FUNC vector_draws[10] = {
+    arrowup_draw, arrowdown_draw, arrowleft_draw, arrowright_draw,
+    checkbox_draw, mx_draw, cycle_draw, popup_draw, popfile_draw,
+    popdrawer_draw,
 };
 
-#define VECTOR_TABLE_ENTRIES (sizeof(vector_table)/sizeof(vector_table[0]))
-
-struct MUI_ImageSpec_intern *zune_imspec_create_vector(LONG vect)
+static struct MUI_ImageSpec_intern *vector_spec(LONG vect,
+    VECTOR_DRAW_FUNC draw)
 {
     struct MUI_ImageSpec_intern *spec;
-
-    if (!(vect >= 0 && vect < VECTOR_TABLE_ENTRIES))
-        return NULL;
 
     if ((spec = mui_alloc_struct(struct MUI_ImageSpec_intern)))
     {
         spec->type = IST_VECTOR;
         spec->u.vect.type = vect;
-        spec->u.vect.draw = vector_table[vect].draw_func;
+        spec->u.vect.draw = draw;
     }
     return spec;
+}
+
+/* The rarely shown images 1:10 to 1:23: the round frame module's (no
+ * drawing without it) */
+static __attribute__((noinline)) struct MUI_ImageSpec_intern *rare_vector(
+    LONG vect)
+{
+    const struct ZuneFramesModule *m = zune_frames_module();
+
+    return vector_spec(vect, m ? m->images[vect - 10] : NULL);
+}
+
+struct MUI_ImageSpec_intern *zune_imspec_create_vector(LONG vect)
+{
+    if (vect < 0 || vect >= VECTOR_COUNT)
+        return NULL;
+    if (vect >= 10)
+        return rare_vector(vect);
+    return vector_spec(vect, vector_draws[vect]);
 }
 
 BOOL zune_imspec_vector_get_minmax(struct MUI_ImageSpec_intern *spec,
     struct MUI_MinMax *minmax)
 {
-    if (!spec || spec->type != IST_VECTOR)
+    ULONG v;
+
+    if (!spec || spec->type != IST_VECTOR
+        || (v = spec->u.vect.type) >= VECTOR_COUNT)
         return FALSE;
-    if ((spec->u.vect.type >= 0)
-        && (spec->u.vect.type < VECTOR_TABLE_ENTRIES))
-    {
-        minmax->MinWidth = vector_table[spec->u.vect.type].minwidth;
-        minmax->MinHeight = vector_table[spec->u.vect.type].minheight;
-        minmax->DefWidth = minmax->MinWidth;
-        minmax->DefHeight = minmax->MinHeight;
-        minmax->MaxWidth = MUI_MAXMAX;
-        minmax->MaxHeight = MUI_MAXMAX;
-    }
-    else
-    {
-        return FALSE;
-    }
+    minmax->MinWidth = minmax->DefWidth = vector_sizes[v][0];
+    minmax->MinHeight = minmax->DefHeight = vector_sizes[v][1];
+    minmax->MaxWidth = MUI_MAXMAX;
+    minmax->MaxHeight = MUI_MAXMAX;
     return TRUE;
 }

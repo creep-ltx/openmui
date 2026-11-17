@@ -299,6 +299,7 @@ ZMC_CHECK(ZuneListModule, draw_sort_mark, 24);
 #define ZMC_OFS_ZuneMui45Module_image_button 40
 #define ZMC_OFS_ZuneMui45Module_case_shortcut 44
 #define ZMC_OFS_ZuneMui45Module_menu_verify 48
+#define ZMC_OFS_ZuneMui45Module_text_effect 56
 ZMC_CHECK(ZuneMui45Module, area, 0);
 ZMC_CHECK(ZuneMui45Module, string, 4);
 ZMC_CHECK(ZuneMui45Module, string_draw, 8);
@@ -314,6 +315,7 @@ ZMC_CHECK(ZuneMui45Module, case_shortcut, 44);
 ZMC_CHECK(ZuneMui45Module, menu_verify, 48);
 #define ZMC_OFS_ZuneMui45Module_area_aros 52
 ZMC_CHECK(ZuneMui45Module, area_aros, 52);
+ZMC_CHECK(ZuneMui45Module, text_effect, 56);
 
 #define ZMC_OFS_ZunePrefsModule_configdata_set 0
 ZMC_CHECK(ZunePrefsModule, configdata_set, 0);
@@ -504,18 +506,24 @@ ZMC(zune_window_save_snapshot, ZMOD_WINTITLE, ZuneWintitleModule,
  * of such a frame, so the table is kept. Class files and modules are
  * only unloaded at the library's expunge (ZUNE_CloseClassFiles), so it
  * stays valid without a reference held. */
-const struct ZuneFrameGfx *zune_round_frames_get(void)
+const struct ZuneFramesModule *zune_frames_module(void)
 {
-    static const struct ZuneFrameGfx *round;
+    static const struct ZuneFramesModule *frames;
 
-    if (!round)
+    if (!frames)
     {
         MODULE(ZuneFramesModule, ZMOD_FRAMES);
-        if (m)
-            round = m->frames;
+        frames = m;
         zune_module_put(cl);
     }
-    return round;
+    return frames;
+}
+
+const struct ZuneFrameGfx *zune_round_frames_get(void)
+{
+    const struct ZuneFramesModule *m = zune_frames_module();
+
+    return m ? m->frames : NULL;
 }
 
 /* List's in-place editing (MUI 5) and drag and drop (listx.c). Without
@@ -578,6 +586,8 @@ ZMC(zune_image_button, ZMOD_MUI45, ZuneMui45Module, image_button, 3, 0);
 ZMC(zune_window_case_shortcut, ZMOD_MUI45, ZuneMui45Module, case_shortcut,
     3, 0);
 ZMC(zune_window_menu_verify, ZMOD_MUI45, ZuneMui45Module, menu_verify, 3, 0);
+/* MUI 4/5's text colours and effects (texteffect45.c) */
+ZMC(zune_text_effect45, ZMOD_MUI45, ZuneMui45Module, text_effect, 6, 0);
 
 /* Configdata's setters (configset.c): the prefs program's; without the
  * module a setting is not changed */

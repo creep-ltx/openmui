@@ -219,6 +219,9 @@ struct ZuneFramesModule
     const struct ZuneFrameGfx *frames;
     UBYTE (*area_round_background)(Object *, ULONG,
         const struct ZuneFrameGfx *, BOOL);
+    /* the built-in images 1:10 to 1:23 (imspec_rare.c) */
+    void (*const *images)(struct MUI_RenderInfo *, LONG, LONG, LONG, LONG,
+        LONG);
 };
 /* area_round_background: Area's background under a rounded frame
  * (arearound.c); nothing drawn without the module (nor the frame) */
@@ -228,6 +231,8 @@ UBYTE zune_area_round_background(Object *obj, ULONG flags,
 IPTR zune_area_custom_backfill(Object *obj, LONG left, LONG top, LONG width,
     LONG height);
 const struct ZuneFrameGfx *zune_round_frames_get(void);
+/* the module itself (kept once loaded), or NULL */
+const struct ZuneFramesModule *zune_frames_module(void);
 
 /* List's in-place editing and drag and drop (listx.c); the library's
  * functions of the same names (zune_list_*, classes/list_private.h) call
@@ -272,6 +277,7 @@ struct TagItem;
 struct ZunePointer;
 struct ZText;
 struct TextFont;
+struct ZTextChunk;
 struct ZuneMui45Module
 {
     IPTR (*area)(Object *, ULONG, IPTR, IPTR *);
@@ -292,7 +298,13 @@ struct ZuneMui45Module
     BOOL (*case_shortcut)(Object *, struct Menu *, ULONG);
     BOOL (*menu_verify)(Object *, Object *, struct IntuiMessage *);
     IPTR (*area_aros)(struct IClass *, Object *, Msg);
+    void (*text_effect)(struct ZText *, struct ZTextChunk *, Object *,
+        struct RastPort *, LONG, LONG);
 };
+/* text_effect: a text chunk with MUI 4/5's colours or effects
+ * (texteffect45.c); nothing drawn without the module */
+void zune_text_effect45(struct ZText *text, struct ZTextChunk *chunk,
+    Object *obj, struct RastPort *rp, LONG x, LONG right);
 /* area_aros: Area's MUIM_DrawBackgroundBuffered,
  * MUIM_QueryFrameCharacteristics and MUIM_CreateFrameClippingRegion
  * (mui45.c), which only AROS programs send; 0 without the module */
