@@ -1,9 +1,10 @@
 /* framepix [thick|thin|auto] [maps]: every frame type's pixels. A 16-colour 640x480 screen (the
  * pens of framethick.c), a window of Rectangles with the frame spec "TS0000" for every type 0..b
- * and a custom one (c), raised and recessed, at seven inner sizes from 0x0 (where the frames'
- * safety returns decide) to 12x6, once over the window's background and once inside a group
+ * and a custom one (c), raised and recessed, at seven inner sizes from 1x1 to 12x6, once over the window's background and once inside a group
  * with MUII_SHINEBACK (the corner hints); toggle buttons of the types 1, 2, 3, 4, 6 and 9 that
- * are then selected (the state flip and its redraw) and titled frames of the same types. Prints
+ * are then selected (the state flip and its redraw) and titled frames of the same types; then
+ * each type and state redrawn at its largest object's place into boxes of 1 to 8 x 1 to 6 pixels
+ * (where the frames' size checks decide; MUI_Redraw with the box set by hand). Prints
  * one line per object: its spec, box and a checksum of every pixel's pen (FNV-1a), "maps" adds
  * the pixels (W shine, w halfshine, B background, d halfshadow, K shadow, else the pen number).
  * The setting goes into ENV:OpenMUI/FPix.1.prefs as in framethick.c. Compare OpenMUI builds
@@ -39,7 +40,10 @@ ULONG __stack = 65536;
 #define NTYPES 13
 #define NSIZES 7
 static const char types[NTYPES + 1] = "0123456789abc";
-static const UBYTE sizes[NSIZES][2] = { {0, 0}, {1, 1}, {2, 0}, {0, 2}, {3, 2}, {5, 3}, {12, 6} };
+static const UBYTE sizes[NSIZES][2] = { {1, 1}, {2, 1}, {1, 2}, {3, 2}, {5, 3}, {7, 7}, {12, 6} };
+/* the tiny boxes the frames' size checks decide (redrawn in place) */
+static const UBYTE tinyw[] = { 1, 2, 3, 4, 5, 6, 8 }, tinyh[] = { 1, 2, 3, 4, 6 };
+#define DRAWFRAME (1 << 11) /* OpenMUI's MADF_DRAWFRAME: the frame too */
 static const char togtypes[] = "123469";
 #define NOBJ (2 * NTYPES * 2 * NSIZES)
 #define NTOG 6
@@ -129,15 +133,9 @@ int main(int argc, char **argv)
                     strcpy(specs[n], "000000");
                     specs[n][0] = types[t];
                     specs[n][1] = '0' + s;
-                    /* an inner size of 0: weight 0 keeps the minimum */
                     objs[n] = RectangleObject, MUIA_Frame, (IPTR)specs[n],
-                        sizes[z][0] ? MUIA_FixWidth : MUIA_HorizWeight, sizes[z][0],
-                        sizes[z][1] ? MUIA_FixHeight : MUIA_VertWeight, sizes[z][1], End;
-                    /* weight 0 gets the minimum only beside a space */
-                    DoMethod(grid[g], OM_ADDMEMBER, (IPTR)(sizes[z][0] && sizes[z][1]
-                        ? objs[n] : HGroup, MUIA_Group_Spacing, 0, Child, (IPTR)(VGroup,
-                            MUIA_Group_Spacing, 0, Child, (IPTR)objs[n], Child,
-                            (IPTR)VSpace(0), End), Child, (IPTR)HSpace(0), End));
+                        MUIA_FixWidth, sizes[z][0], MUIA_FixHeight, sizes[z][1], End;
+                    DoMethod(grid[g], OM_ADDMEMBER, (IPTR)objs[n]);
                 }
     for (i = 0; i < NTOG; i++)
     {
@@ -181,6 +179,28 @@ int main(int argc, char **argv)
         strcpy(name, "selected 0");
         name[9] = togtypes[i];
         dump(iw->RPort, togs[i], name, maps);
+    }
+    /* each type and state redrawn into tiny boxes at the place of its
+     * largest object (cleared first), the old box dumped */
+    for (n = 0; n < 2 * NTYPES * NSIZES; n += NSIZES)
+    {
+        Object *o = objs[n + NSIZES - 1];
+        WORD w = _width(o), h = _height(o);
+        int a, b;
+
+        for (a = 0; a < sizeof(tinyw); a++)
+            for (b = 0; b < sizeof(tinyh); b++)
+            {
+                SetAPen(iw->RPort, 0);
+                RectFill(iw->RPort, _left(o), _top(o), _left(o) + w - 1, _top(o) + h - 1);
+                _width(o) = tinyw[a];
+                _height(o) = tinyh[b];
+                MUI_Redraw(o, MADF_DRAWOBJECT | DRAWFRAME);
+                _width(o) = w;
+                _height(o) = h;
+                sprintf(name, "tiny %s %ldx%ld", specs[n], (long)tinyw[a], (long)tinyh[b]);
+                dump(iw->RPort, o, name, maps);
+            }
     }
 out:
     fflush(stdout);
