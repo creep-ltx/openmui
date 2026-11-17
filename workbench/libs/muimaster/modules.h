@@ -219,9 +219,6 @@ struct ZuneFramesModule
     const struct ZuneFrameGfx *frames;
     UBYTE (*area_round_background)(Object *, ULONG,
         const struct ZuneFrameGfx *, BOOL);
-    /* the built-in images 1:17 to 1:23 (imspec_rare.c) */
-    void (*const *images)(struct MUI_RenderInfo *, LONG, LONG, LONG, LONG,
-        LONG);
 };
 /* area_round_background: Area's background under a rounded frame
  * (arearound.c); nothing drawn without the module (nor the frame) */

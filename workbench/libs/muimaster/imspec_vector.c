@@ -12,7 +12,6 @@
 #include "mui.h"
 #include "imspec_intern.h"
 #include "support.h"
-#include "modules.h"
 
 extern struct Library *MUIMasterBase;
 
@@ -27,8 +26,9 @@ extern struct Library *MUIMasterBase;
  longs wide, so a shape of any size has one (lean drew arrows wider than 32
  pixels span by span). Without a template (32 kept, or no chip memory) the
  same bits are built in other memory and painted run by run: the same
- pixels. The tape button images are in the round frame module
- (imspec_rare.c); the cycle image and the drive images keep their lines.
+ pixels. The cycle image, the drive and the tape button images keep
+ their lines (drawn as lean drew them; Volumelist and NListtree show them, so
+ they are not rare: moved into a module, real MUI 3 programs loaded it).
 **************************************************************************/
 
 #define VTEMPLATES 32
@@ -564,6 +564,162 @@ static void volume_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
 
 
 
+/* The tape button images 1:17 to 1:23 (NListtree's tree shows them),
+ * drawn as lean drew them */
+static void tape_play_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int x, half = height / 2;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+
+    for (x = 0; x < width; x++)
+    {
+        int y = (width > 1) ? half * x / (width - 1) : 1;
+
+        RectFill(rport, left + width - 1 - x, top + half - y,
+            left + width - 1 - x, top + half + y);
+    }
+}
+
+static void tape_playback_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int x, half = height / 2;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+
+    for (x = 0; x < width; x++)
+    {
+        int y = (width > 1) ? half * x / (width - 1) : 1;
+
+        RectFill(rport, left + x, top + half - y, left + x, top + half + y);
+    }
+}
+
+static void tape_pause_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    RectFill(rport, left, top, left + width / 4, top + height - 1);
+    RectFill(rport, left + width - 1 - width / 4, top, left + width - 1,
+        top + height - 1);
+}
+
+static void tape_stop_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_TEXT]);
+    RectFill(rport, left, top, left + width - 1, top + height - 1);
+}
+
+static void tape_record_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int rx = (width - 1) / 2;
+    int ry = (height - 1) / 2;
+    int x = rx, y = 0;          /* ellipse points */
+
+    /* intermediate terms to speed up loop */
+    int t1 = rx * rx, t2 = t1 << 1, t3 = t2 << 1;
+    int t4 = ry * ry, t5 = t4 << 1, t6 = t5 << 1;
+    int t7 = rx * t5, t8 = t7 << 1, t9 = 0L;
+    int d1 = t2 - t7 + (t4 >> 1);       /* error terms */
+    int d2 = (t1 >> 1) - t8 + t5;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+
+    while (d2 < 0)              /* til slope = -1 */
+    {
+
+        /* draw 4 points using symmetry */
+        RectFill(rport, left + rx - x, top + ry + y, left + rx + x,
+            top + ry + y);
+        RectFill(rport, left + rx - x, top + ry - y, left + rx + x,
+            top + ry - y);
+
+        y++;                    /* always move up here */
+        t9 = t9 + t3;
+        if (d1 < 0)             /* move straight up */
+        {
+            d1 = d1 + t9 + t2;
+            d2 = d2 + t9;
+        }
+        else                    /* move up and left */
+        {
+            x--;
+            t8 = t8 - t6;
+            d1 = d1 + t9 + t2 - t8;
+            d2 = d2 + t9 + t5 - t8;
+        }
+    }
+
+    do                          /* rest of top right quadrant */
+    {
+        /* draw 4 points using symmetry */
+        RectFill(rport, left + rx - x, top + ry + y, left + rx + x,
+            top + ry + y);
+        RectFill(rport, left + rx - x, top + ry - y, left + rx + x,
+            top + ry - y);
+
+        x--;                    /* always move left here */
+        t8 = t8 - t6;
+        if (d2 < 0)             /* move up and left */
+        {
+            y++;
+            t9 = t9 + t3;
+            d2 = d2 + t9 + t5 - t8;
+        }
+        else                    /* move straight left */
+        {
+            d2 = d2 + t5 - t8;
+        }
+
+    }
+    while (x >= 0);
+
+}
+
+static void tape_up_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int y, half = width / 2;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+
+    for (y = 0; y < height; y++)
+    {
+        int x = (height > 1) ? half * y / (height - 1) : 1;
+
+        RectFill(rport, left + half - x, top + y, left + half + x, top + y);
+    }
+}
+
+static void tape_down_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int y, half = width / 2;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+
+    for (y = 0; y < height; y++)
+    {
+        int x = (height > 1) ? half * y / (height - 1) : 1;
+
+        RectFill(rport, left + half - x, top + height - 1 - y,
+            left + half + x, top + height - 1 - y);
+    }
+}
+
 /* Sizes as MUI 3.9 reports them for the built-in images
  * (tests/native/imgsizes.c): width, height */
 static const UBYTE vector_sizes[][2] = {
@@ -574,44 +730,28 @@ static const UBYTE vector_sizes[][2] = {
 };
 #define VECTOR_COUNT (sizeof(vector_sizes) / sizeof(vector_sizes[0]))
 
-static const VECTOR_DRAW_FUNC vector_draws[17] = {
+static const VECTOR_DRAW_FUNC vector_draws[] = {
     arrowup_draw, arrowdown_draw, arrowleft_draw, arrowright_draw,
     checkbox_draw, mx_draw, cycle_draw, popup_draw, popfile_draw,
     popdrawer_draw, drawer_draw, harddisk_draw, disk_draw, ram_draw,
-    volume_draw, drawer_draw, drawer_draw,
+    volume_draw, drawer_draw, drawer_draw, tape_play_draw,
+    tape_playback_draw, tape_pause_draw, tape_stop_draw, tape_record_draw,
+    tape_up_draw, tape_down_draw,
 };
 
-static struct MUI_ImageSpec_intern *vector_spec(LONG vect,
-    VECTOR_DRAW_FUNC draw)
+struct MUI_ImageSpec_intern *zune_imspec_create_vector(LONG vect)
 {
     struct MUI_ImageSpec_intern *spec;
 
+    if (vect < 0 || vect >= VECTOR_COUNT)
+        return NULL;
     if ((spec = mui_alloc_struct(struct MUI_ImageSpec_intern)))
     {
         spec->type = IST_VECTOR;
         spec->u.vect.type = vect;
-        spec->u.vect.draw = draw;
+        spec->u.vect.draw = vector_draws[vect];
     }
     return spec;
-}
-
-/* The tape button images 1:17 to 1:23: the round frame module's (no
- * drawing without it) */
-static __attribute__((noinline)) struct MUI_ImageSpec_intern *rare_vector(
-    LONG vect)
-{
-    const struct ZuneFramesModule *m = zune_frames_module();
-
-    return vector_spec(vect, m ? m->images[vect - 17] : NULL);
-}
-
-struct MUI_ImageSpec_intern *zune_imspec_create_vector(LONG vect)
-{
-    if (vect < 0 || vect >= VECTOR_COUNT)
-        return NULL;
-    if (vect >= 17)
-        return rare_vector(vect);
-    return vector_spec(vect, vector_draws[vect]);
 }
 
 BOOL zune_imspec_vector_get_minmax(struct MUI_ImageSpec_intern *spec,
