@@ -1,7 +1,6 @@
 /* The round frame module (modules.h): frame types 5, 7, 8, A and B
  * (frame_round.c), which no default setting uses, and Area's background
- * under them (arearound.c); and the built-in images no window shows by
- * default (imspec_rare.c: drawer, disks, tape buttons). The library takes the drawing functions from
+ * under them (arearound.c); and the tape button images (imspec_rare.c). The library takes the drawing functions from
  * its table (zune_round_frames_get()). */
 
 #define ZUNE_FRAMES_MODULE

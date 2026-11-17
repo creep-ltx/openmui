@@ -27,8 +27,8 @@ extern struct Library *MUIMasterBase;
  longs wide, so a shape of any size has one (lean drew arrows wider than 32
  pixels span by span). Without a template (32 kept, or no chip memory) the
  same bits are built in other memory and painted run by run: the same
- pixels. The rarely shown images (drawer, disks, tape buttons) are in the
- round frame module (imspec_rare.c), and the cycle image keeps its lines.
+ pixels. The tape button images are in the round frame module
+ (imspec_rare.c); the cycle image and the drive images keep their lines.
 **************************************************************************/
 
 #define VTEMPLATES 32
@@ -381,6 +381,189 @@ static void cycle_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG wid
     Draw(rport, right, bottom);
 }
 
+/* The drive images 1:10 to 1:16 (Drawer, HardDisk, Disk, Chip, Volume,
+ * Network, Assign: Volumelist shows them), drawn as lean drew them;
+ * Network and Assign are Drawer (lean had its code three times) */
+static void stddrawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right = left + width - 1;
+    int bottom = top + height - 1;
+    int x, y;
+
+#define XX(x)   (x * (width - 1) / 100)
+#define YY(y)   (y * (height - 1) / 100)
+#define YOFF    45
+#define XOFF    24
+
+    for (y = 0; y < YY(YOFF); y++)
+    {
+        x = (YY(XOFF) > 1) ? XX(XOFF) * y / (YY(YOFF) - 1) : 1;
+        SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
+        RectFill(rport, left + XX(XOFF) - x, top + y, right - XX(XOFF) + x,
+            top + y);
+        SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+        WritePixel(rport, left + XX(XOFF) - x, top + y);
+        WritePixel(rport, right - XX(XOFF) + x, top + y);
+    }
+
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
+    RectFill(rport, left, top + YY(YOFF), right, bottom);
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(XOFF), top);
+    Draw(rport, right - XX(XOFF), top);
+
+    Move(rport, left, top + YY(YOFF));
+    Draw(rport, left, bottom);
+    Draw(rport, right, bottom);
+    Draw(rport, right, top + YY(YOFF));
+    Draw(rport, left, top + YY(YOFF));
+
+#undef XX
+#undef YY
+#undef YOFF
+#undef XOFF
+}
+
+
+static void drawer_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right = left + width - 1;
+
+    stddrawer_draw(mri, left, top, width, height);
+
+#define XX(x) x * (width - 1) / 100
+#define YY(y) y * (height - 1) / 100
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(40), top + YY(75));
+    Draw(rport, right - XX(40), top + YY(75));
+
+#undef XX
+#undef YY
+
+}
+
+static void harddisk_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+
+    stddrawer_draw(mri, left, top, width, height);
+
+#define XX(x) x * (width - 1) / 100
+#define YY(y) y * (height - 1) / 100
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    Move(rport, left + XX(20), top + YY(75));
+    Draw(rport, left + XX(30), top + YY(75));
+
+#undef XX
+#undef YY
+}
+
+static void disk_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
+    LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right = left + width - 1;
+    int bottom = top + height - 1;
+    int x, y;
+
+#define XX(x)   (x * (width - 1) / 100)
+#define YY(y)   (y * (height - 1) / 100)
+#define YOFF    29
+#define XOFF    25
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    for (y = 0; y < YY(YOFF); y++)
+    {
+        x = (YY(YOFF) > 1) ? XX(XOFF) * y / (YY(YOFF) - 1) : 1;
+        RectFill(rport, left, top + y, right - XX(XOFF) + x, top + y);
+    }
+    RectFill(rport, left, top + YY(YOFF), right, bottom);
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
+    RectFill(rport, left + XX(33), top, right - XX(33), top + YY(YOFF));
+    RectFill(rport, left + XX(25), top + YY(60), right - XX(25), bottom);
+
+#undef XX
+#undef YY
+#undef YOFF
+#undef XOFF
+}
+
+static void ram_draw(struct MUI_RenderInfo *mri, LONG left, LONG top, LONG width,
+    LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right, bottom;
+
+#define XX(x) left + x * (width - 1) / 100
+#define YY(y) top  + y * (height - 1) / 100
+
+    right = left + width - 1;
+    bottom = top + height - 1;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    RectFill(rport, left, top, right, bottom);
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
+    Move(rport, XX(33), YY(25));
+    Draw(rport, XX(33), YY(75));
+
+    Move(rport, XX(71), YY(25));
+    Draw(rport, XX(61), YY(25));
+    Draw(rport, XX(61), YY(75));
+    Draw(rport, XX(71), YY(75));
+
+#undef XX
+#undef YY
+}
+
+static void volume_draw(struct MUI_RenderInfo *mri, LONG left, LONG top,
+    LONG width, LONG height, LONG state)
+{
+    struct RastPort *rport = mri->mri_RastPort;
+    int right, bottom;
+
+#define XX(x) left + x * (width - 1) / 100
+#define YY(y) top  + y * (height - 1) / 100
+
+    right = left + width - 1;
+    bottom = top + height - 1;
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHADOW]);
+    RectFill(rport, left, top, right, bottom);
+
+    SetAPen(rport, mri->mri_Pens[MPEN_SHINE]);
+    Move(rport, XX(10), YY(25));
+    Draw(rport, XX(10), YY(50));
+    Draw(rport, XX(19), YY(75));
+    Draw(rport, XX(28), YY(50));
+    Draw(rport, XX(28), YY(25));
+
+    Move(rport, XX(46), YY(25));
+    Draw(rport, XX(64), YY(25));
+    Draw(rport, XX(64), YY(75));
+    Draw(rport, XX(46), YY(75));
+    Draw(rport, XX(46), YY(25));
+
+    Move(rport, XX(80), YY(25));
+    Draw(rport, XX(80), YY(75));
+    Draw(rport, XX(92), YY(75));
+
+#undef XX
+#undef YY
+}
+
+
+
 /* Sizes as MUI 3.9 reports them for the built-in images
  * (tests/native/imgsizes.c): width, height */
 static const UBYTE vector_sizes[][2] = {
@@ -391,10 +574,11 @@ static const UBYTE vector_sizes[][2] = {
 };
 #define VECTOR_COUNT (sizeof(vector_sizes) / sizeof(vector_sizes[0]))
 
-static const VECTOR_DRAW_FUNC vector_draws[10] = {
+static const VECTOR_DRAW_FUNC vector_draws[17] = {
     arrowup_draw, arrowdown_draw, arrowleft_draw, arrowright_draw,
     checkbox_draw, mx_draw, cycle_draw, popup_draw, popfile_draw,
-    popdrawer_draw,
+    popdrawer_draw, drawer_draw, harddisk_draw, disk_draw, ram_draw,
+    volume_draw, drawer_draw, drawer_draw,
 };
 
 static struct MUI_ImageSpec_intern *vector_spec(LONG vect,
@@ -411,21 +595,21 @@ static struct MUI_ImageSpec_intern *vector_spec(LONG vect,
     return spec;
 }
 
-/* The rarely shown images 1:10 to 1:23: the round frame module's (no
+/* The tape button images 1:17 to 1:23: the round frame module's (no
  * drawing without it) */
 static __attribute__((noinline)) struct MUI_ImageSpec_intern *rare_vector(
     LONG vect)
 {
     const struct ZuneFramesModule *m = zune_frames_module();
 
-    return vector_spec(vect, m ? m->images[vect - 10] : NULL);
+    return vector_spec(vect, m ? m->images[vect - 17] : NULL);
 }
 
 struct MUI_ImageSpec_intern *zune_imspec_create_vector(LONG vect)
 {
     if (vect < 0 || vect >= VECTOR_COUNT)
         return NULL;
-    if (vect >= 10)
+    if (vect >= 17)
         return rare_vector(vect);
     return vector_spec(vect, vector_draws[vect]);
 }
