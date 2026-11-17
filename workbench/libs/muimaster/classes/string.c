@@ -515,6 +515,41 @@ static __attribute__((noinline)) BOOL string_placeholder(
     return TRUE;
 }
 
+/* The attributes OM_NEW and OM_SET take alike: a field or a flag */
+static __attribute__((noinline)) void string_set_plain(
+    struct MUI_StringData *data, struct TagItem *tag)
+{
+    static const struct { ULONG attr; ULONG what; } plain[] =
+    {
+        /* what: a flag, or (below 256) the field's offset */
+        { MUIA_String_Accept, offsetof(struct MUI_StringData, msd_Accept) },
+        { MUIA_String_Reject, offsetof(struct MUI_StringData, msd_Reject) },
+        { MUIA_String_AttachedList,
+            offsetof(struct MUI_StringData, msd_AttachedList) },
+        { MUIA_String_EditHook,
+            offsetof(struct MUI_StringData, msd_EditHook) },
+        { MUIA_String_LonelyEditHook, MSDF_LONELYEDITHOOK },
+        { MUIA_String_AdvanceOnCR, MSDF_ADVANCEONCR },
+        { MUIA_String_NoInput, MSDF_NOINPUT },
+        { MUIA_String_StayActive, MSDF_STAYACTIVE },
+    };
+    unsigned i;
+
+    for (i = 0; plain[i].attr != tag->ti_Tag; i++)
+        if (i == sizeof(plain) / sizeof(plain[0]) - 1)
+        {
+            /* BetterString's focus objects */
+            if (string_ext(data))
+                (&data->ext->KeyUpFocus)[tag->ti_Tag
+                    == MUIA_String_KeyDownFocus] = (Object *)tag->ti_Data;
+            return;
+        }
+    if (plain[i].what < 256)
+        *(IPTR *)((UBYTE *)data + plain[i].what) = tag->ti_Data;
+    else
+        _handle_bool_tag(data->msd_Flags, tag->ti_Data, plain[i].what);
+}
+
 /**************************************************************************
  OM_NEW
 **************************************************************************/
@@ -564,30 +599,26 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->msd_Flags |= MSDF_OWNBACK;
             break;
 
+        case MUIA_String_Accept:
+        case MUIA_String_Reject:
+        case MUIA_String_AttachedList:
+        case MUIA_String_EditHook:
+        case MUIA_String_LonelyEditHook:
+        case MUIA_String_AdvanceOnCR:
+        case MUIA_String_NoInput:
+        case MUIA_String_StayActive:
+        case MUIA_String_KeyUpFocus:   /* BetterString */
+        case MUIA_String_KeyDownFocus:
+            string_set_plain(data, tag);
+            break;
+
         case MUIA_String_Placeholder:
         case MUIA_String_InactiveContents:
             string_placeholder(data, (CONST_STRPTR)tag->ti_Data);
             break;
 
-        case MUIA_String_Accept:
-            data->msd_Accept = (CONST_STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_String_Reject:
-            data->msd_Reject = (CONST_STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_String_AdvanceOnCR:
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data,
-                MSDF_ADVANCEONCR);
-            break;
-
         case MUIA_String_BufferPos:
             data->BufferPos = (ULONG) tag->ti_Data;
-            break;
-
-        case MUIA_String_AttachedList:
-            data->msd_AttachedList = (Object *) tag->ti_Data;
             break;
 
         case MUIA_String_Secret:
@@ -598,10 +629,6 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_String_Contents:
             str = (CONST_STRPTR) tag->ti_Data;
-            break;
-
-        case MUIA_String_EditHook:
-            data->msd_EditHook = (struct Hook *)tag->ti_Data;
             break;
 
         case MUIA_String_Format:
@@ -619,11 +646,6 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             str = integerbuf;
             break;
 
-        case MUIA_String_LonelyEditHook:
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data,
-                MSDF_LONELYEDITHOOK);
-            break;
-
         case MUIA_String_MaxLen:
             data->BufferSize = tag->ti_Data;
             if (data->BufferSize < 1)
@@ -634,21 +656,6 @@ IPTR String__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             data->Columns = (WORD) tag->ti_Data;
             break;
 
-        case MUIA_String_NoInput:      /* BetterString */
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_NOINPUT);
-            break;
-
-        case MUIA_String_KeyUpFocus:   /* BetterString */
-        case MUIA_String_KeyDownFocus:
-            if (string_ext(data))
-                (&data->ext->KeyUpFocus)[t == MUIA_String_KeyDownFocus] =
-                    (Object *)tag->ti_Data;
-            break;
-
-        case MUIA_String_StayActive:   /* BetterString */
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data,
-                MSDF_STAYACTIVE);
-            break;
         }
     }
 
@@ -785,15 +792,16 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         }
 
         case MUIA_String_Accept:
-            data->msd_Accept = (CONST_STRPTR) tag->ti_Data;
-            break;
-
         case MUIA_String_Reject:
-            data->msd_Reject = (CONST_STRPTR) tag->ti_Data;
-            break;
-
         case MUIA_String_AttachedList:
-            data->msd_AttachedList = (Object *) tag->ti_Data;
+        case MUIA_String_EditHook:
+        case MUIA_String_LonelyEditHook:
+        case MUIA_String_AdvanceOnCR:
+        case MUIA_String_NoInput:
+        case MUIA_String_StayActive:
+        case MUIA_String_KeyUpFocus:   /* BetterString */
+        case MUIA_String_KeyDownFocus:
+            string_set_plain(data, tag);
             break;
 
         case MUIA_String_Secret:
@@ -803,13 +811,6 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 data->msd_RedrawReason = NEW_CONTENTS;
                 MUI_Redraw(obj, MADF_DRAWUPDATE);
             }
-            break;
-
-        case MUIA_String_EditHook:
-            data->msd_EditHook = (struct Hook *)tag->ti_Data;
-            break;
-        case MUIA_String_LonelyEditHook:
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_LONELYEDITHOOK);
             break;
 
         case MUIA_String_Integer64:     /* MUI 4/5: in the module */
@@ -829,11 +830,6 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 tag->ti_Tag = TAG_IGNORE; /* Attribute value not changed */
             break;
 
-        case MUIA_String_AdvanceOnCR:
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data,
-                MSDF_ADVANCEONCR);
-            break;
-
         case MUIA_String_BufferPos:
             /* Inside the text, as Textinput_CursorPos: Delete and
              * Backspace move NumChars - BufferPos bytes */
@@ -849,22 +845,6 @@ IPTR String__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             data->DispPos = MIN((ULONG)tag->ti_Data, data->NumChars);
             data->msd_RedrawReason = MOVE_CURSOR;
             MUI_Redraw(obj, MADF_DRAWUPDATE);
-            break;
-
-        case MUIA_String_NoInput:      /* BetterString */
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data, MSDF_NOINPUT);
-            break;
-
-        case MUIA_String_KeyUpFocus:   /* BetterString */
-        case MUIA_String_KeyDownFocus:
-            if (string_ext(data))
-                (&data->ext->KeyUpFocus)[t == MUIA_String_KeyDownFocus] =
-                    (Object *)tag->ti_Data;
-            break;
-
-        case MUIA_String_StayActive:   /* BetterString */
-            _handle_bool_tag(data->msd_Flags, tag->ti_Data,
-                MSDF_STAYACTIVE);
             break;
 
         /* MUI's Newstring wrapper forwards its selection anchor to String. */
