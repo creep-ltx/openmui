@@ -233,8 +233,8 @@ IPTR zune_list_create_drag_image(struct IClass *cl, Object *obj,
             /* Render frame */
             struct RastPort *rp_save = muiRenderInfo(obj)->mri_RastPort;
             muiRenderInfo(obj)->mri_RastPort = &temprp;
-            zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0,
-                img->width, img->height, 0, 0, img->width, img->height);
+            ZFRAME_DRAW(zframe, NULL, muiRenderInfo(obj), 0, 0,
+                img->width, img->height);
             muiRenderInfo(obj)->mri_RastPort = rp_save;
         }
 

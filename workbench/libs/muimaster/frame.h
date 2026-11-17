@@ -75,23 +75,28 @@ struct MUI_FrameSpec_intern
 
 struct MUI_RenderInfo;
 struct dt_frame_image;
-typedef void (*ZFDrawFunc) (struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int globleft, int globtop, int globwidth,
-    int globheight, int left, int top, int width, int height);
+struct ZuneFrameGfx;
+/* zf: the frame's own table entry (its pens); fi: the corner hints and
+ * the rounded frames' radius, or NULL */
+typedef void (*ZFDrawFunc) (const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height);
 
 struct ZuneFrameGfx
 {
     ZFDrawFunc draw;
-    UWORD type;
     UWORD ileft;
     UWORD iright;
     UWORD itop;
     UWORD ibottom;
-    struct dt_frame_image *customframe;
-    BOOL noalpha;
-    UWORD border_width;        /* Border width in pixels */
-    UWORD border_radius;       /* Corner radius in pixels (0 = no rounded corners) */
+    UBYTE border_width;        /* Border width in pixels */
+    UBYTE border_radius;       /* Corner radius in pixels (0 = no rounded corners) */
+    UBYTE ul, lr;              /* the built-in types' pens (MPEN_) */
 };
+
+/* Draw zf's frame */
+#define ZFRAME_DRAW(zf, fi, mri, l, t, w, h) \
+    ((zf)->draw((zf), (fi), (mri), (l), (t), (w), (h)))
 
 /* Structure for frame information */
 struct MUI_FrameCharacteristics
@@ -113,14 +118,6 @@ BOOL zune_frame_intern_to_spec(const struct MUI_FrameSpec_intern *intern,
 
 BOOL zune_frame_spec_to_intern(CONST_STRPTR spec,
     struct MUI_FrameSpec_intern *intern);
-
-/* Function to query frame characteristics */
-BOOL zune_frame_get_characteristics(Object *obj, const struct MUI_FrameSpec_intern *frameSpec,
-    struct MUI_FrameCharacteristics *characteristics);
-
-/* Function to create clipping region for rounded corners */
-struct Region *zune_frame_create_clip_region(int left, int top, int width, int height,
-    UWORD border_radius);
 
 /* Helper function to prepare dt_frame_image for drawing */
 struct dt_frame_image *zune_frame_prepare_for_drawing(

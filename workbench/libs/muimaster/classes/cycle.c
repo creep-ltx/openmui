@@ -666,8 +666,7 @@ static void DrawPopup(Object *obj, struct MUI_CycleData *data)
 
     saverp = _rp(obj);
     _rp(obj) = rp;
-    zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0, winw, winh,
-        0, 0, winw, winh);
+    ZFRAME_DRAW(zframe, NULL, muiRenderInfo(obj), 0, 0, winw, winh);
 
     if (data->popbg)
     {

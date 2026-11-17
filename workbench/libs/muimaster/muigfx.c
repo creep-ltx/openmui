@@ -87,8 +87,7 @@ static void Gfx_DrawFrame(struct MUI_RenderInfo *mri __asm("a0"),
         return;
     spec.type = frame->type;
     zframe = zune_zframe_get_with_state(NULL, &spec, state ? 1 : 0);
-    zframe->draw(zframe->customframe, mri, left, top, width, height,
-        left, top, width, height);
+    ZFRAME_DRAW(zframe, NULL, mri, left, top, width, height);
 }
 
 /* Like MUI's muigfx, always return an image: scalable images, unknown

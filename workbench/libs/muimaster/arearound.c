@@ -24,6 +24,7 @@
 #include "frame.h"
 #include "imspec.h"
 #include "modules.h"
+#include "frameclip.c"
 
 extern struct Library *MUIMasterBase;
 

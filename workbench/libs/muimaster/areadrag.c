@@ -122,8 +122,8 @@ static struct MUI_DragImage *area_drag_image(Object *obj,
             ClipBlit(_rp(obj), _left(obj), _top(obj), &temprp,
                 zframe->ileft, zframe->itop, _width(obj), _height(obj), 0xc0);
             muiRenderInfo(obj)->mri_RastPort = &temprp;
-            zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0,
-                img->width, img->height, 0, 0, img->width, img->height);
+            ZFRAME_DRAW(zframe, NULL, muiRenderInfo(obj), 0, 0,
+                img->width, img->height);
             muiRenderInfo(obj)->mri_RastPort = rp_save;
         }
         img->touchx = msg->touchx;

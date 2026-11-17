@@ -2272,7 +2272,7 @@ static __attribute__((noinline)) BOOL area_on_fresh_window(Object *obj,
  * FRAME_CORNER_* bevel corner pixels it painted with MPEN_BACKGROUND, so
  * that the frame need not paint them again.
  */
-static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, struct MUI_AreaData *data,
+static __attribute__((noinline, optimize("no-function-cse"))) UBYTE Area_Draw_handle_background(Object *obj, struct MUI_AreaData *data,
                                          ULONG flags,
                                          const struct ZuneFrameGfx *zframe,
                                          BOOL drawframe)
@@ -2301,16 +2301,12 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
     /* Corner hints only for a plain bevel drawn now, over an untitled
      * box, by an object not showing a selected state and with no custom
      * backfill (see the end of this function) */
-    plain = drawframe && !zframe->customframe
-        && !data->mad_FrameTitle
+    plain = drawframe && !data->mad_FrameTitle
         && (data->mad_Flags & (MADF_SELECTED | MADF_SHOWSELSTATE))
             != (MADF_SELECTED | MADF_SHOWSELSTATE)
         && !(data->mad_Flags2 & MADF2_CUSTOMBACKFILL);
 
-    if (zframe->customframe)
-        bgtop = data->mad_TitleHeightAbove;
-    else
-        bgtop = data->mad_TitleHeightAbove + zframe->itop;
+    bgtop = data->mad_TitleHeightAbove + zframe->itop;
 
     bgleft = _left(obj);
     bgw = _width(obj);
@@ -2418,8 +2414,7 @@ static __attribute__((noinline)) UBYTE Area_Draw_handle_background(Object *obj, 
              * (which is the case if MADF_DRAWALL is setted) */
             DoMethod(obj, MUIM_DrawParentBackground, bgleft, _top(obj), bgw,
                      bgtop - _top(obj), bgleft, _top(obj), data->mad_Flags);
-            if (!zframe->customframe)
-                corners |= AREA_TITLE_GAP_FILLED;
+            corners |= AREA_TITLE_GAP_FILLED;
             /* That covered the top-right corner of the frame */
             if (plain && area_parent_background_is_pen(obj, MPEN_BACKGROUND))
                 corners |= FRAME_CORNER_TR;
@@ -2510,9 +2505,8 @@ static __attribute__((noinline)) void Area_Draw_handle_frame(Object *obj, struct
         if (frame_img == &temp_frame)
             temp_frame.corners_bg = corners
                 & (FRAME_CORNER_TR | FRAME_CORNER_BL);
-        zframe->draw(frame_img, muiRenderInfo(obj), _left(obj), _top(obj),
-                     _width(obj), _height(obj), _left(obj), _top(obj), _width(obj),
-                     _height(obj));
+        ZFRAME_DRAW(zframe, frame_img, muiRenderInfo(obj), _left(obj),
+            _top(obj), _width(obj), _height(obj));
         return;
     }
 
@@ -2567,7 +2561,7 @@ static __attribute__((noinline)) void Area_Draw_handle_frame(Object *obj, struct
         textdrawclip = MUI_AddClipRegion(muiRenderInfo(obj), region);
     }
 
-    /* Pass our frame_img (either customframe or properly prepared local) to the
+    /* Pass our frame_img (the prepared local) to the
      * draw function */
     struct dt_frame_image temp_frame;
     struct MUI_FrameSpec_intern tempframe;
@@ -2575,9 +2569,8 @@ static __attribute__((noinline)) void Area_Draw_handle_frame(Object *obj, struct
         get_intframe(obj, data, &tempframe);
     struct dt_frame_image *frame_img =
         zune_frame_prepare_for_drawing(zframe, framespec, &temp_frame);
-    zframe->draw(frame_img, muiRenderInfo(obj), _left(obj), frame_top,
-                 _width(obj), frame_height, _left(obj), frame_top, _width(obj),
-                 frame_height);
+    ZFRAME_DRAW(zframe, frame_img, muiRenderInfo(obj), _left(obj),
+        frame_top, _width(obj), frame_height);
 
     if (region && textdrawclip != (APTR)-1) {
         MUI_RemoveClipRegion(muiRenderInfo(obj), textdrawclip);
@@ -2721,11 +2714,10 @@ static __attribute__((noinline)) void area_draw_plain(Object *obj,
     /* the box fill covered the frame's bottom-left corner (not shown by
      * an object showing its selected state) */
     if (flags & (MADF_DRAWFRAME | MADF_DRAWALL))
-        zframe->draw((struct dt_frame_image *)&area_corner_hint[pen == -2
+        ZFRAME_DRAW(zframe, (struct dt_frame_image *)&area_corner_hint[pen == -2
                 && (f & (MADF_SELECTED | MADF_SHOWSELSTATE))
                     != (MADF_SELECTED | MADF_SHOWSELSTATE)], mri,
-            _left(obj), _top(obj), _width(obj), _height(obj), _left(obj),
-            _top(obj), _width(obj), _height(obj));
+            _left(obj), _top(obj), _width(obj), _height(obj));
 }
 
 /* MUIM_Draw. The common case (a built-in square frame, FillArea, no title,
@@ -2778,7 +2770,7 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
         && (data->mad_Flags & (MADF_FRAMEPHANTOM | MADF_ISVIRTUALGROUP
             | MADF_FILLAREA)) == MADF_FILLAREA
         && !(data->mad_Flags2 & (MADF2_CUSTOMBACKFILL | MADF2_FRAMEHIDDEN))
-        && !zframe->customframe && !zframe->border_radius
+        && !zframe->border_radius
         && _width(obj) >= 8 && _height(obj) >= 6) {
         area_draw_plain(obj, data, zframe, flags);
         goto font;
@@ -2790,7 +2782,7 @@ static IPTR Area__MUIM_Draw(struct IClass *cl, Object *obj,
      * custom and phantom frames are always handled as before, and so are
      * titles, which reach below the frame line into the background. */
     drawframe = (flags & (MADF_DRAWFRAME | MADF_DRAWALL)) ||
-        zframe->customframe || zframe->border_radius > 0 ||
+        zframe->border_radius > 0 ||
         (data->mad_Flags & MADF_FRAMEPHANTOM) || data->mad_FrameTitle;
     /* MUIA_FrameVisible FALSE (MUI 4/5): drawn as a phantom frame, which
      * keeps its room and paints its background where the frame would be */
@@ -3098,10 +3090,6 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
         state = IDS_NORMAL;
     }
 
-    const struct ZuneFrameGfx *zframe;
-    const struct MUI_FrameSpec_intern *frame;
-    struct MUI_FrameSpec_intern tempframe;
-
     /* A plain pen fill with a built-in frame (no custom frame image to
      * draw over it) is SetAPen and RectFill; the general path below
      * looked up the frame and went through three image spec layers for
@@ -3132,39 +3120,11 @@ static IPTR area_draw_background(Object *obj, struct MUI_AreaData *data,
         return area_draw_parent_background(obj, data,
             (struct MUIP_DrawParentBackground *)msg);
     }
-    frame = get_intframe(obj, data, &tempframe);
-
-    int xstate = frame->state;
-    if ((data->mad_Flags & MADF_SELECTED) &&
-            (data->mad_Flags & MADF_SHOWSELSTATE))
-        xstate ^= 1;
-
-    zframe = zune_zframe_get_with_state(obj, frame, xstate);
-
-    if (zframe->customframe == NULL) {
-        /*      D(bug("Area_DrawBackground(%p): draw bg\n", obj)); */
-        zune_imspec_draw_at(bg, data->mad_RenderInfo, msg->left, msg->top,
-            msg->width, msg->height, msg->xoffset, msg->yoffset, state,
-            PATTERN_ORIGIN_X(obj), PATTERN_ORIGIN_Y(obj));
-
-        //     if (!data->mad_FrameTitle)
-        //     {
-
-    } else {
-        if (zframe->noalpha == FALSE) {
-            zune_imspec_draw_at(bg, data->mad_RenderInfo, msg->left,
-                msg->top, msg->width, msg->height, msg->xoffset,
-                msg->yoffset, state, PATTERN_ORIGIN_X(obj),
-                PATTERN_ORIGIN_Y(obj));
-        }
-    }
-
-    if (zframe->customframe) {
-        zframe->draw(zframe->customframe, muiRenderInfo(obj), _left(obj), _top(obj),
-                     _width(obj), _height(obj), msg->left, msg->top, msg->width,
-                     msg->height);
-    }
-
+    /* No built-in frame paints a picture over the background (lean
+     * looked the frame up for a custom frame image no table holds) */
+    zune_imspec_draw_at(bg, data->mad_RenderInfo, msg->left, msg->top,
+        msg->width, msg->height, msg->xoffset, msg->yoffset, state,
+        PATTERN_ORIGIN_X(obj), PATTERN_ORIGIN_Y(obj));
     return TRUE;
 }
 

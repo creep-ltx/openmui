@@ -225,9 +225,8 @@ IPTR Framedisplay__MUIM_Draw(struct IClass *cl, Object *obj,
     struct dt_frame_image *frame_img =
         zune_frame_prepare_for_drawing(zframe, &data->fs_intern, &temp_frame);
 
-    zframe->draw(frame_img, muiRenderInfo(obj), _left(obj), _top(obj),
-                 _width(obj), _height(obj), _left(obj), _top(obj), _width(obj),
-                 _height(obj));
+    ZFRAME_DRAW(zframe, frame_img, muiRenderInfo(obj), _left(obj), _top(obj),
+                 _width(obj), _height(obj));
 
     ileft = _mleft(obj) + zframe->ileft + data->fs_intern.innerLeft;
     itop = _mtop(obj) + zframe->itop + data->fs_intern.innerTop;

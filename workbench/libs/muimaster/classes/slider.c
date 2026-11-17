@@ -698,10 +698,9 @@ IPTR Slider__MUIM_Draw(struct IClass *cl, Object *obj,
     knob_frame = zune_zframe_get_with_state(obj,
         &muiGlobalInfo(obj)->mgi_Prefs->frames[MUIV_Frame_Knob],
         knob_frame_state);
-    knob_frame->draw(knob_frame->customframe, muiRenderInfo(obj),
+    ZFRAME_DRAW(knob_frame, NULL, muiRenderInfo(obj),
         data->knob_left, data->knob_top, data->knob_width,
-        data->knob_height, data->knob_left, data->knob_top,
-        data->knob_width, data->knob_height);
+        data->knob_height);
 
     if (!(data->flags & SLIDER_QUIET))
     {

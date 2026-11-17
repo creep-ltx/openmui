@@ -24,6 +24,7 @@
 #include "frame.h"
 #include "imspec.h"
 #include "classes/string_private.h"
+#include "frameclip.c"
 
 extern struct Library *MUIMasterBase;
 
@@ -103,8 +104,11 @@ IPTR zune_area_aros45(struct IClass *cl, Object *obj, Msg msg)
         struct MUIP_CreateFrameClippingRegion *m = (APTR)msg;
         struct MUI_FrameCharacteristics c;
 
-        if (!m->clipinfo || !zune_frame_get_characteristics(obj, frame, &c))
+        if (!m->clipinfo)
             return FALSE;
+        c.border_width = frame->border_width;
+        c.border_radius = frame->border_radius;
+        c.has_rounded_corners = frame->border_radius > 0;
         if (c.has_rounded_corners
             && !(m->clipinfo = zune_frame_create_clip_region(m->left,
                 m->top, m->width, m->height, c.border_radius)))

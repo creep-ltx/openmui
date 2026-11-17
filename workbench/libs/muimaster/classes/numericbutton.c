@@ -508,8 +508,7 @@ static BOOL MakePopupWin(Object *obj, struct Numericbutton_DATA *data)
 
     saverp = _rp(obj);
     _rp(obj) = rp;
-    zframe->draw(zframe->customframe, muiRenderInfo(obj), 0, 0, winw, winh,
-        0, 0, winw, winh);
+    ZFRAME_DRAW(zframe, NULL, muiRenderInfo(obj), 0, 0, winw, winh);
 
     DrawKnob(obj, data, TRUE);
 

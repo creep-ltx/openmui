@@ -118,10 +118,13 @@ static void button_draw(struct dt_frame_image *fi, struct MUI_RenderInfo *mri,
  * @param ul Upper-left pen (light for raised, dark for recessed)
  * @param lr Lower-right pen (dark for raised, light for recessed)
  */
-static void round_bevel_draw(struct dt_frame_image *fi,
-                             struct MUI_RenderInfo *mri, int left, int top,
-                             int width, int height, MPen ul, MPen lr)
+static void round_bevel_draw(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left, int top,
+    int width, int height)
 {
+    /* the state in zf->ul: raised (0) or recessed (1) */
+    MPen ul = zf->ul ? MPEN_SHADOW : MPEN_SHINE;
+    MPen lr = zf->ul ? MPEN_SHINE : MPEN_SHADOW;
     struct RastPort *rp = mri->mri_RastPort;
 
     if (width <= 8 || height <= 4)
@@ -159,34 +162,25 @@ static void round_bevel_draw(struct dt_frame_image *fi,
 /**************************************************************************
 
 **************************************************************************/
-static void frame_round_bevel_up_draw(struct dt_frame_image *fi,
-                                      struct MUI_RenderInfo *mri, int gl,
-                                      int gt, int gw, int gh, int left, int top,
-                                      int width, int height)
-{
-    round_bevel_draw(fi, mri, left, top, width, height, MPEN_SHINE, MPEN_SHADOW);
-}
 
 /**************************************************************************
 
 **************************************************************************/
-static void frame_round_bevel_down_draw(struct dt_frame_image *fi,
-                                        struct MUI_RenderInfo *mri, int gl,
-                                        int gt, int gw, int gh, int left,
-                                        int top, int width, int height)
-{
-    round_bevel_draw(fi, mri, left, top, width, height, MPEN_SHADOW, MPEN_SHINE);
-}
 
 /**************************************************************************
  7 : FST_ROUND_THICK_BORDER
 **************************************************************************/
-static void round_thick_border_draw(struct dt_frame_image *fi,
-                                    struct MUI_RenderInfo *mri, int left,
-                                    int top, int width, int height, MPen pen1,
-                                    MPen pen2, MPen pen3, MPen pen4,
-                                    MPen pen5)
+static void round_thick_border_draw(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left, int top,
+    int width, int height)
 {
+    /* the state in zf->ul: raised (0) or recessed (1) */
+    BOOL down = zf->ul;
+    MPen pen1 = down ? MPEN_SHADOW : MPEN_SHINE;
+    MPen pen2 = down ? MPEN_HALFSHADOW : MPEN_HALFSHINE;
+    MPen pen3 = MPEN_BACKGROUND;
+    MPen pen4 = down ? MPEN_HALFSHINE : MPEN_HALFSHADOW;
+    MPen pen5 = down ? MPEN_SHINE : MPEN_SHADOW;
     struct RastPort *rp = mri->mri_RastPort;
 
     rect_draw(fi, mri, left, top, width - 2, height - 2, pen1);
@@ -218,33 +212,21 @@ static void round_thick_border_draw(struct dt_frame_image *fi,
 /**************************************************************************
 
 **************************************************************************/
-static void frame_round_thick_border_up_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri, int gl,
-        int gt, int gw, int gh, int left,
-        int top, int width, int height)
-{
-    round_thick_border_draw(fi, mri, left, top, width, height, MPEN_SHINE,
-                            MPEN_HALFSHINE, MPEN_BACKGROUND, MPEN_HALFSHADOW,
-                            MPEN_SHADOW);
-}
 
 /**************************************************************************
 
 **************************************************************************/
-static void frame_round_thick_border_down_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri,
-        int gl, int gt, int gw, int gh,
-        int left, int top, int width,
-        int height)
-{
-    round_thick_border_draw(fi, mri, left, top, width, height, MPEN_SHADOW,
-                            MPEN_HALFSHADOW, MPEN_BACKGROUND, MPEN_HALFSHINE,
-                            MPEN_SHINE);
-}
 
 /**************************************************************************
  8 : FST_ROUND_THIN_BORDER
 **************************************************************************/
+static const UBYTE round_thin_up_diag[4] = {
+    MPEN_HALFSHINE, MPEN_BACKGROUND, MPEN_BACKGROUND, MPEN_HALFSHADOW
+};
+static const UBYTE round_thin_down_diag[4] = {
+    MPEN_BACKGROUND, MPEN_SHADOW, MPEN_SHINE, MPEN_BACKGROUND
+};
+
 /**
  * Draw a rounded thin border - complex multi-pen effect
  * Uses 5 pens to create gradient-like rounded appearance. Pixels as MUI
@@ -252,12 +234,18 @@ static void frame_round_thick_border_down_draw(struct dt_frame_image *fi,
  * pixels of the top-left and the bottom-right corner diagonals, from
  * outside in, are in the pens diag.
  */
-static void round_thin_border_draw(struct dt_frame_image *fi,
-                                   struct MUI_RenderInfo *mri, int left,
-                                   int top, int width, int height, MPen pen1,
-                                   MPen pen2, MPen pen3, MPen pen4, MPen pen5,
-                                   const UBYTE *diag)
+static void round_thin_border_draw(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left, int top,
+    int width, int height)
 {
+    /* the state in zf->ul: raised (0) or recessed (1) */
+    BOOL down = zf->ul;
+    MPen pen1 = down ? MPEN_SHADOW : MPEN_SHINE;
+    MPen pen2 = down ? MPEN_HALFSHADOW : MPEN_HALFSHINE;
+    MPen pen3 = MPEN_BACKGROUND;
+    MPen pen4 = down ? MPEN_HALFSHINE : MPEN_HALFSHADOW;
+    MPen pen5 = down ? MPEN_SHINE : MPEN_SHADOW;
+    const UBYTE *diag = down ? round_thin_down_diag : round_thin_up_diag;
     struct RastPort *rp = mri->mri_RastPort;
     int i;
 
@@ -303,48 +291,29 @@ static void round_thin_border_draw(struct dt_frame_image *fi,
     }
 }
 
-static const UBYTE round_thin_up_diag[4] = {
-    MPEN_HALFSHINE, MPEN_BACKGROUND, MPEN_BACKGROUND, MPEN_HALFSHADOW
-};
-static const UBYTE round_thin_down_diag[4] = {
-    MPEN_BACKGROUND, MPEN_SHADOW, MPEN_SHINE, MPEN_BACKGROUND
-};
 
 /**************************************************************************
 
 **************************************************************************/
-static void frame_round_thin_border_up_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri, int gl,
-        int gt, int gw, int gh, int left,
-        int top, int width, int height)
-{
-    round_thin_border_draw(fi, mri, left, top, width, height, MPEN_SHINE,
-                           MPEN_HALFSHINE, MPEN_BACKGROUND, MPEN_HALFSHADOW,
-                           MPEN_SHADOW, round_thin_up_diag);
-}
 
 /**************************************************************************
 
 **************************************************************************/
-static void frame_round_thin_border_down_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri,
-        int gl, int gt, int gw, int gh,
-        int left, int top, int width,
-        int height)
-{
-    round_thin_border_draw(fi, mri, left, top, width, height, MPEN_SHADOW,
-                           MPEN_HALFSHADOW, MPEN_BACKGROUND, MPEN_HALFSHINE,
-                           MPEN_SHINE, round_thin_down_diag);
-}
 
 /**************************************************************************
  A : FST_SEMIROUND_BEVEL
 **************************************************************************/
-static void semiround_bevel_draw(struct dt_frame_image *fi,
-                                 struct MUI_RenderInfo *mri, int left, int top,
-                                 int width, int height, MPen pen1, MPen pen2,
-                                 MPen pen3, MPen pen4, MPen pen5)
+static void semiround_bevel_draw(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left, int top,
+    int width, int height)
 {
+    /* the state in zf->ul: raised (0) or recessed (1) */
+    BOOL down = zf->ul;
+    MPen pen1 = down ? MPEN_SHADOW : MPEN_SHINE;
+    MPen pen2 = down ? MPEN_HALFSHADOW : MPEN_HALFSHINE;
+    MPen pen3 = MPEN_BACKGROUND;
+    MPen pen4 = down ? MPEN_HALFSHINE : MPEN_HALFSHADOW;
+    MPen pen5 = down ? MPEN_SHINE : MPEN_SHADOW;
     struct RastPort *rp = mri->mri_RastPort;
 
     button_draw(fi, mri, left, top, width, height, pen1, pen5);
@@ -372,28 +341,10 @@ static void semiround_bevel_draw(struct dt_frame_image *fi,
 /**************************************************************************
 
 **************************************************************************/
-static void frame_semiround_bevel_up_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri, int gl,
-        int gt, int gw, int gh, int left,
-        int top, int width, int height)
-{
-    semiround_bevel_draw(fi, mri, left, top, width, height, MPEN_SHINE,
-                         MPEN_HALFSHINE, MPEN_BACKGROUND, MPEN_HALFSHADOW,
-                         MPEN_SHADOW);
-}
 
 /**************************************************************************
 
 **************************************************************************/
-static void frame_semiround_bevel_down_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri, int gl,
-        int gt, int gw, int gh, int left,
-        int top, int width, int height)
-{
-    semiround_bevel_draw(fi, mri, left, top, width, height, MPEN_SHADOW,
-                         MPEN_HALFSHADOW, MPEN_BACKGROUND, MPEN_HALFSHINE,
-                         MPEN_SHINE);
-}
 
 /**************************************************************************
  Modern frame styles - contemporary flat and minimal designs
@@ -487,9 +438,8 @@ static void fill_corner_connections(struct RastPort *rp, int left, int top,
  */
 /* Frame parameters are now part of the dt_frame_image struct */
 
-static void frame_rounded_draw(struct dt_frame_image *fi,
-                               struct MUI_RenderInfo *mri, int gl, int gt,
-                               int gw, int gh, int left, int top, int width,
+static void frame_rounded_draw(const struct ZuneFrameGfx *zf, struct dt_frame_image *fi,
+                               struct MUI_RenderInfo *mri, int left, int top, int width,
                                int height, MPen light_pen, MPen dark_pen)
 {
     struct RastPort *rp = mri->mri_RastPort;
@@ -581,24 +531,22 @@ static void frame_rounded_draw(struct dt_frame_image *fi,
 /**
  * Rounded frame (raised state)
  */
-static void frame_rounded_up_draw(struct dt_frame_image *fi,
-                                  struct MUI_RenderInfo *mri, int gl, int gt,
-                                  int gw, int gh, int left, int top, int width,
+static void frame_rounded_up_draw(const struct ZuneFrameGfx *zf, struct dt_frame_image *fi,
+                                  struct MUI_RenderInfo *mri, int left, int top, int width,
                                   int height)
 {
-    frame_rounded_draw(fi, mri, gl, gt, gw, gh, left, top, width, height,
+    frame_rounded_draw(zf, fi, mri, left, top, width, height,
                        MPEN_HALFSHADOW, MPEN_HALFSHADOW);
 }
 
 /**
  * Rounded frame (pressed state)
  */
-static void frame_rounded_down_draw(struct dt_frame_image *fi,
-                                    struct MUI_RenderInfo *mri, int gl, int gt,
-                                    int gw, int gh, int left, int top,
+static void frame_rounded_down_draw(const struct ZuneFrameGfx *zf, struct dt_frame_image *fi,
+                                    struct MUI_RenderInfo *mri, int left, int top,
                                     int width, int height)
 {
-    frame_rounded_draw(fi, mri, gl, gt, gw, gh, left, top, width, height,
+    frame_rounded_draw(zf, fi, mri, left, top, width, height,
                        MPEN_HALFSHADOW, MPEN_HALFSHADOW);
 }
 
@@ -606,15 +554,16 @@ static void frame_rounded_down_draw(struct dt_frame_image *fi,
 /* The entries of these types, as frame.c's table has them: up, down for
  * 5, 7, 8, A, B */
 const struct ZuneFrameGfx zune_round_frames[10] = {
-    {frame_round_bevel_up_draw, 0, 4, 4, 1, 1, NULL, FALSE, 2, 2},
-    {frame_round_bevel_down_draw, 0, 4, 4, 1, 1, NULL, FALSE, 2, 2},
-    {frame_round_thick_border_up_draw, 0, 4, 4, 4, 4, NULL, FALSE, 4, 3},
-    {frame_round_thick_border_down_draw, 0, 4, 4, 4, 4, NULL, FALSE, 4, 3},
-    {frame_round_thin_border_up_draw, 0, 3, 3, 3, 3, NULL, FALSE, 2, 2},
-    {frame_round_thin_border_down_draw, 0, 3, 3, 3, 3, NULL, FALSE, 2, 2},
-    {frame_semiround_bevel_up_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 1},
-    {frame_semiround_bevel_down_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 1},
-    {frame_rounded_up_draw, 0, 2, 2, 2, 2, NULL, FALSE, 1, 8},
-    {frame_rounded_down_draw, 0, 2, 2, 2, 2, NULL, FALSE, 1, 8},
+    /* the state in ul for the shared drawing functions */
+    {round_bevel_draw, 4, 4, 1, 1, 2, 2, 0},
+    {round_bevel_draw, 4, 4, 1, 1, 2, 2, 1},
+    {round_thick_border_draw, 4, 4, 4, 4, 4, 3, 0},
+    {round_thick_border_draw, 4, 4, 4, 4, 4, 3, 1},
+    {round_thin_border_draw, 3, 3, 3, 3, 2, 2, 0},
+    {round_thin_border_draw, 3, 3, 3, 3, 2, 2, 1},
+    {semiround_bevel_draw, 2, 2, 2, 2, 2, 1, 0},
+    {semiround_bevel_draw, 2, 2, 2, 2, 2, 1, 1},
+    {frame_rounded_up_draw, 2, 2, 2, 2, 1, 8},
+    {frame_rounded_down_draw, 2, 2, 2, 2, 1, 8},
 };
 #endif

@@ -5,14 +5,8 @@
 
 */
 
-#include <cybergraphx/cybergraphics.h>
 #include <exec/types.h>
-
-#include <proto/cybergraphics.h>
 #include <proto/graphics.h>
-#include <proto/layers.h>
-
-#include <stdio.h>
 #include <string.h>
 
 #include "datatypescache.h"
@@ -21,335 +15,193 @@
 #include "muimaster_intern.h"
 #include "modules.h"
 
-#define DEBUG 0
-#include <aros/debug.h>
-
 extern struct Library *MUIMasterBase;
 
-/* custom frames: frame_tile.c (in the picture module in the native build) */
-#if !defined(ZUNE68_GCC_NATIVE)
-#include "frame_tile.c"
-#endif
-
-
-static void frame_custom(struct dt_frame_image *fi, BOOL state,
-                         struct MUI_RenderInfo *mri, int gl, int gt, int gw,
-                         int gh, int left, int top, int width, int height)
-{
-    struct RastPort *rp = mri->mri_RastPort;
-    struct NewImage *ni;
-
-    if (fi == NULL)
-        return;
-
-    if (state)
-        ni = fi->img_down;
-    else
-        ni = fi->img_up;
-
-    if ((fi->tile_left + fi->tile_right) > gw)
-        return;
-    if ((fi->tile_top + fi->tile_bottom) > gh)
-        return;
-
-    if (ni != NULL) {
-        dt_do_frame_rects(rp, fi, ni, gl, gt, gw, gh, left, top, width, height);
-    }
-}
-
-static void frame_custom_up(struct dt_frame_image *fi,
-                            struct MUI_RenderInfo *mri, int gl, int gt, int gw,
-                            int gh, int left, int top, int width, int height)
-{
-    frame_custom(fi, FALSE, mri, gl, gt, gw, gh, left, top, width, height);
-}
-
-static void frame_custom_down(struct dt_frame_image *fi,
-                              struct MUI_RenderInfo *mri, int gl, int gt,
-                              int gw, int gh, int left, int top, int width,
-                              int height)
-{
-    frame_custom(fi, TRUE, mri, gl, gt, gw, gh, left, top, width, height);
-}
 /**************************************************************************
- no frame
-**************************************************************************/
-/**************************************************************************
- Drawing primitives - optimized for performance
+ The built-in frames, rewritten for the 68000 (2026-11, rw-draw): one draw
+ function per shape, the pens in the frame's table entry (zf->ul, zf->lr)
+ instead of a wrapper function per pen pair, and no "global" box (only the
+ custom frames' tiles needed it, and they draw nothing: see the custom
+ entry below). Every safety return and every primitive is lean's, so the
+ pixels are (tests/lean/framepix.c).
+
+ Measured on a 68020 planar screen (tests/native/gfxprims.c): RectFill is
+ fastest for horizontal lines, Move/Draw for vertical ones, and repeating
+ the current pen still costs a library call.
 **************************************************************************/
 
-/* Measured on a 68020 planar screen (tests/native/gfxprims.c): RectFill
- * is fastest for horizontal lines, Move/Draw for vertical ones, and
- * repeating the current pen still costs a library call. */
-
-/** Horizontal line drawing */
-static inline void draw_horizontal_line(struct RastPort *rp, int x1, int x2,
-                                        int y, ULONG pen)
+static inline void hline(struct RastPort *rp, int x1, int x2, int y, ULONG pen)
 {
     if (x1 > x2)
-        return; /* Safety check */
+        return;
     if (rp->FgPen != (BYTE)pen)
         SetAPen(rp, pen);
     RectFill(rp, x1, y, x2, y);
 }
 
-/** Vertical line drawing */
-static inline void draw_vertical_line(struct RastPort *rp, int x, int y1,
-                                      int y2, ULONG pen)
+static inline void vline(struct RastPort *rp, int x, int y1, int y2, ULONG pen)
 {
     if (y1 > y2)
-        return; /* Safety check */
+        return;
     if (rp->FgPen != (BYTE)pen)
         SetAPen(rp, pen);
     Move(rp, x, y1);
     Draw(rp, x, y2);
 }
 
-/**************************************************************************
- 0 : FST_NONE
-**************************************************************************/
-static void frame_none_draw(struct dt_frame_image *fi,
-                            struct MUI_RenderInfo *mri, int gl, int gt, int gw,
-                            int gh, int left, int top, int width, int height)
+/* 0 : FST_NONE (and the round types without their module) */
+static void frame_none(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
-    /* No frame - nothing to draw */
 }
 
-/**************************************************************************
- 1 : FST_RECT - Rectangle border drawing
-**************************************************************************/
-static void rect_draw(struct dt_frame_image *fi, struct MUI_RenderInfo *mri,
-                      int left, int top, int width, int height,
-                      MPen preset_color)
+/* The drawing functions read their pens from zf (ul, lr); a shape made of
+ * others hands them its opposite state's entry (the pens swapped: the up
+ * and down entries of a type are neighbours) or one of these */
+#define PENS(ul, lr) {frame_none, 0, 0, 0, 0, 0, 0, ul, lr}
+static const struct ZuneFrameGfx pens_bg = PENS(MPEN_BACKGROUND, 0);
+static const struct ZuneFrameGfx pens_shadow = PENS(MPEN_SHADOW, 0);
+static const struct ZuneFrameGfx pens_sh_hsd = PENS(MPEN_SHINE, MPEN_HALFSHADOW);
+static const struct ZuneFrameGfx pens_hsd_sd = PENS(MPEN_HALFSHADOW, MPEN_SHADOW);
+static const struct ZuneFrameGfx pens_bg_sd = PENS(MPEN_BACKGROUND, MPEN_SHADOW);
+
+static const struct ZuneFrameGfx builtin_gfx[2 * (FST_ROUNDED + 1)];
+#define OPPOSITE(zf) ((zf) + (((zf) - builtin_gfx) & 1 ? -1 : 1))
+
+/* 1 : FST_RECT: a one pixel rectangle in zf->ul (width and height become
+ * the right and bottom edges: fewer registers to keep) */
+static void rect_draw(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
-    struct RastPort *rp = mri->mri_RastPort;
+    struct RastPort *rp;
 
     if (width <= 0 || height <= 0)
-        return; /* Safety check */
-
-    SetAPen(rp, mri->mri_Pens[preset_color]);
-
-    if (width == 1 || height == 1) {
-        /* For thin lines, fill the entire area */
-        RectFill(rp, left, top, left + width - 1, top + height - 1);
-    } else {
-        /* For borders, draw individual edges efficiently */
-        RectFill(rp, left, top, left + width - 1, top); /* Top edge */
-        RectFill(rp, left, top + height - 1, left + width - 1,
-                 top + height - 1);                          /* Bottom edge */
-        RectFill(rp, left, top + 1, left, top + height - 2); /* Left edge */
-        RectFill(rp, left + width - 1, top + 1, left + width - 1,
-                 top + height - 2); /* Right edge */
+        return;
+    rp = mri->mri_RastPort;
+    SetAPen(rp, mri->mri_Pens[zf->ul]);
+    width += left - 1;
+    height += top - 1;
+    if (width == left || height == top)
+    {
+        RectFill(rp, left, top, width, height);
+        return;
     }
+    RectFill(rp, left, top, width, top);
+    RectFill(rp, left, height, width, height);
+    RectFill(rp, left, top + 1, left, height - 1);
+    RectFill(rp, width, top + 1, width, height - 1);
 }
 
-/**************************************************************************
- simple white border
-**************************************************************************/
-static void frame_white_rect_draw(struct dt_frame_image *fi,
-                                  struct MUI_RenderInfo *mri, int gl, int gt,
-                                  int gw, int gh, int left, int top, int width,
-                                  int height)
-{
-    rect_draw(fi, mri, left, top, width, height, MPEN_SHINE);
-}
-
-/**************************************************************************
- simple black border
-**************************************************************************/
-static void frame_black_rect_draw(struct dt_frame_image *fi,
-                                  struct MUI_RenderInfo *mri, int gl, int gt,
-                                  int gw, int gh, int left, int top, int width,
-                                  int height)
-{
-    rect_draw(fi, mri, left, top, width, height, MPEN_SHADOW);
-}
-
-/**************************************************************************
- 2 : FST_BEVEL
-
- Draw a bicolor rectangle
-**************************************************************************/
-/**
- * Draw a basic 3D button effect
- * @param ul_preset Upper-left edge pen (light for raised, dark for recessed)
- * @param lr_preset Lower-right edge pen (dark for raised, light for recessed)
- */
-static void button_draw(struct dt_frame_image *fi, struct MUI_RenderInfo *mri,
-                        int left, int top, int width, int height,
-                        MPen ul_preset, MPen lr_preset)
+/* 2 : FST_BEVEL: ul on the left column and the top row, lr on the right
+ * column and the bottom row, short of the top-right and bottom-left
+ * corners. Those two corners are MPEN_BACKGROUND in MUI 3.9 even where
+ * another background lies beneath them (a pressed button's bottom-left
+ * corner, a white parent's top-right one: tests/native/cornerbg.c). Area
+ * tells when its background fill has just painted them with that pen. */
+static void button_draw(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
     struct RastPort *rp = mri->mri_RastPort;
+    int right = left + width - 1, bottom = top + height - 1;
+    UBYTE known;
 
     if (!rp || width <= 2 || height <= 2)
-        return; /* Safety check - need minimum size and valid rastport */
-
-    /* Draw upper-left edges (the line helpers set the pen when it
-     * differs from the rastport's) */
-    draw_vertical_line(rp, left, top, top + height - 2, mri->mri_Pens[ul_preset]);
-    draw_horizontal_line(rp, left, left + width - 2, top,
-                         mri->mri_Pens[ul_preset]);
-
-    /* Draw lower-right edges, short of the top-right and bottom-left
-     * corners */
-    draw_vertical_line(rp, left + width - 1, top + 1, top + height - 1,
-                       mri->mri_Pens[lr_preset]);
-    draw_horizontal_line(rp, left + 1, left + width - 1, top + height - 1,
-                         mri->mri_Pens[lr_preset]);
-
-    /* Those two corners are MPEN_BACKGROUND in MUI 3.9 even where another
-     * background lies beneath them (a pressed button's bottom-left corner,
-     * a white parent's top-right one: tests/native/cornerbg.c). Area tells
-     * when its background fill has just painted them with that pen. */
-    {
-        UBYTE known = fi ? fi->corners_bg : 0;
-
-        if ((known & (FRAME_CORNER_TR | FRAME_CORNER_BL))
-            != (FRAME_CORNER_TR | FRAME_CORNER_BL))
-            SetAPen(rp, mri->mri_Pens[MPEN_BACKGROUND]);
-        if (!(known & FRAME_CORNER_BL))
-            WritePixel(rp, left, top + height - 1);
-        if (!(known & FRAME_CORNER_TR))
-            WritePixel(rp, left + width - 1, top);
-    }
+        return;
+    vline(rp, left, top, bottom - 1, mri->mri_Pens[zf->ul]);
+    hline(rp, left, right - 1, top, mri->mri_Pens[zf->ul]);
+    vline(rp, right, top + 1, bottom, mri->mri_Pens[zf->lr]);
+    hline(rp, left + 1, right, bottom, mri->mri_Pens[zf->lr]);
+    known = fi ? fi->corners_bg : 0;
+    if ((known & (FRAME_CORNER_TR | FRAME_CORNER_BL))
+        != (FRAME_CORNER_TR | FRAME_CORNER_BL))
+        SetAPen(rp, mri->mri_Pens[MPEN_BACKGROUND]);
+    if (!(known & FRAME_CORNER_BL))
+        WritePixel(rp, left, bottom);
+    if (!(known & FRAME_CORNER_TR))
+        WritePixel(rp, right, top);
 }
 
-/**************************************************************************
- classic button
-**************************************************************************/
-static void frame_bevelled_draw(struct dt_frame_image *fi,
-                                struct MUI_RenderInfo *mri, int gl, int gt,
-                                int gw, int gh, int left, int top, int width,
-                                int height)
-{
-    button_draw(fi, mri, left, top, width, height, MPEN_SHINE, MPEN_SHADOW);
-}
-
-/**************************************************************************
- classic pressed button
-**************************************************************************/
-static void frame_recessed_draw(struct dt_frame_image *fi,
-                                struct MUI_RenderInfo *mri, int gl, int gt,
-                                int gw, int gh, int left, int top, int width,
-                                int height)
-{
-    button_draw(fi, mri, left, top, width, height, MPEN_SHADOW, MPEN_SHINE);
-}
-
-/**************************************************************************
- 3 : FST_THIN_BORDER
- Draw a thin relief border
-**************************************************************************/
-/**
- * Draw a thin 3D border - optimized version
- */
-static void thinborder_draw(struct dt_frame_image *fi,
-                            struct MUI_RenderInfo *mri, int left, int top,
-                            int width, int height, MPen ul_preset,
-                            MPen lr_preset)
+/* 3 : FST_THIN_BORDER, 9 : FST_GRAY_BORDER (in the half pens) */
+/* no-function-cse: the callee's address in a register cost a saved
+ * register (4 bytes of stack) */
+static __attribute__((optimize("no-function-cse"))) void frame_thin(
+    const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
     struct RastPort *rp = mri->mri_RastPort;
+    ULONG ul = mri->mri_Pens[zf->ul];
 
     if (width <= 3 || height <= 3)
-        return; /* Safety check */
-
-    /* Draw outer upper-left edges */
-    SetAPen(rp, mri->mri_Pens[ul_preset]);
-    draw_vertical_line(rp, left, top, top + height - 1, mri->mri_Pens[ul_preset]);
-    draw_horizontal_line(rp, left, left + width - 1, top,
-                         mri->mri_Pens[ul_preset]);
-
-    /* Draw inner upper-left edges */
-    draw_vertical_line(rp, left + width - 2, top + 2, top + height - 2,
-                       mri->mri_Pens[ul_preset]);
-    draw_horizontal_line(rp, left + 2, left + width - 2, top + height - 2,
-                         mri->mri_Pens[ul_preset]);
-
-    /* Draw the inner border with lower-right pen */
-    rect_draw(fi, mri, left + 1, top + 1, width - 1, height - 1, lr_preset);
+        return;
+    SetAPen(rp, ul);
+    vline(rp, left, top, top + height - 1, ul);
+    hline(rp, left, left + width - 1, top, ul);
+    vline(rp, left + width - 2, top + 2, top + height - 2, ul);
+    hline(rp, left + 2, left + width - 2, top + height - 2, ul);
+    /* the inner rectangle in lr: the opposite entry's ul */
+    rect_draw(OPPOSITE(zf), fi, mri, left + 1, top + 1, width - 1,
+        height - 1);
 }
 
-/**************************************************************************
- draw border up
-**************************************************************************/
-static void frame_thin_border_up_draw(struct dt_frame_image *fi,
-                                      struct MUI_RenderInfo *mri, int gl,
-                                      int gt, int gw, int gh, int left, int top,
-                                      int width, int height)
-{
-    thinborder_draw(fi, mri, left, top, width, height, MPEN_SHINE, MPEN_SHADOW);
-}
-
-/**************************************************************************
- draw border down
-**************************************************************************/
-static void frame_thin_border_down_draw(struct dt_frame_image *fi,
-                                        struct MUI_RenderInfo *mri, int gl,
-                                        int gt, int gw, int gh, int left,
-                                        int top, int width, int height)
-{
-    thinborder_draw(fi, mri, left, top, width, height, MPEN_SHADOW, MPEN_SHINE);
-}
-
-/**************************************************************************
- 4 : FST_THICK_BORDER
- Draw a thick relief border
-**************************************************************************/
-/**
- * Draw a thick 3D border with double bevel effect
- * @param bevelled TRUE for raised appearance, FALSE for recessed
- */
-static void thickborder_draw(struct dt_frame_image *fi,
-                             struct MUI_RenderInfo *mri, int left, int top,
-                             int width, int height, BOOL bevelled)
+/* 4 : FST_THICK_BORDER: two bevels of opposite states, the ring between
+ * them in the background pen */
+/* no-function-cse: the callee's address in a register cost a saved
+ * register (4 bytes of stack) */
+static __attribute__((optimize("no-function-cse"))) void frame_thick(
+    const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
     if (width <= 4 || height <= 4)
-        return; /* Safety check - need minimum size */
-
-    if (bevelled) {
-        /* Raised: outer light, inner dark */
-        button_draw(fi, mri, left, top, width, height, MPEN_SHINE, MPEN_SHADOW);
-        button_draw(fi, mri, left + 2, top + 2, width - 4, height - 4, MPEN_SHADOW,
-                    MPEN_SHINE);
-    } else {
-        /* Recessed: outer dark, inner light */
-        button_draw(fi, mri, left, top, width, height, MPEN_SHADOW, MPEN_SHINE);
-        button_draw(fi, mri, left + 2, top + 2, width - 4, height - 4, MPEN_SHINE,
-                    MPEN_SHADOW);
-    }
-
-    /* Fill the middle border area with background */
-    rect_draw(fi, mri, left + 1, top + 1, width - 2, height - 2, MPEN_BACKGROUND);
+        return;
+    button_draw(zf, fi, mri, left, top, width, height);
+    button_draw(OPPOSITE(zf), fi, mri, left + 2, top + 2, width - 4,
+        height - 4);
+    rect_draw(&pens_bg, fi, mri, left + 1, top + 1, width - 2, height - 2);
 }
 
-/**************************************************************************
- draw thick border up
-**************************************************************************/
-static void frame_thick_border_up_draw(struct dt_frame_image *fi,
-                                       struct MUI_RenderInfo *mri, int gl,
-                                       int gt, int gw, int gh, int left,
-                                       int top, int width, int height)
+/* 6 : FST_WIN_BEVEL raised */
+/* no-function-cse: the callee's address in a register cost a saved
+ * register (4 bytes of stack) */
+static __attribute__((optimize("no-function-cse"))) void frame_win_up(
+    const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
-    thickborder_draw(fi, mri, left, top, width, height, TRUE);
+    if (width <= 2 || height <= 2)
+        return;
+    rect_draw(&pens_shadow, fi, mri, left, top, width, height);
+    button_draw(&pens_sh_hsd, fi, mri, left + 1, top + 1, width - 2,
+        height - 2);
 }
 
-/**************************************************************************
- draw thick border down
-**************************************************************************/
-static void frame_thick_border_down_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri, int gl,
-        int gt, int gw, int gh, int left,
-        int top, int width, int height)
+/* 6 : FST_WIN_BEVEL pressed */
+/* no-function-cse: the callee's address in a register cost a saved
+ * register (4 bytes of stack) */
+static __attribute__((optimize("no-function-cse"))) void frame_win_down(
+    const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
-    thickborder_draw(fi, mri, left, top, width, height, FALSE);
+    if (width <= 4 || height <= 4)
+        return;
+    rect_draw(&pens_shadow, fi, mri, left, top, width, height);
+    button_draw(&pens_hsd_sd, fi, mri, left + 1, top + 1, width - 1,
+        height - 1);
+    button_draw(&pens_bg_sd, fi, mri, left + 2, top + 2, width - 2,
+        height - 2);
 }
 
 /**************************************************************************
  Thick frames (MUI 3.8's "Frame thickness: thick", the default where the
  screen is at least twice as wide as tall): types 1, 2, 3 and 9 draw their
  left and right lines 2 pixels wide (and are 2 or 4 pixels wider for it,
- see __thickFrameGfx); type 4 keeps its size and fills its gap ring.
- Top and bottom lines stay 1 pixel. The pixels are MUI 3.8's, measured.
+ see thick_gfx); type 4 keeps its size and fills its gap ring. Top and
+ bottom lines stay 1 pixel. The pixels are MUI 3.8's, measured.
 
  Zune numbers the types 5 to 10 as MUI 4 and 5 do (TheBar's default
  button frame "602222" is the xen look), MUI 3.8 numbers them otherwise:
@@ -393,359 +245,130 @@ static __attribute__((noinline)) void bevel_ring(struct MUI_RenderInfo *mri,
 
 /* 1 (ul == lr) and 2: the outer column takes the off-pen corner, top
  * right in the lower right pen, bottom left in the upper left one */
-static __attribute__((noinline)) void button_thick_draw(
-    struct MUI_RenderInfo *mri, int left, int top, int width, int height,
-    MPen ul, MPen lr)
-{
-    bevel_ring(mri, left, top, left + width - 1, top + height - 1, 2, ul, lr,
-               TR_LR);
-}
-
-static void frame_white_rect_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
+static void frame_bevel2(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
     int top, int width, int height)
 {
-    button_thick_draw(mri, left, top, width, height, MPEN_SHINE, MPEN_SHINE);
-}
-
-static void frame_black_rect_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    button_thick_draw(mri, left, top, width, height, MPEN_SHADOW, MPEN_SHADOW);
-}
-
-static void frame_bevelled_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    button_thick_draw(mri, left, top, width, height, MPEN_SHINE, MPEN_SHADOW);
-}
-
-static void frame_recessed_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    button_thick_draw(mri, left, top, width, height, MPEN_SHADOW, MPEN_SHINE);
+    bevel_ring(mri, left, top, left + width - 1, top + height - 1, 2, zf->ul,
+        zf->lr, TR_LR);
 }
 
 /* 3 and 9: two thick bevels, the inner one of the opposite state at
  * x + 2, y + 1 */
-static __attribute__((noinline)) void thinborder_thick_draw(
-    struct MUI_RenderInfo *mri, int left, int top, int width, int height,
-    MPen ul, MPen lr)
+static void frame_thin2(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
     int right = left + width - 1, bottom = top + height - 1;
 
     if (width < 8 || height < 4)
         return;
-    bevel_ring(mri, left, top, right, bottom, 2, ul, lr, TR_LR);
-    bevel_ring(mri, left + 2, top + 1, right - 2, bottom - 1, 2, lr, ul,
-               TR_LR);
-}
-
-static void frame_thin_border_up_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    thinborder_thick_draw(mri, left, top, width, height, MPEN_SHINE,
-                          MPEN_SHADOW);
-}
-
-static void frame_thin_border_down_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    thinborder_thick_draw(mri, left, top, width, height, MPEN_SHADOW,
-                          MPEN_SHINE);
-}
-
-static void frame_halftone_border_up_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    thinborder_thick_draw(mri, left, top, width, height, MPEN_HALFSHINE,
-                          MPEN_HALFSHADOW);
-}
-
-static void frame_halftone_border_down_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    thinborder_thick_draw(mri, left, top, width, height, MPEN_HALFSHADOW,
-                          MPEN_HALFSHINE);
+    bevel_ring(mri, left, top, right, bottom, 2, zf->ul, zf->lr, TR_LR);
+    bevel_ring(mri, left + 2, top + 1, right - 2, bottom - 1, 2, zf->lr,
+        zf->ul, TR_LR);
 }
 
 /* 4: same size as thin; the gap ring is filled with the outer lower right
  * pen, and every bevel corner pixel takes its bevel's lower right pen */
-static __attribute__((noinline)) void thickborder_thick_draw(
-    struct MUI_RenderInfo *mri, int left, int top, int width, int height,
-    MPen ul, MPen lr)
+static void frame_thick2(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *fi, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
 {
     int right = left + width - 1, bottom = top + height - 1;
+    MPen ul = zf->ul, lr = zf->lr;
 
     if (width < 6 || height < 6)
         return;
     bevel_ring(mri, left, top, right, bottom, 1, ul, lr, TR_LR | BL_LR);
     bevel_ring(mri, left + 1, top + 1, right - 1, bottom - 1, 1, lr, lr,
-               TR_LR | BL_LR);
+        TR_LR | BL_LR);
     bevel_ring(mri, left + 2, top + 2, right - 2, bottom - 2, 1, lr, ul,
-               TR_LR | BL_LR);
-}
-
-static void frame_thick_border_up_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    thickborder_thick_draw(mri, left, top, width, height, MPEN_SHINE,
-                           MPEN_SHADOW);
-}
-
-static void frame_thick_border_down_thick_draw(struct dt_frame_image *fi,
-    struct MUI_RenderInfo *mri, int gl, int gt, int gw, int gh, int left,
-    int top, int width, int height)
-{
-    thickborder_thick_draw(mri, left, top, width, height, MPEN_SHADOW,
-                           MPEN_SHINE);
+        TR_LR | BL_LR);
 }
 
 /* Types 5, 7, 8, A and B, the rounded frames: frame_round.c (the round
  * frame module in the native build, see zune_zframe_get_with_state) */
 #if !defined(ZUNE68_GCC_NATIVE)
 #include "frame_round.c"
-#endif
-
-/**************************************************************************
- 6 : FST_WIN_BEVEL
-**************************************************************************/
-/**
- * Windows-style button frame (raised) - FST_WIN_BEVEL
- */
-static void frame_border_button_up_draw(struct dt_frame_image *fi,
-                                        struct MUI_RenderInfo *mri, int gl,
-                                        int gt, int gw, int gh, int left,
-                                        int top, int width, int height)
-{
-    if (width <= 2 || height <= 2)
-        return; /* Safety check */
-
-    /* Outer dark border */
-    rect_draw(fi, mri, left, top, width, height, MPEN_SHADOW);
-    /* Inner raised bevel */
-    button_draw(fi, mri, left + 1, top + 1, width - 2, height - 2, MPEN_SHINE,
-                MPEN_HALFSHADOW);
-}
-
-/**************************************************************************
-
-**************************************************************************/
-/**
- * Windows-style button frame (pressed) - FST_WIN_BEVEL
- */
-static void frame_border_button_down_draw(struct dt_frame_image *fi,
-        struct MUI_RenderInfo *mri, int gl,
-        int gt, int gw, int gh, int left,
-        int top, int width, int height)
-{
-    if (width <= 4 || height <= 4)
-        return; /* Safety check */
-
-    /* Draw from outside to inside for better visual layering */
-    rect_draw(fi, mri, left, top, width, height, MPEN_SHADOW);
-    button_draw(fi, mri, left + 1, top + 1, width - 1, height - 1,
-                MPEN_HALFSHADOW, MPEN_SHADOW);
-    button_draw(fi, mri, left + 2, top + 2, width - 2, height - 2,
-                MPEN_BACKGROUND, MPEN_SHADOW);
-}
-
-
-/**************************************************************************
- 9 : FST_GRAY_BORDER
-**************************************************************************/
-/**
- * Gray border frame (raised) - FST_GRAY_BORDER
- * Uses half-tone pens for subtle effect
- */
-static void frame_gray_border_up_draw(struct dt_frame_image *fi,
-                                      struct MUI_RenderInfo *mri, int gl,
-                                      int gt, int gw, int gh, int left, int top,
-                                      int width, int height)
-{
-    thinborder_draw(fi, mri, left, top, width, height, MPEN_HALFSHINE,
-                    MPEN_HALFSHADOW);
-}
-
-/**************************************************************************
-
-**************************************************************************/
-/**
- * Gray border frame (recessed) - FST_GRAY_BORDER
- * Uses half-tone pens for subtle effect
- */
-static void frame_gray_border_down_draw(struct dt_frame_image *fi,
-                                        struct MUI_RenderInfo *mri, int gl,
-                                        int gt, int gw, int gh, int left,
-                                        int top, int width, int height)
-{
-    thinborder_draw(fi, mri, left, top, width, height, MPEN_HALFSHADOW,
-                    MPEN_HALFSHINE);
-}
-
-
-/**************************************************************************
- hold builtin frames.
-**************************************************************************/
-#if defined(ZUNE68_GCC_NATIVE)
+#define ROUND(f) f
+#else
 /* The rounded types' sizes stay here, so layout never needs the module;
- * their drawing comes from it (zune_zframe_get_with_state). Without the
- * module they draw nothing. */
-#define frame_round_bevel_up_draw frame_none_draw
-#define frame_round_bevel_down_draw frame_none_draw
-#define frame_round_thick_border_up_draw frame_none_draw
-#define frame_round_thick_border_down_draw frame_none_draw
-#define frame_round_thin_border_up_draw frame_none_draw
-#define frame_round_thin_border_down_draw frame_none_draw
-#define frame_semiround_bevel_up_draw frame_none_draw
-#define frame_semiround_bevel_down_draw frame_none_draw
-#define frame_rounded_up_draw frame_none_draw
-#define frame_rounded_down_draw frame_none_draw
+ * their drawing comes from it. Without the module they draw nothing. */
+#define ROUND(f) frame_none
 #endif
 
-static const struct ZuneFrameGfx __builtinFrameGfx[] = {
-    /* type 0 : FST_NONE */
-    {frame_none_draw, 0, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_none_draw, 0, 0, 0, 0, 0, NULL, FALSE, 0, 0},
+#define SH MPEN_SHINE
+#define SD MPEN_SHADOW
+#define HSH MPEN_HALFSHINE
+#define HSD MPEN_HALFSHADOW
 
-    /* monochrome border */
+/* up and down for the types 0 to B: draw, inner left, right, top, bottom,
+ * border width and radius, pens */
+static const struct ZuneFrameGfx builtin_gfx[2 * (FST_ROUNDED + 1)] = {
+    /* 0 : FST_NONE */
+    {frame_none, 0, 0, 0, 0, 0, 0},
+    {frame_none, 0, 0, 0, 0, 0, 0},
     /* 1 : FST_RECT */
-    {frame_white_rect_draw, 0, 1, 1, 1, 1, NULL, FALSE, 1, 0},
-    {frame_black_rect_draw, 0, 1, 1, 1, 1, NULL, FALSE, 1, 0},
-
-    /* clean 3D look */
+    {rect_draw, 1, 1, 1, 1, 1, 0, SH, 0},
+    {rect_draw, 1, 1, 1, 1, 1, 0, SD, 0},
     /* 2 : FST_BEVEL */
-    {frame_bevelled_draw, 0, 1, 1, 1, 1, NULL, FALSE, 1, 0},
-    {frame_recessed_draw, 0, 1, 1, 1, 1, NULL, FALSE, 1, 0},
-
-    /* thin relief border */
+    {button_draw, 1, 1, 1, 1, 1, 0, SH, SD},
+    {button_draw, 1, 1, 1, 1, 1, 0, SD, SH},
     /* 3 : FST_THIN_BORDER */
-    {frame_thin_border_up_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 0},
-    {frame_thin_border_down_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 0},
-
-    /* thick relief border */
+    {frame_thin, 2, 2, 2, 2, 2, 0, SH, SD},
+    {frame_thin, 2, 2, 2, 2, 2, 0, SD, SH},
     /* 4 : FST_THICK_BORDER */
-    {frame_thick_border_up_draw, 0, 3, 3, 3, 3, NULL, FALSE, 3, 0},
-    {frame_thick_border_down_draw, 0, 3, 3, 3, 3, NULL, FALSE, 3, 0},
-
-    /* rounded bevel */
+    {frame_thick, 3, 3, 3, 3, 3, 0, SH, SD},
+    {frame_thick, 3, 3, 3, 3, 3, 0, SD, SH},
     /* 5 : FST_ROUND_BEVEL */
-    {frame_round_bevel_up_draw, 0, 4, 4, 1, 1, NULL, FALSE, 2, 2},
-    {frame_round_bevel_down_draw, 0, 4, 4, 1, 1, NULL, FALSE, 2, 2},
-
-    /* zin31/xen look */
-    /* 6 : FST_WIN_BEVEL */
-    {frame_border_button_up_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 0},
-    {frame_border_button_down_draw, 0, 3, 1, 3, 1, NULL, FALSE, 2, 0},
-
-    /* rounded thick border */
+    {ROUND(frame_round_bevel_up_draw), 4, 4, 1, 1, 2, 2},
+    {ROUND(frame_round_bevel_down_draw), 4, 4, 1, 1, 2, 2},
+    /* 6 : FST_WIN_BEVEL (zin31/xen look) */
+    {frame_win_up, 2, 2, 2, 2, 2, 0},
+    {frame_win_down, 3, 1, 3, 1, 2, 0},
     /* 7 : FST_ROUND_THICK_BORDER */
-    {frame_round_thick_border_up_draw, 0, 4, 4, 4, 4, NULL, FALSE, 4, 3},
-    {frame_round_thick_border_down_draw, 0, 4, 4, 4, 4, NULL, FALSE, 4, 3},
-
-    /* rounded thin border */
+    {ROUND(frame_round_thick_border_up_draw), 4, 4, 4, 4, 4, 3},
+    {ROUND(frame_round_thick_border_down_draw), 4, 4, 4, 4, 4, 3},
     /* 8 : FST_ROUND_THIN_BORDER, 3 pixels as in MUI 3.8 */
-    {frame_round_thin_border_up_draw, 0, 3, 3, 3, 3, NULL, FALSE, 2, 2},
-    {frame_round_thin_border_down_draw, 0, 3, 3, 3, 3, NULL, FALSE, 2, 2},
-
-    /* strange gray border */
+    {ROUND(frame_round_thin_border_up_draw), 3, 3, 3, 3, 2, 2},
+    {ROUND(frame_round_thin_border_down_draw), 3, 3, 3, 3, 2, 2},
     /* 9 : FST_GRAY_BORDER */
-    {frame_gray_border_up_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 0},
-    {frame_gray_border_down_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 0},
-
-    /* semi rounded bevel */
+    {frame_thin, 2, 2, 2, 2, 2, 0, HSH, HSD},
+    {frame_thin, 2, 2, 2, 2, 2, 0, HSD, HSH},
     /* A : FST_SEMIROUND_BEVEL */
-    {frame_semiround_bevel_up_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 1},
-    {frame_semiround_bevel_down_draw, 0, 2, 2, 2, 2, NULL, FALSE, 2, 1},
-
+    {ROUND(frame_semiround_bevel_up_draw), 2, 2, 2, 2, 2, 1},
+    {ROUND(frame_semiround_bevel_down_draw), 2, 2, 2, 2, 2, 1},
     /* B : FST_ROUNDED */
-    {frame_rounded_up_draw, 0, 2, 2, 2, 2, NULL, FALSE, 1, 8},
-    {frame_rounded_down_draw, 0, 2, 2, 2, 2, NULL, FALSE, 1, 8},
-
-    /* custom frames */
-
-    {frame_custom_up, 1, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 1, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 2, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 2, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 3, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 3, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 4, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 4, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 5, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 5, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 6, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 6, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 7, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 7, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 8, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 8, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 9, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 9, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 10, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 10, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 11, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 11, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 12, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 12, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 13, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 13, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 14, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 14, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 15, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 15, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
-    {frame_custom_up, 16, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-    {frame_custom_down, 16, 0, 0, 0, 0, NULL, FALSE, 0, 0},
-
+    {ROUND(frame_rounded_up_draw), 2, 2, 2, 2, 1, 8},
+    {ROUND(frame_rounded_down_draw), 2, 2, 2, 2, 1, 8},
 };
+
+/* The custom frames (types 12 to 27) of a window whose settings load
+ * their pictures (mri_Tail->FrameImage): no spacing, and nothing drawn,
+ * as on lean, whose tile drawing was only ever handed a frame image
+ * without pictures (zune_frame_prepare_for_drawing). */
+static const struct ZuneFrameGfx custom_gfx = {frame_none, 0, 0, 0, 0, 0, 0};
 
 /* Thick frames, for render infos without MUIMRI_THINFRAMES: types 1, 2, 3,
  * 4 and 9, raised and recessed, in that order */
-static const struct ZuneFrameGfx __thickFrameGfx[] = {
-    /* 1 : FST_RECT */
-    {frame_white_rect_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
-    {frame_black_rect_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
-    /* 2 : FST_BEVEL */
-    {frame_bevelled_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
-    {frame_recessed_thick_draw, 0, 2, 2, 1, 1, NULL, FALSE, 1, 0},
-    /* 3 : FST_THIN_BORDER */
-    {frame_thin_border_up_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
-    {frame_thin_border_down_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
-    /* 4 : FST_THICK_BORDER */
-    {frame_thick_border_up_thick_draw, 0, 3, 3, 3, 3, NULL, FALSE, 3, 0},
-    {frame_thick_border_down_thick_draw, 0, 3, 3, 3, 3, NULL, FALSE, 3, 0},
-    /* 9 : FST_GRAY_BORDER */
-    {frame_halftone_border_up_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
-    {frame_halftone_border_down_thick_draw, 0, 4, 4, 2, 2, NULL, FALSE, 2, 0},
+static const struct ZuneFrameGfx thick_gfx[10] = {
+    {frame_bevel2, 2, 2, 1, 1, 1, 0, SH, SH},
+    {frame_bevel2, 2, 2, 1, 1, 1, 0, SD, SD},
+    {frame_bevel2, 2, 2, 1, 1, 1, 0, SH, SD},
+    {frame_bevel2, 2, 2, 1, 1, 1, 0, SD, SH},
+    {frame_thin2, 4, 4, 2, 2, 2, 0, SH, SD},
+    {frame_thin2, 4, 4, 2, 2, 2, 0, SD, SH},
+    {frame_thick2, 3, 3, 3, 3, 3, 0, SH, SD},
+    {frame_thick2, 3, 3, 3, 3, 3, 0, SD, SH},
+    {frame_thin2, 4, 4, 2, 2, 2, 0, HSH, HSD},
+    {frame_thin2, 4, 4, 2, 2, 2, 0, HSD, HSH},
 };
 
 /**************************************************************************
  The frame of a spec. obj is a set up Area object or NULL; its render info
  decides thick or thin (MUIMRI_THINFRAMES, set by Window at setup from the
- "Frame thickness" setting and the screen). Without one, thin.
+ "Frame thickness" setting and the screen). Without one, thin. A custom
+ type without its picture is a white rectangle.
 **************************************************************************/
 const struct ZuneFrameGfx *zune_zframe_get_with_state(
     Object *obj, const struct MUI_FrameSpec_intern *frameSpec, UWORD state)
@@ -753,37 +376,39 @@ const struct ZuneFrameGfx *zune_zframe_get_with_state(
     UWORD type = frameSpec->type;
     struct MUI_RenderInfo *mri = obj ? muiRenderInfo(obj) : NULL;
 
-    if (type >= FST_CUSTOM1) {
-        if (type >= FST_COUNT || !mri
-            || !mri->mri_Tail->FrameImage[type - FST_CUSTOM1])
-            return &__builtinFrameGfx[2 * FST_RECT];
+    if (type >= FST_CUSTOM1)
+    {
+        if (type < FST_COUNT && mri
+            && mri->mri_Tail->FrameImage[type - FST_CUSTOM1])
+            return &custom_gfx;
+        return &builtin_gfx[2 * FST_RECT];
     }
-    else if (((type >= FST_RECT && type <= FST_THICK_BORDER)
-            || type == FST_GRAY_BORDER) && mri
+    if (((type >= FST_RECT && type <= FST_THICK_BORDER)
+        || type == FST_GRAY_BORDER) && mri
         && !(mri->mri_Flags & MUIMRI_THINFRAMES))
-        return &__thickFrameGfx[2 * (type == FST_GRAY_BORDER ? 4 : type - 1)
+        return &thick_gfx[2 * (type == FST_GRAY_BORDER ? 4 : type - 1)
             + state];
 #if defined(ZUNE68_GCC_NATIVE)
     /* 5, 7, 8, A, B: the round frame module's entries (same sizes) */
-    else if (type <= FST_ROUNDED && ((1 << type) & (1 << FST_ROUND_BEVEL |
-        1 << FST_ROUND_THICK_BORDER | 1 << FST_ROUND_THIN_BORDER |
-        1 << FST_SEMIROUND_BEVEL | 1 << FST_ROUNDED)))
+    else if ((1 << type) & (1 << FST_ROUND_BEVEL | 1 << FST_ROUND_THICK_BORDER
+        | 1 << FST_ROUND_THIN_BORDER | 1 << FST_SEMIROUND_BEVEL
+        | 1 << FST_ROUNDED))
     {
         const struct ZuneFrameGfx *round = zune_round_frames_get();
+
         if (round)
             return &round[2 * (type == FST_ROUND_BEVEL ? 0 :
                 type <= FST_ROUND_THIN_BORDER ? type - 6 : type - 7) + state];
     }
 #endif
-
-    return &__builtinFrameGfx[2 * type + state];
+    return &builtin_gfx[2 * type + state];
 }
 
 /* A built-in type's thin entry, for its sizes only: never loads the round
  * frame module (muigfx.library's frame table, made at library init) */
 const struct ZuneFrameGfx *zune_zframe_get_sizes(UWORD type)
 {
-    return &__builtinFrameGfx[2 * type];
+    return &builtin_gfx[2 * type];
 }
 
 const struct ZuneFrameGfx *
@@ -794,298 +419,82 @@ zune_zframe_get(Object *obj, const struct MUI_FrameSpec_intern *frameSpec)
 
 /*------------------------------------------------------------------------*/
 
+/* A frame spec string: the type and the state, the four spacings and, when
+ * either is set, the radius and the width, one hexadecimal digit each
+ * (the first digit of a value above 15, as lean's "%lx" gave) */
 BOOL zune_frame_intern_to_spec(const struct MUI_FrameSpec_intern *intern,
-                               STRPTR spec)
+    STRPTR spec)
 {
+    static const char hex[] = "0123456789abcdef";
+    const UBYTE *v;
+    int i, n;
+
     if (!intern || !spec)
         return FALSE;
-
-    char tmpSpec[3];
-    char sp;
-
-    if (intern->type < 10)
-        sp = ((char)intern->type) + '0';
-    else
-        sp = ((char)intern->type - 10) + 'a';
-
-    /* Must cast to LONG because on AmigaOS SNPrintf() is used which is like
-     * RawDoFmt() 16 bit */
-    snprintf(&spec[0], 2, "%c", sp);
-    snprintf(tmpSpec, 3, "%lx", (ULONG)intern->state);
-    spec[1] = tmpSpec[0];
-    snprintf(tmpSpec, 3, "%lx", (ULONG)intern->innerLeft);
-    spec[2] = tmpSpec[0];
-    snprintf(tmpSpec, 3, "%lx", (ULONG)intern->innerRight);
-    spec[3] = tmpSpec[0];
-    snprintf(tmpSpec, 3, "%lx", (ULONG)intern->innerTop);
-    spec[4] = tmpSpec[0];
-    snprintf(tmpSpec, 3, "%lx", (ULONG)intern->innerBottom);
-    spec[5] = tmpSpec[0];
-
-    /* Add optional border_radius and border_width fields */
-    if (intern->border_radius != 0 || intern->border_width != 0) {
-        snprintf(tmpSpec, 3, "%lx", (ULONG)intern->border_radius);
-        spec[6] = tmpSpec[0];
-        snprintf(tmpSpec, 3, "%lx", (ULONG)intern->border_width);
-        spec[7] = tmpSpec[0];
-        spec[8] = '\0';
-    } else {
-        spec[6] = '\0';
-    }
-
+    n = intern->border_radius || intern->border_width ? 7 : 5;
+    spec[0] = intern->type < 10 ? intern->type + '0' : intern->type - 10 + 'a';
+    for (v = &intern->state, i = 0; i < n; i++, v++)
+        spec[i + 1] = hex[*v >= 16 ? *v >> 4 : *v];
+    spec[n + 1] = 0;
     return TRUE;
 }
 
-/* Helper function to create a dt_frame_image with proper values for drawing */
+/* The frame image a built-in frame is drawn with: its radius and width
+ * (a rounded type B spec's own, else the type's) */
 struct dt_frame_image *
 zune_frame_prepare_for_drawing(const struct ZuneFrameGfx *zframe,
-                               const struct MUI_FrameSpec_intern *framespec,
-                               struct dt_frame_image *temp_storage)
+    const struct MUI_FrameSpec_intern *framespec,
+    struct dt_frame_image *temp_storage)
 {
-
-    /* If there's already a custom frame, use it */
-    if (zframe->customframe) {
-        return zframe->customframe;
-    }
-
-    /* Create a temporary frame image with proper values */
     memset(temp_storage, 0, sizeof(struct dt_frame_image));
-
-    /* Set border radius and width from framespec if available,
-     * the margins are already calculated at this point */
-    if (framespec && framespec->type == FST_ROUNDED) {
+    if (framespec && framespec->type == FST_ROUNDED)
+    {
         temp_storage->border_radius = framespec->border_radius;
         temp_storage->frame_width = framespec->border_width;
-    } else {
-        /* Use static defaults from ZuneFrameGfx */
+    }
+    else
+    {
         temp_storage->border_radius = zframe->border_radius;
         temp_storage->frame_width = zframe->border_width;
     }
-
     return temp_storage;
 }
 
 /*------------------------------------------------------------------------*/
 
-static int xhexasciichar_to_int(char x)
-{
-    if (x >= '0' && x <= '9')
-        return x - '0';
-    if (x >= 'a' && x <= 'z')
-        return x - 'a' + 10;
-    if (x >= 'A' && x <= 'Z')
-        return x - 'A' + 10;
-    return -1;
-}
-
+/* "TSLRTB" (6 characters), + radius, + width: a type below FST_COUNT, a
+ * state 0 or 1, values to 15, digits 0-9 and letters of either case. The
+ * fields are written in order up to the first bad one, as lean did. */
 BOOL zune_frame_spec_to_intern(CONST_STRPTR spec,
-                               struct MUI_FrameSpec_intern *intern)
+    struct MUI_FrameSpec_intern *intern)
 {
-    int val;
-    int specLen;
+    int len, i, val;
+    char c;
 
     if (!intern || !spec)
         return FALSE;
-
-    specLen = strlen(spec);
-    /* Validate spec string length - minimum 6 chars, maximum 8 chars */
-    if (specLen < 6 || specLen > 8)
+    len = strlen(spec);
+    if (len < 6 || len > 8)
         return FALSE;
-
-    val = xhexasciichar_to_int(spec[0]);
-    if (val == -1 || val >= FST_COUNT)
-        return FALSE;
-    intern->type = val;
-
-    val = xhexasciichar_to_int(spec[1]);
-    if (val == -1 || val > 1)
-        return FALSE;
-    intern->state = val;
-
-    val = xhexasciichar_to_int(spec[2]);
-    if (val == -1 || val > 15)
-        return FALSE;
-    intern->innerLeft = val;
-
-    val = xhexasciichar_to_int(spec[3]);
-    if (val == -1 || val > 15)
-        return FALSE;
-    intern->innerRight = val;
-
-    val = xhexasciichar_to_int(spec[4]);
-    if (val == -1 || val > 15)
-        return FALSE;
-    intern->innerTop = val;
-
-    val = xhexasciichar_to_int(spec[5]);
-    if (val == -1 || val > 15)
-        return FALSE;
-    intern->innerBottom = val;
-
-    /* Initialize optional fields to 0 */
-    intern->border_radius = 0;
-    intern->border_width = 0;
-
-    /* Parse optional border_radius and border_width if present */
-    if (specLen >= 7) {
-        val = xhexasciichar_to_int(spec[6]);
-        if (val == -1 || val > 15)
+    for (i = 0; i < len; i++)
+    {
+        c = spec[i];
+        if (c >= '0' && c <= '9')
+            val = c - '0';
+        else if (c >= 'a' && c <= 'z')
+            val = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'Z')
+            val = c - 'A' + 10;
+        else
             return FALSE;
-        intern->border_radius = val;
-    }
-
-    if (specLen >= 8) {
-        val = xhexasciichar_to_int(spec[7]);
-        if (val == -1 || val > 15)
+        if (val > (i == 0 ? FST_COUNT - 1 : i == 1 ? 1 : 15))
             return FALSE;
-        intern->border_width = val;
+        if (i == 0)
+            intern->type = val;
+        else
+            (&intern->state)[i - 1] = val;
+        if (i == 5)
+            intern->border_radius = intern->border_width = 0;
     }
-
     return TRUE;
-}
-
-/**************************************************************************
- Frame support for rounded corners
-**************************************************************************/
-
-/**
- * Query frame information including border radius and width
- * @param obj MUI object
- * @param frameSpec Frame specification
- * @param characteristics Output structure to fill with info
- * @return TRUE if successful, FALSE on error
- */
-BOOL zune_frame_get_characteristics(
-    Object *obj, const struct MUI_FrameSpec_intern *frameSpec,
-    struct MUI_FrameCharacteristics *characteristics)
-{
-    if (!obj || !frameSpec || !characteristics)
-        return FALSE;
-
-    /* Fill in frame information */
-    characteristics->border_width = frameSpec->border_width;
-    characteristics->border_radius = frameSpec->border_radius;
-    characteristics->has_rounded_corners = (frameSpec->border_radius > 0);
-
-    return TRUE;
-}
-
-/**
- * Create a clipping region for rounded frames
- * @param left Left coordinate of frame
- * @param top Top coordinate of frame
- * @param width Width of frame
- * @param height Height of frame
- * @param clipinfo Output Frame clipping information
- * @return Clipping region or NULL on error
- */
-struct Region *zune_frame_create_clip_region(int left, int top, int width,
-        int height, UWORD border_radius)
-{
-    struct Region *region;
-    struct Rectangle rect;
-
-    if (width <= 0 || height <= 0)
-        return NULL;
-
-    /* For non-rounded frames, return full rectangular region */
-    if (border_radius == 0) {
-        region = NewRegion();
-        if (region) {
-            rect.MinX = left;
-            rect.MinY = top;
-            rect.MaxX = left + width - 1;
-            rect.MaxY = top + height - 1;
-            OrRectRegion(region, &rect);
-        }
-        return region;
-    }
-
-    /* Create clipping region for rounded corners */
-    region = NewRegion();
-    if (!region)
-        return NULL;
-
-    int radius = border_radius;
-
-    /* Ensure radius doesn't exceed frame dimensions */
-    if (radius * 2 > width)
-        radius = width / 2;
-    if (radius * 2 > height)
-        radius = height / 2;
-
-    /* Add main rectangular area (excluding corner areas) */
-
-    /* Top rectangle (above corners) */
-    if (radius < height / 2) {
-        rect.MinX = left + radius;
-        rect.MinY = top;
-        rect.MaxX = left + width - radius - 1;
-        rect.MaxY = top + radius - 1;
-        if (rect.MinX <= rect.MaxX && rect.MinY <= rect.MaxY)
-            OrRectRegion(region, &rect);
-    }
-
-    /* Middle rectangle (full width between corners) */
-    rect.MinX = left;
-    rect.MinY = top + radius;
-    rect.MaxX = left + width - 1;
-    rect.MaxY = top + height - radius - 1;
-    if (rect.MinX <= rect.MaxX && rect.MinY <= rect.MaxY)
-        OrRectRegion(region, &rect);
-
-    /* Bottom rectangle (below corners) */
-    if (radius < height / 2) {
-        rect.MinX = left + radius;
-        rect.MinY = top + height - radius;
-        rect.MaxX = left + width - radius - 1;
-        rect.MaxY = top + height - 1;
-        if (rect.MinX <= rect.MaxX && rect.MinY <= rect.MaxY)
-            OrRectRegion(region, &rect);
-    }
-
-    /* Add rounded corner pixels using circle algorithm */
-    int x, y;
-
-    /* For each corner, calculate which pixels are inside the rounded area */
-    for (y = 0; y < radius; y++) {
-        for (x = 0; x < radius; x++) {
-            /* Check if pixel is inside circle using distance formula */
-            int dx = radius - x - 1;
-            int dy = radius - y - 1;
-            /* Use a more conservative threshold to prevent background leaking */
-            int threshold = (radius > 2) ? (radius - 2) * (radius - 2) : 1;
-            if (dx * dx + dy * dy < threshold) {
-                /* Top-left corner */
-                rect.MinX = left + x;
-                rect.MinY = top + y;
-                rect.MaxX = left + x;
-                rect.MaxY = top + y;
-                OrRectRegion(region, &rect);
-
-                /* Top-right corner */
-                rect.MinX = left + width - x - 1;
-                rect.MinY = top + y;
-                rect.MaxX = left + width - x - 1;
-                rect.MaxY = top + y;
-                OrRectRegion(region, &rect);
-
-                /* Bottom-left corner */
-                rect.MinX = left + x;
-                rect.MinY = top + height - y - 1;
-                rect.MaxX = left + x;
-                rect.MaxY = top + height - y - 1;
-                OrRectRegion(region, &rect);
-
-                /* Bottom-right corner */
-                rect.MinX = left + width - x - 1;
-                rect.MinY = top + height - y - 1;
-                rect.MaxX = left + width - x - 1;
-                rect.MaxY = top + height - y - 1;
-                OrRectRegion(region, &rect);
-            }
-        }
-    }
-
-    return region;
 }
