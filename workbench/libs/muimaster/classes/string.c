@@ -521,17 +521,17 @@ static __attribute__((noinline)) void string_set_plain(
 {
     static const struct { ULONG attr; ULONG what; } plain[] =
     {
-        /* what: a flag, or (below 256) the field's offset */
-        { MUIA_String_Accept, offsetof(struct MUI_StringData, msd_Accept) },
-        { MUIA_String_Reject, offsetof(struct MUI_StringData, msd_Reject) },
-        { MUIA_String_AttachedList,
-            offsetof(struct MUI_StringData, msd_AttachedList) },
-        { MUIA_String_EditHook,
-            offsetof(struct MUI_StringData, msd_EditHook) },
+        /* what: a flag, or STRING_FIELD with the field's offset */
+#define STRING_FIELD(f) (0x80000000 | offsetof(struct MUI_StringData, f))
+        { MUIA_String_Accept, STRING_FIELD(msd_Accept) },
+        { MUIA_String_Reject, STRING_FIELD(msd_Reject) },
+        { MUIA_String_AttachedList, STRING_FIELD(msd_AttachedList) },
+        { MUIA_String_EditHook, STRING_FIELD(msd_EditHook) },
         { MUIA_String_LonelyEditHook, MSDF_LONELYEDITHOOK },
         { MUIA_String_AdvanceOnCR, MSDF_ADVANCEONCR },
         { MUIA_String_NoInput, MSDF_NOINPUT },
         { MUIA_String_StayActive, MSDF_STAYACTIVE },
+#undef STRING_FIELD
     };
     unsigned i;
 
@@ -544,8 +544,8 @@ static __attribute__((noinline)) void string_set_plain(
                     == MUIA_String_KeyDownFocus] = (Object *)tag->ti_Data;
             return;
         }
-    if (plain[i].what < 256)
-        *(IPTR *)((UBYTE *)data + plain[i].what) = tag->ti_Data;
+    if ((LONG)plain[i].what < 0)
+        *(IPTR *)((UBYTE *)data + (UWORD)plain[i].what) = tag->ti_Data;
     else
         _handle_bool_tag(data->msd_Flags, tag->ti_Data, plain[i].what);
 }

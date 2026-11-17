@@ -20,6 +20,7 @@ SELECT, UP, DOWN, LIST = 0xad001001, 0xad001008, 0xad001009, 0x80420fd2
 # struct MUI_StringData (classes/string_private.h): msd_Flags, MultiClick,
 # and MSDF_ACTIVE, the String taking the keys
 FLAGS, MULTICLICK, ACTIVE = 28, 86, 1 << 19
+ADVANCE, STAYACTIVE = 0x804226de, 0xad001003
 
 
 class StringHarness(Harness):
@@ -47,7 +48,9 @@ class StringHarness(Harness):
             self.mem.w32(MODTABLE, self.symbols['_zmod_area_mui45'])
             self.mem.w32(MODTABLE + 4, self.symbols['_zmod_string_mui45'])
             self.trap(self.symbols['_zune_module_get'], self.module_get)
-        tags = [(MAXLEN, maxlen)]
+        # AdvanceOnCR and StayActive are flags (OM_NEW shares their
+        # handling with OM_SET): they must not land in the buffer fields
+        tags = [(MAXLEN, maxlen), (ADVANCE, 1), (STAYACTIVE, 1)]
         tags += [(UP, focus['up'])] if 'up' in focus else []
         tags += [(DOWN, focus['down'])] if 'down' in focus else []
         self.message(tags, 0x101)
@@ -147,6 +150,8 @@ class StringHarness(Harness):
 
 def check(path):
     h = StringHarness(path)
+    assert h.get(ADVANCE) == 1 and h.get(STAYACTIVE) == 1
+    assert h.get(MAXLEN) == 81
     # Bounds, signed length, -1 as one character, and cursor-end sentinel.
     for cursor in (0, 2, 6, 99, 0xffffffff):
         for length in (-2147483648, -7, -3, -1, 0, 1, 3, 7, 2147483647):
