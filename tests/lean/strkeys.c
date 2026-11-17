@@ -25,6 +25,7 @@
 #include <devices/input.h>
 #include <devices/inputevent.h>
 #include <proto/exec.h>
+#include <proto/graphics.h>
 #include <proto/dos.h>
 #include <proto/intuition.h>
 #include <proto/muimaster.h>
@@ -159,6 +160,26 @@ static void type(const char *text)
 }
 
 static int step;
+static BOOL with_pixels;
+
+/* "strkeys pix": a checksum of the String's pixels (its whole box, frame
+ * and all) after each step, so two libraries' drawing can be compared */
+static ULONG pixels(Object *str)
+{
+    struct Window *w = NULL;
+    ULONG sum = 0;
+    WORD x, y;
+
+    GetAttr(MUIA_Window_Window, win, (ULONG *)&w);
+    if (!w)
+        return 0;
+    for (y = _top(str); y <= _bottom(str); y++)
+        for (x = _left(str); x <= _right(str); x++)
+            sum = (sum << 5 | sum >> 27) ^ (ReadPixel(w->RPort, x, y)
+                + (x - _left(str)) * 7 + (y - _top(str)) * 131);
+    return sum;
+}
+
 static void show(Object *str, const char *what)
 {
     STRPTR text = NULL;
@@ -167,9 +188,12 @@ static void show(Object *str, const char *what)
     GetAttr(MUIA_String_Contents, str, (ULONG *)&text);
     GetAttr(MUIA_String_BufferPos, str, &pos);
     GetAttr(MUIA_String_Acknowledge, str, &ack);
-    printf("%2d %-28s [%s] pos=%lu changes=%ld acks=%ld ack=[%s]\n", ++step,
+    printf("%2d %-28s [%s] pos=%lu changes=%ld acks=%ld ack=[%s]", ++step,
         what, text ? (char *)text : "NULL", pos, changes, acks,
         ack ? (char *)ack : "");
+    if (with_pixels)
+        printf(" pix=%08lx", pixels(str));
+    printf("\n");
 }
 
 static void activate(Object *str)
@@ -185,6 +209,9 @@ int main(int argc, char **argv)
         *next, *hooked, *group;
     struct MsgPort *port;
     BOOL with_mouse = argc > 1 && !strcmp(argv[1], "mouse");
+    Object *centre, *right, *longer;
+
+    with_pixels = argc > 1 && !strcmp(argv[1], "pix");
 
     setvbuf(stdout, NULL, _IONBF, 0);
     MUIMasterBase = OpenLibrary("muimaster.library", 0);
@@ -213,7 +240,17 @@ int main(int argc, char **argv)
     hooked = MO(MUIC_String, MUIA_Frame, MUIV_Frame_String, MUIA_CycleChain, 1,
         MUIA_String_MaxLen, 40, MUIA_String_EditHook, (ULONG)&hook,
         MUIA_String_Contents, (ULONG)"hook", TAG_DONE);
-    group = MO(MUIC_Group, MUIA_Group_Child, (ULONG)plain,
+    centre = MO(MUIC_String, MUIA_Frame, MUIV_Frame_String, MUIA_CycleChain, 1,
+        MUIA_String_MaxLen, 80, MUIA_String_Format, MUIV_String_Format_Center,
+        MUIA_String_Contents, (ULONG)"middle", TAG_DONE);
+    right = MO(MUIC_String, MUIA_Frame, MUIV_Frame_String, MUIA_CycleChain, 1,
+        MUIA_String_MaxLen, 80, MUIA_String_Format, MUIV_String_Format_Right,
+        MUIA_String_Contents, (ULONG)"right", TAG_DONE);
+    longer = MO(MUIC_String, MUIA_Frame, MUIV_Frame_String, MUIA_CycleChain, 1,
+        MUIA_String_MaxLen, 200, TAG_DONE);
+    group = MO(MUIC_Group, MUIA_Group_Child, (ULONG)centre,
+        MUIA_Group_Child, (ULONG)right, MUIA_Group_Child, (ULONG)longer,
+        MUIA_Group_Child, (ULONG)plain,
         MUIA_Group_Child, (ULONG)accept, MUIA_Group_Child, (ULONG)reject,
         MUIA_Group_Child, (ULONG)integer, MUIA_Group_Child, (ULONG)secret,
         MUIA_Group_Child, (ULONG)maxlen, MUIA_Group_Child, (ULONG)advance,
@@ -338,7 +375,55 @@ int main(int argc, char **argv)
     show(hooked, "hook: ab, bs, left, return");
     printf("   edit hook called %lu times\n", hook_calls);
 
-    /* 4. The mouse: a click sets the cursor, a drag marks */
+    /* 4. Other formats, a text longer than the box (scrolling) */
+    if (with_pixels)
+    {
+        int i;
+
+        show(centre, "centre, inactive");
+        activate(centre);           show(centre, "centre, active");
+        type("ab");                 show(centre, "centre: type ab");
+        key(K_LEFT, 0); key(K_LEFT, 0); key(K_LEFT, 0);
+                                    show(centre, "centre: left x3");
+        key(K_BS, 0);               show(centre, "centre: backspace");
+        activate(right);            show(right, "right, active");
+        type("xy"); key(K_BS, 0);   show(right, "right: xy, backspace");
+        key(K_LEFT, SHIFT);         show(right, "right: line start");
+        activate(longer);
+        for (i = 0; i < 6; i++)
+        {
+            type("the quick brown fox ");
+            show(longer, "longer: type 20 more");
+        }
+        key(K_LEFT, SHIFT);         show(longer, "longer: line start");
+        key(K_RIGHT, CTRL); key(K_RIGHT, CTRL);
+                                    show(longer, "longer: two words right");
+        key(K_RIGHT, SHIFT);        show(longer, "longer: line end");
+        for (i = 0; i < 25; i++)
+            key(K_BS, 0);
+        show(longer, "longer: backspace x25");
+        for (i = 0; i < 30; i++)
+            key(K_LEFT, 0);
+        show(longer, "longer: left x30");
+        type("IN");                 show(longer, "longer: type IN");
+        keydown(K_LALT, ALT);
+        key(K_LEFT, ALT); key(K_LEFT, ALT); key(K_LEFT, ALT);
+        keyup(K_LALT, 0);           show(longer, "longer: alt + left x3");
+        SetAttrs(longer, MUIA_String_Contents, (ULONG)"set from outside",
+            TAG_DONE);
+        pump();                     show(longer, "longer: set contents");
+        SetAttrs(longer, MUIA_String_BufferPos, 4, TAG_DONE);
+        pump();                     show(longer, "longer: set bufferpos 4");
+        activate(secret);
+        type("more"); key(K_LEFT, SHIFT);
+                                    show(secret, "secret: more, line start");
+        activate(plain);            show(plain, "plain active again");
+        activate(NULL);             show(plain, "nothing active");
+        show(longer, "longer, inactive");
+        show(secret, "secret, inactive");
+    }
+
+    /* 5. The mouse: a click sets the cursor, a drag marks */
     if (with_mouse)
     {
         struct Window *w = NULL;

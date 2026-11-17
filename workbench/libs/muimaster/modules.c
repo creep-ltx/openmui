@@ -32,7 +32,7 @@ extern struct Library *MUIMasterBase;
 static CONST_STRPTR const module_names[ZMOD_COUNT] = {
     MUIC_Zmenu, MUIC_Zpicture, MUIC_Zdragdrop, MUIC_Zrequest, MUIC_Zgradient,
     MUIC_Zwintitle, MUIC_Zframes, MUIC_Zlist, MUIC_Zmui45,
-    MUIC_Zprefs, MUIC_Zapp
+    MUIC_Zprefs, MUIC_Zapp, MUIC_Zstring
 };
 
 /* Modules a process could not load: not tried again while the library
@@ -598,3 +598,10 @@ ZMC(zune_app_cxmsg, ZMOD_APP, ZuneAppModule, cxmsg, 3, 0);
 ZMC(zune_app_appmsg, ZMOD_APP, ZuneAppModule, appmsg, 3, 0);
 ZMC(zune_app_version, ZMOD_APP, ZuneAppModule, version, 1, 0);
 
+/* String's rarely used parts (stringx.c) */
+#define ZMC_OFS_ZuneStringModule_clip 0
+#define ZMC_OFS_ZuneStringModule_method 4
+#define ZMC_OFS_ZuneStringModule_clip_write 8
+ZMC(zune_string_clip, ZMOD_STRING, ZuneStringModule, clip, 5, 0);
+ZMC(zune_string_method, ZMOD_STRING, ZuneStringModule, method, 4, 0);
+ZMC(clipboard_write_text, ZMOD_STRING, ZuneStringModule, clip_write, 2, 0);

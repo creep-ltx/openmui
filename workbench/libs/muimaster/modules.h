@@ -32,6 +32,7 @@
 #define MUIC_Zmui45     "Zmui45.zmod"
 #define MUIC_Zprefs     "Zprefs.zmod"       /* Zprefs.mui: configset.c */
 #define MUIC_Zapp       "Zapp.zmod"         /* Zapp.mui: appx.c */
+#define MUIC_Zstring    "Zstring.zmod"      /* Zstring.mui: stringx.c */
 
 /* Numbers, not an enum: modules.c's call stubs give them to the
  * assembler */
@@ -46,7 +47,8 @@
 #define ZMOD_MUI45 8
 #define ZMOD_PREFS 9
 #define ZMOD_APP 10
-#define ZMOD_COUNT 11
+#define ZMOD_STRING 11
+#define ZMOD_COUNT 12
 
 /* The only method of a module class; answered with no object */
 #define MUIM_ZuneModule_Get 0xDA4D0001
@@ -377,6 +379,28 @@ BOOL zune_app_appmsg(struct MUI_ApplicationData *data, Object *obj,
     struct AppMessage *appmsg);
 void zune_app_version(struct MUI_ApplicationData *data);
 IPTR zune_configdata_set(Object *obj, Msg msg, const struct ZuneCfgTables *t);
+
+/* String's rarely used parts (stringx.c, classes/string_private.h) */
+struct ZuneStringModule
+{
+    ULONG (*clip)(struct IClass *, Object *, ULONG, LONG,
+        const struct ZuneStringOps *);
+    IPTR (*method)(struct IClass *, Object *, Msg,
+        const struct ZuneStringOps *);
+    void (*clip_write)(STRPTR, LONG);
+};
+/* clip: String_Edit's SE_COPY, SE_CUT, SE_PASTE (1: the contents changed,
+ * 2: the mark; 0 without the module: nothing happens) */
+ULONG zune_string_clip(struct IClass *cl, Object *obj, ULONG op, LONG arg,
+    const struct ZuneStringOps *ops);
+/* method: the default context menu's MUIM_ContextMenuBuild and
+ * MUIM_ContextMenuChoice, MUIM_String_Insert (0 without the module: no
+ * menu) */
+IPTR zune_string_method(struct IClass *cl, Object *obj, Msg msg,
+    const struct ZuneStringOps *ops);
+/* text to the clipboard (classes/text.c, the Textinput methods); nothing
+ * without the module */
+void clipboard_write_text(STRPTR text, LONG textlen);
 
 /* In a module built as a file: take the library bases over again before
  * code that reads CyberGfxBase, which the library opens at the first

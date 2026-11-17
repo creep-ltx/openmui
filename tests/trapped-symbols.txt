@@ -270,6 +270,7 @@ __MUI_Zmui45_desc
 __MUI_Zpicture_desc
 __MUI_Zprefs_desc
 __MUI_Zrequest_desc
+__MUI_Zstring_desc
 __MUI_Zwintitle_desc
 ___DOSBase
 ___UtilityBase

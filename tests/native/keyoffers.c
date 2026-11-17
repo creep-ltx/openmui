@@ -44,6 +44,7 @@ static char order[2][16];
 static int norder[2];
 static struct MsgPort *inport;
 static struct IOStdReq *inreq;
+static int string_mode;
 
 struct Data { struct MUI_EventHandlerNode ehn; ULONG which; };
 
@@ -87,6 +88,9 @@ static ULONG dispatch(struct IClass *cl __asm("a0"), Object *obj __asm("a2"),
             if (norder[up] < 15)
                 order[up][norder[up]++] = "AGO"[data->which];
         }
+        /* "keyoffers string": A is a String, which edits as usual */
+        if (string_mode && data->which == 0)
+            return DoSuperMethodA(cl, obj, msg);
         return 0;
     }
     }
@@ -118,9 +122,9 @@ static void run(Object *app, int ticks)
     }
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-    struct MUI_CustomClass *rect, *group;
+    struct MUI_CustomClass *rect, *group, *str;
     Object *app, *win, *a, *g, *o;
     int rc = 20;
 
@@ -130,9 +134,12 @@ int main(void)
         sizeof(struct Data), (APTR)dispatch);
     group = MUI_CreateCustomClass(NULL, MUIC_Group, NULL,
         sizeof(struct Data), (APTR)dispatch);
+    string_mode = argc > 1 && !strcmp(argv[1], "string");
+    str = MUI_CreateCustomClass(NULL, MUIC_String, NULL,
+        sizeof(struct Data), (APTR)dispatch);
     inport = CreateMsgPort();
     inreq = (struct IOStdReq *)CreateIORequest(inport, sizeof(*inreq));
-    if (!rect || !group || !inreq
+    if (!rect || !group || !str || !inreq
         || OpenDevice("input.device", 0, (struct IORequest *)inreq, 0))
         goto out;
     app = ApplicationObject,
@@ -142,7 +149,10 @@ int main(void)
             WindowContents, VGroup,
                 Child, g = NewObject(group->mcc_Class, NULL,
                     TAG_USER + 1, 1, GroupFrame,
-                    Child, a = NewObject(rect->mcc_Class, NULL,
+                    Child, a = string_mode
+                        ? NewObject(str->mcc_Class, NULL, TAG_USER + 1, 0,
+                            MUIA_CycleChain, 1, StringFrame, TAG_DONE)
+                        : NewObject(rect->mcc_Class, NULL,
                         TAG_USER + 1, 0, MUIA_CycleChain, 1,
                         MUIA_FixHeight, 20, TAG_DONE),
                     TAG_DONE),
@@ -178,6 +188,7 @@ out:
     if (inport) DeleteMsgPort(inport);
     if (group) MUI_DeleteCustomClass(group);
     if (rect) MUI_DeleteCustomClass(rect);
+    if (str) MUI_DeleteCustomClass(str);
     CloseLibrary(MUIMasterBase);
     return rc;
 }

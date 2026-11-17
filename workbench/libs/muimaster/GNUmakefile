@@ -95,7 +95,7 @@ SOURCES = \
   gcc/format.c gcc/runtime.c muimaster_init.c identity.c datatypescache.c font.c \
   frame.c pointer.c imspec.c imspec_vector.c imspec_gradient.c muigfx.c \
   modules.c penspec.c support.c support_amigaos.c \
-  support_classes.c textengine.c bubbleengine.c clipboard.c locale.c \
+  support_classes.c textengine.c bubbleengine.c locale.c \
   mui_addclipping.c mui_addclipregion.c mui_allocaslrequest.c \
   staticlib/mui_newobject.c staticlib/mui_makeobject.c staticlib/mui_request.c staticlib/mui_allocaslrequesttags.c mui_aslrequest.c \
   staticlib/mui_aslrequesttags.c mui_beginrefresh.c \
@@ -128,7 +128,8 @@ SOURCES = \
   classes/volumelist.c classes/window.c \
   classes/zmenu.c classes/zpicture.c classes/zdragdrop.c classes/zrequest.c \
   classes/zgradient.c classes/zwintitle.c classes/zframes.c \
-  classes/zlist.c classes/zmui45.c classes/zprefs.c classes/zapp.c
+  classes/zlist.c classes/zmui45.c classes/zprefs.c classes/zapp.c \
+  classes/zstring.c
 # The functions the checks trap, kept out of line in an LTO build (above).
 # `make trapped-list` regenerates the list from a run of the checks on an
 # LTO=0 build (tests/symbols.py records every name they look up).
@@ -156,7 +157,7 @@ CLASSFILES ?= balance boopsi coloradjust colorfield dirlist floattext \
   selectgroup process dtpic register bitmap bodychunk chunkyimage \
   settingsgroup settings crawling \
   zmenu zpicture zdragdrop zrequest zgradient zwintitle zframes \
-  zlist zmui45 zprefs zapp
+  zlist zmui45 zprefs zapp zstring
 CF_SOURCES = $(addprefix classes/,$(CLASSFILES:=.c))
 CF_OBJECTS = $(addprefix $(BUILD)/cf/,$(CLASSFILES:=.o))
 CF_FILES = $(foreach c,$(CLASSFILES),$(BUILD)/OpenMUI/$(shell echo $(c) | sed 's/^./\U&/').mui)

@@ -17,6 +17,9 @@ MRI, WINDOW, INPUT = 0x74000, 0x75000, 0xd0000
 MODTABLE = 0x73800
 CONTENTS, MAXLEN, CURSOR = 0x80428ffd, 0x80424984, 0x80428b6c
 SELECT, UP, DOWN, LIST = 0xad001001, 0xad001008, 0xad001009, 0x80420fd2
+# struct MUI_StringData (classes/string_private.h): msd_Flags, MultiClick,
+# and MSDF_ACTIVE, the String taking the keys
+FLAGS, MULTICLICK, ACTIVE = 28, 86, 1 << 19
 
 
 class StringHarness(Harness):
@@ -150,16 +153,16 @@ def check(path):
             h.contents('abcdef')
             # Simulate stale word/all-selection and keyboard-marking state;
             # a programmatic selection must always return to character mode.
-            h.mem.w16(DATA + 84, 2)
-            h.mem.w32(DATA, 12)
+            h.mem.w16(DATA + MULTICLICK, 2)
+            h.mem.w32(DATA + FLAGS, 12)
             old_redraws = h.redraws
             h.set((CURSOR, cursor), (SELECT, length))
             start = min(cursor, 6)
             end = min(max(start + length, 0), 6)
             assert h.get(SELECT) == (end - start) & 0xffffffff
             assert h.get(CURSOR) == start
-            assert h.mem.r16(DATA + 84) == 0
-            assert not h.mem.r32(DATA) & 8
+            assert h.mem.r16(DATA + MULTICLICK) == 0
+            assert not h.mem.r32(DATA + FLAGS) & 8
             assert h.redraws > old_redraws
             assert h.mem.r_cstr(h.get(CONTENTS)) == 'abcdef'
             h.call('String__MUIM_ClearSelected', CLASS, OBJECT, MESSAGE)
@@ -194,7 +197,7 @@ def check(path):
     assert h.get(UP) == 0x1111 and h.get(DOWN) == 0x2222
     h.mem.w32(OBJECT + 28, MRI)
     h.mem.w32(MRI, WINDOW)
-    h.mem.w16(DATA + 242, 1)  # active String
+    h.mem.w32(DATA + FLAGS, h.mem.r32(DATA + FLAGS) | ACTIVE)  # active String
     h.key(2); h.key(3)
     assert h.focus_events == [(WINDOW, 0x80427925, 0x1111),
                               (WINDOW, 0x80427925, 0x2222)]
@@ -209,7 +212,7 @@ def check(path):
     h.focus_events.clear()
     h.key(2)
     assert h.focus_events == [(0x4444, 0x8042391c, (-4) & 0xffffffff)]
-    h.mem.w16(DATA + 242, 0)
+    h.mem.w32(DATA + FLAGS, h.mem.r32(DATA + FLAGS) & ~ACTIVE)
     h.focus_events.clear()
     assert h.key(2) == 0 and not h.focus_events
     h.finish()
