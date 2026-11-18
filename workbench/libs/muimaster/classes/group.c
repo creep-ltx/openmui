@@ -3465,116 +3465,135 @@ static __attribute__((noinline)) void Layout1D_minmax_constraints_and_redistrib(
     Layout1D_settle(children, remainder, a);
 }
 
-/* The rest of Layout1D_mui_redistrib's remainder, a pixel at a time to
- * the movable children from the last one back, weighted children first */
-static __attribute__((noinline)) void Layout1D_rest(struct MinList *children,
-    LONG remainder, LONG a)
+/* MUI 3.8's spare-pixel rule, for a row or column of children (children
+ * set: the visible ones of a child list along axis a) or for a grid's rows
+ * or columns (an array of n layout2d_elem). Each element is reached as
+ * WORDs from its minimum: L->ax[0] its maximum, L->ax[1] its size, L->ax[2]
+ * its weight (the low word). */
+struct LaySet
 {
-    struct MinNode *n;
-    Object *child;
+    struct MinList *children;   /* NULL: the array */
+    WORD *array;
+    UWORD n;                    /* the array's elements */
+    UWORD off;                  /* a child's bytes up to AXP(child, a) */
+    UBYTE ax[3];
+};
 
-    while (remainder != 0)
-    {
-        BOOL moved = FALSE;
-        int round;
-
-        for (round = 0; round < 2 && remainder != 0 && !moved; round++)
-            for (n = children->mlh_TailPred; n->mln_Pred && remainder != 0;
-                n = n->mln_Pred)
-            {
-                WORD *m;
-
-                child = BASEOBJECT(n);
-                if (IS_HIDDEN(child))
-                    continue;
-                m = AXP(child, a);
-                if (round == 0 && m[AX_WEIGHT] == 0)
-                    continue;
-                if (remainder > 0 && m[AX_SIZE] < m[AX_MAX])
-                {
-                    ++m[AX_SIZE];
-                    --remainder;
-                    moved = TRUE;
-                }
-                else if (remainder < 0 && m[AX_SIZE] > m[AX_MIN])
-                {
-                    --m[AX_SIZE];
-                    ++remainder;
-                    moved = TRUE;
-                }
-            }
-        if (!moved)
-            return;
-    }
-}
-
-/* One of Layout1D_mui_redistrib's passes: each child that can still move
- * gets its weight's share of the remainder (over all children's weight,
- * truncated). TRUE when one moved. */
-static __attribute__((noinline)) BOOL Layout1D_share(struct MinList *children,
-    LONG remainder, ULONG total_weight, LONG a)
+/* The element after m (NULL: the first) forwards, or before m (NULL: the
+ * last) backwards; NULL at the end */
+static __attribute__((noinline)) WORD *LayStep(struct LaySet *L, WORD *m,
+    BOOL back)
 {
-    struct MinNode *n;
-    Object *child;
-    BOOL moved = FALSE;
-
-    FOR_CHILD(children, n, child)
+    if (L->children)
     {
-        WORD *m = AXP(child, a);
-        LONG delta;
+        struct MinNode *n;
+        Object *child;
 
-        if (IS_HIDDEN(child))
-            continue;
-        if ((remainder > 0 && m[AX_SIZE] >= m[AX_MAX])
-            || (remainder < 0 && m[AX_SIZE] <= m[AX_MIN]))
-            continue;
-        delta = remainder * (LONG)(UWORD)m[AX_WEIGHT] / (LONG)total_weight;
-        if (delta)
+        if (!m)
+            n = back ? L->children->mlh_TailPred : L->children->mlh_Head;
+        else
         {
-            m[AX_SIZE] += delta;
-            moved = TRUE;
+            /* m is AXP(child, a); the child's node is in front of it */
+            n = (struct MinNode *)_OBJECT((Object *)((UBYTE *)m - L->off));
+            n = back ? n->mln_Pred : n->mln_Succ;
         }
+        for (; back ? n->mln_Pred != NULL : n->mln_Succ != NULL;
+            n = back ? n->mln_Pred : n->mln_Succ)
+        {
+            child = BASEOBJECT(n);
+            if (!IS_HIDDEN(child))
+                return (WORD *)((UBYTE *)child + L->off);
+        }
+        return NULL;
     }
-    return moved;
+    if (!m)
+        return L->n ? (back ? L->array + 5 * (L->n - 1) : L->array) : NULL;
+    if (back)
+        return m == L->array ? NULL : m - 5;
+    return m == L->array + 5 * (L->n - 1) ? NULL : m + 5;
 }
 
-/* MUI 3.9's redistribution (tests/native/hdist.c): after the weighted
- * first split, each pass clamps every child to its range and then adds
- * to each child that can still move its weight's share of that pass's
- * remainder, taken from the weight of all children and truncated, so
- * clamped children keep their weight in the divisor. After eight
- * passes the rest goes one pixel at a time to the movable children from
- * the last one back, weighted children first. */
-static __attribute__((noinline)) void Layout1D_mui_redistrib(
-    struct MinList *children, WORD total_size, ULONG total_weight, LONG a)
+/*
+ * MUI 3.8's distribution (black box: tests/lean/probe/gdist.c and
+ * tests/native/hdist.c against MUI 3.8, Compatibility round 5): every
+ * element first gets its weight's share of the total, rounded down on its
+ * own; then, until nothing moves (each pass moves the remainder closer to
+ * 0; 2,000 passes at most), every element is clamped to its range
+ * and each one that can still move towards the remainder gets its
+ * weight's share of it, taken from the weight of all elements and
+ * truncated; what is left goes a pixel at a time round the elements that
+ * can move (weight 0 too): an extra pixel from the last one back, a
+ * missing one from the first on.
+ */
+static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
+    LONG total, ULONG weight)
 {
-    struct MinNode *n;
-    Object *child;
-    LONG remainder;
+    WORD *m;
+    LONG rem;
     int pass;
 
-    for (pass = 0; pass <= 8; pass++)
+    for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
+        m[L->ax[1]] = total * (LONG)(UWORD)m[L->ax[2]] / (LONG)weight;
+    for (pass = 0;; pass++)
     {
-        remainder = total_size;
-        FOR_CHILD(children, n, child)
+        BOOL moved = FALSE;
+
+        rem = total;
+        for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
         {
-            WORD *m = AXP(child, a);
-
-            if (IS_HIDDEN(child))
-                continue;
-            m[AX_SIZE] = CLAMP(m[AX_SIZE], m[AX_MIN], m[AX_MAX]);
-            remainder -= m[AX_SIZE];
+            m[L->ax[1]] = CLAMP(m[L->ax[1]], m[0], m[L->ax[0]]);
+            rem -= m[L->ax[1]];
         }
-        if (remainder == 0)
-            return;
-        if (pass == 8)
+        if (rem == 0 || pass == 2000)
             break;
+        for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
+        {
+            LONG d;
 
-        if (!Layout1D_share(children, remainder, total_weight, a))
+            if (rem > 0 ? m[L->ax[1]] >= m[L->ax[0]] : m[L->ax[1]] <= m[0])
+                continue;
+            if ((d = rem * (LONG)(UWORD)m[L->ax[2]] / (LONG)weight))
+            {
+                m[L->ax[1]] += d;
+                moved = TRUE;
+            }
+        }
+        if (!moved)
             break;
     }
+    while (rem)
+    {
+        BOOL moved = FALSE, back = rem > 0;
 
-    Layout1D_rest(children, remainder, a);
+        for (m = LayStep(L, NULL, back); m && rem; m = LayStep(L, m, back))
+        {
+            if (back ? m[L->ax[1]] < m[L->ax[0]] : m[L->ax[1]] > m[0])
+            {
+                m[L->ax[1]] += back ? 1 : -1;
+                rem += back ? -1 : 1;
+                moved = TRUE;
+            }
+        }
+        if (!moved)
+            break;
+    }
+}
+
+/* A row's or column's visible children by MUI 3.8's rule (its own
+ * function: the set stays off group_sizes_1d's frame) */
+static __attribute__((noinline)) void group_lay_1d(struct MinList *children,
+    LONG a, LONG total, ULONG weight)
+{
+    struct LaySet L;
+    Object *c = BASEOBJECT(children->mlh_Head);
+
+    L.children = children;
+    L.array = NULL;
+    L.off = (UBYTE *)AXP(c, a) - (UBYTE *)c;
+    L.ax[0] = AX_MAX;
+    L.ax[1] = AX_SIZE;
+    L.ax[2] = AX_WEIGHT;
+    LayDistribute(&L, total, weight);
 }
 
 /* MUIA_Horiz/VertDisappear, like MUI 3.9 (tests/native/disappear.c):
@@ -3678,7 +3697,7 @@ static void group_virtual_area(Object *obj, struct GroupVirtual *v)
 /* The sizes along axis a of a horizontal/vertical group's children, before
  * they are placed: each child's weight's share of what the spacing leaves
  * (its minimum without weights), then clamped and the rest shared out (by
- * MUI 3.9's rule, Layout1D_mui_redistrib, unless SameWidth/SameHeight
+ * MUI 3.8's rule, LayDistribute, unless SameWidth/SameHeight
  * says otherwise or nothing has weight). Its own function, off the
  * stack while the children are laid out. */
 static __attribute__((noinline)) void group_sizes_1d(
@@ -3739,7 +3758,7 @@ static __attribute__((noinline)) void group_sizes_1d(
     }
     else if (weight_sum > 0)
     {
-        Layout1D_mui_redistrib(children, total_size, weight_sum, a);
+        group_lay_1d(children, a, total_size, weight_sum);
         return;
     }
     Layout1D_minmax_constraints_and_redistrib(children, total_size,
@@ -3796,56 +3815,28 @@ static void group_layout_1d(struct MUI_GroupData *data, Object *obj)
         group_reappear(obj, children);
 }
 
-/*
- * Initialize row and column dimensions proportionally to the weights and
- * the available content space.
- */
-static void Layout2D_weight_constraint(struct layout2d_elem *infos,
-    WORD n, ULONG total_weight, WORD total_size, WORD *total_init)
+/* A grid's rows or columns: MUI 3.8's rule (LayDistribute) when they have
+ * weight, else each its minimum (as the AROS redistribution left them) */
+_Static_assert(sizeof(struct layout2d_elem) == 10
+    && offsetof(struct layout2d_elem, weight) == 6, "five words");
+static __attribute__((noinline)) void group_grid_axis(
+    struct layout2d_elem *infos, WORD n, ULONG weight, WORD total)
 {
-    *total_init = 0;
-    for (; n > 0; n--, infos++)
+    struct LaySet L;
+
+    if (weight == 0)
     {
-        if (total_weight > 0)
-            infos->dim = (total_size * infos->weight) / total_weight;
-        else
+        for (; n > 0; n--, infos++)
             infos->dim = infos->min;
-        total_weight -= infos->weight;
-        total_size -= infos->dim;
-        *total_init += infos->dim;
+        return;
     }
-}
-
-/*
- * Run two passes over one axis' array, clamping dimensions and
- * redistributing the remainder with the 1D helpers.
- */
-static void Layout2D_minmax_constraints_and_redistrib(struct layout2d_elem
-    *infos, WORD nitems, WORD total_size, WORD samesize, WORD remainder)
-{
-    int j;
-
-    for (j = 0; j < 2; j++)
-    {
-        WORD size_growables = total_size;
-        WORD size_shrinkables = total_size;
-        ULONG weight_growables = 0;
-        ULONG weight_shrinkables = 0;
-        int i;
-
-        for (i = 0; i < nitems; i++)
-            Layout1D_minmax_constraint(&infos[i].dim, infos[i].min,
-                infos[i].max, &remainder, &size_growables,
-                &size_shrinkables, &weight_growables, &weight_shrinkables,
-                infos[i].weight, samesize);
-        if (remainder == 0)
-            break;
-        for (i = 0; i < nitems; i++)
-            Layout1D_redistribution(&infos[i].dim, infos[i].min,
-                infos[i].max, &remainder, &size_growables,
-                &size_shrinkables, &weight_growables, &weight_shrinkables,
-                infos[i].weight);
-    }
+    L.children = NULL;
+    L.array = (WORD *)infos;
+    L.n = n;
+    L.ax[0] = 1;
+    L.ax[1] = 2;
+    L.ax[2] = 4;
+    LayDistribute(&L, total, weight);
 }
 
 /*
@@ -3858,7 +3849,7 @@ static void group_layout_2d(struct MUI_GroupData *data, Object *obj)
     struct GroupExtra *x = data->x;
     struct layout2d_elem *row, *col;
     struct MinNode *n;
-    WORD layout_width, layout_height, total_h, total_w, init_h, init_w;
+    WORD layout_width, layout_height, total_h, total_w;
     LONG top = 0;
     int i;
 
@@ -3881,14 +3872,8 @@ static void group_layout_2d(struct MUI_GroupData *data, Object *obj)
 
     total_h = layout_height - (x->rows - 1) * data->vert_spacing;
     total_w = layout_width - (x->columns - 1) * data->horiz_spacing;
-    Layout2D_weight_constraint(x->row_infos, x->rows, x->vert_weight_sum,
-        total_h, &init_h);
-    Layout2D_weight_constraint(x->col_infos, x->columns,
-        x->horiz_weight_sum, total_w, &init_w);
-    Layout2D_minmax_constraints_and_redistrib(x->row_infos, x->rows,
-        total_h, 0, total_h - init_h);
-    Layout2D_minmax_constraints_and_redistrib(x->col_infos, x->columns,
-        total_w, 0, total_w - init_w);
+    group_grid_axis(x->row_infos, x->rows, x->vert_weight_sum, total_h);
+    group_grid_axis(x->col_infos, x->columns, x->horiz_weight_sum, total_w);
 
     /* distribute space */
     n = data->childlist.mlh_Head;
