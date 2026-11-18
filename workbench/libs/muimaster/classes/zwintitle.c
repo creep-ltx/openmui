@@ -86,6 +86,21 @@ done:
     FreeVec(positions);
 }
 
+/* The five system images of a render info's border scrollers that are
+ * not made yet (ZUNE_SW_IMAGES) */
+static __attribute__((noinline)) void wrap_images(struct MUI_RenderInfo *mri)
+{
+    static const UBYTE which[5] = {
+        LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
+    Object **img = &mri->mri_LeftImage;
+    int i;
+
+    for (i = 0; i < 5; i++)
+        if (!img[i])
+            img[i] = NewObject(NULL, "sysiclass", SYSIA_DrawInfo,
+                (IPTR)mri->mri_DrawInfo, SYSIA_Which, which[i], TAG_DONE);
+}
+
 /* MUI 5's scrollable contents for a window larger than the screen
  * (modules.h, zune_window_scrollwrap) */
 static Object *zmod_window_scrollwrap(Object *obj, ULONG op)
@@ -96,16 +111,7 @@ static Object *zmod_window_scrollwrap(Object *obj, ULONG op)
 
     if (op == ZUNE_SW_IMAGES)
     {
-        static const UBYTE which[5] = {
-            LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
-        struct MUI_RenderInfo *mri = (struct MUI_RenderInfo *)obj;
-        Object **img = &mri->mri_LeftImage;
-        int i;
-
-        for (i = 0; i < 5; i++)
-            if (!img[i])
-                img[i] = NewObject(NULL, "sysiclass", SYSIA_DrawInfo,
-                    (IPTR)mri->mri_DrawInfo, SYSIA_Which, which[i], TAG_DONE);
+        wrap_images((struct MUI_RenderInfo *)obj);
         return NULL;
     }
     if (op == ZUNE_SW_WRAP || op == ZUNE_SW_WRAPBORDER)
