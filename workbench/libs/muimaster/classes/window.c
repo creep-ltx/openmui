@@ -1448,20 +1448,19 @@ static __attribute__((noinline)) void ReleaseRenderScreen(
  * screen/DrawInfo failure, TRUE otherwise. Public locks are owned until
  * cleanup; optional allocations remain incompletely checked.
  */
-/* The system images by the border scrollers that need them,
- * mri_LeftImage ... mri_SizeImage in this order (window.h): made at
- * SetupRenderInfo, and those still missing after MUI 5's scroll wrap
- * asked for border scrollers (WindowScrollWrap) */
-static const UBYTE sysimage_which[5] = {
-    LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
-static const UBYTE sysimage_need[5] = {
-    MUIWF_USEBOTTOMSCROLLER >> 8, MUIWF_USEBOTTOMSCROLLER >> 8,
-    MUIWF_USERIGHTSCROLLER >> 8, MUIWF_USERIGHTSCROLLER >> 8,
-    (MUIWF_USEBOTTOMSCROLLER | MUIWF_USERIGHTSCROLLER) >> 8 };
 
 static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     struct MUI_RenderInfo *mri)
 {
+    /* the system images by the border scrollers that need them,
+     * mri_LeftImage ... mri_SizeImage in this order (window.h); MUI 5's
+     * scroll wrap makes those it adds (ZUNE_SW_IMAGES) */
+    static const UBYTE which[5] = {
+        LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
+    static const UBYTE need[5] = {
+        MUIWF_USEBOTTOMSCROLLER >> 8, MUIWF_USEBOTTOMSCROLLER >> 8,
+        MUIWF_USERIGHTSCROLLER >> 8, MUIWF_USERIGHTSCROLLER >> 8,
+        (MUIWF_USEBOTTOMSCROLLER | MUIWF_USERIGHTSCROLLER) >> 8 };
     struct MUI_GlobalInfo *mgi = muiGlobalInfo(obj);
     struct ZunePrefsNew *prefs = mgi->mgi_Prefs;
     struct Screen *scr;
@@ -1553,8 +1552,8 @@ static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_Wi
 
     img = &mri->mri_LeftImage;
     for (i = 0; i < 5; i++)
-        img[i] = ((data->wd_Flags >> 8) & sysimage_need[i])
-            ? CreateSysimage(mri->mri_DrawInfo, sysimage_which[i]) : NULL;
+        img[i] = ((data->wd_Flags >> 8) & need[i])
+            ? CreateSysimage(mri->mri_DrawInfo, which[i]) : NULL;
 
     /* In fact borderless windows could also have borders (e.g. if they
      * have a window title) but since they look ugly anyway we ignore it
@@ -5160,14 +5159,10 @@ static __attribute__((noinline)) Object *WindowScrollWrap(Object *obj,
         data->wd_RootObject = sg;
         data->wd_Flags |= MUIWF_SCROLLWRAP | (border ? MUIWF_WRAPBORDERS
             | MUIWF_USERIGHTSCROLLER | MUIWF_USEBOTTOMSCROLLER : 0);
-        struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
-        Object **img = &mri->mri_LeftImage;
-        int i;
-
-        for (i = 0; i < 5; i++)
-            if (!img[i] && ((data->wd_Flags >> 8) & sysimage_need[i]))
-                img[i] = CreateSysimage(mri->mri_DrawInfo,
-                    sysimage_which[i]);
+        /* the border scrollers' images (the module makes them) */
+        if (border)
+            zune_window_scrollwrap((Object *)&data->wd_RenderInfo,
+                ZUNE_SW_IMAGES);
     }
     return sg;
 }
@@ -5721,17 +5716,47 @@ static __attribute__((noinline)) BOOL ChainRoom(struct MUI_WindowData *data)
     return TRUE;
 }
 
+/* The object after o in the window's tree, depth first (a group before
+ * its children), NULL after the last one */
+static __attribute__((noinline)) Object *TreeNext(Object *root, Object *o)
+{
+    struct MinList *l = NULL;
+    struct MinNode *n;
+
+    if (get(o, MUIA_Group_ChildList, &l) && l && l->mlh_Head->mln_Succ)
+        return BASEOBJECT(l->mlh_Head);
+    for (; o && o != root; o = _parent(o))
+    {
+        n = ((struct MinNode *)_OBJECT(o))->mln_Succ;
+        if (n->mln_Succ)
+            return BASEOBJECT(n);
+    }
+    return NULL;
+}
+
 /* MUI 3.8's MUIM_Window_SetCycleChain (tests/lean/cyclechain.c): the
  * listed objects get MUIA_CycleChain, every other object of the window
- * loses it; the chain is then in the window's tree order (in the title
- * gadget module: zune_window_cyclechain) */
+ * loses it, and the chain is in the window's tree order (an object that
+ * joined while the window was open came last). MUI-Demo calls it. */
 IPTR Window__MUIM_SetCycleChain(struct IClass *cl, Object *obj,
     struct MUIP_Window_SetCycleChain *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
+    Object *root = data->wd_RootObject, *o, **l;
+    LONG i, k = 0;
 
-    zune_window_cyclechain(data->wd_RootObject, msg->obj, &data->wd_Chain,
-        &data->wd_ChainCount);
+    for (o = root; o; o = TreeNext(root, o))
+    {
+        for (l = msg->obj; *l && *l != o; l++)
+            ;
+        if (!*l != !(_flags(o) & MADF_CYCLECHAIN))
+            set(o, MUIA_CycleChain, *l != NULL);
+        if ((i = ChainIndex(data, o)) >= k)
+        {
+            data->wd_Chain[i] = data->wd_Chain[k];
+            data->wd_Chain[k++] = o;
+        }
+    }
     return TRUE;
 }
 

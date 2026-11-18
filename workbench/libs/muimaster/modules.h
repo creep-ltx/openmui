@@ -185,14 +185,7 @@ struct ZuneWintitleModule
     int (*menu)(struct Window *, struct DrawInfo *, struct Gadget *, BOOL);
     Object *(*scrollwrap)(Object *, ULONG);
     void (*save_snapshot)(Object *, ULONG, BOOL);
-    void (*cyclechain)(Object *, Object **, Object ***, UWORD *);
 };
-/* MUI 3.8's MUIM_Window_SetCycleChain for the window whose root, chain
- * block and chain count are given: the listed objects get MUIA_CycleChain,
- * the window's others lose it, the chain is put in tree order (in the
- * title gadget module: an obsolete method, rare) */
-void zune_window_cyclechain(Object *root, Object **list, Object ***chainp,
-    UWORD *countp);
 void zune_wintitle_create(struct Window *win, ULONG buttons, LONG right,
     struct Gadget **gadgets, Class **clp);
 int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
@@ -210,6 +203,9 @@ int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
 #define ZUNE_SW_PEEK 2
 /* ZUNE_SW_WRAP with the scrollbars in the window's border (MUI 5's look) */
 #define ZUNE_SW_WRAPBORDER 3
+/* after ZUNE_SW_WRAPBORDER: obj is the window's render info; the five
+ * system images of its border scrollers not made yet are made */
+#define ZUNE_SW_IMAGES 4
 Object *zune_window_scrollwrap(Object *obj, ULONG op);
 /* MUIM_Window_Snapshot: edit window id's record in the application's
  * saved settings (ENV: and ENVARC:), remember = its position from the

@@ -94,6 +94,20 @@ static Object *zmod_window_scrollwrap(Object *obj, ULONG op)
     struct List *children = NULL;
     APTR cstate;
 
+    if (op == ZUNE_SW_IMAGES)
+    {
+        static const UBYTE which[5] = {
+            LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
+        struct MUI_RenderInfo *mri = (struct MUI_RenderInfo *)obj;
+        Object **img = &mri->mri_LeftImage;
+        int i;
+
+        for (i = 0; i < 5; i++)
+            if (!img[i])
+                img[i] = NewObject(NULL, "sysiclass", SYSIA_DrawInfo,
+                    (IPTR)mri->mri_DrawInfo, SYSIA_Which, which[i], TAG_DONE);
+        return NULL;
+    }
     if (op == ZUNE_SW_WRAP || op == ZUNE_SW_WRAPBORDER)
     {
         /* obj is the window, its root set up no more: both groups made
@@ -130,59 +144,9 @@ static Object *zmod_window_scrollwrap(Object *obj, ULONG op)
     return root;
 }
 
-/* The object after o in the window's tree, depth first (a group before
- * its children), NULL after the last one */
-static Object *tree_next(Object *root, Object *o)
-{
-    struct MinList *l = NULL;
-    struct MinNode *n;
-
-    if (get(o, MUIA_Group_ChildList, &l) && l && l->mlh_Head->mln_Succ)
-        return BASEOBJECT(l->mlh_Head);
-    for (; o && o != root; o = _parent(o))
-    {
-        n = ((struct MinNode *)_OBJECT(o))->mln_Succ;
-        if (n->mln_Succ)
-            return BASEOBJECT(n);
-    }
-    return NULL;
-}
-
-/* MUI 3.8's MUIM_Window_SetCycleChain (modules.h, window.c,
- * tests/lean/cyclechain.c) */
-static void zmod_window_cyclechain(Object *root, Object **list,
-    Object ***chainp, UWORD *countp)
-{
-    Object *o, **l, **p;
-    UWORD i, k = 0;
-
-    for (o = root; o; o = tree_next(root, o))
-        if (_flags(o) & MADF_CYCLECHAIN)
-        {
-            for (l = list; *l && *l != o; l++)
-                ;
-            if (!*l)
-                set(o, MUIA_CycleChain, FALSE);
-        }
-    for (l = list; *l; l++)
-        set(*l, MUIA_CycleChain, TRUE);
-    /* the objects that joined while the window was open came last */
-    p = *chainp;
-    for (o = root; o; o = tree_next(root, o))
-    {
-        for (i = k; i < *countp && p[i] != o; i++)
-            ;
-        if (i < *countp)
-        {
-            p[i] = p[k];
-            p[k++] = o;
-        }
-    }
-}
-
 static const struct ZuneWintitleModule wintitle_module = {
     zmod_wintitle_create, zmod_wintitle_menu, zmod_window_scrollwrap,
-    zmod_window_save_snapshot, zmod_window_cyclechain
+    zmod_window_save_snapshot
 };
 
 BOOPSI_DISPATCHER(IPTR, Zwintitle_Dispatcher, cl, obj, msg)

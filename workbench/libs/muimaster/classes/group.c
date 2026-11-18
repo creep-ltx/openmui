@@ -3518,8 +3518,7 @@ static __attribute__((noinline)) WORD *LayStep(struct LaySet *L, WORD *m,
  * MUI 3.8's distribution (black box: tests/lean/probe/gdist.c and
  * tests/native/hdist.c against MUI 3.8, Compatibility round 5): every
  * element first gets its weight's share of the total, rounded down on its
- * own; then, until nothing moves (each pass moves the remainder closer to
- * 0; 2,000 passes at most), every element is clamped to its range
+ * own; then, until nothing moves, every element is clamped to its range
  * and each one that can still move towards the remainder gets its
  * weight's share of it, taken from the weight of all elements and
  * truncated; what is left goes a pixel at a time round the elements that
@@ -3575,8 +3574,6 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
     LONG omax = L->ax[0], osz = L->ax[1], ow = L->ax[2];
     WORD *m, *first = LayStep(L, NULL, FALSE);
     LONG rem = total;
-    UWORD maxw = 0;
-    int pass;
 
     /* the shares, clamped (a total below 0 leaves every element at its
      * minimum, as the clamp would) */
@@ -3585,8 +3582,6 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
         WORD v = total > 0
             ? LayDiv((ULONG)(UWORD)total * (UWORD)m[ow], weight) : 0;
 
-        if ((UWORD)m[ow] > maxw)
-            maxw = m[ow];
         if (v > m[omax])
             v = m[omax];
         if (v < m[0])
@@ -3594,10 +3589,10 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
         rem -= (m[osz] = v);
     }
     /* each pass: the remainder's shares to the elements that can move,
-     * each clamped at once (as clamping them all after) */
-    for (pass = 0; rem && pass < 2000
-        /* no pass where no element's share reaches a pixel */
-        && (ULONG)(UWORD)(rem > 0 ? rem : -rem) * maxw >= weight; pass++)
+     * each clamped at once (as clamping them all after); a pass that
+     * moves one brings the remainder closer to 0 (the shares add up to
+     * no more than it), so the passes end */
+    while (rem)
     {
         LONG left = total;
         BOOL moved = FALSE;
@@ -3892,19 +3887,14 @@ static __attribute__((noinline)) void group_grid_axis(
 {
     struct LaySet L;
 
-    if (weight == 0)
-    {
-        for (; n > 0; n--, infos++)
-            infos->dim = infos->min;
-        return;
-    }
     L.children = NULL;
     L.array = (WORD *)infos;
     L.n = n;
     L.ax[0] = 1;
     L.ax[1] = 2;
     L.ax[2] = 4;
-    LayDistribute(&L, total, weight);
+    /* without weight a total below 0: every element at its minimum */
+    LayDistribute(&L, weight ? total : -1, weight ? weight : 1);
 }
 
 /*
