@@ -1,7 +1,8 @@
 # OpenMUI developer guide
 
 For people who write programs for OpenMUI, or work on OpenMUI itself.
-Users: see [user-guide.md](user-guide.md).
+Users: see [user-guide.md](user-guide.md). The detail (functions, every class's attributes and methods,
+custom classes, differences) is in the [programmer reference](reference/README.md); this page is the overview.
 
 OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was created by Stefan Stuntz;
 MUI 4 and 5 come from the MUI team. OpenMUI is a separate library that is compatible
@@ -155,6 +156,9 @@ m68k-amigaos-gcc -noixemul -Os -I../include -o HelloZune HelloZune.c -lmui
 The archive has an `Examples` drawer (HelloZune, HGroup, VGroup, VHGroup,
 VHGroup2, HVGroup, Notify, TheBarDemo). Open `muimaster.library` by that name
 (the second name `zunemaster.library` is gone).
+
+The reference for the functions and classes is [reference/](reference/README.md); a custom class example
+is `SDK/examples/CustomClass.c`.
 
 OpenMUI's own drawers: `LIBS:OpenMUI` (its class files and modules; an
 external class is looked for as `OpenMUI/<name>`, `Classes/OpenMUI/<name>`,

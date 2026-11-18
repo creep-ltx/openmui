@@ -116,6 +116,8 @@ establish GUI compatibility or speed on Amiga hardware.
   "Behave as", troubleshooting.
 - [Developer guide](docs/developer-guide.md): what is supported, known differences from MUI,
   building, tests, the clean-room rule, contributing.
+- [Programmer reference](docs/reference/README.md): the `muimaster.library` functions, every class with its
+  attributes and methods, writing custom and external classes, differences from MUI 3.8 and MUI 5.
 - [Changelog](CHANGELOG.md).
 
 ## More

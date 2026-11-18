@@ -8,6 +8,15 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+### Added
+
+- **The programmer reference**, `docs/reference/`: the `muimaster.library`
+  functions with their vector offsets, every built-in class with its
+  attributes and methods (generated from the sources by
+  `tools/gen_reference.py`), how to write a custom class and an external
+  `.mcc`, and where OpenMUI differs from MUI 3.8 and MUI 5. The example
+  `CustomClass.c` (a Meter class) is in `SDK/examples`.
+
 ### Fixed
 
 - **A window could freeze the whole machine** when an object 0 pixels wide
