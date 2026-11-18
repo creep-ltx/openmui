@@ -248,10 +248,12 @@ ZMC_CHECK(ZuneRequestModule, request, 12);
 #define ZMC_OFS_ZuneWintitleModule_menu 4
 #define ZMC_OFS_ZuneWintitleModule_scrollwrap 8
 #define ZMC_OFS_ZuneWintitleModule_save_snapshot 12
+#define ZMC_OFS_ZuneWintitleModule_cyclechain 16
 ZMC_CHECK(ZuneWintitleModule, create, 0);
 ZMC_CHECK(ZuneWintitleModule, menu, 4);
 ZMC_CHECK(ZuneWintitleModule, scrollwrap, 8);
 ZMC_CHECK(ZuneWintitleModule, save_snapshot, 12);
+ZMC_CHECK(ZuneWintitleModule, cyclechain, 16);
 
 #define ZMC_OFS_ZuneListModule_edit 0
 #define ZMC_OFS_ZuneListModule_end_edit 4
@@ -501,6 +503,8 @@ ZMC(zune_window_scrollwrap, ZMOD_WINTITLE, ZuneWintitleModule, scrollwrap,
 ZMC(zune_wintitle_menu, ZMOD_WINTITLE, ZuneWintitleModule, menu, 4, -1);
 ZMC(zune_window_save_snapshot, ZMOD_WINTITLE, ZuneWintitleModule,
     save_snapshot, 3, 0);
+ZMC(zune_window_cyclechain, ZMOD_WINTITLE, ZuneWintitleModule, cyclechain,
+    4, 0);
 
 /* The rounded frames (frame_round.c): asked for on every draw and layout
  * of such a frame, so the table is kept. Class files and modules are

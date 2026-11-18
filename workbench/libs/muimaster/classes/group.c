@@ -3526,50 +3526,110 @@ static __attribute__((noinline)) WORD *LayStep(struct LaySet *L, WORD *m,
  * can move (weight 0 too): an extra pixel from the last one back, a
  * missing one from the first on.
  */
+/* p / d for a quotient below 65536: one DIVU.W where d fits in a word
+ * (the library is built for the 68000, whose 32-bit division is a call) */
+static __attribute__((noinline)) ULONG LayDiv(ULONG p, ULONG d)
+{
+    if (d <= 0xffff)
+    {
+        __asm__("divu.w %1,%0" : "+d"(p) : "d"((UWORD)d) : "cc");
+        return (UWORD)p;
+    }
+    return p / d;
+}
+
+/* LayStep forwards, a visible next child of a list inline (the layout's
+ * hot path: a call per child cost a relayout 4 %) */
+static inline WORD *LayNext(struct LaySet *L, WORD *m)
+{
+    if (L->children)
+    {
+        struct MinNode *n = ((struct MinNode *)_OBJECT((Object *)
+            ((UBYTE *)m - L->off)))->mln_Succ;
+
+        if (n->mln_Succ && !IS_HIDDEN(BASEOBJECT(n)))
+            return (WORD *)((UBYTE *)BASEOBJECT(n) + L->off);
+    }
+    return LayStep(L, m, FALSE);
+}
+
+/* LayStep backwards, inline as LayNext */
+static inline WORD *LayPrev(struct LaySet *L, WORD *m)
+{
+    if (L->children)
+    {
+        struct MinNode *n = ((struct MinNode *)_OBJECT((Object *)
+            ((UBYTE *)m - L->off)))->mln_Pred;
+
+        if (n->mln_Pred && !IS_HIDDEN(BASEOBJECT(n)))
+            return (WORD *)((UBYTE *)BASEOBJECT(n) + L->off);
+    }
+    return LayStep(L, m, TRUE);
+}
+
 static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
     LONG total, ULONG weight)
 {
     LONG omax = L->ax[0], osz = L->ax[1], ow = L->ax[2];
-    WORD *m;
-    LONG rem;
+    WORD *m, *first = LayStep(L, NULL, FALSE);
+    LONG rem = total;
+    UWORD maxw = 0;
     int pass;
 
-    for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
-        m[osz] = total * (LONG)(UWORD)m[ow] / (LONG)weight;
-    for (pass = 0;; pass++)
+    /* the shares, clamped (a total below 0 leaves every element at its
+     * minimum, as the clamp would) */
+    for (m = first; m; m = LayNext(L, m))
     {
+        WORD v = total > 0
+            ? LayDiv((ULONG)(UWORD)total * (UWORD)m[ow], weight) : 0;
+
+        if ((UWORD)m[ow] > maxw)
+            maxw = m[ow];
+        if (v > m[omax])
+            v = m[omax];
+        if (v < m[0])
+            v = m[0];
+        rem -= (m[osz] = v);
+    }
+    /* each pass: the remainder's shares to the elements that can move,
+     * each clamped at once (as clamping them all after) */
+    for (pass = 0; rem && pass < 2000
+        /* no pass where no element's share reaches a pixel */
+        && (ULONG)(UWORD)(rem > 0 ? rem : -rem) * maxw >= weight; pass++)
+    {
+        LONG left = total;
         BOOL moved = FALSE;
 
-        rem = total;
-        for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
+        for (m = first; m; m = LayNext(L, m))
         {
-            if (m[osz] > m[omax])
-                m[osz] = m[omax];
-            if (m[osz] < m[0])
-                m[osz] = m[0];
-            rem -= m[osz];
-        }
-        if (rem == 0 || pass == 2000)
-            break;
-        for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
-        {
-            LONG d = rem * (LONG)(UWORD)m[ow] / (LONG)weight;
+            ULONG p = (ULONG)(UWORD)(rem > 0 ? rem : -rem) * (UWORD)m[ow];
+            WORD v = m[osz];
 
-            if (d && (rem > 0 ? m[osz] < m[omax] : m[osz] > m[0]))
+            /* truncated: no division where the share is below a pixel */
+            if (p >= weight && (rem > 0 ? v < m[omax] : v > m[0]))
             {
-                m[osz] += d;
+                p = LayDiv(p, weight);
+                v += rem > 0 ? (WORD)p : -(WORD)p;
+                if (v > m[omax])
+                    v = m[omax];
+                if (v < m[0])
+                    v = m[0];
+                m[osz] = v;
                 moved = TRUE;
             }
+            left -= v;
         }
         if (!moved)
             break;
+        rem = left;
     }
     while (rem)
     {
         BOOL moved = FALSE, back = rem > 0;
         WORD step = back ? 1 : -1;
 
-        for (m = LayStep(L, NULL, back); m && rem; m = LayStep(L, m, back))
+        for (m = back ? LayStep(L, NULL, TRUE) : first; m && rem;
+            m = back ? LayPrev(L, m) : LayNext(L, m))
             if (back ? m[osz] < m[omax] : m[osz] > m[0])
             {
                 m[osz] += step;
@@ -3579,23 +3639,6 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
         if (!moved)
             break;
     }
-}
-
-/* A row's or column's visible children by MUI 3.8's rule (its own
- * function: the set stays off group_sizes_1d's frame) */
-static __attribute__((noinline)) void group_lay_1d(struct MinList *children,
-    LONG a, LONG total, ULONG weight)
-{
-    struct LaySet L;
-    Object *c = BASEOBJECT(children->mlh_Head);
-
-    L.children = children;
-    L.array = NULL;
-    L.off = (UBYTE *)AXP(c, a) - (UBYTE *)c;
-    L.ax[0] = AX_MAX;
-    L.ax[1] = AX_SIZE;
-    L.ax[2] = AX_WEIGHT;
-    LayDistribute(&L, total, weight);
 }
 
 /* MUIA_Horiz/VertDisappear, like MUI 3.9 (tests/native/disappear.c):
@@ -3696,30 +3739,18 @@ static void group_virtual_area(Object *obj, struct GroupVirtual *v)
         _maxheight(obj) - _subheight(obj));
 }
 
-/* The sizes along axis a of a horizontal/vertical group's children, before
- * they are placed: each child's weight's share of what the spacing leaves
- * (its minimum without weights), then clamped and the rest shared out (by
- * MUI 3.8's rule, LayDistribute, unless SameWidth/SameHeight
- * says otherwise or nothing has weight). Its own function, off the
- * stack while the children are laid out. */
-static __attribute__((noinline)) void group_sizes_1d(
+/* The children's sizes along axis a without weights or with SameWidth/
+ * SameHeight: each child's weight's share of total_size, then the AROS
+ * clamp and redistribution (group_sizes_1d) */
+static __attribute__((noinline)) void group_sizes_aros(
     struct MUI_GroupData *data, struct MinList *children, LONG a,
-    WORD length)
+    WORD total_size, ULONG weight_sum)
 {
     struct MinNode *n;
     Object *child;
-    ULONG weight_sum = data->weight_sum, total_weight;
-    WORD total_size, total_init_size = 0, remainder, samesize = 0;
+    ULONG total_weight = weight_sum;
+    WORD total_init_size = 0, remainder, samesize = 0;
     WORD left;
-    UWORD nvis = 0;
-
-    group_disappear(data, children, a, length);
-    /* the children laid out (counted here, not kept from AskMinMax) */
-    FOR_CHILD(children, n, child)
-        if (!IS_HIDDEN(child))
-            nvis++;
-    total_weight = weight_sum;
-    total_size = length - (nvis - 1) * (&data->horiz_spacing)[a];
 
     // weight constraints: the ideal size of each object, and their total
     left = total_size;
@@ -3758,13 +3789,46 @@ static __attribute__((noinline)) void group_sizes_1d(
                 == MADF_SHOWME)
                 samesize = MAX(samesize, AXP(child, a)[AX_MIN]);
     }
-    else if (weight_sum > 0)
-    {
-        group_lay_1d(children, a, total_size, weight_sum);
-        return;
-    }
     Layout1D_minmax_constraints_and_redistrib(children, total_size,
         remainder, samesize, a);
+}
+
+/* The sizes along axis a of a horizontal/vertical group's children, before
+ * they are placed: MUI 3.8's rule (LayDistribute) unless SameWidth/
+ * SameHeight says otherwise or nothing has weight (group_sizes_aros). Its
+ * own function, off the stack while the children are laid out. */
+static __attribute__((noinline)) void group_sizes_1d(
+    struct MUI_GroupData *data, struct MinList *children, LONG a,
+    WORD length)
+{
+    struct MinNode *n;
+    Object *child;
+    ULONG weight_sum = data->weight_sum;
+    WORD total_size;
+    UWORD nvis = 0;
+    struct LaySet L;
+
+    group_disappear(data, children, a, length);
+    /* the children laid out (counted here, not kept from AskMinMax) */
+    FOR_CHILD(children, n, child)
+        if (!IS_HIDDEN(child))
+            nvis++;
+    total_size = length - (nvis - 1) * (&data->horiz_spacing)[a];
+
+    /* (a length below 0 leaves every child at its minimum, as a virtual
+     * group's 0 does) */
+    if (!(data->flags & (GROUP_SAME_WIDTH << a)) && weight_sum > 0)
+    {
+        child = BASEOBJECT(children->mlh_Head);
+        L.children = children;
+        L.off = (UBYTE *)AXP(child, a) - (UBYTE *)child;
+        L.ax[0] = AX_MAX;
+        L.ax[1] = AX_SIZE;
+        L.ax[2] = AX_WEIGHT;
+        LayDistribute(&L, total_size, weight_sum);
+    }
+    else
+        group_sizes_aros(data, children, a, total_size, weight_sum);
 }
 
 /*

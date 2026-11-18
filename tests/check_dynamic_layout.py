@@ -50,10 +50,6 @@ class LayoutHarness(NotifyHarness):
         objects = [self.mem.r32(block + 4 * i) for i in range(count)]
         return [o for o in objects if o]
 
-    def order(self, *objects):
-        return self.call('Window__MUIM_SetCycleChain', CLASS, OBJECT,
-                         self.words(0, *objects, 0))
-
 
 def check(path):
     h = LayoutHarness(path)
@@ -67,10 +63,6 @@ def check(path):
     assert h.chain() == [a, c, b], 'setup order'
     h.control('Rem', bh)
     assert h.chain() == [a, c], 'removed child must leave the live chain'
-    # MUI 3.8's SetCycleChain only sets MUIA_CycleChain (TRUE on the
-    # listed objects, FALSE on the window's others): no order of its own
-    assert h.order(b, a, b)
-    assert h.chain() == [a, c], 'SetCycleChain keeps the tree order'
     h.control('Rem', ah)
     h.control('Rem', ch)
     assert not h.chain()

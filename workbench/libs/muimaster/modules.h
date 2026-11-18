@@ -185,7 +185,14 @@ struct ZuneWintitleModule
     int (*menu)(struct Window *, struct DrawInfo *, struct Gadget *, BOOL);
     Object *(*scrollwrap)(Object *, ULONG);
     void (*save_snapshot)(Object *, ULONG, BOOL);
+    void (*cyclechain)(Object *, Object **, Object ***, UWORD *);
 };
+/* MUI 3.8's MUIM_Window_SetCycleChain for the window whose root, chain
+ * block and chain count are given: the listed objects get MUIA_CycleChain,
+ * the window's others lose it, the chain is put in tree order (in the
+ * title gadget module: an obsolete method, rare) */
+void zune_window_cyclechain(Object *root, Object **list, Object ***chainp,
+    UWORD *countp);
 void zune_wintitle_create(struct Window *win, ULONG buttons, LONG right,
     struct Gadget **gadgets, Class **clp);
 int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,

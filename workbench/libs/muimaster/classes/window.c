@@ -3860,14 +3860,10 @@ static LONG ChainIndex(struct MUI_WindowData *data, Object *obj)
     return -1;
 }
 
-/* Whether obj can be the active object: shown and not disabled */
-static BOOL ChainEligible(Object *obj)
-{
-    IPTR is_disabled = 0;
-
-    get(obj, MUIA_Disabled, &is_disabled);
-    return !is_disabled && (_flags(obj) & MADF_CANDRAW);
-}
+/* Whether obj can be the active object: shown and not disabled (what
+ * Area's MUIA_Disabled getter answers) */
+#define ChainEligible(obj) (!muiAreaData(obj)->mad_DisableCount \
+    && (_flags(obj) & MADF_CANDRAW))
 
 /* From chain index i forwards (next) or backwards, the first object that
  * is shown (a hidden page's is not: MUI 3.8, tests/lean/cyclechain.c) and
@@ -5686,24 +5682,6 @@ IPTR Window__MUIM_Cleanup(struct IClass *cl, Object *obj, Msg msg)
  This adds the the control char handler and also does the MUIA_CycleChain
  stuff. Orginal MUI does this another way.
 **************************************************************************/
-/* The object after o in the window's tree, depth first (a group before
- * its children), NULL after the last one */
-static __attribute__((noinline)) Object *TreeNext(Object *root, Object *o)
-{
-    struct MinList *l = NULL;
-    struct MinNode *n;
-
-    if (get(o, MUIA_Group_ChildList, &l) && l && l->mlh_Head->mln_Succ)
-        return BASEOBJECT(l->mlh_Head);
-    for (; o && o != root; o = _parent(o))
-    {
-        n = ((struct MinNode *)_OBJECT(o))->mln_Succ;
-        if (n->mln_Succ)
-            return BASEOBJECT(n);
-    }
-    return NULL;
-}
-
 /* A block of newsize bytes (cleared) with the oldsize bytes of old at
  * its start, old freed; NULL (old kept) if there is no memory */
 static __attribute__((noinline)) APTR Regrow(APTR old, ULONG oldsize,
@@ -5742,52 +5720,17 @@ static __attribute__((noinline)) BOOL ChainRoom(struct MUI_WindowData *data)
     return TRUE;
 }
 
-/* An object that joins the chain while the window is open goes where
- * the window's tree has it, as MUI 3.8 orders it (tests/lean/cyclechain.c):
- * before the first chain object after it in the tree */
-static __attribute__((noinline)) void ChainInsert(
-    struct MUI_WindowData *data, Object *target)
-{
-    Object *root = data->wd_RootObject, *o = root, **p = data->wd_Chain;
-    UWORD i = data->wd_ChainCount, n = i;
-    BOOL seen = FALSE;
-    LONG k;
-
-    for (; o; o = TreeNext(root, o))
-    {
-        if (o == target)
-            seen = TRUE;
-        else if (seen && (k = ChainIndex(data, o)) >= 0)
-        {
-            i = k;
-            break;
-        }
-    }
-    for (; n > i; n--)
-        p[n] = p[n - 1];
-    p[i] = target;
-    data->wd_ChainCount++;
-}
-
 /* MUI 3.8's MUIM_Window_SetCycleChain (tests/lean/cyclechain.c): the
  * listed objects get MUIA_CycleChain, every other object of the window
- * loses it; the order stays the window's tree order */
+ * loses it; the chain is then in the window's tree order (in the title
+ * gadget module: zune_window_cyclechain) */
 IPTR Window__MUIM_SetCycleChain(struct IClass *cl, Object *obj,
     struct MUIP_Window_SetCycleChain *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    Object *root = data->wd_RootObject, *o, **l;
 
-    for (o = root; o; o = TreeNext(root, o))
-        if (_flags(o) & MADF_CYCLECHAIN)
-        {
-            for (l = msg->obj; *l && *l != o; l++)
-                ;
-            if (!*l)
-                set(o, MUIA_CycleChain, FALSE);
-        }
-    for (l = msg->obj; *l; l++)
-        set(*l, MUIA_CycleChain, TRUE);
+    zune_window_cyclechain(data->wd_RootObject, msg->obj, &data->wd_Chain,
+        &data->wd_ChainCount);
     return TRUE;
 }
 
@@ -5805,14 +5748,9 @@ IPTR Window__MUIM_AddControlCharHandler(struct IClass *cl, Object *obj,
 
     if (msg->ccnode->ehn_Events)
         Enqueue((struct List *)&data->wd_CCList, (struct Node *)msg->ccnode);
-    /* at the window's setup in tree order; later where the tree has it */
+    /* at the window's setup in tree order; later at the end */
     if ((muiAreaData(target)->mad_Flags & MADF_CYCLECHAIN) && ChainRoom(data))
-    {
-        if (data->wd_Flags & MUIWF_OPENED)
-            ChainInsert(data, target);
-        else
-            data->wd_Chain[data->wd_ChainCount++] = target;
-    }
+        data->wd_Chain[data->wd_ChainCount++] = target;
     return TRUE;
 }
 
