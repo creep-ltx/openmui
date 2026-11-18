@@ -3540,7 +3540,8 @@ static __attribute__((noinline)) ULONG LayDiv(ULONG p, ULONG d)
 
 /* LayStep forwards, a visible next child of a list inline (the layout's
  * hot path: a call per child cost a relayout 4 %) */
-static inline WORD *LayNext(struct LaySet *L, WORD *m)
+static inline __attribute__((always_inline)) WORD *LayNext(struct LaySet *L,
+    WORD *m)
 {
     if (L->children)
     {
@@ -3554,7 +3555,8 @@ static inline WORD *LayNext(struct LaySet *L, WORD *m)
 }
 
 /* LayStep backwards, inline as LayNext */
-static inline WORD *LayPrev(struct LaySet *L, WORD *m)
+static inline __attribute__((always_inline)) WORD *LayPrev(struct LaySet *L,
+    WORD *m)
 {
     if (L->children)
     {
