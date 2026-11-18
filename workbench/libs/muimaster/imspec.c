@@ -649,8 +649,9 @@ void zune_imspec_draw(struct MUI_ImageSpec_intern *spec,
      * argument shuffling of the general path below */
     if (spec && spec->type == IST_COLOR)
     {
-        zune_penspec_drawdirect(&spec->u.penspec, mri->mri_RastPort, mri,
-            left, top, left + width - 1, top + height - 1);
+        if (width > 0 && height > 0)    /* imspec_draw's empty box */
+            zune_penspec_drawdirect(&spec->u.penspec, mri->mri_RastPort,
+                mri, left, top, left + width - 1, top + height - 1);
         return;
     }
     zune_imspec_drawbuffered(spec, mri->mri_RastPort, mri, left, top, width,

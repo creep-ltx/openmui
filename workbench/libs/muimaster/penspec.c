@@ -294,9 +294,7 @@ void zune_penspec_drawdirect(struct MUI_PenSpec_intern *psi,
     struct RastPort *rp, struct MUI_RenderInfo *mri, LONG left, LONG top,
     LONG right, LONG bottom)
 {
-    /* an empty box (an object 0 pixels wide or high): OS 3.1's RectFill
-     * with its corners crossed writes outside the rastport */
-    if (!psi || !mri || !rp || right < left || bottom < top)
+    if (!psi || !mri || !rp)
         return;
 
     if (psi->p_type == PST_RGB)

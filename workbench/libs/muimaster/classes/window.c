@@ -5153,6 +5153,28 @@ static BOOL WindowFits(struct MUI_WindowData *data)
  * connected application state; optional resource failures may remain
  * unchecked.
  */
+/* MUI 5's scroll wrap of a too large window (WindowOpen), with its
+ * scrollbars in the window's border as MUI 5 has them (the Pointers demo
+ * on real MUI 5), unless the program uses the border's scrollbars itself:
+ * the new root, or NULL */
+static __attribute__((noinline)) Object *WindowScrollWrap(Object *obj,
+    struct MUI_WindowData *data)
+{
+    ULONG border = !(data->wd_Flags
+        & (MUIWF_USERIGHTSCROLLER | MUIWF_USEBOTTOMSCROLLER));
+    Object *sg = zune_window_scrollwrap(obj,
+        border ? ZUNE_SW_WRAPBORDER : ZUNE_SW_WRAP);
+
+    if (sg)
+    {
+        data->wd_RootObject = sg;
+        data->wd_Flags |= MUIWF_SCROLLWRAP | (border ? MUIWF_WRAPBORDERS
+            | MUIWF_USERIGHTSCROLLER | MUIWF_USEBOTTOMSCROLLER : 0);
+        RenderInfoImages(data, &data->wd_RenderInfo);
+    }
+    return sg;
+}
+
 static __attribute__((noinline)) ULONG WindowOpen(struct IClass *cl, Object *obj)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
@@ -5199,25 +5221,9 @@ static __attribute__((noinline)) ULONG WindowOpen(struct IClass *cl, Object *obj
          * program asking for version 20 meets today: its own EmbeddedImages
          * and Pointers demos open scrollable on real MUI 5, 2026-11-11),
          * never for MUI 3.8; the code in the title gadget module */
-        /* with its scrollbars in the window's border as MUI 5 has them
-         * (the Pointers demo on real MUI 5), unless the program uses the
-         * border's scrollbars itself */
         if (MGI_IDENTITY(muiGlobalInfo(obj)) >= ZUNE_ID_MUI4
             && !(data->wd_Flags & MUIWF_SCROLLWRAP))
-        {
-            ULONG border = !(data->wd_Flags
-                & (MUIWF_USERIGHTSCROLLER | MUIWF_USEBOTTOMSCROLLER));
-
-            if ((sg = zune_window_scrollwrap(obj,
-                border ? ZUNE_SW_WRAPBORDER : ZUNE_SW_WRAP)))
-            {
-                data->wd_RootObject = sg;
-                data->wd_Flags |= MUIWF_SCROLLWRAP | (border
-                    ? MUIWF_WRAPBORDERS | MUIWF_USERIGHTSCROLLER
-                    | MUIWF_USEBOTTOMSCROLLER : 0);
-                RenderInfoImages(data, mri);
-            }
-        }
+            sg = WindowScrollWrap(obj, data);
         if ((!sg && (mri->mri_Fallback >= FALLBACK_TOPAZ
                 || (++mri->mri_Fallback, FALSE)))
             || !DoSetupMethod(data->wd_RootObject, mri))

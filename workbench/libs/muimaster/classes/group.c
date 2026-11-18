@@ -3486,37 +3486,32 @@ struct LaySet
 };
 
 /* The element after m (NULL: the first) forwards, or before m (NULL: the
- * last) backwards; NULL at the end */
+ * last) backwards; NULL at the end. A list node's successor and
+ * predecessor are its first two pointers; the list's head and tail
+ * sentinels (&mlh_Head, &mlh_Tail) have NULL as predecessor and
+ * successor. */
 static __attribute__((noinline)) WORD *LayStep(struct LaySet *L, WORD *m,
     BOOL back)
 {
+    WORD *first = L->array;
+
     if (L->children)
     {
-        struct MinNode *n;
-        Object *child;
+        struct MinNode **n;
 
-        if (!m)
-            n = back ? L->children->mlh_TailPred : L->children->mlh_Head;
-        else
-        {
-            /* m is AXP(child, a); the child's node is in front of it */
-            n = (struct MinNode *)_OBJECT((Object *)((UBYTE *)m - L->off));
-            n = back ? n->mln_Pred : n->mln_Succ;
-        }
-        for (; back ? n->mln_Pred != NULL : n->mln_Succ != NULL;
-            n = back ? n->mln_Pred : n->mln_Succ)
-        {
-            child = BASEOBJECT(n);
-            if (!IS_HIDDEN(child))
-                return (WORD *)((UBYTE *)child + L->off);
-        }
+        n = m ? (struct MinNode **)_OBJECT((Object *)((UBYTE *)m - L->off))
+            : (struct MinNode **)&L->children->mlh_Head + back;
+        for (n = (struct MinNode **)n[back]; n[back];
+            n = (struct MinNode **)n[back])
+            if (!IS_HIDDEN(BASEOBJECT(n)))
+                return (WORD *)((UBYTE *)BASEOBJECT(n) + L->off);
         return NULL;
     }
     if (!m)
-        return L->n ? (back ? L->array + 5 * (L->n - 1) : L->array) : NULL;
+        return L->n ? first + (back ? 5 * (L->n - 1) : 0) : NULL;
     if (back)
-        return m == L->array ? NULL : m - 5;
-    return m == L->array + 5 * (L->n - 1) ? NULL : m + 5;
+        return m == first ? NULL : m - 5;
+    return m == first + 5 * (L->n - 1) ? NULL : m + 5;
 }
 
 /*
@@ -3534,12 +3529,13 @@ static __attribute__((noinline)) WORD *LayStep(struct LaySet *L, WORD *m,
 static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
     LONG total, ULONG weight)
 {
+    LONG omax = L->ax[0], osz = L->ax[1], ow = L->ax[2];
     WORD *m;
     LONG rem;
     int pass;
 
     for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
-        m[L->ax[1]] = total * (LONG)(UWORD)m[L->ax[2]] / (LONG)weight;
+        m[osz] = total * (LONG)(UWORD)m[ow] / (LONG)weight;
     for (pass = 0;; pass++)
     {
         BOOL moved = FALSE;
@@ -3547,20 +3543,21 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
         rem = total;
         for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
         {
-            m[L->ax[1]] = CLAMP(m[L->ax[1]], m[0], m[L->ax[0]]);
-            rem -= m[L->ax[1]];
+            if (m[osz] > m[omax])
+                m[osz] = m[omax];
+            if (m[osz] < m[0])
+                m[osz] = m[0];
+            rem -= m[osz];
         }
         if (rem == 0 || pass == 2000)
             break;
         for (m = LayStep(L, NULL, FALSE); m; m = LayStep(L, m, FALSE))
         {
-            LONG d;
+            LONG d = rem * (LONG)(UWORD)m[ow] / (LONG)weight;
 
-            if (rem > 0 ? m[L->ax[1]] >= m[L->ax[0]] : m[L->ax[1]] <= m[0])
-                continue;
-            if ((d = rem * (LONG)(UWORD)m[L->ax[2]] / (LONG)weight))
+            if (d && (rem > 0 ? m[osz] < m[omax] : m[osz] > m[0]))
             {
-                m[L->ax[1]] += d;
+                m[osz] += d;
                 moved = TRUE;
             }
         }
@@ -3570,16 +3567,15 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
     while (rem)
     {
         BOOL moved = FALSE, back = rem > 0;
+        WORD step = back ? 1 : -1;
 
         for (m = LayStep(L, NULL, back); m && rem; m = LayStep(L, m, back))
-        {
-            if (back ? m[L->ax[1]] < m[L->ax[0]] : m[L->ax[1]] > m[0])
+            if (back ? m[osz] < m[omax] : m[osz] > m[0])
             {
-                m[L->ax[1]] += back ? 1 : -1;
-                rem += back ? -1 : 1;
+                m[osz] += step;
+                rem -= step;
                 moved = TRUE;
             }
-        }
         if (!moved)
             break;
     }
