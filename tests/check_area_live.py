@@ -17,10 +17,10 @@ from check_notifications import NotifyHarness, CLASS, OBJECT
 SET, DISABLED = 0x103, 0x80423661
 MADF_SETUP = 1 << 28
 # struct MUI_AreaData behind Notify's 28 bytes (offsetof from the source):
-# mad_RenderInfo 0, mad_Flags 36, mad_InputMode 89, mad_Live 98,
+# mad_RenderInfo 0, mad_Flags 36, mad_Live 84, mad_InputMode 105,
 # mad_DisableCount 106
 AREA = OBJECT + 28
-FLAGS, INPUTMODE, LIVE, DISABLECOUNT = AREA + 36, AREA + 89, AREA + 98, AREA + 106
+FLAGS, INPUTMODE, LIVE, DISABLECOUNT = AREA + 36, AREA + 105, AREA + 84, AREA + 106
 MRI, WINDOW = 0x74000, 0x75000
 
 

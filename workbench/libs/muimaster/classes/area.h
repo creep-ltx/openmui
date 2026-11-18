@@ -9,6 +9,7 @@
 #define _MUI_CLASSES_AREA_H
 
 #ifndef INTUITION_INTUITION_H
+#include <stddef.h>
 #include <intuition/intuition.h>
 #endif
 
@@ -635,45 +636,46 @@ struct MUI_AreaData
     LONG mad_FixHeight;         /* 68: MUIA_FixHeight as MUI keeps it */
     LONG mad_VirtualTop;        /* 72: _top() as a LONG, kept up to date */
     ULONG mad_Flags2;           /* 76 */
-// 80
-    CONST_STRPTR mad_FrameTitle;        /* for groups. Req. mad_Frame > 0 */
-// Inner values at offset 88 in MUI:
-    BYTE mad_InnerLeft;         /* frame or hardcoded */
-    BYTE mad_InnerTop;
-    BYTE mad_InnerRight;
-    BYTE mad_InnerBottom;
-// offset 94
-    BYTE mad_ehnPriority;       /* priority for mad_Live->ehn (was the
-                                 * unused mad_FrameOBSOLETE) */
-// offset 95
-    BYTE mad_InputMode;         /* how to react to events */
-// offset 96
-    TEXT mad_ControlChar;       /* key shortcut */
-    BYTE mad_TitleHeightAdd;    /* frame title height = mad_TitleBelow + mad_TitleBaseline */
-    BYTE mad_TitleHeightBelow;  /* height below frame */
-    BYTE mad_TitleHeightAbove;  /* height above frame */
-// 100
-// ?
-    IPTR mad_Frame;
-    /* MUIA_FixWidth/FixHeight are mad_FixWidth/mad_FixHeight above (with
-     * MADF_FIXWIDTH/MADF_FIXHEIGHT), MUIA_MaxWidth/MaxHeight in mad_Rare */
+// 80: MUI keeps its own (not yet understood) data at 80-87, with a 0x80
+// byte at 83; Zune's fields here are placed so that the measured ones match.
+    CONST_STRPTR mad_FrameTitle;        /* 80: for groups. Req. mad_Frame > 0 */
     /* The event and timer nodes, click position and context menu state
      * are in mad_Live, made at the first MUIM_Setup (or MUI_RequestIDCMP)
      * and kept until OM_DISPOSE: objects in windows that never open do
      * not carry them. Never free them at Cleanup: a window can close
      * inside a notification of its own button, which is then still in
      * its input code. */
-    struct MUI_AreaLive *mad_Live;
-    /* The selected background and MUIA_Timer are in mad_Live, the rarely
+    struct MUI_AreaLive *mad_Live;      /* 84 */
+    BYTE mad_InnerLeft;         /* 88: where MUI 3.8 keeps them (measured) */
+    BYTE mad_InnerTop;          /* 89 */
+    BYTE mad_InnerRight;        /* 90 */
+    BYTE mad_InnerBottom;       /* 91 */
+    IPTR mad_Frame;             /* 92 */
+    TEXT mad_ControlChar;       /* 96: key shortcut, as MUI 3.8 (measured) */
+    BYTE mad_TitleHeightAdd;    /* 97: frame title height = mad_TitleBelow + mad_TitleBaseline */
+    BYTE mad_TitleHeightBelow;  /* 98: height below frame */
+    BYTE mad_TitleHeightAbove;  /* 99: height above frame */
+    /* MUIA_FixWidth/FixHeight are mad_FixWidth/mad_FixHeight above (with
+     * MADF_FIXWIDTH/MADF_FIXHEIGHT), MUIA_MaxWidth/MaxHeight in mad_Rare.
+     * The selected background and MUIA_Timer are in mad_Live, the rarely
      * set attributes in mad_Rare (NULL until one is set): 108 bytes per
      * object instead of 136, as MUI 3.8's Area data */
-    struct MUI_AreaRare *mad_Rare;
+    struct MUI_AreaRare *mad_Rare;      /* 100 */
+    BYTE mad_ehnPriority;       /* 104: priority for mad_Live->ehn */
+    BYTE mad_InputMode;         /* 105: how to react to events */
     /* MUIA_Disabled in the top bit (AREA_DISABLED_SELF), the
      * MUIA_NestedDisabled count in the others */
-    UWORD mad_DisableCount;
+    UWORD mad_DisableCount;     /* 106 */
     /* END PRIV */
 // only 148 bytes for the struct in MUI !
 };
+
+#ifdef __GNUC__
+_Static_assert(offsetof(struct MUI_AreaData, mad_InnerLeft) == 88, "InnerLeft");
+_Static_assert(offsetof(struct MUI_AreaData, mad_InnerBottom) == 91, "InnerBottom");
+_Static_assert(offsetof(struct MUI_AreaData, mad_ControlChar) == 96, "ControlChar");
+_Static_assert(sizeof(struct MUI_AreaData) == 108, "Area data size");
+#endif
 
 /* Flags during MUIM_Draw */
 /* Internal flags stored in mad_Flags2; the public prefix stays fixed. */

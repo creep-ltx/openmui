@@ -21,6 +21,8 @@ ABI_CHECK(tag_is_8, sizeof(struct TagItem) == 8);
 ABI_CHECK(minmax_is_12, sizeof(struct MUI_MinMax) == 12);
 ABI_CHECK(area_renderinfo, offsetof(struct MUI_AreaData, mad_RenderInfo) == 0);
 ABI_CHECK(area_box, offsetof(struct MUI_AreaData, mad_Box) == 24);
+ABI_CHECK(area_inner, offsetof(struct MUI_AreaData, mad_InnerLeft) == 88);
+ABI_CHECK(area_controlchar, offsetof(struct MUI_AreaData, mad_ControlChar) == 96);
 ABI_CHECK(render_window, offsetof(struct MUI_RenderInfo, mri_Window) == 16);
 ABI_CHECK(render_flags, offsetof(struct MUI_RenderInfo, mri_Flags) == 24);
 ABI_CHECK(custom_class, offsetof(struct MUI_CustomClass, mcc_Class) == 24);
