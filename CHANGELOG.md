@@ -20,6 +20,14 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- **The text engine, the built-in images and the frames were rewritten for
+  68k machines.** The library is about 7.5 KB smaller and a first MUI
+  program needs 8.6 KB less memory (428 KB for MUI-Demo against 437 KB
+  before and MUI 3.8's 460 KB). Radio buttons draw 2-3 % faster; everything
+  else is as fast as before, and every window looks exactly as before. MUI
+  4/5's text colours and effects (`\33P[RRGGBB]`, outline, shadow, ghost...)
+  are now in the MUI 4/5 file, which a MUI 3 program never loads. Custom frames from the settings are still
+  not drawn (they were not before either).
 - **Typing is faster, and String was rewritten for 68k machines.** A typed
   key or a backspace in a string gadget takes about a tenth less time than
   before and 11-17 % less than in MUI 3.8 (6.7 ms on a 68020 against MUI

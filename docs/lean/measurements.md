@@ -778,6 +778,29 @@ instances, MUI 3.8 also the Application round's):
 | MUI 5 identity (v21, a1200-32-mui5) type / backspace | | 7.53-7.58 / 7.45-7.46 | 7.44-7.50 / 7.40-7.41 |
 | stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 4,924 / 2,224 / 2,168 / 2,196 / 2,260 | the same |
 
+## Rewrite: text engine, images and frames (2026-11-17, branch `rw-draw`)
+
+README.md "Rewrite: text engine, images and frames" has the steps. Figures (FS-UAE cycle-exact,
+OS 3.1, emulator; A600 = a600-31 + 4 MB fast RAM, MUI 3.8 copied on; three instances of each
+library in this session, MUI 3.8 the Application round's):
+
+| | MUI 3.8 | lean (4fbc6aed) | rw-draw (fff0167b) |
+|---|---:|---:|---:|
+| textengine.o / imspec.o / imspec_vector.o / frame.o | | 8,180 / 4,588 / 8,184 / 6,796 (+1,816 bss) | 6,052 / 4,484 / 6,796 / 3,528 (+388 bss) |
+| library code (`size`) / bss | | 223,820 / 3,364 | 216,648 / 1,936 |
+| library file, stripped | | 239,888 | 232,224 |
+| library alone in memory (`libonly`) | | 254,664 | 246,048 |
+| Zframes.mui / Zmui45.mui (file) | | 9,208 / 17,840 | 9,320 / 20,028 |
+| MUI-Demo first program | 460,296 | 436,936-436,984 | 428,344-428,368 |
+| MUI-Demo each further | 210,632-218,888 | 193,376 | 193,312-193,376 |
+| A1200 full redraw / text set (ms) | 140.4-150.7 / 2.50-2.51 | 133.6-133.7 / 2.390-2.393 | 132.9 / 2.393-2.402 |
+| A1200 open+close / register page | 520.3-522.7 / 53.7-53.8 | 398.7-402.6 / 42.5-42.6 | 397.6-398.6 / 42.5 |
+| A1200 cycle set / radio set | 2.44 / 15.6 | 2.02 / 8.50-8.51 | 2.01-2.02 / 8.26-8.27 |
+| A600 full redraw / text set | 472.2 / 9.72 | 442.5-446.0 / 9.42-9.46 | 441.9-442.4 / 9.42-9.45 |
+| A600 open+close / register page | 1,779.4 / 164.1 | 1,401.9-1,419.0 / 145.3-146.2 | 1,384.4-1,396.4 / 145.0-145.7 |
+| A600 cycle set / radio set | 9.44 / 60.7 | 7.87-7.96 / 32.9-33.0 | 7.86-7.94 / 32.4 |
+| stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 4,924 / 2,224 / 2,168 / 2,196 / 2,260 | the same |
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
@@ -800,6 +823,8 @@ instances, MUI 3.8 also the Application round's):
   `keyoffers.c`: which key handlers a key is offered to, in which order; `disabledget.c`:
   whether a window asks an event handler's object for MUIA_Disabled; `syscount.h` (in opbench:
   `count`, `time`, `who=NAME`) with `syscount-compare.py` and `syscount-who.py`; `pagepix.c` and
-  `scrollpix.c`: the window's checksums after page switches and list scrolls.
+  `scrollpix.c`: the window's checksums after page switches and list scrolls;
+  `tests/lean/framepix.c` (every frame type, raised and recessed, at many sizes, thick and thin)
+  and `imgpix.c` (every built-in image 1:0 to 1:23): pixel checksums to compare builds.
 - `tools/lean/mtreport2.py DUMP LIB cats|files|big|N`, `tools/lean/classsizes.py
   BUILD`, `tools/lean/flexcat-sd.py`.

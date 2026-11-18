@@ -397,8 +397,22 @@ where a measured hot loop pays. Order:
    and backspace 0.83-0.89 of MUI 3.8 on both CPUs (lean 0.92-0.99), String's library code -13 %,
    first program -2.8 KB. Details in
    [README.md](README.md#rewrite-string-2026-11-17-branch-rw-string).
-7. The text engine (textengine.c).
-8. Image and frame drawing (imspec, frames).
+7. and 8. **The text engine, the images and the frames** (done 2026-11-17, `rw-draw`, the
+   two rounds together): the code of `textengine.c`, `imspec.c`, `imspec_vector.c` and
+   `frame.c` 27.7 KB + 1.8 KB bss -> 20.9 KB + 0.4 KB (-25 %; -17 % counting what moved into
+   modules): frames drawn by one function per shape with the pens in the table (the 22 pen-pair
+   wrappers and the "global" box argument gone), one blitter-template engine for the images
+   every window shows, MUI 4/5's text colours and effects in Zmui45.mui, the shared image specs
+   constant (no built-in image is rare: moved into a module, real programs loaded it). First
+   program -8.6 KB (428,344-428,368 bytes against MUI 3.8's 460,296), radio set 1.5-2.8 %
+   faster, every other operation as lean but text set on the 68020 (0.1-0.4 %, code placement);
+   pixels as lean (demopix, new frame and image tests). Details in
+   [README.md](README.md#rewrite-text-engine-images-and-frames-2026-11-17-branch-rw-draw).
+
+**The planned rewrite phase is done** (List, Window, Group, Area, Application, String, the text
+engine, images and frames). What it left is in README.md "Left open"; the next speed work is
+outside these files (a typed key's window dispatch, creation's allocations, the OS calls of a
+redraw), the next size work in the classes not rewritten.
 
 ## Later (wanted, not scheduled)
 

@@ -5028,7 +5028,175 @@ The final build (75b08553) unless a step names an earlier one.
   HotkeyString.
 
 
+## Rewrite: text engine, images and frames (2026-11-17, branch `rw-draw`)
+
+Rounds 7 and 8 of the "rewrite for m68k" phase (roadmap), done together: the text engine
+(`textengine.c`, 8,180 bytes of code: parsing MUI's format codes, measuring, drawing) and the
+image and frame drawing (`imspec_vector.c` 8,184 + 916 bss, the built-in images; `imspec.c`
+4,588 + 900 bss, image specs; `frame.c` 6,796, the frames). Same rules as the rounds before.
+All figures are **emulator figures** (FS-UAE cycle-exact; demopix, the pixel tests and the
+suite on Amiberry).
+
+### Targets and results
+
+ms per operation, `opbench` (the same binary on every library), FS-UAE cycle-exact; A600 = a600-31
+(68000 7 MHz, OS 3.1) with 4 MB fast RAM and MUI 3.8 copied on, A1200 = a1200-31-mui38 (68EC020
+14 MHz, OS 3.1). Medians of 5 (A600) or 9 (A1200) repetitions per instance; ranges over three
+instances of lean and three of the final build (fff0167b) in this session; MUI 3.8 the
+Application round's (two A1200 instances, one A600).
+
+| target | MUI 3.8 | lean (before) | rw-draw (after) | after / MUI 3.8 | reached |
+|---|---:|---:|---:|---:|---|
+| A1200 full redraw | 140.4-150.7 | 133.6-133.7 | 132.9 | 0.88-0.95 | **yes** (-0.5 %) |
+| A1200 text set | 2.50-2.51 | 2.390-2.393 | 2.393-2.402 | 0.95-0.96 | **no**: 0.1-0.4 % slower (placement, below) |
+| A1200 window open+close | 520.3-522.7 | 398.7-402.6 | 397.6-398.6 | 0.76 | **yes** |
+| A1200 register page | 53.7-53.8 | 42.5-42.6 | 42.5 | 0.79 | **yes** (as lean) |
+| A1200 cycle set | 2.44 | 2.02 | 2.01-2.02 | 0.82-0.83 | **yes** (as lean) |
+| A1200 radio set | 15.6 | 8.50-8.51 | 8.26-8.27 | 0.53 | **yes** (-2.8 %) |
+| A600 full redraw | 472.2 | 442.5-446.0 | 441.9-442.4 | 0.94 | **yes** (-0.4 %) |
+| A600 text set | 9.72 | 9.42-9.46 | 9.42-9.45 | 0.97 | **yes** (as lean) |
+| A600 window open+close | 1,779.4 | 1,401.9-1,419.0 | 1,384.4-1,396.4 | 0.78 | **yes** (-1 %) |
+| A600 register page | 164.1 | 145.3-146.2 | 145.0-145.7 | 0.88-0.89 | **yes** (as lean) |
+| A600 cycle set | 9.44 | 7.87-7.96 | 7.86-7.94 | 0.83-0.84 | **yes** (as lean) |
+| A600 radio set | 60.7 | 32.9-33.0 | 32.4 | 0.53 | **yes** (-1.5 %) |
+| code of the four files | | 27,748 (+1,816 bss) | 20,860 (+388 bss) | | **-25 %**; -17 % counting what moved into modules |
+| memory: first program (MUI-Demo cold) | 460,296 | 436,936-436,984 | 428,344-428,368 | | **yes** (-8.6 KB) |
+| memory: each further | 210,632-218,888 | 193,376 | 193,312-193,376 | | **yes** |
+
+The other 20 operations: within lean's spread of the instances or below it on both machines,
+single instances up to 1.0 % above lean's highest (A1200 button click 16.91 against 16.74, menu
+13.37 against 13.30, list sort 94.98 against 94.56, list insert 1000 249.5 against 249.0,
+prefs+app 16.07 against 16.03; A600 prefs+app 66.54 against 66.33); the A600's iconify, menu and window
+resize are bimodal or vary with the boot on both libraries, as in the rounds before. Faster:
+relayout -0.4 % (A1200) and -0.4 % (A600), window open+close and uniconify on the A600 -1 %.
+
+**Text set on the A1200 is 0.1-0.4 % slower than lean** (medians 2,393.4-2,401.9 us against
+2,390.3-2,393.1, three instances each). Its path through the engine (zune_text_set_plain, the
+plain draw) is lean's instruction for instruction (compared), and the figure moved with code
+placement alone: bf117878 2,395-2,398; the same build with lean's textengine.c 2,389.2; with
+set_plain moved back to lean's place in the file 2,393.7; with the images back in the library
+(everything after them moved) 2,391-2,398 and 2,393-2,402: the 68020's 256-byte instruction
+cache. On the 68000 (no cache) text set is lean's or faster (9.42-9.45 against 9.42-9.46). Not
+chased further: aligning functions to one build's layout would move with the next change.
+
+### Where the time goes
+
+A full redraw on the 68020 (`opbench prof`, pcsample, lean): ROM 58-61 % (graphics' WaitBlit loop
+alone 19 %), the library's text engine about 3 %, the frames about 1 %: this round could not
+move it much, and did not need to (MUI 3.8 0.88-0.95 before and after). Radio set: lean's
+`mx_draw` and its template blits were 8.3 % of the samples (four template searches and four
+mode switches per image); radio set is now 2.8 % faster on the 68020 and 1.5 % on the 68000. Text set: the
+engine is a set_plain (one TextLength) and one Text; the rest is Text's own set, the background
+under the text and the OS.
+
+### What was rewritten
+
+| commit | what |
+|---|---|
+| ce0bbe81 | **Frames** (frame.c 6,796 -> 3,528): a frame's draw function takes its own table entry, the frame image and the box (7 arguments; lean passed a "global" box too, 10, which only the custom frames' tiles read); the pens are in the entry, so the bevel and rectangle entries point at the shape functions and the 22 pen-pair wrappers are gone; a shape made of others hands them the opposite state's entry or a pens-only one. A table entry is 16 bytes (24) and the 16 custom types share one: no table ever held a custom frame image, so those frames draw nothing, as on lean. Area's dead custom-frame branches and its DrawBackground's frame lookup gone; the spec string functions without snprintf; the rounded frames' clip region and MUIM_QueryFrameCharacteristics only in the two modules that use them (`frameclip.c`); the round frame module's functions take the state from the entry too. `tests/lean/framepix.c` |
+| 4570b462 | **Built-in images** (imspec_vector.c 8,184 + 916 bss -> 3,240 + 388; 6,796 with every image back, fff0167b): one blitter-template engine: an image function computes a shape id (kind and number: an arrow's size and direction, a glyph, a radio letter and state) and jumps to `vt_draw(mri, id, left, top, width, height)` (the image functions' own arguments, so a `bra`), which builds the bits once in chip memory, centres and clips them in the box; rows are whole longs, so arrows wider than 32 pixels have a template too (lean drew them span by span); without a template (32 kept, no chip memory) the same bits are painted run by run. The radio button's fallback rectangles (400 bytes bss) and every per-image fallback gone. The images 1:10 to 1:23 in Zframes.mui (`imspec_rare.c`), taken when such an image is set up: back in the library (1367e539, fff0167b). `tests/lean/imgpix.c` |
+| 327c110f | **Text engine** (textengine.c 8,180 -> 6,052): lists built and freed without exec calls (no NewList; destroy frees the nodes without a RemTail each); one parser for the bracketed codes (`\33I`, `\33O`, `\33A`, `\33p`, `\33P`), a table for the letters that set or clear a style or effect bit; the bold/italic extent measured by one helper (written out three times); the shortcut underline by one; the truncation test inline. The drawing of a chunk with MUI 4/5's colours or effects (`\33P[RRGGBB]`, `\33p[]`, `\33B`, `\33V`, `\33t`, `\33s`, `\33g`) in Zmui45.mui (`texteffect45.c`, moved unchanged); a chunk whose only "effect" is `\33h` or a selected state draws on the plain path (lean's effect path gave the same pixels) |
+| bf117878 | **Image specs** (imspec.c 4,588 + 900 bss -> 4,484): the 18 shared specs (patterns and the four MUI pens most objects get as their background) were whole 50-byte specs in bss written at every lookup; now constants with only the fields their type reads (232 bytes); one allocation helper; the configured images resolved once in setup (IST_CONFIG specs were never made: gone); a picture that did not load is drawn with the shared background pen, not a 50-byte spec on the stack |
+| 1b66bdb3 | zune_text_set_plain back at lean's place in the file (text set on the A1200, above) |
+| 1367e539 | **The drive images back in the library** (1:10 to 1:16: Drawer, HardDisk, Disk, Chip, Volume, Network, Assign; Network and Assign still Drawer's code): fullcheck's LoadSeg trace showed MUI-Demo (its Volumelist) and the Virtual demo loading Zframes.mui for them, so every program with a volume list would have loaded the 10 KB module for 2.3 KB of drawing |
+| fff0167b | **The tape buttons back in the library too** (1:17 to 1:23): the suite's LoadSeg trace of bf117878 showed AmFTP, AmIRC, AmiTradeCenter, CManager, SimpleMail, WookieChat, YAM 2.5 and the NListtree and Textinput demos loading Zframes.mui for them (NListtree's tree shows them), RO, Voyager and ViewCSV for the drive images. No built-in image is rare: all are in the library again, `imspec_rare.c` is gone, Zframes.mui is lean's but for its own copy of the clip region (imspec_vector.o 6,796) |
+
+**Tried and not taken**: the drive and tape button images (1:10 to 1:23, 3.5 KB) in the round
+frame module: Volumelist and NListtree show them, and LoadSeg traces of MUI-Demo, the Virtual demo
+and twelve real MUI 3 programs (YAM, SimpleMail, AmIRC, ...) showed them loading the module (above).
+The round frames' drawing with the pens passed as arguments from 7-argument
+wrappers (each wrapper's frame 4 -> 36-40: a wrapper is a `bra` only while it has at least its
+callee's arguments; the shape functions now take the entry); the frame shapes calling each other
+with the callee's address in a register (GCC's function CSE: one more saved register, 4-8 bytes
+of frame; `optimize("no-function-cse")` on the callers, also on Area_Draw_handle_background).
+
+### Sizes
+
+| | lean (4fbc6aed) | rw-draw (fff0167b) |
+|---|---:|---:|
+| textengine.o | 8,180 | 6,052 |
+| imspec.o | 4,588 (+900 bss) | 4,484 |
+| imspec_vector.o | 8,184 (+916 bss) | 6,796 (+388 bss) |
+| frame.o | 6,796 | 3,528 |
+| classes/area.o | 15,556 | 15,296 |
+| library code (`size`) | 223,820 | 216,648 |
+| library bss | 3,364 | 1,936 |
+| library file, stripped | 239,888 | 232,224 |
+| library alone in memory (`libonly`) | 254,664 | 246,048 |
+| Zframes.mui (file; code) | 9,208 (7,068) | 9,320 (7,188): + its clip region copy, - the round frames' wrappers |
+| Zmui45.mui (file; code) | 17,840 (14,900) | 20,028 (16,996): + the text effects, + its clip region copy |
+| MUI-Demo first program (MUI 3.8: 460,296) | 436,936-436,984 | 428,344-428,368 |
+| MUI-Demo each further (MUI 3.8: 210,632-218,888) | 193,376 | 193,312-193,376 |
+
+### Checked (emulators)
+
+The final build (fff0167b) unless a step names an earlier one; 1b66bdb3, 1367e539 and fff0167b
+only moved a function and the images, so the suite of bf117878 stands for them where named.
+
+- `make check` after every commit (each commit exported and built on its own).
+- `-fstack-usage` of every function of the changed files (the library's, Zframes', Zmui45's)
+  against lean: none larger under the same name; Area_Draw_handle_background 144 as lean (148
+  until no-function-cse), get_bounds 184, zune_imspec_draw 108. Smaller: Area_Draw_handle_frame
+  176 -> 164, area_draw_background 88 -> 72, zune_text_draw 152 -> 100, imspec_draw 160 -> 108,
+  zune_imspec_setup 68 -> 36, mx_draw 116 -> 36, glyph_draw 108 -> (vt_draw 84), Gfx_DrawFrame 88
+  -> 76, Slider's Draw 76 -> 64, Framedisplay's Draw 128 -> 116, zune_list_create_drag_image 208
+  -> 196, zune_area_drag 192 -> 180. Replaced functions, deepest chain against lean's: a bevel
+  frame 100 (lean 108: wrapper 4 + button_draw 84 + line 20), a thick border 160 (164), a thin
+  border 116 (128), an arrow 84 (lean 88 + 44), a radio image 120 (160).
+- stackrun (FS-UAE, side by side): MUI-Demo 4,924, Layout 2,224, Virtual 2,168, Pages 2,196,
+  Slidorama 2,260 on both.
+- fullcheck (FS-UAE): the same as lean (19 demos and MUI-Demo's 8 windows, windows and memory
+  lost); LoadSeg trace: the same 15 class files, **no module (Z\*.mui)** (bf117878 loaded
+  Zframes.mui in MUI-Demo and Virtual for the drive images: 1367e539).
+- Pixels, lean against the final build: demopix (Amiberry): 25 of 27 shots pixel-identical, the
+  other two InputHandler's timer-cycled text and Layout's random places, as always (an
+  earlier build of the branch had all 27 identical); `framepix thick` and `framepix thin` (every frame type
+  0 to b and a custom one, raised and recessed, at seven sizes over two backgrounds, toggled
+  and titled ones, and each type redrawn into 35 boxes of 1x1 to 8x6 pixels, where the size
+  checks decide: 1,293 checksums each) identical; `imgpix` (every image 1:0 to 1:23, normal
+  and selected, at three sizes, over a pattern, and the arrows at 72x40 and 40x72) identical,
+  and on MUI 3.8 (black box) all 172 checksums the same as OpenMUI's;
+  radiopix (and `set`), pagepix, scrollpix, listclip, `strkeys pix` identical.
+- The suite (Amiberry), lean and the final build side by side (the final build's own MCCs
+  installed: a first run with a snapshot lacking `Libs/MUI` made six MUI 5 demos exit at once,
+  the suite's other MCC set, not the library): mui3 89 of 100 the same at the first try, mui5
+  and mcc 79 of 82. The differing ones run again side by side: the same (MUI 5's Animals and
+  Title froze in lean's first run; Calendar Demo2's window shows the date, 235 or 251 wide on
+  two days, 251 on both side by side; AmiNetChess prints "amarquee.library V50+ could not be
+  opened" and keeps running without a window on both, the suite saw it "exited" once and "no
+  window" once; apdf, JMRI, Albin, AnimMaker, MonkeyClock, VoodooX and Ilona froze, reset or
+  lost memory in lean's run only; SimpleMail freezes or resets at quit on both, 3doc exits on
+  both) except **NewsCoaster 1.61, which resets at quit on the final build** (twice; lean twice
+  not): its own stray write 32 KB above its stack (Area round, "Left open") lands in
+  muimaster.library's code, now at another place. LoadSeg traces of every program: no MUI 3
+  program loads a module lean does not (bf117878 had YAM, SimpleMail, AmIRC and nine others
+  loading Zframes.mui for the drive and tape images: fff0167b); one MUI 5 demo (ElidedText)
+  loads Zmui45.mui now, for MUI 5's text effects.
+
+
 ## Left open
+
+- **Rewrite for m68k (2026-11-17, after `rw-draw`): the planned phase is done.** The text
+  engine, the images and the frames: their code -25 % (-17 % counting what moved into modules),
+  first program -8.6 KB, radio set 1.5-2.8 % faster, every other operation as lean, every pixel
+  as lean. **Text set on the A1200 is 0.1-0.4 % slower** than lean in all three instances: code
+  placement in the 68020's instruction cache (its engine path is lean's instruction for
+  instruction; the same build with lean's textengine.c measured lean's figure; on the 68000 it is
+  lean's or faster). Making it faster for real means Text's own set, the background under the
+  text or the OS calls, not the engine (one TextLength and one Text). **No built-in image is
+  rare**: the drive and tape button images, moved into a module, were loaded by MUI-Demo,
+  Virtual and twelve real programs (Volumelist, NListtree): all back in the library. **The custom frames** (the settings' FST_CUSTOM1 to 16, pictures loaded per window)
+  draw nothing, on lean too: no frame table ever held their frame image
+  (zune_frame_prepare_for_drawing hands the draw functions an image without pictures); drawing
+  them needs the window's `mri_Tail->FrameImage` passed down, and the picture module's tiles.
+  **A Rectangle with MUIA_HorizWeight or MUIA_VertWeight 0 beside a Space** in a group
+  (framepix's first form: `HGroup(VGroup(object, VSpace(0)), HSpace(0))`) got a box reaching
+  across the screen (frame lines drawn outside the window) and the test hung reading it, on lean
+  and the branch alike: not compared with MUI 3.8 yet, not traced (Group's layout). The full
+  redraw is ROM-bound (graphics' WaitBlit loop alone 19 % of a 68020 profile, the text engine
+  about 3 %, the frames about 1 %). The cycle image keeps its 13 Move/Draw (it is not redrawn on a
+  cycle set). **NewsCoaster 1.61 resets at quit** on the final build (its own stray write into
+  the library's code, the Area round's finding, landing at a new place); lean runs it.
 
 - **Rewrite for m68k (2026-11-17, after `rw-string`)**: String done (instance data 308 -> 96
   bytes, its library code -13 %, the clipboard, default menu and BetterString's Insert in
