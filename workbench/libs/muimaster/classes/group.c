@@ -3112,7 +3112,10 @@ static void group_minmax_pagemode(struct MUI_GroupData *data,
 
 /* A layout hook's MUILM_MINMAX: what it fills (maxima and defaults raised
  * to the minima) added to the group's own, maxima capped at MUI_MAXMAX.
- * Its own function: the message is on the stack only here. */
+ * MUI 3.8 hands the hook lm_MinMax filled with 20x20 minimum and default
+ * and MUI_MAXMAX maximum, whatever the children (tests/lean/probe/
+ * layoutmsg.c): a hook that fills only some of it (the HTMLtext MCC) finds
+ * those. Its own function: the message is on the stack only here. */
 static __attribute__((noinline)) void group_minmax_hook(Object *obj,
     struct MUI_GroupData *data, struct MUI_MinMax *mi)
 {
@@ -3120,6 +3123,9 @@ static __attribute__((noinline)) void group_minmax_hook(Object *obj,
 
     lm.lm_Children = &data->childlist;
     lm.lm_Type = MUILM_MINMAX;
+    lm.lm_MinMax.MinWidth = lm.lm_MinMax.MinHeight = 20;
+    lm.lm_MinMax.DefWidth = lm.lm_MinMax.DefHeight = 20;
+    lm.lm_MinMax.MaxWidth = lm.lm_MinMax.MaxHeight = MUI_MAXMAX;
     CallHookPkt(data->layout_hook, obj, &lm);
 
     if (lm.lm_MinMax.MaxHeight < lm.lm_MinMax.MinHeight)
