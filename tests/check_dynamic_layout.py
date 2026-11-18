@@ -10,7 +10,7 @@ import group_layout as G
 # DATA: the window's render info, 4 bytes into its data (wd_AreaRenderInfo first)
 CLASS, OBJECT, DATA = 0x70000, 0x71000, 0x71044
 INST = OBJECT + 64
-CHAIN, COUNT, ORDER = INST + W.CHAIN, INST + W.CHAIN_COUNT, INST + W.CYCLE_ORDER
+CHAIN, COUNT = INST + W.CHAIN, INST + W.CHAIN_COUNT
 SETUP, CYCLE = 1 << 28, 1 << 5
 
 
@@ -60,26 +60,20 @@ def check(path):
     a, ah = h.child()
     b, bh = h.child()
     c, ch = h.child()
-    assert h.order(b, a, b)
-    assert h.chain() == [b, a], 'requested order and duplicate suppression'
-    h.control('Rem', ah)
-    h.control('Rem', bh)
-    assert not h.chain()
+    # at the window's setup (not open yet) the chain is the setup order
     h.control('Add', ah)
     h.control('Add', ch)
     h.control('Add', bh)
-    assert h.chain() == [b, a], 'setup order must not override explicit order'
-    h.fail_alloc = True
-    assert not h.order(c)
-    assert h.chain() == [b, a], 'OOM must retain old chain'
+    assert h.chain() == [a, c, b], 'setup order'
     h.control('Rem', bh)
-    assert h.chain() == [a], 'removed child must leave the live chain'
-    assert h.order()
+    assert h.chain() == [a, c], 'removed child must leave the live chain'
+    # MUI 3.8's SetCycleChain only sets MUIA_CycleChain (TRUE on the
+    # listed objects, FALSE on the window's others): no order of its own
+    assert h.order(b, a, b)
+    assert h.chain() == [a, c], 'SetCycleChain keeps the tree order'
+    h.control('Rem', ah)
+    h.control('Rem', ch)
     assert not h.chain()
-    order = h.mem.r32(ORDER)
-    assert order in h.allocations, 'explicit order storage must remain owned'
-    h.cpu.w_reg(9, order)
-    h.free_vec()
     h.cpu.w_reg(9, h.mem.r32(CHAIN))
     h.free_vec()
     h.check_freed()

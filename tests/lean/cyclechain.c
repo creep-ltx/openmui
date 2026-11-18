@@ -4,7 +4,9 @@
  * after closing and opening the window again, after objects left and
  * joined the chain (a page switch), with MUIM_Window_SetCycleChain's
  * explicit order, and the gadget IDs of a window's border scrollers and
- * a listview's prop. The same output on two libraries = the same chain.
+ * a listview's prop, MUIA_CycleChain after the explicit order, and what a
+ * hidden or disabled object set active gives (Compatibility round 5).
+ * The same output on two libraries = the same chain.
  * Build (I = OpenMUI's library build): m68k-amigaos-gcc -m68000 -noixemul \
  *   -Os -DMUI_OBSOLETE -I$I/include -Iworkbench/libs/muimaster/include tests/lean/cyclechain.c -o cyclechain -lamiga
  */
@@ -173,6 +175,25 @@ int main(void)
     set(win, MUIA_Window_ActiveObject, MUIV_Window_ActiveObject_None);
     walk("explicit reopened, next", MUIV_Window_ActiveObject_Next, 7);
     gadgets();
+    printf("cyclechain attrs:");
+    for (i = 0; i < N; i++)
+    {
+        IPTR cc = 99;
+        get(o[i], MUIA_CycleChain, &cc);
+        printf(" %d", (int)cc);
+    }
+    printf("\n");
+    /* a hidden object made active, the active object hidden by a page switch */
+    set(win, MUIA_Window_ActiveObject, o[3]);
+    printf("hidden D set active: %d\n", active());
+    set(win, MUIA_Window_ActiveObject, o[4]);
+    printf("E set active: %d\n", active());
+    set(pages, MUIA_Group_ActivePage, 0);
+    printf("E hidden by its page: %d\n", active());
+    set(o[2], MUIA_Disabled, TRUE);
+    set(win, MUIA_Window_ActiveObject, o[2]);
+    printf("disabled C set active: %d\n", active());
+    set(o[2], MUIA_Disabled, FALSE);
 
     MUI_DisposeObject(app);
     CloseLibrary(MUIMasterBase);

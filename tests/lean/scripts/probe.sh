@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# probe.sh PROG.c MACH PORT [LIB]: build PROG.c, boot MACH (with LIB installed when given), run it, print its output
+# probe.sh PROG.c MACH PORT [LIB]: build PROG.c, boot MACH (with LIB installed when given), run it, print its output (PROBE_CFLAGS: e.g. -I<build>/include)
 export PATH=$HOME/opt/amiga-gcc16/bin:$PATH
 W=$(cd "$(dirname "$0")/../../.." && pwd)
 cd $W || exit 1
 . tests/lean/scripts/emu.sh
 SRC=$1; MACH=$2; PORT=$3; LIB=${4:-}
 B=${TMPDIR:-/tmp}/probe-$(basename "$SRC" .c)
-m68k-amigaos-gcc -Os -m68000 -noixemul -s -o "$B" "$SRC" || exit 1
+m68k-amigaos-gcc -Os -m68000 -noixemul -s ${PROBE_CFLAGS:-} -o "$B" "$SRC" -lamiga || exit 1
 NAME=pr-$PORT
 export WASABI_HOST=127.0.0.1 WASABI_PORT=$PORT
 boot() { amiga-test $MACH stop --as $NAME >/dev/null 2>&1
@@ -15,5 +15,7 @@ boot() { amiga-test $MACH stop --as $NAME >/dev/null 2>&1
 boot
 [ -n "$LIB" ] && { tests/lean/scripts/putlib.sh "$LIB" >/dev/null; boot; }
 wasabi put "$B" RAM:probe >/dev/null; wasabi run "protect RAM:probe +e" >/dev/null
-wasabi run "RAM:probe"
+# PROBE_PUT="local=AMIGA ...": more files for the probe (a case list)
+for p in ${PROBE_PUT:-}; do wasabi put "${p%%=*}" "${p#*=}" >/dev/null; done
+wasabi run "RAM:probe ${PROBE_ARGS:-}"
 [ -n "${KEEP:-}" ] || amiga-test $MACH stop --as $NAME >/dev/null 2>&1

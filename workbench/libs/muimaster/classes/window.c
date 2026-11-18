@@ -168,15 +168,16 @@ extern struct Library *MUIMasterBase;
 *       get.
 *
 *   NOTES
-*       Objects remain borrowed. An explicit target is stored without ownership
-*       or membership validation; use a live descendant. GoInactive and GoActive
-*       depend on setup/draw state. Raw-key processing tries active, parent,
-*       default and other handlers.
+*       Objects remain borrowed. As in MUI 3.8 (tests/lean/cyclechain.c), an
+*       explicit target that is hidden or disabled leaves no object active
+*       while the window is open; Next and Prev skip hidden and disabled
+*       objects, wrap around at the ends, and from none (or a hidden active
+*       object) both go to the first. GoInactive and GoActive depend on
+*       setup/draw state. Raw-key processing tries active, parent, default
+*       and other handlers.
 *
 *   BUGS
-*       Next/Prev filter disabled or hidden objects during traversal, but
-*       wraparound falls back to the first/last chain entry without that
-*       filtering. The raw-key parent loop starts at the active object again, so
+*       The raw-key parent loop starts at the active object again, so
 *       an unconsumed key can reach it twice. Initialization tags are not
 *       handled.
 *
@@ -1181,7 +1182,6 @@ struct MUI_WindowData
     LONG wd_SleepMinWidth;
 
     struct IClass *wd_Class;
-    Object **wd_CycleOrder; /* allocated only for the legacy explicit chain */
     /* Public mri_Pens contains only UWORD pen numbers. Keep ownership bits. */
     LONG wd_PenHandles[MPEN_COUNT];
 #ifdef ZUNE68_GCC_NATIVE
@@ -3846,12 +3846,20 @@ static LONG ChainIndex(struct MUI_WindowData *data, Object *obj)
     return -1;
 }
 
-/* From chain index i forwards (next) or backwards, the first non-disabled
- * object with SHOWME set; NULL at the end (no wrapping). With i = -1 or the
- * count and no filter (first/last): the first or last object at all. */
+/* Whether obj can be the active object: shown and not disabled */
+static BOOL ChainEligible(Object *obj)
+{
+    IPTR is_disabled = 0;
+
+    get(obj, MUIA_Disabled, &is_disabled);
+    return !is_disabled && (_flags(obj) & MADF_CANDRAW);
+}
+
+/* From chain index i forwards (next) or backwards, the first object that
+ * is shown (a hidden page's is not: MUI 3.8, tests/lean/cyclechain.c) and
+ * not disabled; NULL at the end (no wrapping). */
 static __attribute__((noinline)) Object *ChainStep(
-    struct MUI_WindowData *data, LONG i, BOOL next,
-    BOOL filter)
+    struct MUI_WindowData *data, LONG i, BOOL next)
 {
     for (;;)
     {
@@ -3862,12 +3870,7 @@ static __attribute__((noinline)) Object *ChainStep(
             return NULL;
         if ((obj = data->wd_Chain[i]))
         {
-            IPTR is_disabled = 0;
-
-            if (!filter)
-                return obj;
-            get(obj, MUIA_Disabled, &is_disabled);
-            if (!is_disabled && (_flags(obj) & MADF_SHOWME))
+            if (ChainEligible(obj))
                 return obj;
         }
     }
@@ -3913,7 +3916,9 @@ static void SetActiveObject(struct MUI_WindowData *data, Object *obj,
     {
         if ((IPTR) data->wd_ActiveObject != newval)
         {
-            old_active = ChainIndex(data, data->wd_ActiveObject);
+            /* a hidden active object steps as none (MUI 3.8) */
+            if (_flags(data->wd_ActiveObject) & MADF_CANDRAW)
+                old_active = ChainIndex(data, data->wd_ActiveObject);
             if ((data->wd_Flags & MUIWF_OBJECTGOACTIVESENT)
                 && (_flags(data->wd_ActiveObject) & MADF_SETUP))
             {
@@ -3938,17 +3943,22 @@ static void SetActiveObject(struct MUI_WindowData *data, Object *obj,
     {
         BOOL next = newval == MUIV_Window_ActiveObject_Next;
 
+        /* MUI 3.8: from none both go to the first object, at an end
+         * they wrap around; hidden and disabled objects are skipped */
         if (old_active >= 0)
-            data->wd_ActiveObject = ChainStep(data, old_active, next, TRUE);
-        /* else the first or last of the chain, disabled or hidden or not */
+            data->wd_ActiveObject = ChainStep(data, old_active, next);
+        else
+            next = TRUE;
         if (NULL == data->wd_ActiveObject)
             data->wd_ActiveObject = ChainStep(data,
-                next ? -1 : data->wd_ChainCount, next, FALSE);
+                next ? -1 : data->wd_ChainCount, next);
         break;
     }
 
     default:
-        data->wd_ActiveObject = (Object *) newval;
+        /* MUI 3.8 leaves none active for a hidden or disabled object */
+        if (ChainEligible((Object *)newval))
+            data->wd_ActiveObject = (Object *) newval;
         break;
     }
 
@@ -4330,7 +4340,6 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
  * FreeVec did */
 static void __attribute__((noinline)) WindowFreeBlocks(struct MUI_WindowData *data)
 {
-    FreeVec(data->wd_CycleOrder);
     FreeVec(data->wd_Chain);
     FreeVec(data->wd_IDMap);
     FreeVec(data->wd_RenderInfo.mri_Tail);
@@ -5638,13 +5647,22 @@ IPTR Window__MUIM_Cleanup(struct IClass *cl, Object *obj, Msg msg)
  This adds the the control char handler and also does the MUIA_CycleChain
  stuff. Orginal MUI does this another way.
 **************************************************************************/
-static LONG CycleOrder(struct MUI_WindowData *data, Object *obj)
+/* The object after o in the window's tree, depth first (a group before
+ * its children), NULL after the last one */
+static __attribute__((noinline)) Object *TreeNext(Object *root, Object *o)
 {
-    LONG i;
-    if (!data->wd_CycleOrder) return -1;
-    for (i = 0; data->wd_CycleOrder[i]; i++)
-        if (data->wd_CycleOrder[i] == obj) return i;
-    return -1;
+    struct MinList *l = NULL;
+    struct MinNode *n;
+
+    if (get(o, MUIA_Group_ChildList, &l) && l && l->mlh_Head->mln_Succ)
+        return BASEOBJECT(l->mlh_Head);
+    for (; o && o != root; o = _parent(o))
+    {
+        n = ((struct MinNode *)_OBJECT(o))->mln_Succ;
+        if (n->mln_Succ)
+            return BASEOBJECT(n);
+    }
+    return NULL;
 }
 
 /* A block of newsize bytes (cleared) with the oldsize bytes of old at
@@ -5685,60 +5703,52 @@ static __attribute__((noinline)) BOOL ChainRoom(struct MUI_WindowData *data)
     return TRUE;
 }
 
-/* An object of the explicit (MUIM_Window_SetCycleChain) order into the
- * chain, before the first one later in that order */
+/* An object that joins the chain while the window is open goes where
+ * the window's tree has it, as MUI 3.8 orders it (tests/lean/cyclechain.c):
+ * before the first chain object after it in the tree */
 static __attribute__((noinline)) void ChainInsert(
     struct MUI_WindowData *data, Object *target)
 {
-    LONG rank = CycleOrder(data, target);
-    Object **p = data->wd_Chain;
-    UWORD i = 0, n = data->wd_ChainCount;
+    Object *root = data->wd_RootObject, *o = root, **p = data->wd_Chain;
+    UWORD i = data->wd_ChainCount, n = i;
+    BOOL seen = FALSE;
+    LONG k;
 
-    while (i < n && CycleOrder(data, p[i]) <= rank)
-        i++;
+    for (; o; o = TreeNext(root, o))
+    {
+        if (o == target)
+            seen = TRUE;
+        else if (seen && (k = ChainIndex(data, o)) >= 0)
+        {
+            i = k;
+            break;
+        }
+    }
     for (; n > i; n--)
         p[n] = p[n - 1];
     p[i] = target;
     data->wd_ChainCount++;
 }
 
+/* MUI 3.8's MUIM_Window_SetCycleChain (tests/lean/cyclechain.c): the
+ * listed objects get MUIA_CycleChain, every other object of the window
+ * loses it; the order stays the window's tree order */
 IPTR Window__MUIM_SetCycleChain(struct IClass *cl, Object *obj,
     struct MUIP_Window_SetCycleChain *msg)
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
-    Object **order, **chain;
-    ULONG count = 0, i, k;
+    Object *root = data->wd_RootObject, *o, **l;
 
-    while (msg->obj[count]) count++;
-    order = AllocVec((count + 1) * sizeof(Object *), MEMF_ANY);
-    if (!order) return FALSE;
-    chain = AllocVec((count + 1) * sizeof(Object *), MEMF_ANY);
-    if (!chain)
-    {
-        FreeVec(order);
-        return FALSE;
-    }
-    CopyMem(msg->obj, order, (count + 1) * sizeof(Object *));
-    for (i = k = 0; i < count; i++)
-    {
-        Object *child = order[i];
-        ULONG j;
-
-        for (j = 0; j < k && chain[j] != child; j++)
-            ;
-        if (j == k && (_flags(child) & MADF_SETUP) && muiRenderInfo(child)
-            && _win(child) == obj)
-            chain[k++] = child;
-    }
-    FreeVec(data->wd_Chain);
-    data->wd_Chain = chain;
-    data->wd_ChainCount = k;
-    data->wd_ChainSize = count + 1;
-    FreeVec(data->wd_CycleOrder);
-    data->wd_CycleOrder = order;
-    /* Arrange control-handler setup/cleanup for legacy gadgets as well. */
-    for (i = 0; i < count; i++)
-        set(order[i], MUIA_CycleChain, TRUE);
+    for (o = root; o; o = TreeNext(root, o))
+        if (_flags(o) & MADF_CYCLECHAIN)
+        {
+            for (l = msg->obj; *l && *l != o; l++)
+                ;
+            if (!*l)
+                set(o, MUIA_CycleChain, FALSE);
+        }
+    for (l = msg->obj; *l; l++)
+        set(*l, MUIA_CycleChain, TRUE);
     return TRUE;
 }
 
@@ -5756,16 +5766,14 @@ IPTR Window__MUIM_AddControlCharHandler(struct IClass *cl, Object *obj,
 
     if (msg->ccnode->ehn_Events)
         Enqueue((struct List *)&data->wd_CCList, (struct Node *)msg->ccnode);
-    /* Due to the lack of a better idea ... */
-    if (!data->wd_CycleOrder)
+    /* at the window's setup in tree order; later where the tree has it */
+    if ((muiAreaData(target)->mad_Flags & MADF_CYCLECHAIN) && ChainRoom(data))
     {
-        if ((muiAreaData(target)->mad_Flags & MADF_CYCLECHAIN)
-            && ChainRoom(data))
+        if (data->wd_Flags & MUIWF_OPENED)
+            ChainInsert(data, target);
+        else
             data->wd_Chain[data->wd_ChainCount++] = target;
     }
-    else if (CycleOrder(data, target) >= 0 && ChainIndex(data, target) < 0
-        && ChainRoom(data))
-        ChainInsert(data, target);
     return TRUE;
 }
 
@@ -6467,22 +6475,17 @@ static IPTR Window__MUIM_Import(struct IClass *cl, Object *obj,
 *           NULL);
 *
 *   FUNCTION
-*       Replace the window's cycle chain with the listed objects in list
-*       order, skipping repeated entries and objects not set up in this
-*       window. Each listed object then gets MUIA_CycleChain TRUE.
+*       As MUI 3.8 does it (tests/lean/cyclechain.c): the listed objects
+*       get MUIA_CycleChain TRUE, every other object of the window that has
+*       it gets FALSE. The chain keeps the window's tree order, not the
+*       order of the list.
 *
 *   INPUTS
 *       obj1, ... - NULL-terminated list of Area objects. The message is
 *       declared under MUI_OBSOLETE.
 *
 *   RESULT
-*       FALSE on allocation failure, leaving the chain unchanged; otherwise
 *       TRUE.
-*
-*   NOTES
-*       The window keeps a copy of the order. An object registered later
-*       through control-character handling joins the chain only if listed,
-*       at its listed position.
 *
 */
 
