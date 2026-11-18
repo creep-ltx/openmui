@@ -529,7 +529,10 @@ static void imspec_draw(struct MUI_ImageSpec_intern *spec,
     LONG right = left + width - 1;
     LONG bottom = top + height - 1;
 
-    if (!spec)
+    /* nothing to draw in an empty box (OS 3.1's RectFill with its corners
+     * crossed writes outside the rastport: framepix's weight-0 objects
+     * beside a Space hung the machine, Compatibility round 5) */
+    if (!spec || width <= 0 || height <= 0)
         return;
     /* a picture that did not load is the background pen */
     if ((spec->type == IST_BITMAP && !spec->u.bitmap.dt)
