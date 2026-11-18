@@ -5723,7 +5723,10 @@ static __attribute__((noinline)) Object *TreeNext(Object *root, Object *o)
     struct MinList *l = NULL;
     struct MinNode *n;
 
-    if (get(o, MUIA_Group_ChildList, &l) && l && l->mlh_Head->mln_Succ)
+    /* only a group asked for its children (MUI-Demo's windows have about
+     * 200 objects each) */
+    if ((muiAreaData(o)->mad_Flags2 & MADF2_ISGROUP)
+        && get(o, MUIA_Group_ChildList, &l) && l && l->mlh_Head->mln_Succ)
         return BASEOBJECT(l->mlh_Head);
     for (; o && o != root; o = _parent(o))
     {
