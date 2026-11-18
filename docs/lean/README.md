@@ -5174,7 +5174,156 @@ only moved a function and the images, so the suite of bf117878 stands for them w
   loads Zmui45.mui now, for MUI 5's text effects.
 
 
+## Compatibility round 5: MUI 3.8's spare-pixel rule, the layout hook's message, Tab order, MUI 5's window look, custom frames, the crossed RectFill (2026-11-18, branch `compat5`)
+
+Branch `compat5` (from `lean` at a1449484). The six differences from real MUI that the rounds before left
+open, each measured black-box against MUI 3.8 (a1200-31-mui38) and, for MUI 5 programs, real MUI 5
+(a1200-32-mui5), Amiberry headless; speed and stack in FS-UAE cycle-exact. All figures are emulator figures.
+
+**1. The group spare-pixel rule (done as a fit; not all of MUI 3.8's).** `tests/lean/probe/gdist.c` lays
+out groups of 2-6 children with given (or random) minimum, maximum and weight, rows, columns, spacing and
+ColGroups, and prints the sizes; `gdist.py` holds the rule and checks a file of results. MUI 3.8 measured
+on 1,346 chosen cases (`gdist-cases.txt`, `gdist-cases-mui38.txt`) and 1,399 random ones (seeds 7, 11-13,
+`gdist-random-mui38.txt`), besides hdist.c's 1,288 rows. About 40,000 algorithm variants were scored
+against them; the best, now in Group (`LayDistribute`, for rows, columns and a grid's rows and columns):
+
+1. every child gets `floor(length * weight / all weights)` on its own;
+2. until nothing moves: all clamped to their limits, and each child that can still move towards the
+   remainder gets `trunc(remainder * weight / all weights)`;
+3. the rest a pixel at a time round the children that can move, **weight 0 too**: an extra pixel from the
+   last child back, a missing one from the first.
+
+| measured layouts as MUI 3.8 | lean | compat5 |
+|---|---:|---:|
+| chosen cases (1,346) | 1,030 | 1,220 |
+| random cases (1,399) | 856 | 1,133 |
+| hdist/vdist rows (1,288) | 1,052 | 1,140 |
+
+The C code gives the rule's sizes for every case (all 1,346 and 800 random ones run on the final build).
+What MUI 3.8 does that the rule does not: a **first** child clamped at its **maximum** gives up a pixel
+when the others' share is odd (40 -> 39 beside 153/153), and after clamps an extra pixel sometimes goes to
+the first child (a min-100 first child: 101/42/42). AROS's two-pass code for grids (which could leave a
+row outside its limits) is gone; groups without weight and SameWidth/SameHeight keep it.
+
+Windows (first window of each program, the suite's mui3 group, against MUI 3.8's screenshot): 23 of 100
+changed from lean; nearer MUI 3.8 in 13 (LayView 5,932 -> 760 differing pixels, NList-Demo 3,806 -> 316,
+AmigaAMP-Prefs 462 -> 80, JMRI, U64Ctl, WookieChat, YAM 2.9, AmFTP, AnimMaker, CManager, ViewCSV,
+MonkeyClock; AmiDrop's window 556x227 as MUI 3.8, lean 452x83 first), farther in 6 (**YAM 2.5's message
+list 1 pixel shorter, 3,442 -> 18,708**, NFS-GUI 3,004 -> 3,944, IBrowse 2.5 880 -> 1,400, MultiRen,
+RO, TheBar demo 9 by 46-224); window sizes as MUI 3.8 74 of 83 (lean 73). Pixel-identical first windows
+31 of 81 on both. demopix: 18 of 27 shots identical to MUI 3.8 as lean; three changed: Balancing 1,085 ->
+990 and Slidorama 6,921 -> 6,521 differing pixels from MUI 3.8 (nearer), **Subtask 450 -> 692** (its
+Start button row a pixel off the other way). NFS-GUI's list and TinyMeterPrefs' default height stay as
+lean.
+
+**2. The HTMLtext demo (fixed: 142x83, MUI 3.8 143x83).** `tests/lean/probe/layoutmsg.c` dumps the
+MUI_LayoutMsg a layout hook gets: at MUILM_MINMAX MUI 3.8 hands lm_MinMax **already filled: 20x20 minimum
+and default, MUI_MAXMAX maximum**, whatever the children (plain group, framed group, Virtgroup); lm_Layout
+is stack garbage there on both. The HTMLtext MCC fills only part of it, so its window followed OpenMUI's
+uninitialised stack (85-87x71, 87x256). Group's layout hook call fills it as MUI 3.8 does.
+
+**3. MUI 5's look for MUI 4/5 programs (done for the two measured).** `tests/lean/probe/m5look.c` on real
+MUI 5: a window's inner spacing is **8 on every side** (100x50 contents: 124x79; MUI 3.8 and OpenMUI
+116x69). A MUI 4/5 program now gets 8 where the settings keep MUI 3.8's default 4/4/3/3 (the suite's MUI
+5 demos 8 wider and 10 higher; a MUI 3 program's window as before). MUI 5's scrollable wrap of a window
+larger than the screen has its scrollbars **in the window's right and bottom border** (its Pointers demo):
+OpenMUI's wrap now uses the border (unless the program uses the border's scrollers itself), the images the
+border scrollers need made by the title gadget module. Pointers: 640x244 at 0,6 (MUI 5 640x256 at 0,0).
+A plain probe window too large for the screen opened clipped and without scrollbars on MUI 5: what makes
+MUI 5 wrap is not all known.
+
+**4. Custom frames from the settings (drawn).** The settings' custom frames (FST_CUSTOM1-16, a
+frame.config with up/default and down/default pictures) are an OpenMUI/Zune setting; MUI 3.8 has none,
+so there is nothing of MUI 3.8's to match. They loaded and drew nothing (on lean too). The picture module
+now allocates each with its two frame table entries (up, down) that tile the picture and carry the
+frame.config's inner spacing; frame.c hands those out. `tests/lean/probe/cframe.c` with
+`cframe-theme`: 70x40 boxes with 5 pixels of spacing, both pictures drawn (OS 3.1 and 3.2.1).
+
+**5. Tab order (fixed, as MUI 3.8).** `tests/lean/cyclechain.c` (extended: the CycleChain attributes
+after SetCycleChain, a hidden or disabled object set active, the active object hidden by a page switch):
+MUI 3.8 skips a hidden page's objects and disabled ones, wraps at the ends, goes to the **first** object
+from none for Next and Prev, leaves none active for a hidden or disabled object set active, and its
+`MUIM_Window_SetCycleChain` only sets MUIA_CycleChain on the listed objects and clears it on the window's
+others: the order stays the **tree order**, not the list's (MUI-Demo calls it). Real MUI 5 (the test
+built with `___stkinit`: MUI 5 stops a program with a 16 KB stack at a requester) does all of that but
+goes to the **last** object for Prev from none; MUI 4/5 programs get that. `cyclechain 19` is now MUI
+3.8's output and `cyclechain 20` MUI 5's, line for line, except the gadget IDs and a Listview's own
+MUIA_CycleChain reading.
+
+**6. A weight-0 Rectangle beside a Space (fixed).** framepix's first form froze the machine at the
+window's opening on lean too, not in the layout: a 0-pixel-wide group drew its parent's pattern
+background with RectFill's corners crossed, which OS 3.1 turns into writes outside the rastport. The
+pattern and colour paths of the image spec drawing now skip an empty box; the old framepix (and
+`tests/lean/probe/w0frames.c`) run on OpenMUI and on MUI 3.8 (which does not parse frame strings in
+MUIA_Frame: its boxes there are 6x6 larger, not comparable).
+
+| commit | change |
+|---|---|
+| 49fd4ac4 Window | Tab order as MUI 3.8; SetCycleChain as MUI 3.8; probe.sh PROBE_CFLAGS/ARGS/PUT |
+| fa8fbb88 Backgrounds | nothing drawn into an empty box |
+| 5fe8e07e Group | MUI 3.8's spare-pixel rule for rows, columns and grids; gdist.c/.py and MUI 3.8's results |
+| 5ea18ac5 Group | the layout hook's MINMAX message prefilled as MUI 3.8 |
+| 1ba689e9 Window | MUI 5's window spacing and border scrollbars for MUI 4/5 programs |
+| de986b3c Frames | custom frames drawn |
+| 908d4120, 5f13b3c0, 680f2736, d6679a3d, e67914a8, b4d56b9e, 419bc5c2 | frames, speed, size and stack back to lean's (below) |
+| c51e0109 Window | Prev from none to the last object for MUI 4/5 programs (MUI 5) |
+
+### Checked (emulators)
+
+The final build 419bc5c2 for stackrun, memory and opbench's A1200 run; b4d56b9e for fullcheck, demopix
+and the suite's final mui3 run (the two commits after it change MUI 4/5 programs only: Prev from none,
+the wrap's images); the pixel tests on 5f13b3c0 and 680f2736 (the later commits change no drawing).
+
+
+- `make check` after every commit.
+- `-fstack-usage` of every function of the changed files against lean: none larger (group_sizes_1d 72 ->
+  56, zune_imspec_draw 108 -> 96, SetCycleChain 60 -> 48); the new ones 8-68 bytes. stackrun (FS-UAE):
+  MUI-Demo 4,924, Layout 2,224, Virtual 2,168, Pages 2,196, Slidorama 2,260, as lean (a helper between
+  SetupRenderInfo and the image class had made Virtual 48 deeper: d6679a3d).
+- opbench, all 27, two instances each (A1200 = a1200-31-mui38 68020; A600 = a600-31 + 4 MB fast):
+  every operation within lean's spread; relayout 172.4-172.7 against 172.2-172.3 ms (the first version
+  of the rule was 4-6 % slower on relayout and register page: a call per child, a division per child and
+  pass; LayNext/LayPrev inline and one DIVU.W fixed it), register page 42.6 against 42.4-42.5; the list
+  operations differ by up to 1 % between instances on both (no list code changed). A600 relayout 606.3-608.0
+  against 606.6-608.3.
+- Memory (m.sh, FS-UAE): first program 428,152 bytes (lean 428,368), each further 193,120 (lean
+  193,312-193,376); MUI-Demo's first window 1.96-1.98 s (lean 1.96-1.98; SetCycleChain's tree walk asking
+  every object for its children had made it 2.00-2.02). Library 254,124 bytes (lean 254,148); the title
+  gadget module (MUI 5's wrap only) 7,780 -> 7,904, the picture module +264.
+- fullcheck (FS-UAE, b4d56b9e): the same as lean (19 demos and MUI-Demo's 8 windows: windows and memory
+  lost).
+- Pixels, lean against the final build: framepix thick and thin, imgpix, radiopix and `set`, pagepix,
+  scrollpix, listclip, `strkeys pix` identical; demopix (Amiberry): Balancing, Slidorama and Subtask changed as
+  item 1 says, the other 24 identical (Layout's random places aside); 18 of 27 identical to MUI 3.8, as
+  lean.
+- The suite (Amiberry), side by side with lean (mui3 with the rule's first build 5ea18ac5, mcc and mui5
+  with de986b3c; the final build's mui3 run below): mui3 98 of 100 the same (Ali reset on lean, froze on
+  the branch, ok on MUI 3.8; AmiDrop's first window 556x227 as MUI 3.8, lean showed a 452x83 one first);
+  mcc 56 of 58 (GIFAnim's demo 424 -> 408 wide; the HTMLtext demo 87x256 -> 142x83, item 2); mui5: every
+  MUI 5 demo 8 wider and 10 higher (item 3), nearer real MUI 5's window in 13 of 15 (MUI 5's own buttons
+  are taller still: Aboutbox 200x39 -> 208x49, MUI 5 208x53; Class4 288x65 -> 296x75, MUI 5 296x85);
+  DizzyTorrent 386 -> 394 wide (MUI 5 372); LumiZip froze and the TabGroup demo opened no window once
+  each (both ok run again on the final build, LumiZip's known quit crash aside). The final build's mui3 run (b4d56b9e): 98 of 100 as lean in status and
+  window sizes (Ali exited, AmiDrop as above); first windows against MUI 3.8's screenshot nearer in 11,
+  farther in 6 as item 1 lists (MonkeyClock's and XSysInfo's live displays aside), pixel-identical 31 of
+  81 as lean.
+- LoadSeg: no MUI 3 program loads a module lean does not load (SetCycleChain was moved into the title
+  gadget module first and made MUI-Demo load it: e67914a8 put it back).
+
+
 ## Left open
+
+- **Compatibility round 5 (2026-11-18, `compat5`)**: the spare-pixel rule is a fit, not MUI 3.8's whole
+  rule (1,220 of 1,346 chosen, 1,133 of 1,399 random layouts): a first child clamped at its maximum gives
+  up a pixel on MUI 3.8, an extra pixel after clamps sometimes goes to the first child; six suite windows
+  moved a little away from MUI 3.8 (YAM 2.5's message list a pixel shorter, NFS-GUI, IBrowse 2.5,
+  MultiRen, RO, TheBar demo 9) and demopix's Subtask, while 13 came nearer; NFS-GUI's list pixel and
+  TinyMeterPrefs' default height are not this rule's. MUI 5's scroll wrap: what makes MUI 5 wrap (a plain
+  probe window opened clipped, without scrollbars) is not known; Pointers 640x244 against 640x256. The
+  HTMLtext demo is 1 pixel narrower than on MUI 3.8 and its string is not active at the start (MUI 3.8's
+  is; lean's neither). MUI 3.8 does not parse frame spec strings in MUIA_Frame; OpenMUI does for every
+  program (MUI 4/5 behaviour). An object that joins the cycle chain while its window is open goes to the
+  chain's end (lean's; MUI 3.8 not probed for that alone).
 
 - **Rewrite for m68k (2026-11-17, after `rw-draw`): the planned phase is done.** The text
   engine, the images and the frames: their code -25 % (-17 % counting what moved into modules),

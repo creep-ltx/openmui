@@ -533,3 +533,11 @@ redraw), the next size work in the classes not rewritten.
   settings read by the library until moved and copied once by OpenMUI prefs; the Aminet pair is
   `OpenMUI.lha`. First program 460,176 bytes (MUI 3.8 460,296), no frame larger. Details in
   [README.md](README.md#openmuis-own-drawers-libsopenmui-envopenmui-envarcopenmui-2026-11-1213-branch-rename1).
+- *2026-11-18 (branch `compat5`, compatibility round 5)*: MUI 3.8's group spare-pixel rule fitted to
+  2,745 measured layouts (tests/lean/probe/gdist.c and gdist.py) and built into Group for rows, columns
+  and grids (1,220 of 1,346 chosen and 1,133 of 1,399 random layouts as MUI 3.8, lean 1,030 and 856;
+  what it misses: a first child clamped at its maximum); the layout hook's MINMAX message prefilled as
+  MUI 3.8 (the HTMLtext demo 142x83, MUI 3.8 143x83); Tab order and SetCycleChain as MUI 3.8; MUI 5's
+  window spacing 8 and border scrollbars for MUI 4/5 programs; the settings' custom frames drawn; an
+  empty box's crossed RectFill (froze the machine) skipped. Speed, stack, memory as lean. Details in
+  [README.md](README.md#compatibility-round-5-mui-38s-spare-pixel-rule-the-layout-hooks-message-tab-order-mui-5s-window-look-custom-frames-the-crossed-rectfill-2026-11-18-branch-compat5).

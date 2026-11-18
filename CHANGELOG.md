@@ -10,6 +10,18 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Fixed
 
+- **A window could freeze the whole machine** when an object 0 pixels wide
+  or high sat in a group with a pattern background (seen with weight-0
+  objects beside spaces); nothing is drawn into an empty box now.
+- **Tab now moves like MUI 3.8's**: objects on a hidden page and disabled
+  ones are skipped, the order wraps at the ends, and Tab from no active
+  object starts at the first one. MUIM_Window_SetCycleChain works as in
+  MUI 3.8 (it chooses which objects are in the chain; the order stays the
+  window's).
+- **The HTMLtext demo's window** now opens at MUI 3.8's size (142x83
+  against 143x83); its size used to depend on leftover memory.
+- **Custom frames from the settings** (the frame pictures of a theme) are
+  now drawn.
 - **The window border's scroll arrows** (a Scrollgroup with
   MUIA_Scrollgroup_UseWinBorder, as in MUI-Demo's "Virtual" window) scrolled
   nothing; they now scroll 8 pixels a click, and held they repeat after a
@@ -20,14 +32,20 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- **Groups share their spare pixels the way MUI 3.8 does** (measured on
+  2,745 layouts on MUI 3.8: about 85 % now come out pixel for pixel the
+  same, against 70 % before). Many windows are now closer to MUI 3.8's;
+  a few moved a pixel the other way.
+- **MUI 4/5 programs get MUI 5's window look**: 8 pixels of space inside
+  every window edge, and a window too large for the screen has its
+  scrollbars in the window border. MUI 3 programs are unchanged.
 - **The text engine, the built-in images and the frames were rewritten for
   68k machines.** The library is about 7.5 KB smaller and a first MUI
   program needs 8.6 KB less memory (428 KB for MUI-Demo against 437 KB
   before and MUI 3.8's 460 KB). Radio buttons draw 2-3 % faster; everything
   else is as fast as before, and every window looks exactly as before. MUI
   4/5's text colours and effects (`\33P[RRGGBB]`, outline, shadow, ghost...)
-  are now in the MUI 4/5 file, which a MUI 3 program never loads. Custom frames from the settings are still
-  not drawn (they were not before either).
+  are now in the MUI 4/5 file, which a MUI 3 program never loads.
 - **Typing is faster, and String was rewritten for 68k machines.** A typed
   key or a backspace in a string gadget takes about a tenth less time than
   before and 11-17 % less than in MUI 3.8 (6.7 ms on a 68020 against MUI
