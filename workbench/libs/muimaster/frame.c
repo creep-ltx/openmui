@@ -343,12 +343,6 @@ static const struct ZuneFrameGfx builtin_gfx[2 * (FST_ROUNDED + 1)] = {
     {ROUND(frame_rounded_down_draw), 2, 2, 2, 2, 1, 8},
 };
 
-/* The custom frames (types 12 to 27) of a window whose settings load
- * their pictures (mri_Tail->FrameImage): no spacing, and nothing drawn,
- * as on lean, whose tile drawing was only ever handed a frame image
- * without pictures (zune_frame_prepare_for_drawing). */
-static const struct ZuneFrameGfx custom_gfx = {frame_none, 0, 0, 0, 0, 0, 0};
-
 /* Thick frames, for render infos without MUIMRI_THINFRAMES: types 1, 2, 3,
  * 4 and 9, raised and recessed, in that order */
 static const struct ZuneFrameGfx thick_gfx[10] = {
@@ -378,9 +372,14 @@ const struct ZuneFrameGfx *zune_zframe_get_with_state(
 
     if (type >= FST_CUSTOM1)
     {
+        /* the custom frames (types 12 to 27) of a window whose settings
+         * load their pictures (mri_Tail->FrameImage): the picture
+         * module's entries, which tile the picture (frame_tile.c) */
+        struct dt_frame_image *fi;
+
         if (type < FST_COUNT && mri
-            && mri->mri_Tail->FrameImage[type - FST_CUSTOM1])
-            return &custom_gfx;
+            && (fi = mri->mri_Tail->FrameImage[type - FST_CUSTOM1]))
+            return &((struct dt_custom_frame *)fi)->gfx[state & 1];
         return &builtin_gfx[2 * FST_RECT];
     }
     if (((type >= FST_RECT && type <= FST_THICK_BORDER)

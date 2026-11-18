@@ -44,6 +44,19 @@ struct dt_frame_image
     UBYTE corners_bg;       /* FRAME_CORNER_* already MPEN_BACKGROUND */
 };
 
+/* A custom frame as the picture module loads it (load_custom_frame): its
+ * image and the two frame table entries, up and down, frame.c hands out
+ * for it (ZuneFrameGfx in frame.h; ul is the state). The entries' draw
+ * function tiles the image (frame_tile.c); the inner spacing is the
+ * frame.config's. */
+#include "frame.h"
+struct dt_custom_frame
+{
+    struct dt_frame_image fi;
+    struct ZuneFrameGfx gfx[2];
+};
+void dt_custom_frame_init(struct dt_custom_frame *cf);
+
 /* Bevel corner pixels the caller has just painted with MPEN_BACKGROUND
  * (classes/area.c); the frame then need not paint them itself */
 #define FRAME_CORNER_TR 1

@@ -16,6 +16,7 @@ boot
 [ -n "$LIB" ] && { tests/lean/scripts/putlib.sh "$LIB" >/dev/null; boot; }
 wasabi put "$B" RAM:probe >/dev/null; wasabi run "protect RAM:probe +e" >/dev/null
 # PROBE_PUT="local=AMIGA ...": more files for the probe (a case list)
-for p in ${PROBE_PUT:-}; do wasabi put "${p%%=*}" "${p#*=}" >/dev/null; done
+for p in ${PROBE_PUT:-}; do d=${p#*=}; case "$d" in */*) wasabi run "makedir ${d%/*}" >/dev/null 2>&1;; esac
+  wasabi put "${p%%=*}" "$d" >/dev/null; done
 wasabi run "RAM:probe ${PROBE_ARGS:-}"
 [ -n "${KEEP:-}" ] || amiga-test $MACH stop --as $NAME >/dev/null 2>&1

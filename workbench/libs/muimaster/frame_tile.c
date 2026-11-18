@@ -295,6 +295,41 @@ AROS_UFH3S(void, FrameTileBackFillFunc, AROS_UFHA(struct Hook *, Hook, A0),
     AROS_USERFUNC_EXIT
 }
 
+/* A custom frame's draw function (struct dt_custom_frame's table entries):
+ * the frame's picture, up or down, tiled into the box; nothing if the box
+ * is smaller than the picture's corners */
+static void frame_custom_draw(const struct ZuneFrameGfx *zf,
+    struct dt_frame_image *unused, struct MUI_RenderInfo *mri, int left,
+    int top, int width, int height)
+{
+    struct dt_custom_frame *cf = (struct dt_custom_frame *)((UBYTE *)
+        (zf - zf->ul) - offsetof(struct dt_custom_frame, gfx));
+    struct dt_frame_image *fi = &cf->fi;
+    struct NewImage *ni = zf->ul ? fi->img_down : fi->img_up;
+
+    if (ni && fi->tile_left + fi->tile_right <= width
+        && fi->tile_top + fi->tile_bottom <= height)
+        dt_do_frame_rects(mri->mri_RastPort, fi, ni, left, top, width,
+            height, left, top, width, height);
+}
+
+void dt_custom_frame_init(struct dt_custom_frame *cf)
+{
+    int s;
+
+    for (s = 0; s < 2; s++)
+    {
+        struct ZuneFrameGfx *g = &cf->gfx[s];
+
+        g->draw = frame_custom_draw;
+        g->ileft = cf->fi.inner_left;
+        g->iright = cf->fi.inner_right;
+        g->itop = cf->fi.inner_top;
+        g->ibottom = cf->fi.inner_bottom;
+        g->ul = s;
+    }
+}
+
 void dt_do_frame_rects(struct RastPort *rp, struct dt_frame_image *fi,
                        struct NewImage *ni, int gl, int gt, int gw, int gh,
                        int left, int top, int width, int height)

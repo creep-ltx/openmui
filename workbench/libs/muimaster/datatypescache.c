@@ -741,13 +741,15 @@ struct dt_frame_image *load_custom_frame(CONST_STRPTR filename,
     part = FilePart(filename);
     if (Stricmp(part, "frame.config") != 0)
         return NULL;
-    fi = AllocVec(sizeof(struct dt_frame_image), MEMF_ANY | MEMF_CLEAR);
+    fi = AllocVec(sizeof(struct dt_custom_frame), MEMF_ANY | MEMF_CLEAR);
     if (fi && !ReadFrameConfig(filename, fi, scr))
     {
         FreeFrameConfig(fi);
         FreeVec(fi);
         fi = NULL;
     }
+    if (fi)
+        dt_custom_frame_init((struct dt_custom_frame *)fi);
     return fi;
 }
 
