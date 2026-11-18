@@ -18,6 +18,7 @@
 #include <proto/muimaster.h>
 #include <clib/alib_protos.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 struct Library *MUIMasterBase;
 ULONG __stack = 65536;
@@ -101,12 +102,15 @@ static void gadgets(void)
     printf("\n");
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     Object *app;
     int i;
 
-    if (!(MUIMasterBase = OpenLibrary("muimaster.library", 19)))
+    /* an argument: the version to open (20: OpenMUI's MUI 4/5 identity;
+     * MUI 5 differs in one line: Prev from none goes to the last object) */
+    if (!(MUIMasterBase = OpenLibrary("muimaster.library",
+            argc > 1 ? atoi(argv[1]) : 19)))
         return 20;
     app = ApplicationObject,
         MUIA_Application_Title, "cyclechain",

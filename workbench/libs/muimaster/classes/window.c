@@ -3946,11 +3946,12 @@ static void SetActiveObject(struct MUI_WindowData *data, Object *obj,
     {
         BOOL next = newval == MUIV_Window_ActiveObject_Next;
 
-        /* MUI 3.8: from none both go to the first object, at an end
-         * they wrap around; hidden and disabled objects are skipped */
+        /* MUI 3.8: from none both go to the first object (MUI 5: Prev to
+         * the last), at an end they wrap around; hidden and disabled
+         * objects are skipped (tests/lean/cyclechain.c) */
         if (old_active >= 0)
             data->wd_ActiveObject = ChainStep(data, old_active, next);
-        else
+        else if (!ZUNE_APP_MUI45(obj))
             next = TRUE;
         if (NULL == data->wd_ActiveObject)
             data->wd_ActiveObject = ChainStep(data,
