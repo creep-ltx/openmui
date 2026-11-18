@@ -1448,25 +1448,16 @@ static __attribute__((noinline)) void ReleaseRenderScreen(
  * screen/DrawInfo failure, TRUE otherwise. Public locks are owned until
  * cleanup; optional allocations remain incompletely checked.
  */
-/* The system images the border scrollers need, mri_LeftImage ...
- * mri_SizeImage in this order (window.h), those not made yet; also after
- * MUI 5's scroll wrap asked for border scrollers (WindowSetup) */
-static __attribute__((noinline)) void RenderInfoImages(
-    struct MUI_WindowData *data, struct MUI_RenderInfo *mri)
-{
-    static const UBYTE which[5] = {
-        LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
-    static const UBYTE need[5] = {
-        MUIWF_USEBOTTOMSCROLLER >> 8, MUIWF_USEBOTTOMSCROLLER >> 8,
-        MUIWF_USERIGHTSCROLLER >> 8, MUIWF_USERIGHTSCROLLER >> 8,
-        (MUIWF_USEBOTTOMSCROLLER | MUIWF_USERIGHTSCROLLER) >> 8 };
-    Object **img = &mri->mri_LeftImage;
-    int i;
-
-    for (i = 0; i < 5; i++)
-        if (!img[i] && ((data->wd_Flags >> 8) & need[i]))
-            img[i] = CreateSysimage(mri->mri_DrawInfo, which[i]);
-}
+/* The system images by the border scrollers that need them,
+ * mri_LeftImage ... mri_SizeImage in this order (window.h): made at
+ * SetupRenderInfo, and those still missing after MUI 5's scroll wrap
+ * asked for border scrollers (WindowScrollWrap) */
+static const UBYTE sysimage_which[5] = {
+    LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
+static const UBYTE sysimage_need[5] = {
+    MUIWF_USEBOTTOMSCROLLER >> 8, MUIWF_USEBOTTOMSCROLLER >> 8,
+    MUIWF_USERIGHTSCROLLER >> 8, MUIWF_USERIGHTSCROLLER >> 8,
+    (MUIWF_USEBOTTOMSCROLLER | MUIWF_USERIGHTSCROLLER) >> 8 };
 
 static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
     struct MUI_RenderInfo *mri)
@@ -1474,7 +1465,7 @@ static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_Wi
     struct MUI_GlobalInfo *mgi = muiGlobalInfo(obj);
     struct ZunePrefsNew *prefs = mgi->mgi_Prefs;
     struct Screen *scr;
-    Object *temp_obj;
+    Object **img, *temp_obj;
     ULONG deep;
     int i;
 
@@ -1560,7 +1551,10 @@ static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_Wi
     for (i = 0; i < -MUIV_Font_NegCount; i++)
         mri->mri_Fonts[i] = NULL;
 
-    RenderInfoImages(data, mri);
+    img = &mri->mri_LeftImage;
+    for (i = 0; i < 5; i++)
+        img[i] = ((data->wd_Flags >> 8) & sysimage_need[i])
+            ? CreateSysimage(mri->mri_DrawInfo, sysimage_which[i]) : NULL;
 
     /* In fact borderless windows could also have borders (e.g. if they
      * have a window title) but since they look ugly anyway we ignore it
@@ -5166,7 +5160,14 @@ static __attribute__((noinline)) Object *WindowScrollWrap(Object *obj,
         data->wd_RootObject = sg;
         data->wd_Flags |= MUIWF_SCROLLWRAP | (border ? MUIWF_WRAPBORDERS
             | MUIWF_USERIGHTSCROLLER | MUIWF_USEBOTTOMSCROLLER : 0);
-        RenderInfoImages(data, &data->wd_RenderInfo);
+        struct MUI_RenderInfo *mri = &data->wd_RenderInfo;
+        Object **img = &mri->mri_LeftImage;
+        int i;
+
+        for (i = 0; i < 5; i++)
+            if (!img[i] && ((data->wd_Flags >> 8) & sysimage_need[i]))
+                img[i] = CreateSysimage(mri->mri_DrawInfo,
+                    sysimage_which[i]);
     }
     return sg;
 }
