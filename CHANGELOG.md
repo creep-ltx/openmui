@@ -41,6 +41,10 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- **Area data keeps the inner spacing and control char where MUI 3.8 does**
+  (measured: `MUIA_InnerLeft/Top/Right/Bottom` at offsets 88-91, the control char
+  at 96), for programs that read them through MUI's private macros. The
+  structure stays 108 bytes.
 - **Groups share their spare pixels the way MUI 3.8 does** (measured on
   2,745 layouts on MUI 3.8: about 85 % now come out pixel for pixel the
   same, against 70 % before). Many windows are now closer to MUI 3.8's;

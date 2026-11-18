@@ -5538,3 +5538,15 @@ the wrap's images); the pixel tests on 5f13b3c0 and 680f2736 (the later commits 
 - Tested in emulators only (Amiberry headless since 2026-11-11, FS-UAE before and still
   selectable), not on real hardware; RTG only as uaegfx with Picasso96 3.6.3 in FS-UAE (rtgfix):
   headless Amiberry has no RTG modes. InstallerNG cannot be tested on Amiberry (it freezes it).
+
+## Area data at MUI 3.8's offsets 80-107 (2026-11-18)
+
+Branch `areaoff`. Applications and classes read area data through MUI's private macros (as
+`_vtop` at 72, round 3e86cff7). `tests/native/areainner.c` dumps bytes 80-107 of a Text with
+`MUIA_InnerLeft/Top/Right/Bottom` 3/5/7/9 and `MUIA_ControlChar` 'q' and of a framed group with a
+title; on MUI 3.8 the inner values are at 88-91 and the control char at 96 (the dump also shows
+unexplained bytes at 80-87, 94, 95, 97-99, left alone). Now the same on OpenMUI (emulator,
+`RESULT inner 03 05 07 09 ctrl 71`). Layout (size stays 108): 80 mad_FrameTitle, 84 mad_Live,
+88-91 InnerLeft..Bottom, 92 mad_Frame, 96 ControlChar, 97-99 TitleHeightAdd/Below/Above, 100
+mad_Rare, 104 ehnPriority, 105 InputMode, 106 DisableCount. Static asserts in `area.h`, ABI
+checks in `compatcheck.c`; `check_area_live.py` follows. Still open: what MUI keeps at 80-87.
