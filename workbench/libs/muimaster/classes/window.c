@@ -1237,6 +1237,8 @@ struct MUI_WindowData
                                          * contents outgrew the screen */
 #define MUIWF_SCROLLWRAP        (1<<20) /* the root is MUI 5's Scrollgroup
                                          * around the program's root */
+#define MUIWF_WRAPBORDERS       (1<<21) /* and its scrollbars are in the
+                                         * window's border */
 
 /* Bubble help delays in IntuiTicks (1/10 s), from the settings as on
  * MUI 3.8 (2.0 s and 0.3 s by default); Zune used fixed 1.0 and 0.3 s */
@@ -1446,21 +1448,33 @@ static __attribute__((noinline)) void ReleaseRenderScreen(
  * screen/DrawInfo failure, TRUE otherwise. Public locks are owned until
  * cleanup; optional allocations remain incompletely checked.
  */
-static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
-    struct MUI_RenderInfo *mri)
+/* The system images the border scrollers need, mri_LeftImage ...
+ * mri_SizeImage in this order (window.h), those not made yet; also after
+ * MUI 5's scroll wrap asked for border scrollers (WindowSetup) */
+static __attribute__((noinline)) void RenderInfoImages(
+    struct MUI_WindowData *data, struct MUI_RenderInfo *mri)
 {
-    /* the system images by the border scrollers that need them,
-     * mri_LeftImage ... mri_SizeImage in this order (window.h) */
     static const UBYTE which[5] = {
         LEFTIMAGE, RIGHTIMAGE, UPIMAGE, DOWNIMAGE, SIZEIMAGE };
     static const UBYTE need[5] = {
         MUIWF_USEBOTTOMSCROLLER >> 8, MUIWF_USEBOTTOMSCROLLER >> 8,
         MUIWF_USERIGHTSCROLLER >> 8, MUIWF_USERIGHTSCROLLER >> 8,
         (MUIWF_USEBOTTOMSCROLLER | MUIWF_USERIGHTSCROLLER) >> 8 };
+    Object **img = &mri->mri_LeftImage;
+    int i;
+
+    for (i = 0; i < 5; i++)
+        if (!img[i] && ((data->wd_Flags >> 8) & need[i]))
+            img[i] = CreateSysimage(mri->mri_DrawInfo, which[i]);
+}
+
+static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_WindowData *data,
+    struct MUI_RenderInfo *mri)
+{
     struct MUI_GlobalInfo *mgi = muiGlobalInfo(obj);
     struct ZunePrefsNew *prefs = mgi->mgi_Prefs;
     struct Screen *scr;
-    Object **img, *temp_obj;
+    Object *temp_obj;
     ULONG deep;
     int i;
 
@@ -1546,10 +1560,7 @@ static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_Wi
     for (i = 0; i < -MUIV_Font_NegCount; i++)
         mri->mri_Fonts[i] = NULL;
 
-    img = &mri->mri_LeftImage;
-    for (i = 0; i < 5; i++)
-        img[i] = ((data->wd_Flags >> 8) & need[i])
-            ? CreateSysimage(mri->mri_DrawInfo, which[i]) : NULL;
+    RenderInfoImages(data, mri);
 
     /* In fact borderless windows could also have borders (e.g. if they
      * have a window title) but since they look ugly anyway we ignore it
@@ -3820,7 +3831,10 @@ static __attribute__((noinline)) void ChangeRootObject(struct MUI_WindowData *da
             if (data->wd_Flags & MUIWF_SCROLLWRAP)
             {
                 zune_window_scrollwrap(oldRoot, ZUNE_SW_UNWRAP);
-                data->wd_Flags &= ~MUIWF_SCROLLWRAP;
+                if (data->wd_Flags & MUIWF_WRAPBORDERS)
+                    data->wd_Flags &= ~(MUIWF_USERIGHTSCROLLER
+                        | MUIWF_USEBOTTOMSCROLLER);
+                data->wd_Flags &= ~(MUIWF_SCROLLWRAP | MUIWF_WRAPBORDERS);
             }
         }
 
@@ -4896,6 +4910,13 @@ static void SetRootObjInnerSpacing(Object *obj,
         wd_innerRight = muiGlobalInfo(obj)->mgi_Prefs->window_inner_right;
         wd_innerTop = muiGlobalInfo(obj)->mgi_Prefs->window_inner_top;
         wd_innerBottom = muiGlobalInfo(obj)->mgi_Prefs->window_inner_bottom;
+        /* MUI 5's window spacing for a MUI 4/5 program: 8 on every side
+         * where the settings have MUI 3.8's default 4/4/3/3 (black box,
+         * tests/lean/probe/m5look.c: a 100x50 contents gets a 124x79
+         * window on MUI 5, 116x69 on MUI 3.8) */
+        if (ZUNE_APP_MUI45(obj) && wd_innerLeft == 4 && wd_innerRight == 4
+            && wd_innerTop == 3 && wd_innerBottom == 3)
+            wd_innerLeft = wd_innerRight = wd_innerTop = wd_innerBottom = 8;
         /* MUI 3.8 keeps 2 pixels of window spacing left and right and 1
          * above and below from the third stage of fitting a window into
          * the screen */
@@ -5178,12 +5199,24 @@ static __attribute__((noinline)) ULONG WindowOpen(struct IClass *cl, Object *obj
          * program asking for version 20 meets today: its own EmbeddedImages
          * and Pointers demos open scrollable on real MUI 5, 2026-11-11),
          * never for MUI 3.8; the code in the title gadget module */
+        /* with its scrollbars in the window's border as MUI 5 has them
+         * (the Pointers demo on real MUI 5), unless the program uses the
+         * border's scrollbars itself */
         if (MGI_IDENTITY(muiGlobalInfo(obj)) >= ZUNE_ID_MUI4
-            && !(data->wd_Flags & MUIWF_SCROLLWRAP)
-            && (sg = zune_window_scrollwrap(obj, ZUNE_SW_WRAP)))
+            && !(data->wd_Flags & MUIWF_SCROLLWRAP))
         {
-            data->wd_RootObject = sg;
-            data->wd_Flags |= MUIWF_SCROLLWRAP;
+            ULONG border = !(data->wd_Flags
+                & (MUIWF_USERIGHTSCROLLER | MUIWF_USEBOTTOMSCROLLER));
+
+            if ((sg = zune_window_scrollwrap(obj,
+                border ? ZUNE_SW_WRAPBORDER : ZUNE_SW_WRAP)))
+            {
+                data->wd_RootObject = sg;
+                data->wd_Flags |= MUIWF_SCROLLWRAP | (border
+                    ? MUIWF_WRAPBORDERS | MUIWF_USERIGHTSCROLLER
+                    | MUIWF_USEBOTTOMSCROLLER : 0);
+                RenderInfoImages(data, mri);
+            }
         }
         if ((!sg && (mri->mri_Fallback >= FALLBACK_TOPAZ
                 || (++mri->mri_Fallback, FALSE)))

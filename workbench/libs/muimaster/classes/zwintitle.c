@@ -94,13 +94,14 @@ static Object *zmod_window_scrollwrap(Object *obj, ULONG op)
     struct List *children = NULL;
     APTR cstate;
 
-    if (op == ZUNE_SW_WRAP)
+    if (op == ZUNE_SW_WRAP || op == ZUNE_SW_WRAPBORDER)
     {
         /* obj is the window, its root set up no more: both groups made
          * empty first, so a failure leaves the root as it was */
         get(obj, MUIA_Window_RootObject, &root);
         virt = MUI_NewObject(MUIC_Virtgroup, TAG_DONE);
         sg = virt ? MUI_NewObject(MUIC_Scrollgroup,
+            MUIA_Scrollgroup_UseWinBorder, op == ZUNE_SW_WRAPBORDER,
             MUIA_Scrollgroup_Contents, (IPTR)virt, TAG_DONE) : NULL;
         if (!sg)
         {

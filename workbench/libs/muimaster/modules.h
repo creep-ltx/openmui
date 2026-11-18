@@ -201,6 +201,8 @@ int zune_wintitle_menu(struct Window *pw, struct DrawInfo *dri,
 #define ZUNE_SW_WRAP 0
 #define ZUNE_SW_UNWRAP 1
 #define ZUNE_SW_PEEK 2
+/* ZUNE_SW_WRAP with the scrollbars in the window's border (MUI 5's look) */
+#define ZUNE_SW_WRAPBORDER 3
 Object *zune_window_scrollwrap(Object *obj, ULONG op);
 /* MUIM_Window_Snapshot: edit window id's record in the application's
  * saved settings (ENV: and ENVARC:), remember = its position from the
