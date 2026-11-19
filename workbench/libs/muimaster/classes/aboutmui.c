@@ -893,21 +893,20 @@ static const UBYTE body[] =
  * it is not MUI. English only (the catalogs' old Zune text is not used);
  * 15 lines of at most 66 characters, so it fits 640x256 in Topaz 8. */
 #define ABOUT_TEXT \
-    MUIX_B "OpenMUI " ZUNE68_EDITION_NUMBER " (test build)" MUIX_N "\n" \
-    "muimaster.library " ZUNE68_LIBRARY_VERSION_STRING ", " ZUNE68_LIBRARY_DATE "\n" \
+    MUIX_B "OpenMUI " ZUNE68_EDITION_NUMBER MUIX_N "\n" \
+    "muimaster.library " ZUNE68_LIBRARY_VERSION_STRING " (" ZUNE68_LIBRARY_DATE ")\n" \
     "\n" \
-    "The lean edition of Zune for classic AmigaOS 3: it aims at the\n" \
-    "look and memory use of MUI 3.8, and runs MUI 3, 4 and 5 programs.\n" \
-    "MUI 3.8 was studied clean-room: its behaviour, never its code.\n" \
+    "A MUI-compatible GUI system for classic AmigaOS 3.x.\n" \
+    "Runs MUI 3, 4 and 5 programs.\n" \
     "\n" \
-    "Zune: The AROS Development Team (AROS).\n" \
-    "Zune68: Zune on classic AmigaOS 3, by Stefan Reinauer.\n" \
-    "OpenMUI: the lean edition, by its contributors.\n" \
+    "OpenMUI by Tobias Karlsson.\n" \
+    "Based on Zune by The AROS Development Team,\n" \
+    "as ported to AmigaOS 3 by Stefan Reinauer (Zune68).\n" \
     "\n" \
     "OpenMUI is not MUI and is not affiliated with MUI's authors.\n" \
-    "MUI is the product of Stefan Stuntz.\n" \
+    "MUI was created by Stefan Stuntz; MUI 4 and 5 by the MUI team.\n" \
     "\n" \
-    "AROS Public License. Copyright 2002-2026 The AROS Development Team."
+    "AROS Public License."
 
 /****** Aboutmui.mui/MUIA_Aboutmui_Application *******************************
 *
