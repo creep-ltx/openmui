@@ -74,27 +74,29 @@ Shell: SYS:OpenMUI/Data/OpenMUISwitch MUI|OPENMUI|UNINSTALL|STATUS.
 Performance
 -----------
 Cycle-exact FS-UAE emulation of an A1200 (68EC020), OS 3.1, 4 MB fast
-RAM; MUI 5 on OS 3.2.1. Not measured on a real Amiga.
+RAM; MUI 5 on OS 3.2.1. Measured 2026-11-19; not measured on a real
+Amiga.
 
                            OpenMUI    MUI 3.8     MUI 5
  MUI-Demo, first program   428.2 KB   460.3 KB    1,293.7 KB
  each further program      193.1 KB   210.6-218.9 KB  427-435 KB
 
- ms per operation          OpenMUI    MUI 3.8     MUI 5
- application + windows     183-189    235-236     578-587 *
- window open + close       398        520-523     1,027-1,041 *
- button click              16.6       22.3        21.2 *
- string, one key           6.7        7.5-7.9     15.4 *
- list insert, 1,000 rows   248        6,652       20,253 *
- (* MUI 5 column: OpenMUI measured 236-250, 481, 17.7, 7.6 and 477
+ ms per operation (A1200)  OpenMUI    MUI 3.8     MUI 5
+ application + windows     189-190    235         577 *
+ window open + close       399-401    520-521     1,028-1,030 *
+ button click              16.6-16.9  22.4-22.6   20.8-21.2 *
+ string, one key           6.7        7.8-7.9     14.9-15.4 *
+ list insert, 1,000 rows   249        6,648-6,651 20,201-20,206 *
+ (* MUI 5 column: OpenMUI measured 201-203, 442, 16.7-16.9, 7.5 and 249
  against it in the same session.)
 
-OpenMUI is as fast as MUI 3.8 or faster in 24 of 26 common operations
-and faster than MUI 5 in all 27. It runs on a 68000 with OS 3.1.
+Measured 2026-11-19. OpenMUI is as fast as MUI 3.8 or
+faster in all 26 common operations on an A1200 (24 of 26 on an A600, two
+level) and faster than MUI 5 in all 27. It runs on a 68000 with OS 3.1.
 
 Compatibility
 -------------
-Tested in emulators against real MUI 3.8 and MUI 5 with 184 programs and
+Tested in emulators against real MUI 3.8 and MUI 5 with 182 programs and
 class demos (YAM, AmIRC, AmFTP, IBrowse, SimpleMail, NList, TextEditor,
 TheBar and others). 19 of MUI's 27 demo windows are pixel-identical to
 MUI 3.8. Known differences: Docs/OpenMUI/DeveloperGuide.txt.

@@ -801,6 +801,139 @@ library in this session, MUI 3.8 the Application round's):
 | A600 cycle set / radio set | 9.44 / 60.7 | 7.87-7.96 / 32.9-33.0 | 7.86-7.94 / 32.4 |
 | stackrun MUI-Demo / Layout / Virtual / Pages / Slidorama | | 4,924 / 2,224 / 2,168 / 2,196 / 2,260 | the same |
 
+## Measurement of 2026-11-19: opbench against MUI 3.8 and MUI 5, memory (branch `meas`, build of that day)
+
+Emulator figures (FS-UAE, cycle-exact, warp mode; the EClock counts emulated time), the library built
+from branch `lean` (68000 build, GCC 16.2), `tests/lean/scripts/opbench.sh`, medians of 9 repetitions
+in ms per operation, two instances of each library, the second round with the instances swapped. A1200
+= a1200-31-mui38 (68EC020, OS 3.1, 4 MB fast); A600 = a600-31 (68000, OS 3.1) with `fast_memory = 4096`
+and MUI 3.8's `MUI:` drawer and startup assigns copied on; MUI 5 = a1200-32-mui5 (OS 3.2.1, MUI 5
+21.227) against OpenMUI in its place (`MUI:Libs` moved aside, `opbench v21`, MUI 5 identity). Last
+column: mean of the two OpenMUI instances over the mean of the two reference instances. "text shorten
+set" (V20) runs only as version 21; MUI 5's two instances come from a second pair of runs.
+
+### A1200 (68EC020): OpenMUI against MUI 3.8
+
+| operation | MUI 3.8 inst 1 | MUI 3.8 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | OpenMUI / MUI 3.8 |
+|---|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 92.12 | 90.36 | 15.89 | 15.98 | 0.17 |
+| app+windows create | 235.15 | 234.58 | 189.52 | 189.24 | 0.81 |
+| window open+close | 520.25 | 521.47 | 399.20 | 400.95 | 0.77 |
+| full redraw | 150.61 | 140.31 | 132.85 | 132.91 | 0.91 |
+| relayout | 207.00 | 197.29 | 172.59 | 172.45 | 0.85 |
+| slider set | 4.04 | 4.10 | 2.71 | 2.71 | 0.67 |
+| notify chain | 7.82 | 7.93 | 5.63 | 5.63 | 0.72 |
+| cycle set | 2.44 | 2.44 | 2.02 | 2.01 | 0.83 |
+| radio set | 15.56 | 15.56 | 8.27 | 8.27 | 0.53 |
+| text set | 2.50 | 2.51 | 2.39 | 2.39 | 0.95 |
+| list insert 1 | 10.34 | 10.31 | 8.19 | 8.18 | 0.79 |
+| list insert 100 | 832.41 | 831.15 | 60.99 | 61.63 | 0.07 |
+| list insert 1000 | 6,648.4 | 6,650.8 | 248.76 | 248.62 | 0.04 |
+| list active | 21.13 | 21.13 | 18.80 | 18.81 | 0.89 |
+| list scroll line | 14.63 | 14.59 | 13.26 | 13.24 | 0.91 |
+| list scroll page | 44.40 | 44.41 | 39.18 | 39.17 | 0.88 |
+| list sort 1000 | 658.04 | 657.98 | 94.03 | 95.01 | 0.14 |
+| button click | 22.56 | 22.43 | 16.57 | 16.88 | 0.74 |
+| string type | 7.85 | 7.82 | 6.66 | 6.66 | 0.85 |
+| string backspace | 7.72 | 7.72 | 6.54 | 6.61 | 0.85 |
+| menu open+close | 13.19 | 13.22 | 13.15 | 13.13 | 0.99 |
+| iconify | 84.12 | 84.39 | 77.81 | 78.42 | 0.93 |
+| uniconify | 448.75 | 448.52 | 336.96 | 338.02 | 0.75 |
+| register page | 53.67 | 53.73 | 42.61 | 42.58 | 0.79 |
+| popup open+close | 120.04 | 120.01 | 95.71 | 95.67 | 0.80 |
+| window resize | 230.10 | 230.10 | 220.08 | 220.09 | 0.96 |
+
+
+All 26 at 0.99 or below (0.04 to 0.99).
+
+### A600 (68000, 4 MB fast): OpenMUI against MUI 3.8
+
+| operation | MUI 3.8 inst 1 | MUI 3.8 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | OpenMUI / MUI 3.8 |
+|---|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 354.21 | 353.05 | 65.82 | 67.02 | 0.19 |
+| app+windows create | 931.90 | 930.86 | 752.81 | 763.75 | 0.81 |
+| window open+close | 1,760.8 | 1,754.0 | 1,380.8 | 1,390.4 | 0.79 |
+| full redraw | 470.06 | 474.21 | 441.65 | 441.10 | 0.93 |
+| relayout | 697.82 | 701.59 | 607.66 | 607.70 | 0.87 |
+| slider set | 15.70 | 15.12 | 10.09 | 10.10 | 0.66 |
+| notify chain | 30.58 | 29.37 | 20.90 | 20.85 | 0.70 |
+| cycle set | 9.34 | 9.32 | 7.84 | 7.81 | 0.84 |
+| radio set | 60.41 | 60.39 | 32.32 | 32.30 | 0.53 |
+| text set | 9.68 | 9.66 | 9.43 | 9.42 | 0.97 |
+| list insert 1 | 32.40 | 32.38 | 32.95 | 32.53 | 1.01 |
+| list insert 100 | 2,738.9 | 2,743.2 | 230.21 | 225.88 | 0.08 |
+| list insert 1000 | 23,913.5 | 23,912.2 | 1,016.9 | 1,007.9 | 0.04 |
+| list active | 64.84 | 64.83 | 61.37 | 60.59 | 0.94 |
+| list scroll line | 39.88 | 39.97 | 37.38 | 37.03 | 0.93 |
+| list scroll page | 153.59 | 153.54 | 134.67 | 133.76 | 0.87 |
+| list sort 1000 | 2,490.0 | 2,487.5 | 378.92 | 386.27 | 0.15 |
+| button click | 92.33 | 91.50 | 68.64 | 68.64 | 0.75 |
+| string type | 31.37 | 31.66 | 26.27 | 26.22 | 0.83 |
+| string backspace | 31.09 | 31.28 | 25.82 | 25.83 | 0.83 |
+| menu open+close | 46.49 | 46.79 | 47.48 | 47.23 | 1.02 |
+| iconify | 295.81 | 301.69 | 230.63 | 232.24 | 0.77 |
+| uniconify | 1,529.6 | 1,535.0 | 1,247.8 | 1,247.9 | 0.81 |
+| register page | 160.09 | 160.14 | 144.86 | 144.96 | 0.91 |
+| popup open+close | 404.47 | 407.75 | 338.62 | 341.63 | 0.84 |
+| window resize | 620.21 | 620.20 | 521.34 | 528.22 | 0.85 |
+
+
+24 of 26 below 0.98 (0.04 to 0.97); list insert 1 (1.01) and menu open+close (1.02) level.
+
+### OS 3.2.1: OpenMUI (MUI 5 identity) against MUI 5 21.227
+
+| operation | MUI 5 inst 1 | MUI 5 inst 2 | OpenMUI v21 inst 1 | OpenMUI v21 inst 2 | OpenMUI v21 / MUI 5 |
+|---|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 299.74 | 300.65 | 17.29 | 17.77 | 0.06 |
+| app+windows create | 577.34 | 577.02 | 201.30 | 202.88 | 0.35 |
+| window open+close | 1,028.1 | 1,030.2 | 442.20 | 441.51 | 0.43 |
+| full redraw | 206.01 | 205.99 | 139.03 | 138.99 | 0.67 |
+| relayout | 316.84 | 316.56 | 181.52 | 181.57 | 0.57 |
+| slider set | 6.75 | 6.74 | 3.02 | 3.02 | 0.45 |
+| notify chain | 12.75 | 12.76 | 6.22 | 6.22 | 0.49 |
+| cycle set | 2.72 | 2.73 | 2.05 | 2.05 | 0.75 |
+| radio set | 11.86 | 11.87 | 8.39 | 8.39 | 0.71 |
+| text set | 2.25 | 2.25 | 1.65 | 1.66 | 0.74 |
+| list insert 1 | 22.80 | 22.81 | 9.04 | 9.04 | 0.40 |
+| list insert 100 | 2,033.8 | 2,033.2 | 61.37 | 61.43 | 0.03 |
+| list insert 1000 | 20,206.4 | 20,201.1 | 248.69 | 249.08 | 0.01 |
+| list active | 39.08 | 39.09 | 18.43 | 18.58 | 0.47 |
+| list scroll line | 21.12 | 21.09 | 14.56 | 14.57 | 0.69 |
+| list scroll page | 56.81 | 56.82 | 39.75 | 39.73 | 0.70 |
+| list sort 1000 | 2,306.3 | 2,305.5 | 137.42 | 137.72 | 0.06 |
+| button click | 21.20 | 20.76 | 16.86 | 16.68 | 0.80 |
+| string type | 15.36 | 14.87 | 7.48 | 7.48 | 0.49 |
+| string backspace | 14.77 | 14.32 | 7.41 | 7.41 | 0.51 |
+| menu open+close | 26.22 | 22.54 | 19.98 | 19.99 | 0.82 |
+| iconify | 198.11 | 197.67 | 98.64 | 97.97 | 0.50 |
+| uniconify | 1,214.6 | 1,211.8 | 372.06 | 372.54 | 0.31 |
+| register page | 88.54 | 88.48 | 44.91 | 44.91 | 0.51 |
+| popup open+close | 527.00 | 538.10 | 104.09 | 104.06 | 0.20 |
+| window resize | 290.25 | 290.10 | 170.06 | 169.94 | 0.59 |
+| text shorten set | 4.68 | 4.69 | 3.47 | 3.43 | 0.74 |
+
+
+All 27 below 0.83 (0.01 to 0.82).
+
+### Memory (MUI-Demo cold, `measure.sh`, `libonly.sh`, bytes)
+
+| | first program | each further | library alone | first window |
+|---|---:|---:|---:|---:|
+| OpenMUI, OS 3.1 | 428,152-428,176 | 193,032-193,120 | 246,088 | 1.30-1.32 s |
+| MUI 3.8, OS 3.1 | 460,296 | 210,632-210,696 / 218,888 | 238,520 | 1.52-1.62 s |
+| OpenMUI, MUI 5 identity, OS 3.2.1 | 434,840 | 201,704-201,744 | 249,968 | 1.68-1.70 s |
+| MUI 5 21.227, OS 3.2.1 | 1,293,680 | 427,104-435,480 | 581,024 | 4.28-4.40 s |
+
+Files on disk, stripped (`m68k-amigaos-strip`): OpenMUI muimaster.library 232,200 bytes (254,124 unstripped) and 54 class
+files in `LIBS:OpenMUI` 289,948; MUI 3.8 166,412 and 36 files in `MUI:Libs/mui` 271,208; MUI 5 565,488
+and 80 files 2,053,912. The identity setting of the MUI 5 row: `ENVARC:OpenMUI/BehaveAs` = `MUI5`.
+
+### Test count
+
+`tests/lean/real/programs.sh`: 185 `P` lines, 3 IDs listed twice (datestring-demo, envelope-demo,
+tron-demo): 182 distinct entries, groups mui3 100, mui5 24, mcc 58 (61 lines). Earlier figures of 184
+(100 + 24 + 60), 181 and 132 + 60 do not match the table; 182 is used in the documentation.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,

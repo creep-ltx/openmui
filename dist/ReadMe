@@ -109,8 +109,8 @@ in that list.
 
 Status
 ------
-muimaster.library [VERSION], dated [RELEASE]. Emulator measurements (A1200,
-OS 3.1, 4 MB fast RAM): MUI-Demo needs 428 KB for the first program (MUI
+muimaster.library [VERSION], dated [RELEASE]. Emulator measurements of
+2026-11-19 (A1200, OS 3.1, 4 MB fast RAM): MUI-Demo needs 428 KB for the first program (MUI
 3.8: 460 KB) and 193 KB for each further one (MUI 3.8: 211-219 KB). Not
 measured on a real Amiga. Reports: https://github.com/creep-ltx/openmui
 

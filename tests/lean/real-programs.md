@@ -1,6 +1,6 @@
 # The real-program suite
 
-Real MUI programs (100 MUI 3 programs, 24 MUI 4/5 ones, 60 add-on class demos since 2026-11-12), started on Zune and on real MUI, compared side by side. Every change of the
+Real MUI programs (100 MUI 3 programs, 24 MUI 4/5 ones, 58 add-on class demos: 182 distinct entries; `real/programs.sh` has 185 lines, 3 IDs listed twice), started on Zune and on real MUI, compared side by side. Every change of the
 lean edition is checked with it (roadmap phase 1). The programs are freely downloadable; they are
 fetched into `~/.cache/zune68k-real/` (never committed, never redistributed) and run only in the
 test machines (`~/UAE/TestMachines`), in Amiberry headless since 2026-11-11 (`EMU=fsuae` for FS-UAE).

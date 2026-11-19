@@ -24,6 +24,10 @@ measured on a real Amiga.
 
 ![OpenMUI's time as a share of MUI 3.8's, 26 operations](docs/stats/speed-mui38.png)
 
+### Speed on an A600 against MUI 3.8
+
+![OpenMUI's time as a share of MUI 3.8's on an A600, 26 operations](docs/stats/speed-a600.png)
+
 ### Speed against MUI 5
 
 ![OpenMUI's time as a share of MUI 5's, 27 operations](docs/stats/speed-mui5.png)
@@ -46,77 +50,84 @@ measured on a real Amiga.
 
 All values, with exact numbers on hover and table views:
 [docs/stats/openmui-stats.html](docs/stats/openmui-stats.html) (download and
-open in a browser). The pictures show the measurements of 2026-11-12; the
-tables below are current. Measurement methods:
+open in a browser). The pictures and the tables below show the measurements of
+2026-11-19 (Zune68's figures: 2026-11-12). Measurement methods:
 [docs/lean/measurements.md](docs/lean/measurements.md).
 
 ## Memory
 
-MUI-Demo cold start, bytes of RAM taken. OS 3.1 with 4 MB fast RAM
-(MUI 5: OS 3.2.1), FS-UAE.
+MUI-Demo cold start, bytes of RAM taken. Measured 2026-11-19: OS 3.1 with
+4 MB fast RAM (MUI 5: OS 3.2.1), FS-UAE, 68000 build.
 
 | | OpenMUI | MUI 3.8 | MUI 5 |
 |---|---:|---:|---:|
 | First program (library and classes loaded) | 428.2 KB | 460.3 KB | 1,293.7 KB |
 | Each further program | 193.1 KB | 210.6-218.9 KB | 427-435 KB |
-| Library alone in memory | 246,048 bytes | 238,520 bytes | - |
+| Library alone in memory | 246,088 bytes | 238,520 bytes | 581,024 bytes |
 
-The OpenMUI library file is 232,200 bytes (stripped, 68000 build); the
-rarely used classes are separate files in `LIBS:OpenMUI`.
+With MUI 5 behaviour (OS 3.2.1) OpenMUI takes 434.8 KB for the first
+program, 201.7 KB for each further one and 249,968 bytes for the library
+alone.
+
+Files on disk (stripped): OpenMUI's library 232,200 bytes plus 54 class files
+in `LIBS:OpenMUI` (289,948 bytes, loaded only when used); MUI 3.8's 166,412
+plus 36 class files (271,208); MUI 5's 565,488 plus 80 (2,053,912).
 
 ## Speed
 
-Milliseconds per operation, median of 9 repetitions (A600: 5), the same test
+Milliseconds per operation, measured 2026-11-19: median of 9 repetitions, the same test
 program on every library, cycle-exact FS-UAE emulation of an A1200 (68EC020,
-14 MHz) and an A600 (68000, 7 MHz), OS 3.1 with 4 MB fast RAM. Lower is
-better. Ranges are the spread over several instances of the emulated machine.
+14 MHz) and an A600 (68000, 7 MHz), OS 3.1 with 4 MB fast RAM, two instances
+of each library, swapped. Lower is better. Ranges are the spread over the two
+instances.
 
 | Operation | A1200 OpenMUI | A1200 MUI 3.8 | A600 OpenMUI | A600 MUI 3.8 |
 |---|---:|---:|---:|---:|
-| Application, empty | 16 | 92-93 | 66-67 | 370 |
-| Application with windows, create | 183-189 | 235-236 | 758 | 948 |
-| Window open + close | 398 | 520-523 | 1,384-1,396 | 1,779 |
-| Full redraw | 133 | 140-151 | 442 | 472 |
-| Relayout | 173 | 197-207 | 613 | 701 |
-| Slider set | 2.7 | 4.0-4.1 | 10.2 | 15.8 |
-| Notification chain | 5.7 | 7.8-7.9 | 21.0 | 30.6 |
-| Cycle set | 2.0 | 2.4 | 7.9 | 9.4 |
-| Radio set | 8.3 | 15.6 | 32.4 | 60.7 |
+| Application, empty | 15.9-16.0 | 90-92 | 66-67 | 353-354 |
+| Application with windows, create | 189-190 | 235 | 753-764 | 931-932 |
+| Window open + close | 399-401 | 520-521 | 1,381-1,390 | 1,754-1,761 |
+| Full redraw | 133 | 140-151 | 441-442 | 470-474 |
+| Relayout | 172-173 | 197-207 | 608 | 698-702 |
+| Slider set | 2.7 | 4.0-4.1 | 10.1 | 15.1-15.7 |
+| Notification chain | 5.6 | 7.8-7.9 | 20.9 | 29.4-30.6 |
+| Cycle set | 2.0 | 2.4 | 7.8 | 9.3 |
+| Radio set | 8.3 | 15.6 | 32.3 | 60 |
 | Text set | 2.4 | 2.5 | 9.4 | 9.7 |
-| List insert, 100 rows | 61-62 | 830-833 | 231-232 | 2,760 |
-| List insert, 1,000 rows | 248-249 | 6,652-6,662 | 1,014 | 24,027 |
-| List sort, 1,000 rows | 95 | 659 | 384-386 | 2,504 |
-| List scroll, one row | 13.2 | 14.6 | 37.4 | 40.0 |
-| Button click | 16.6-16.8 | 22.3-22.4 | 66-69 | 91.5 |
-| String, one key | 6.7 | 7.5-7.9 | 26.2-26.4 | 30.7-31.5 |
-| String, backspace | 6.6 | 7.5-7.8 | 25.8-26.2 | 30.4-31.2 |
-| Register page | 42.5 | 53.7-53.8 | 145 | 164 |
-| Popup open + close | 95-96 | 120 | 341-347 | 416 |
-| Uniconify | 337-340 | 450-451 | 1,248 | 1,556 |
+| List insert, 100 rows | 61-62 | 831-832 | 226-230 | 2,739-2,743 |
+| List insert, 1,000 rows | 249 | 6,648-6,651 | 1,008-1,017 | 23,912-23,914 |
+| List sort, 1,000 rows | 94-95 | 658 | 379-386 | 2,488-2,490 |
+| List scroll, one row | 13.2-13.3 | 14.6 | 37.0-37.4 | 39.9-40.0 |
+| Button click | 16.6-16.9 | 22.4-22.6 | 69 | 91-92 |
+| String, one key | 6.7 | 7.8-7.9 | 26.2-26.3 | 31.4-31.7 |
+| String, backspace | 6.5-6.6 | 7.7 | 25.8 | 31.1-31.3 |
+| Register page | 42.6 | 54 | 145 | 160 |
+| Popup open + close | 96 | 120 | 339-342 | 404-408 |
+| Uniconify | 337-338 | 449 | 1,248 | 1,530-1,535 |
 
 Operations not listed (menu, iconify, window resize, list active, list scroll
-by page, list insert of one row) are within 5 percent of MUI 3.8's or faster
-on the A1200. In the A600 column, list insert of one row (33 ms against 32.5)
-is level with MUI 3.8. The complete tables are in
-[docs/lean/measurements.md](docs/lean/measurements.md).
+by page, list insert of one row, text set) take 0.79 to 0.99 of MUI 3.8's time
+on the A1200 (menu 13.2 ms against 13.2). On the A600, list insert of one row
+(32.5-33.0 ms against 32.4) and menu open + close (47.2-47.5 against 46.5-46.8)
+are level with MUI 3.8's; the other 24 of 26 operations are faster. The complete
+tables are in [docs/lean/measurements.md](docs/lean/measurements.md).
 
-Against MUI 5 (A1200, OS 3.2.1, OpenMUI opened as MUI 5 version 21.227), OpenMUI
-is faster in all 27 operations measured:
+Against MUI 5 (A1200, OS 3.2.1, OpenMUI opened as MUI 5 version 21.227, same
+conditions), OpenMUI is faster in all 27 operations measured (ratio 0.01 to
+0.82):
 
 | Operation | OpenMUI | MUI 5 | Ratio |
 |---|---:|---:|---:|
-| Application with windows, create | 236-250 | 578-587 | 0.40-0.43 |
-| Window open + close | 481-482 | 1,027-1,041 | 0.46-0.47 |
-| Full redraw | 157 | 206 | 0.76 |
-| Cycle set | 2.4 | 2.7 | 0.87 |
-| Radio set | 9.7 | 11.9 | 0.82 |
-| List insert, 1,000 rows | 477 | 20,253-20,270 | 0.02 |
-| Button click | 17.7 | 21.2 | 0.83 |
-| String, one key | 7.6 | 15.4 | 0.49 |
-| Uniconify | 422 | 1,221-1,236 | 0.34 |
-| Popup open + close | 120 | 531-540 | 0.22 |
+| Application with windows, create | 201-203 | 577 | 0.35 |
+| Window open + close | 442 | 1,028-1,030 | 0.43 |
+| Full redraw | 139 | 206 | 0.67 |
+| Cycle set | 2.0-2.1 | 2.7 | 0.75 |
+| Radio set | 8.4 | 11.9 | 0.71 |
+| List insert, 1,000 rows | 249 | 20,201-20,206 | 0.01 |
+| Button click | 16.7-16.9 | 20.8-21.2 | 0.79-0.80 |
+| String, one key | 7.5 | 14.9-15.4 | 0.50 |
+| Uniconify | 372-373 | 1,212-1,215 | 0.31 |
+| Popup open + close | 104 | 527-538 | 0.20 |
 
-The MUI 5 comparison was measured on the build of 2026-11-12.
 
 ## What it contains
 
@@ -150,8 +161,8 @@ OpenMUI uses are `LIBS:OpenMUI` (class files), `ENVARC:OpenMUI` and
 
 ## Compatibility
 
-Tested in emulators against real MUI 3.8 and MUI 5 with 184 programs and class
-demos (100 MUI 3 programs, 24 MUI 4/5 programs, 60 add-on class demos),
+Tested in emulators against real MUI 3.8 and MUI 5 with 182 programs and class
+demos (100 MUI 3 programs, 24 MUI 4/5 programs, 58 add-on class demos),
 including YAM, AmIRC, AmFTP, IBrowse, NList, TextEditor and TheBar. 19 of
 MUI's 27 demo windows are pixel-identical to MUI 3.8. Results:
 [tests/lean/real-programs.md](tests/lean/real-programs.md). Known differences:

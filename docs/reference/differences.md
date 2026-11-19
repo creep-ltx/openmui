@@ -78,9 +78,9 @@ whose "Behave as" says so.
 Emulator figures (FS-UAE, `opbench`, `memtally`); real-hardware speed has not been measured.
 
 - The library file is 232,200 bytes (stripped); class files in `LIBS:OpenMUI` carry the rarely used
-  classes. The first MUI-Demo program uses 428,344-428,368 bytes against MUI 3.8's 460,296, each further
-  program 193.3 KB against 210.6-218.9 KB.
-- Creating an application with its windows takes 0.78-0.82 of MUI 3.8's time (A1200 and A600 emulation).
+  classes. The first MUI-Demo program uses 428,152-428,176 bytes against MUI 3.8's 460,296, each further
+  program 193.0-193.1 KB against 210.6-218.9 KB (2026-11-19).
+- Creating an application with its windows takes 0.81-0.82 of MUI 3.8's time (A1200 and A600 emulation, 2026-11-19).
   MUI 3.8 pools its objects; a pool in OpenMUI cost 0.8 to 23 KB per program and was removed.
 
 ## Identity and the library

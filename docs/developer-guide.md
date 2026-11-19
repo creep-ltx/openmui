@@ -112,12 +112,15 @@ Emulator results only; nothing here is measured on a real Amiga.
 **Size and speed**
 
 - The library file is 232,200 bytes (stripped, 68000 build); MUI 3.8's
-  library alone takes 238,520 bytes in memory against OpenMUI's 246,048. The
-  rarely used classes are separate files in `LIBS:OpenMUI`.
+  library alone takes 238,520 bytes in memory against OpenMUI's 246,088. The
+  rarely used classes are separate files in `LIBS:OpenMUI` (54 files, 289,948
+  bytes stripped; MUI 3.8: 36 files, 271,208; MUI 5: 80 files, 2,053,912).
 - First MUI-Demo program: 428.2 KB against MUI 3.8's 460.3 KB; each further
-  program 193.1 KB against 210.6-218.9 KB.
-- Creating an application with its windows takes 0.78-0.80 of MUI 3.8's time on
-  an emulated A1200 and 0.80-0.82 on an A600. MUI 3.8 pools its objects; a
+  program 193.1 KB against 210.6-218.9 KB (measured 2026-11-19; with MUI 5
+  behaviour on OS 3.2.1: 434.8 KB and 201.7 KB against MUI 5's 1,293.7 KB and
+  427-435 KB).
+- Creating an application with its windows takes 0.81 of MUI 3.8's time on
+  an emulated A1200 and 0.81-0.82 on an A600 (2026-11-19). MUI 3.8 pools its objects; a
   pool in OpenMUI cost 0.8 to 23 KB per program and was removed.
 - Real-hardware speed has not been measured.
 

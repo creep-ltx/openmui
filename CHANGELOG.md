@@ -41,6 +41,8 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 - Memory, MUI-Demo cold start (MUI 3.8 in brackets): first program 428.2 KB
   (460.3 KB), each further program 193.1 KB (210.6-218.9 KB). Library file
   232,200 bytes stripped.
+- Measured 2026-11-19 (FS-UAE, cycle-exact; build of that day): all 26 operations at or below MUI 3.8's
+  time on an A1200 (0.04 to 0.99) and 24 of 26 on an A600 (two level); all 27 below MUI 5's (0.01 to 0.82).
 - Window opening, page switches and popups draw less: no repeated background
   paint, no clip regions where nothing can spill over, no wait for the next
   display frame when opening on the front screen. A1200 window open+close
