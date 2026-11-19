@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to OpenMUI. Betas are numbered `X.YbN` until OpenMUI has
-been in daily use for a while. Figures are from emulators (Amiberry, FS-UAE),
-not from a real Amiga.
+Changes to OpenMUI, newest first. Betas are numbered `X.YbN`. All figures come
+from cycle-exact emulation (FS-UAE; Amiberry for compatibility runs), not from a
+real Amiga. A1200 = 68EC020 14 MHz, A600 = 68000 7 MHz, OS 3.1, 4 MB fast RAM.
 
 OpenMUI is not MUI and is not affiliated with MUI's authors.
 
@@ -10,328 +10,200 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Added
 
-- **The programmer reference**, `docs/reference/`: the `muimaster.library`
-  functions with their vector offsets, every built-in class with its
-  attributes and methods (generated from the sources by
-  `tools/gen_reference.py`), how to write a custom class and an external
-  `.mcc`, and where OpenMUI differs from MUI 3.8 and MUI 5. The example
-  `CustomClass.c` (a Meter class) is in `SDK/examples`.
-
-### Fixed
-
-- **A window could freeze the whole machine** when an object 0 pixels wide
-  or high sat in a group with a pattern background (seen with weight-0
-  objects beside spaces); nothing is drawn into an empty box now.
-- **Tab now moves like MUI 3.8's**: objects on a hidden page and disabled
-  ones are skipped, the order wraps at the ends, and Tab from no active
-  object starts at the first one. MUIM_Window_SetCycleChain works as in
-  MUI 3.8 (it chooses which objects are in the chain; the order stays the
-  window's).
-- **The HTMLtext demo's window** now opens at MUI 3.8's size (142x83
-  against 143x83); its size used to depend on leftover memory.
-- **Custom frames from the settings** (the frame pictures of a theme) are
-  now drawn.
-- **The window border's scroll arrows** (a Scrollgroup with
-  MUIA_Scrollgroup_UseWinBorder, as in MUI-Demo's "Virtual" window) scrolled
-  nothing; they now scroll 8 pixels a click, and held they repeat after a
-  short pause, as in MUI 3.8. The border scrollers' knobs now show the
-  position. A Scrollgroup's own arrows also step 8 pixels (they stepped 1).
-- **Scrolling a large virtual group** was very slow: an 8-pixel step of a
-  group of 80 buttons took 2.9 s on a 68020 (MUI 3.8: 71 ms); now 93 ms.
+- Programmer reference (`docs/reference/`): the `muimaster.library` functions
+  with vector offsets, every built-in class with attributes and methods
+  (generated from the sources by `tools/gen_reference.py`), writing custom and
+  external classes, differences from MUI 3.8 and MUI 5. Example class
+  `CustomClass.c` in `SDK/examples`.
+- The release archive contains the user guide, developer guide, programmer
+  reference and changelog as plain text in `Docs/OpenMUI`.
+- Class file `LIBS:OpenMUI/Zstring.mui` (clipboard, default Cut/Copy/Paste menu,
+  BetterString's Insert) and `LIBS:OpenMUI/Zapp.mui` (ARexx commands, iconified
+  icon, Exchange commands, dropped icons, help, About and settings windows),
+  loaded on first use. MUI 4/5 text colours and effects (`\33P[RRGGBB]`,
+  outline, shadow, ghost) are in `Zmui45.mui`.
 
 ### Changed
 
-- **Area data keeps the inner spacing and control char where MUI 3.8 does**
-  (measured: `MUIA_InnerLeft/Top/Right/Bottom` at offsets 88-91, the control char
-  at 96), for programs that read them through MUI's private macros. The
+- **Rewrites for 68k machines** (programs see the same attributes, methods and
+  pixels):
+
+  | Class | Effect |
+  |---|---|
+  | Window | no pool of its own (1 KB less per opened window); code 3.1 KB (12.7 %) smaller; first MUI-Demo 448,488 bytes |
+  | List | rows in one compact array (8 bytes per row); inserting 1,000 rows 248 ms (MUI 3.8: 6,650 ms); sort of 1,000 rows 94 ms (MUI 3.8: 658 ms); about 7 KB less memory per MUI-Demo |
+  | Area | background and frame in one step in the common case; A1200 full redraw 134 ms (MUI 3.8: 141-151); A600 445 ms (MUI 3.8: 470-477); library code 1.4 KB smaller |
+  | Group | one layout routine for both directions; 36 bytes per group instead of 68 (MUI 3.8: 42); A1200 relayout 4-5 % faster |
+  | Application | A1200 application with windows 183-189 ms (MUI 3.8: 236), A600 758 ms (MUI 3.8: 929-948); empty application 16 ms (MUI 3.8: 92); a full settings file loads in 57 ms instead of 321 ms (A600: 237 ms instead of 1.37 s); code 29 % smaller |
+  | String | 96 bytes per gadget instead of 308 (MUI 3.8: 88); A1200 typed key 6.7 ms (MUI 3.8: 7.5-7.9), A600 26.3 ms (30.7-31.5) |
+  | Text engine, images, frames | library 7.5 KB smaller; radio set 2-3 % faster; A1200 radio set 8.3 ms (MUI 3.8: 15.6) |
+
+- Memory, MUI-Demo cold start (MUI 3.8 in brackets): first program 428.2 KB
+  (460.3 KB), each further program 193.1 KB (210.6-218.9 KB). Library file
+  232,200 bytes stripped.
+- Window opening, page switches and popups draw less: no repeated background
+  paint, no clip regions where nothing can spill over, no wait for the next
+  display frame when opening on the front screen. A1200 window open+close
+  398 ms (MUI 3.8: 520-523), register page 42.5 ms (53.7), popup 95 ms (120).
+- Area data keeps the inner spacing and control char at MUI 3.8's offsets
+  (`MUIA_InnerLeft/Top/Right/Bottom` at 88-91, control char at 96); the
   structure stays 108 bytes.
-- **Groups share their spare pixels the way MUI 3.8 does** (measured on
-  2,745 layouts on MUI 3.8: about 85 % now come out pixel for pixel the
-  same, against 70 % before). Many windows are now closer to MUI 3.8's;
-  a few moved a pixel the other way.
-- **MUI 4/5 programs get MUI 5's window look**: 8 pixels of space inside
-  every window edge, and a window too large for the screen has its
-  scrollbars in the window border. MUI 3 programs are unchanged.
-- **The text engine, the built-in images and the frames were rewritten for
-  68k machines.** The library is about 7.5 KB smaller and a first MUI
-  program needs 8.6 KB less memory (428 KB for MUI-Demo against 437 KB
-  before and MUI 3.8's 460 KB). Radio buttons draw 2-3 % faster; everything
-  else is as fast as before, and every window looks exactly as before. MUI
-  4/5's text colours and effects (`\33P[RRGGBB]`, outline, shadow, ghost...)
-  are now in the MUI 4/5 file, which a MUI 3 program never loads.
-- **Typing is faster, and String was rewritten for 68k machines.** A typed
-  key or a backspace in a string gadget takes about a tenth less time than
-  before and 11-17 % less than in MUI 3.8 (6.7 ms on a 68020 against MUI
-  3.8's 7.5-7.9; 26.3 ms on a 68000 against 30.7-31.5): the release of a key
-  the field took is no longer offered to every other object of the window
-  (MUI 3.8 offers neither), and the field draws with fewer text calls. Each
-  string gadget needs 96 bytes instead of 308 (MUI 3.8: 88). The clipboard,
-  the default Cut/Copy/Paste menu and BetterString's Insert are a file of
-  their own, `LIBS:OpenMUI/Zstring.mui`, loaded the first time they are
-  used: the first program needs 436.9 KB (439.8 before, MUI 3.8 460.3).
-- **Programs start faster, and Application was rewritten for 68k machines.**
-  Making a program's objects takes about a fifth less time than before and
-  than in MUI 3.8 (opbench's window full of gadgets: 183-189 ms on a 68020
-  against MUI 3.8's 236; 758 ms on a 68000 against 929-948), and an
-  application with no windows a sixth of MUI 3.8's time (16 ms against 92).
-  A program that never stored a window position no longer reads and writes
-  its settings file at every quit; the settings are found by hash instead of
-  a search through a list (an application with a full settings file was made
-  in 321 ms, now 57, on a 68020; 1.37 s, now 0.24, on a 68000), and saved key
-  bindings are read once for all programs. What a program reaches only
-  through the user or ARexx (ARexx commands, the icon while iconified,
-  Exchange's commands, dropped icons, the help, the About and settings
-  windows) is a file of its own, `LIBS:OpenMUI/Zapp.mui`, loaded the first
-  time it is used: Application's code is 29 % smaller and the library 3.6 KB.
-  The first program needs 439.8 KB (443.0 before, MUI 3.8 460.3), each
-  further one as before (193.5 KB, MUI 3.8 210.6-218.9).
-- **Fixed on the way:** a damaged settings file whose strings lack their
-  terminators no longer makes the library read past a setting into other
-  memory.
-- **Area rewritten for 68k machines**: the class every visible object is
-  built on draws its background and frame in one short step in the common
-  case (a plain colour, an ordinary frame): one walk up the window to find
-  the colour, one fill, the frame, where it used to look the frame up
-  twice, walk up twice and first paint the frame's top rows with the
-  background only to paint the frame over them. On a 68000 a full window
-  redraw now takes 445 ms against MUI 3.8's 470-477 (it was 475-478, level
-  with MUI 3.8); on a 68020 134 ms against 141-151 (was 141). Relayouts are
-  4-5 % faster, a Cycle or Radio set about 10 %, a button click 5-14 %.
-  Rarely used parts load only when used: drag and drop, context menus and
-  rounded frames' backgrounds went into the files those features load
-  anyway, and AROS's own Area methods into the MUI 4/5 file. The library's
-  code is 1.4 KB smaller (Area's own 8.8 %), the first MUI-Demo needs
-  443,048 bytes (444,6xx before; MUI 3.8 460,296), an object that reacts to
-  input 8 bytes less. Programs get the same attributes, methods and
-  pixels. NewsCoaster 1.61 resets the machine when its first-start "New
-  User" window is confirmed: its own bug (it writes 8 bytes 32 KB above
-  its stack, which on the test machine is the library's code, on the old
-  code too; the code that now lies there is run).
-- **Group rewritten for 68k machines**: the class every window is built
-  from (rows, columns, pages, scrolling areas) lays out, measures and draws
-  with less of its own work: one routine for both directions instead of
-  two, no function call per child when it walks its children, the gaps
-  between children filled with one pen in one go when the background is a
-  plain colour, rarely used parts (tab titles, grids, scrolling areas)
-  kept apart. On a 68020: a full window redraw 148 -> 141 ms (MUI 3.8
-  141-151), a relayout 193 -> 180 (198-207), creating an application with
-  its windows 235 -> 219 (235-239), opening a window 420 -> 408, a Cycle
-  set 2.38 -> 2.21, a Register page 45.4 -> 43.7. On a 68000: the full redraw 505 -> 478 ms (MUI 3.8 470-478; it was 7 % slower than MUI 3.8, now even), a relayout 693 -> 643 (MUI 3.8 698-706). Each group
-  takes 36 bytes instead of 68 (MUI 3.8: 42): the first MUI-Demo needs
-  444,592 bytes (was 450,848; MUI 3.8 460,296) and each further one 193.6 KB (196.8). The library's code is 3 KB smaller. Programs see no
-  difference: the same attributes, methods and pixels.
-- **Window openings, page switches and popups draw less**: a window that has
-  just been painted with its background no longer paints the same background
-  again behind its groups; Register tabs, page switches and list repaints no
-  longer set up clip regions when nothing can spill over (each cost about
-  2 ms on a 68020); opening a window on the front screen no longer waits for
-  the next display frame. Window open+close 440 -> 420 ms (MUI 3.8 520-536),
-  uniconify 370 -> 357 (446-453), a Register page 54 -> 45.5 (54), a popup
-  120 -> 97 (120); on a 68000 the window opening 1537 -> 1479 ms (MUI 3.8
-  1763-1781) and a Register page 195 -> 158 (161). Pixels as before.
-- **List rewritten for 68k machines (first part)**: a list's rows are now one
-  compact array (8 bytes a row, no memory block per row), a list format is one
-  block, and the common case, a row of plain text, is measured and drawn
-  without the text engine's general path. Each MUI-Demo now takes about 7 KB
-  less memory (first program 452,848 bytes against MUI 3.8's 460,296);
-  inserting 1000 entries takes half the time (248 against 473 ms; MUI 3.8
-  6,650 ms), sorting 1000 14 % less (94 ms; MUI 3.8 658 ms), redrawing a
-  window 1 % less. The library's code is 840 bytes smaller. Programs see no
-  difference: the same attributes, methods, hooks and pixels.
-- **Window rewritten for 68k machines**: a window no longer keeps a memory
-  pool of its own (it held a 1 KB block for every window that had been
-  opened); its Tab order and gadget numbers are now small blocks. The code a
-  window runs is 3.1 KB smaller (12.7 %), and the parts only MUI 4/5
-  programs use (case-sensitive menu shortcuts, the menu-open check) and the
-  saving of a window snapshot to disk now load on demand. Each MUI-Demo
-  takes 1.3 KB less memory, the first one 4.4 KB less (448,488 bytes
-  against MUI 3.8's 460,296). A MUI 3 program's mouse moves no longer look
-  for MUI 4/5 pointer shapes. Programs see no difference: the same
-  attributes, methods, notifications and pixels, and the same speed.
+- Groups share spare pixels as MUI 3.8 does: 1,220 of 1,346 chosen layouts and
+  1,133 of 1,399 random layouts match pixel for pixel (before: about 70 %).
+- MUI 4/5 programs get MUI 5's window look: 8 pixels inside every window edge;
+  a window larger than the screen has its scrollbars in the border. MUI 3
+  programs are unchanged.
 
-## 0.1b2 (2026-11-13, the first public beta)
+### Fixed
 
-The first OpenMUI archive published. It contains everything in 0.1b1 below
-(which went only to testers) and these changes.
+- A window froze the machine when an object 0 pixels wide or high sat in a group
+  with a pattern background. Nothing is drawn into an empty box now.
+- Tab order: objects on hidden pages and disabled objects are skipped, the order
+  wraps, Tab with no active object starts at the first.
+  `MUIM_Window_SetCycleChain` follows MUI 3.8.
+- The HTMLtext demo's window opens at MUI 3.8's size (142x83 against 143x83).
+- Custom frames from the settings (theme frame pictures) are drawn.
+- Window border scroll arrows (`MUIA_Scrollgroup_UseWinBorder`) scrolled
+  nothing. They scroll 8 pixels per click and repeat when held; the border
+  knobs show the position. A Scrollgroup's own arrows step 8 pixels (were 1).
+- Scrolling a large virtual group: 8 pixels of a group of 80 buttons took 2.9 s
+  on a 68020 (MUI 3.8: 71 ms), now 93 ms.
+- A settings file whose strings lack terminators no longer makes the library read
+  past a setting.
+
+## 0.1b2 (2026-11-13, first public beta)
+
+Includes everything in 0.1b1.
 
 ### Added
 
-- **Spot's UP-MCC 1.0 is bundled**: eleven flat-look classes (UP-Button,
-  UP-Text, UP-Panel, UP-Tabs, UP-Balance, UP-Slider, UP-Progress, UP-Cycle,
-  UP-Field, UP-Scroller, UP-List), UP-MCC.mcp, `up-mcc.library`, the Inter
-  font and the Dark and Light themes, byte-identical to Spot's release
-  (github.com/spotUP/selecta; MIT, Lucide icons ISC, Inter SIL OFL 1.1). The
-  installer puts them in place only where you have no same or newer copy,
-  and writes no theme file of its own. Installer 2.4.
-
-- OpenMUISwitch has a catalog (`OpenMUISwitch.catalog`, Swedish included):
-  its messages, requesters and gadget texts follow the user's language;
-  without locale.library or a catalog the English built in is used.
-  The program grew by 968 bytes (13112 to 14080, stripped).
-- The "MUI version" group of the prefs page (Behave as, the program list,
-  Add/Remove and the help texts) is translatable: 8 new ids in the prefs
-  catalog, Swedish added, other languages show English until translated.
-- Release check that the five catalogs of OpenMUI's own texts (library,
-  prefs program, PrefsWindow, AboutWindow, SystemPrefsWindow) each have a
-  Swedish (`svenska`) catalog in the package. The Swedish translations
-  themselves were already built into the package (from the AROS translation
-  team's catalogs); they are now audited: complete, ISO-8859-1.
+- Spot's UP-MCC 1.0, byte-identical to its release (github.com/spotUP/selecta;
+  MIT, Lucide icons ISC, Inter SIL OFL 1.1): UP-Button, UP-Text, UP-Panel,
+  UP-Tabs, UP-Balance, UP-Slider, UP-Progress, UP-Cycle, UP-Field, UP-Scroller,
+  UP-List, UP-MCC.mcp, `up-mcc.library`, the Inter font, Dark and Light themes.
+  Installed only where no same or newer copy exists. Installer 2.4.
+- `OpenMUISwitch.catalog` (Swedish included); the program grew 968 bytes.
+- Translatable "MUI version" group in the preferences (8 new catalog ids,
+  Swedish included).
+- Release check that the five catalogs of OpenMUI's own texts each have a
+  Swedish catalog in the package.
 
 ### Changed
 
-- The five catalogs of OpenMUI's own texts are now part of the repository
-  instead of git submodules of the AROS translation team (source URL and
-  commit in `UPSTREAM.txt` in each folder; AROS Public License). TheBar
-  stays a submodule.
-- Swedish: Color is Färg, Mark is Markering, Top/Bottom are
-  Överkant/Nederkant, and the tape image labels read naturally (Spela upp,
-  Spela bakåt, Paus, Stopp, Spela in, Upp, Ner).
-- **OpenMUI's own drawers are named OpenMUI** ("it's not Zune anymore"):
-  the class files and modules are in `LIBS:OpenMUI` (was `LIBS:Zune`), the
-  settings in `ENVARC:OpenMUI` and `ENV:OpenMUI` (was `ENVARC:Zune`,
-  `ENV:Zune`: global and per-program settings, `BehaveAs`, window positions,
-  font families, public screens), external images in `LIBS:OpenMUI/Images`,
-  the catalogs `System/Prefs/OpenMUI.catalog` and `System/Classes/OpenMUI/`.
+- Own drawers renamed: `LIBS:OpenMUI` (was `LIBS:Zune`), `ENVARC:OpenMUI` and
+  `ENV:OpenMUI` (were `ENVARC:Zune`, `ENV:Zune`), `LIBS:OpenMUI/Images`,
+  catalogs `System/Prefs/OpenMUI.catalog` and `System/Classes/OpenMUI/`.
   The archive's `Libs/Zune` is `Libs/OpenMUI`. A real MUI's `ENV:MUI`, `MUI:`
-  and `LIBS:MUI` are untouched as before.
-- **Updating an earlier build moves its settings.** The installer (2.3)
-  moves `ENVARC:Zune` and `ENV:Zune` to the new names (a file already there
-  is not replaced; the old one stays), takes the earlier build's files out
-  of `LIBS:Zune` with its record, and keeps anything else there (yours) in
-  the backup, so that *Uninstall* and *Use real MUI* put it back.
-  OpenMUISwitch 1.2 does the moving (`MIGRATE`); `UNINSTALL SETTINGS`
-  removes both the new and the old settings drawers.
-- If an earlier build's settings are still in `ENV:Zune` (OpenMUI copied in
-  by hand), the library reads them, never writes them, until OpenMUI has
-  its own; OpenMUI prefs copies them over the first time it runs. The
-  library grew 200 bytes; the first program (MUI-Demo, FS-UAE) takes
-  460,176 bytes (459,992 before, MUI 3.8 460,296); no stack frame grew.
-- The Aminet pair is always `OpenMUI.lha` and `OpenMUI.readme`.
-- **Faster than MUI 5 in all 27 operations measured** (opbench, OS 3.2.1,
-  emulator), and as fast as MUI 3.8 in 24 of 26 (was 23): OpenMUI no longer
-  asks the operating system for tag lists and for objects' own state on hot
-  paths, a list scroll by one row draws one row, key releases are not
-  converted, a slider reuses its text buffer. Creating a program's windows is
-  now at MUI 3.8's speed.
+  and `LIBS:MUI` are untouched.
+- Updating a test build moves its settings (installer 2.3, OpenMUISwitch 1.2
+  `MIGRATE`): a file already present is not replaced; the build's files leave
+  `LIBS:Zune`; other files there go to the backup. `UNINSTALL SETTINGS` removes
+  both settings drawers. Settings still in `ENV:Zune` are read, never written,
+  until OpenMUI has its own.
+- The five catalogs of OpenMUI's own texts are in the repository (source and
+  commit in each `UPSTREAM.txt`; AROS Public License) instead of submodules.
+  TheBar remains a submodule.
+- Swedish: Color is Färg, Mark is Markering, Top/Bottom are
+  Överkant/Nederkant, tape image labels reworded.
+- The Aminet pair is `OpenMUI.lha` and `OpenMUI.readme`.
+- Speed: faster than MUI 5 in all 27 operations measured (OS 3.2.1) and as fast
+  as MUI 3.8 in 24 of 26 (was 23). The library no longer asks the OS for tag
+  lists and objects' own state on hot paths, a one-row list scroll draws one
+  row, key releases are not converted, a slider reuses its text buffer.
+  Creating a program's windows is at MUI 3.8's speed.
+- Memory: first MUI-Demo program 460,176 bytes (MUI 3.8: 460,296); library
+  grew 200 bytes for the settings migration.
 
 ### Fixed
 
-- **A group paints the space between its items with its background**, also
-  when the program set `MUIA_FillArea` to FALSE, as MUI 3.8 and MUI 5 do
-  (UP-Panel's dark face was grey with a black box behind every label).
-- **Setting a group's spacing, direction, columns or rows no longer reaches
-  the groups inside it**, as on MUI 3.8 and MUI 5 (UP-Demo was far too tall).
-- **A text field's own background**: programs that get MUI 4/5 keep the
-  String's `MUIA_Background`, as on MUI 5; programs that get MUI 3.8 can
-  recolour the field through its gadget, as on MUI 3.8 (UP-Field's grey
-  field hid its grey placeholder text). The MUI 3.8 part loads only when a
-  program uses it; the three fixes cost 68 bytes of library.
+- A group paints the space between its items with its background also when
+  `MUIA_FillArea` is FALSE, as MUI 3.8 and MUI 5 do.
+- Setting a group's spacing, direction, columns or rows no longer reaches the
+  groups inside it, as on MUI 3.8 and MUI 5.
+- A String's own background: programs that get MUI 4/5 keep `MUIA_Background`;
+  programs that get MUI 3.8 can recolour the field through its gadget. The MUI
+  3.8 part loads on use; the three fixes cost 68 bytes of library.
 
-## 0.1b1 (test builds for testers, not published)
+## 0.1b1 (2026-11-12, tester builds, not published)
 
-OpenMUI is the lean edition of Zune68 (Stefan Reinauer's port of AROS's Zune
-to AmigaOS 3), renamed on 2026-11-11. Earlier test builds were called "Zune68k
-lean". This entry sums up the work from the lean edition's start (2026-11-04)
-to 2026-11-12. Details, measurements and the reasons are in
-[docs/lean/README.md](docs/lean/README.md).
+First OpenMUI builds: the lean edition of Zune68 (work from 2026-11-04),
+renamed from "Zune68k lean" on 2026-11-11.
 
 ### Added
 
-- **Each program gets the MUI it asks for.** The library reports MUI 5
-  (21.227) and hands each program a base for its identity: MUI 3.8 (19.35),
-  MUI 4 (20.6000) or MUI 5. OpenMUI prefs, System page: "Behave as"
-  Automatic / MUI 3.8 / MUI 4 / MUI 5 for all programs, and a list of programs
-  with a MUI of their own (`ENV:Zune/BehaveAs`).
-- **Installer** that leaves a real MUI alone, writes down every file it
-  installs, keeps every file it replaces, installs a bundled class only when
-  you have no same or newer one, and puts OpenMUI in the first `LIBS:` drawer.
-  `SYS:OpenMUI` has *Use real MUI*, *Use OpenMUI* and *Uninstall*
-  (`OpenMUISwitch`, also from a Shell). An earlier "Zune68k lean"
-  installation is removed first.
-- **Classes and rarely used library parts as files** in `LIBS:Zune`, loaded
-  the first time a program needs them (class files `<Name>.mui`, modules
-  `Z<name>.mui`).
-- **MUI 4/5 support behind that rule** (a MUI 3 program pays nothing):
-  Hyperlink, MUI 5's compressed ("Z") images in Pixmap and Rawimage, MUI 5's
-  scrollable window contents for a window larger than the screen, elided
-  texts, `MUIM_FindObject`, `MUIA_FrameVisible`/`MUIA_FrameDynamic`, List's
-  sort mark, Title's register tabs, drawn pointer shapes.
-- **Settings:** import of MUI 3.8's settings files (read only); settings pages
-  for Listtree and Busy; the ARexx switch, the drag, iconification, popup
-  speed and active-object-colour settings are honoured.
-- **External BOOPSI image classes** (`3:<name>.image` image specs) and a
-  faster External page in prefs.
-- **Test tools:** the real-program suite (132 programs and 60 class demos,
-  against real MUI 3.8 and MUI 5), pixel comparison of the demos, `failn`
-  fault injection, soak, start/quit loops, 68000 and RTG runs, fuzzers for
-  settings files, ARexx and the string parsers, `opbench`, `memtally`.
-- A production-grade plan with measurable gates: [docs/production.md](docs/production.md).
-- This changelog, the [user guide](docs/user-guide.md) and the
-  [developer guide](docs/developer-guide.md).
+- Per-program MUI identity: the library reports MUI 5 (21.227) and hands each
+  program a base for MUI 3.8 (19.35), MUI 4 (20.6000) or MUI 5. Preferences,
+  System page: "Behave as" Automatic / MUI 3.8 / MUI 4 / MUI 5 and a per-program
+  list (`BehaveAs`).
+- Installer that leaves a real MUI alone, records every installed file, keeps
+  every replaced file, installs a bundled class only when no same or newer
+  copy exists, and installs into the first `LIBS:` drawer. `SYS:OpenMUI` has
+  *Use real MUI*, *Use OpenMUI* and *Uninstall* (`OpenMUISwitch`, also from a
+  Shell). A "Zune68k lean" installation is removed first.
+- About 45 classes and library parts as files loaded on first use (`<Name>.mui`
+  classes, `Z<name>.mui` modules).
+- MUI 4/5 support behind the identity or in class files: Hyperlink, compressed
+  images in Pixmap and Rawimage, scrollable contents for a window larger than the
+  screen, elided texts, `MUIM_FindObject`, `MUIA_FrameVisible`,
+  `MUIA_FrameDynamic`, List sort marks, Title register tabs, drawn pointer
+  shapes.
+- Settings: import of MUI 3.8's settings (read only); settings pages for
+  Listtree and Busy; the ARexx switch, drag, iconification, popup speed and
+  active-object colour settings are honoured.
+- External BOOPSI image classes (`3:<name>.image`), a faster External prefs page.
+- Test tools: the real-program suite (132 programs and 60 class demos against
+  real MUI 3.8 and MUI 5), pixel comparison of the demos, `failn` fault
+  injection, soak and start/quit loops, 68000 and RTG runs, fuzzers for settings
+  files, ARexx and the string parsers, `opbench`, `memtally`.
+- Production gates ([docs/production.md](docs/production.md)), user guide,
+  developer guide.
 
 ### Changed
 
-- **Smaller library:** the library file went from 429 KB (Zune68) to about
-  256 KB, with about 45 class and module files beside it. Several rounds
-  split the big classes (List, Window, String, Group, Area, Application) so
-  their dispatchers pick the method, and moved MUI 4/5-only and AROS-only
-  code into the `Zmui45` module.
-- **Memory** (MUI-Demo, OS 3.1 + 4 MB fast, FS-UAE): the first program 460,208
-  bytes against MUI 3.8's 460,296; each further program about 204.5 KB against
-  MUI 3.8's 210.6 to 218.9 KB.
-- **Speed** (opbench, 26 operations, cycle-exact FS-UAE, the same binary on
-  both libraries): 23 at least as fast as MUI 3.8 after two rounds (19 after
-  the first); creating an application is 1.06 to 1.08 times MUI 3.8's.
-- **MUI 3.8's behaviour** in many small places, found against real MUI 3.8
-  by comparing programs: window sizes and gadgets, the spare pixels of
-  groups, frames, fonts, popups, Coloradjust, Busy, Register, List scrollers,
+- Library file 429 KB (Zune68) to about 256 KB, with about 45 class and module
+  files beside it. The big classes were split so their dispatchers pick the
+  method; MUI 4/5-only and AROS-only code moved to the `Zmui45` module.
+- Memory (MUI-Demo): first program 460,208 bytes (MUI 3.8: 460,296), each
+  further program 204.5 KB (210.6-218.9 KB).
+- Speed (`opbench`, 26 operations): 23 at least as fast as MUI 3.8.
+- Many details of MUI 3.8's behaviour: window sizes and gadgets, group spare
+  pixels, frames, fonts, popups, Coloradjust, Busy, Register, List scrollers,
   the root object's frame, how `OM_NEW` sets attributes.
-- **One library.** `zunemaster.library` (the same library under a second name)
-  is no longer built or installed; the installer takes an old one away. The
-  prefs program opens `muimaster.library` only, so prefs beside a running
-  program costs 244 KB less (FS-UAE).
-- **The rename:** the library's texts, the prefs program (`SYS:Prefs/OpenMUI`),
-  the installer drawer (`SYS:OpenMUI`), the switch tool (`OpenMUISwitch`) and
-  the archive (`OpenMUI-0.1b1-DATE-amigaos3-m68k.lha`). The library file
-  `muimaster.library` and its version numbers keep their names; `LIBS:Zune`,
-  `ENV:Zune` and `ENVARC:Zune` were renamed later (see Unreleased).
-- GitHub workflows and release tools name OpenMUI.
+- One library: `zunemaster.library` is no longer built or installed; the
+  installer removes an old one. Preferences beside a running program take
+  244 KB less.
+- Names: `SYS:Prefs/OpenMUI`, `SYS:OpenMUI`, `OpenMUISwitch`,
+  `OpenMUI-0.1b1-DATE-amigaos3-m68k.lha`. The library keeps the name
+  `muimaster.library` and MUI's version numbers.
 
 ### Fixed
 
-- **Compatibility round 1** (48 more programs, 49 class demos): BWin's window
-  never opened (Window's `OM_NEW` set its tags through the subclass); NFS-GUI
-  ended before its window (Register's spacing in the fitting stages).
-- **Compatibility round 2:** TipOfDay's title (Window's `OM_GET` stored 0 for
-  an unknown attribute), the `OM_NEW` audit.
-- **Compatibility round 3:** frames, Coloradjust, List without its own
-  scroller, Busy's size and frame, the root object's frame, Rectangle bar
-  titles.
-- **Compatibility round 4:** a program's identity lost after another program
-  had used a class library; MUI 5's bar titles, fonts, List scroller and Busy
-  size for MUI 4/5 programs; the
-  iconify-at-startup setting.
-- **Stability round 1 and 2:** found by failing the Nth resource call, hours
-  of soak, start/quit loops over 181 programs and demos (705 cycles), runs on a
-  stock 68000 and on an RTG screen, and fuzzers. Fixed: a failed object
-  creation left its children behind (Group, Family, Window, Application and
-  others); a double dispose in Popstring and Listview parts; a flush after a
-  class file could not be loaded; the library stayed unexpungeable after OS
-  3.1's `MakeClass` failed; Popasl without asl.library; a shared class open
-  that did not set `SysBase`; a popup now opens on its parent window's screen.
-- **Code audit** of the whole library: six findings fixed (Configdata,
-  PanelTitle, Gauge, List size, Boopsi get, Popasl parts), and the library
-  builds with no `-Wall` warnings.
-- **`MUI_CreateCustomClass`:** the supername wins over supermcc (LumiZip reset
-  at quit).
-- **The AnimMaker/Register round:** the Register page pixel (the line under
-  an erased tab); AnimMaker's resets were measured as its own bug (the same
-  rate on MUI 3.8).
-- **Prefs:** it no longer opens a real MUI's own classes (it reset a MUI 5
-  machine); opens in 6 s instead of 84 s in the emulator.
+- Compatibility round 1: BWin's window did not open (Window `OM_NEW` set its tags
+  through the subclass); NFS-GUI ended before its window (Register spacing).
+- Round 2: TipOfDay's title (Window `OM_GET` stored 0 for an unknown attribute);
+  `OM_NEW` audit.
+- Round 3: frames, Coloradjust, List without its own scroller, Busy size and
+  frame, root object frame, Rectangle bar titles.
+- Round 4: a program's identity was lost after another program used a class
+  library; MUI 5 bar titles, fonts, List scroller and Busy size for MUI 4/5
+  programs; the iconify-at-startup setting.
+- Stability rounds 1 and 2 (failing the Nth resource call, soak, 705
+  start/quit cycles over 181 programs and demos, stock 68000 and RTG runs,
+  fuzzers): a failed object creation left children behind (Group, Family,
+  Window, Application and others); a double dispose in Popstring and Listview
+  parts; a flush after a class file could not be loaded; the library stayed
+  unexpungeable after OS 3.1's `MakeClass` failed; Popasl without asl.library;
+  a shared class open did not set `SysBase`; a popup now opens on its parent
+  window's screen.
+- Code audit of the library: six findings fixed (Configdata, PanelTitle, Gauge,
+  List size, Boopsi get, Popasl parts); no `-Wall` warnings.
+- `MUI_CreateCustomClass`: the supername wins over supermcc.
+- Register page pixel (the line under an erased tab).
+- Preferences no longer opens a real MUI's classes; opens in 6 s instead of 84 s
+  in the emulator.
 
 ### Known problems
 
-See "Known differences from MUI" in the [developer guide](docs/developer-guide.md#known-differences-from-mui).
-Voyager 3.5.3 can reset the machine after a quit by its close gadget (its own
-blit; reproducible only on OpenMUI). Not yet measured on real hardware.
+See [Known differences](docs/developer-guide.md#known-differences-from-mui).
+Voyager 3.5.3 can reset the machine after a quit through its close gadget (its
+own blit; reproducible only on OpenMUI).

@@ -1,26 +1,37 @@
-[STAGE] [RELEASE] for AmigaOS 3.x / m68k
-=======================================
+OpenMUI [RELEASE] ([STAGE]) for AmigaOS 3.x / m68k
+=================================================
 
-OpenMUI is a free, open-source alternative to MUI for AmigaOS 3.x.
-Install it instead of MUI, and programs made for MUI 3, 4 and 5 work with
-it. It comes with everything MUI programs need: muimaster.library, the
-classes, and a preferences program. It is AROS's Zune (The AROS
-Development Team) as ported to AmigaOS 3 by Zune68 (Stefan Reinauer), with
-a diet so that it runs on a stock 68000 with OS 3.1 and stays close to
-MUI 3.8 in look and memory. MUI 3.8 was studied clean-room: its
-behaviour, never its code. OpenMUI is not MUI and is not affiliated with
-MUI's authors. MUI was created by Stefan Stuntz; MUI 4 and 5 come from
-the MUI team. Earlier test builds were called Zune68k lean.
-This is a test build ([STAGE], [RELEASE]). The figures here were
-measured in an emulator (FS-UAE), not on a real Amiga.
+OpenMUI is a free, open-source replacement for MUI on AmigaOS 3.x. It
+provides muimaster.library, the built-in classes and a preferences
+program, and runs programs written for MUI 3, 4 and 5. Its look and
+memory use follow MUI 3.8.
+
+OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was
+created by Stefan Stuntz; MUI 4 and 5 come from the MUI team. MUI was
+studied black-box only: its behaviour was measured and its public
+documentation read; its code was never read or copied.
+
+Origins: Zune (The AROS Development Team), ported to AmigaOS 3 as Zune68
+(Stefan Reinauer); OpenMUI is the lean edition of Zune68.
+
+This is a public beta ([STAGE], [RELEASE]). All figures were measured in
+an emulator (FS-UAE), not on a real Amiga.
+
+Documentation
+-------------
+Docs/OpenMUI/UserGuide.txt       installing, switching, preferences
+Docs/OpenMUI/DeveloperGuide.txt  supported interface, differences, building
+Docs/OpenMUI/Reference/          functions and classes
+Docs/OpenMUI/Changelog.txt       release history
+Compatibility                    compatibility workloads and limits
 
 Requirements
 ------------
 AmigaOS 3.1 or newer, a 68000 or better, no FPU. Amiga Installer 43 or
 newer: OS 3.2 has SYS:System/Installer; for OS 3.1 use Installer 43.3
 (Aminet util/misc; the Installer on the OS 3.1 Install disk is older).
-The Install icon's default tool is "installer"; if Workbench cannot find
-it, set the icon's Default Tool to its full path.
+If Workbench cannot find the installer, set the Install icon's Default
+Tool to its full path.
 
 Installing
 ----------
@@ -28,95 +39,80 @@ Double-click Install, or from a Shell in this drawer:
 
   Installer Install MINUSER AVERAGE
 
-The installer first shows what it found: a MUI you already have (MUI 3.x,
-4 or 5 in SYS:MUI or MUI:, its lines in S:User-Startup), every
-muimaster.library in the LIBS: drawers, and an earlier installation. None of it
-is changed. OpenMUI goes into the first LIBS: drawer (normally SYS:Libs),
-which programs search before MUI's MUI:Libs, so they get OpenMUI; nothing is
-added to S:Startup-Sequence or S:User-Startup.
+The installer first shows what it found: an existing MUI (3.x, 4 or 5 in
+SYS:MUI or MUI:, its lines in S:User-Startup), every muimaster.library in
+the LIBS: drawers, and an earlier OpenMUI installation. None of it is
+changed. OpenMUI goes into the first LIBS: drawer (normally SYS:Libs),
+which programs search before MUI's MUI:Libs. S:Startup-Sequence and
+S:User-Startup are not changed.
 
-  Libs/muimaster.library -> first LIBS: drawer (an earlier test build's
-                        zunemaster.library there is taken away: OpenMUI
-                        is one library now)
-  Libs/OpenMUI/*     -> LIBS:OpenMUI/ (OpenMUI's own class files and
-                        modules, loaded when a program first needs them)
-  Libs/MUI/*         -> LIBS:MUI/ of the first LIBS: drawer, never into
-                        MUI's own MUI:Libs/mui
-  Prefs/OpenMUI      -> SYS:Prefs/OpenMUI
-  Locale/Catalogs/*  -> LOCALE:Catalogs/<language>/ (optional)
-  Tools/OpenMUISwitch and the icons below -> SYS:OpenMUI
+  Libs/muimaster.library -> first LIBS: drawer
+  Libs/OpenMUI/*         -> LIBS:OpenMUI/ (class files and modules,
+                            loaded when a program first needs them)
+  Libs/MUI/*             -> LIBS:MUI/ of the first LIBS: drawer, never
+                            into a real MUI's own MUI:Libs/mui
+  Prefs/OpenMUI          -> SYS:Prefs/OpenMUI
+  Locale/Catalogs/*      -> LOCALE:Catalogs/<language>/ (optional)
+  Tools/OpenMUISwitch and the icons -> SYS:OpenMUI
 
-Every file the installer replaces is kept in SYS:OpenMUI/Data/Backup, and
-every file it installs is written down in SYS:OpenMUI/Data/Manifest.
+Every file the installer replaces is kept in SYS:OpenMUI/Data/Backup;
+every file it installs is recorded in SYS:OpenMUI/Data/Manifest.
 
-The bundled MUI classes (NList, TextEditor, TheBar, Spot's UP-MCC, ...):
-one is installed
-only when you have no same or newer version of it in a LIBS:MUI drawer; an
-older one of yours is kept in the backup. The classes that come with a
-real MUI (in MUI:Libs/mui) belong to that MUI and are not used by OpenMUI:
-OpenMUI gets its own copy, and the real MUI gets its own back with "Use real
-MUI". The last page of the installer lists what it did with each.
+Bundled MUI classes (NList, TextEditor, TheBar, UP-MCC and others) are
+installed only when no same or newer version is in a LIBS:MUI drawer; an
+older one is kept in the backup. Classes of a real MUI (MUI:Libs/mui)
+belong to that MUI and are not used by OpenMUI, which has its own copies.
+The last installer page lists what was done with each.
 
 Running Install again offers "Install this version over it" (an update:
-the earlier installation is removed first, your files put back, then this
-one installed; your settings are kept) and "Remove OpenMUI".
+the earlier installation is removed, your files put back, the new one
+installed; settings are kept) and "Remove OpenMUI".
 
-Earlier test builds kept their class files in LIBS:Zune and their settings
-in ENVARC:Zune and ENV:Zune. Installing over such a build moves the
-settings to ENVARC:OpenMUI and ENV:OpenMUI (a file already there is not
-replaced; the old one then stays where it is) and takes its files out of
-LIBS:Zune; anything else in LIBS:Zune is yours: it is kept in the backup
-and comes back with Uninstall or "Use real MUI".
+An installation of an earlier test build is migrated: its settings in
+ENVARC:Zune and ENV:Zune move to ENVARC:OpenMUI and ENV:OpenMUI (a file
+already there is not replaced), and its files leave LIBS:Zune. Other
+files in LIBS:Zune are kept in the backup and returned by Uninstall and
+"Use real MUI".
 
 Novice installs everything without questions; Intermediate and Expert
 ask whether to install the translations. Pretend mode changes nothing.
 
 Use real MUI, Use OpenMUI, Uninstall
 ------------------------------------
-In SYS:OpenMUI (Use real MUI and Use OpenMUI only when a real MUI was
-found):
+Icons in SYS:OpenMUI (Use real MUI and Use OpenMUI only when a real MUI
+was found):
 
-  Use real MUI  puts OpenMUI's libraries and classes aside (into
-                SYS:OpenMUI/Data/Parked) and your own files they had
-                replaced back. After a reboot programs get your MUI.
-  Use OpenMUI   the other way round, after a reboot programs get OpenMUI.
-  Uninstall     deletes every file OpenMUI installed, puts back every file
-                of yours it had replaced, and removes the drawers it made
-                when they are empty. Asks whether to keep your OpenMUI
-                settings (ENVARC:OpenMUI). Your MUI keeps working.
+  Use real MUI  moves OpenMUI's libraries and classes to
+                SYS:OpenMUI/Data/Parked and puts back your own files they
+                replaced. After a reboot programs get your MUI.
+  Use OpenMUI   the reverse; after a reboot programs get OpenMUI.
+  Uninstall     deletes every file OpenMUI installed, restores every
+                file of yours it replaced, removes the drawers it made
+                when empty. Asks whether to keep ENVARC:OpenMUI.
 
-From a Shell: SYS:OpenMUI/Data/OpenMUISwitch MUI, OPENMUI, UNINSTALL [SETTINGS]
-or STATUS (what is installed where).
+From a Shell: SYS:OpenMUI/Data/OpenMUISwitch MUI, OPENMUI, UNINSTALL
+[SETTINGS] or STATUS (what is installed where).
 
 Settings
 --------
-SYS:Prefs/OpenMUI, the OpenMUI preferences program. MUI's own settings
-(ENVARC:MUI) are not changed by OpenMUI. Its own settings are in
-ENVARC:OpenMUI (saved) and ENV:OpenMUI (in use), its classes in
-LIBS:OpenMUI. Settings of an earlier test build that are still in
-ENVARC:Zune are used until OpenMUI has its own: OpenMUI prefs copies them
-over the first time it runs (the old files stay as they are).
+SYS:Prefs/OpenMUI is the preferences program. Settings are in
+ENVARC:OpenMUI (saved) and ENV:OpenMUI (in use). MUI's own settings
+(ENVARC:MUI) are not changed. Class files are in LIBS:OpenMUI.
 
-Each program gets the MUI it asks for: a program written for MUI 3 sees
-MUI 3.8 (muimaster.library 19.35), one asking for MUI 4 sees MUI 4, one
-asking for MUI 5 sees MUI 5 (21.227), and OpenMUI follows the same choice.
-OpenMUI prefs, System page, "MUI version": "Behave as" Automatic (the
-default), MUI 3.8, MUI 4 or MUI 5 for all programs, and a list of
-programs (by file name) with a MUI of their own. Many programs written
-for MUI 4/5 ask for 19 and so get MUI 3.8 under Automatic: give such a
-program MUI 5 in that list.
+A program written for MUI 3 sees MUI 3.8 (muimaster.library 19.35), one
+asking for MUI 4 sees MUI 4, one asking for MUI 5 sees MUI 5 (21.227).
+Preferences, System page, "MUI version": "Behave as" Automatic (default),
+MUI 3.8, MUI 4 or MUI 5 for all programs, and a list of programs (by file
+name) with a MUI of their own. Many programs written for MUI 4/5 ask for
+version 19 and so get MUI 3.8 under Automatic: give such a program MUI 5
+in that list.
 
 Status
 ------
-A test build of muimaster.library [VERSION], dated [RELEASE].
-In FS-UAE (A1200, OS 3.1, 68000 build): MUI 3.8's 19 demos open and close
-with MUI 3.8's window sizes, 18 of 27 demo windows pixel for pixel as MUI
-3.8's; of 36 MUI 3 programs, 30 behave as with MUI 3.8 (see
-Compatibility). MUI-Demo with 4 MB fast RAM: about 465 KB for the first
-program (MUI 3.8: 460 KB), about 205 KB for each further one (MUI 3.8:
-211-219 KB), first window 1.4 s (MUI 3.8: 1.5 s). Not yet measured on a
-real Amiga. Please report what works and what does not, with the
-program's version, your CPU and OS.
+muimaster.library [VERSION], dated [RELEASE]. Emulator measurements (A1200,
+OS 3.1, 4 MB fast RAM): MUI-Demo needs 428 KB for the first program (MUI
+3.8: 460 KB) and 193 KB for each further one (MUI 3.8: 211-219 KB). Not
+measured on a real Amiga. Reports: https://github.com/creep-ltx/openmui
 
 Developing with the SDK
 -----------------------
@@ -131,6 +127,6 @@ Zune68: https://github.com/reinauer/zune68
 AROS:   https://github.com/aros-development-team/AROS
 LICENSE has the AROS Public License; the bundled classes keep their own
 licences and copyright notices, with their sources and under Docs.
-UP-MCC 1.0 is Spot's (spotUP), https://github.com/spotUP/selecta: MIT
+UP-MCC 1.0 is by spotUP, https://github.com/spotUP/selecta: MIT
 (Docs/UP-MCC/LICENSE), its Lucide icons ISC (LICENSE.Lucide), the Inter
 font SIL Open Font License 1.1 (LICENSE.Inter).

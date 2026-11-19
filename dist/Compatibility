@@ -1,76 +1,73 @@
-OpenMUI (the lean edition of Zune68) native compatibility and measurements
-==========================================
+OpenMUI compatibility scope and checks
+======================================
 
 Scope
 -----
-The native build targets AmigaOS 3.1+, a 68000 and no FPU. Classic MUI 3.8/3.9
-application behavior is the priority. The bundled classes remain separate
+OpenMUI targets AmigaOS 3.1 or newer, a 68000 and no FPU. The priority is
+the behaviour of MUI 3.8 and 3.9 programs. Bundled classes are separate
 libraries. Rawimage.mcc and Pixmap.mui provide the image classes used by
-the built-in preferences pages. AROS module ports, muiscreen.library and
-newer MUI features without an identified application need are deferred.
+the built-in preferences pages. Not provided: muiscreen.library, AROS
+module ports and MUI features that no known application needs.
 
 Version policy
 --------------
-The two native library names share library version [VERSION] and the
-release [RELEASE] ([STAGE]). The library and built-in classes report
-21.227, the version of MUI 5, which enables application version gates; it
-does not claim complete MUI 5 compatibility. External MCCs retain their own
-version reporting. The date identifies the OpenMUI release.
+The library version is [VERSION], the release [RELEASE] ([STAGE]). The
+library list reports MUI 5 (21.227) so that every program can open it;
+each program is handed the MUI version it asks for: 19.35 (MUI 3.8),
+20.6000 (MUI 4) or 21.227 (MUI 5). External MCCs report their own
+versions. The release date identifies the OpenMUI release. Native
+version definitions are in native_version.h. Building with MUI5_TEST=0
+gives AROS version 19.81 and built-in class version 1.1.
 
-Native version definitions are centralized in native_version.h. Building
-with MUI5_TEST=0 gives AROS version 19.81 and built-in class version 1.1.
-
-MUI 5 development scope
------------------------
-Implemented additions include library vectors, layout and pointers,
-menu images and shortcuts, String editing, Title tabs, newer List/Text
-APIs, Datamap, Objectmap, Textdata and Selectgroup. Data containers use
-pools and binary-search lookup. Textdata borrows its source and owns its
+MUI 4 and 5 additions
+---------------------
+Implemented: library vectors, layout and pointers, menu images and
+shortcuts, String editing, Title tabs, newer List and Text interfaces,
+Datamap, Objectmap, Textdata and Selectgroup. Data containers use pools
+and binary-search lookup. Textdata borrows its source and owns its
 converted buffers; codesets.library is optional. Without it, conversion
 covers Latin-1, UTF-8 and big-endian UCS-2/UTF-16. Encoding conversion
 alone does not add Unicode glyphs to the current Amiga font.
 
-Dataspace Get/Count, directory byte totals through a 64-bit pointer,
-Group/Family reordering, TextColor and Relayout are also implemented.
-Window opacity is stored; OS3 does not gain composited transparent
-windows. Default lists do not allocate column-mapping scratch space.
+Also implemented: Dataspace Get/Count, directory byte totals through a
+64-bit pointer, Group and Family reordering, TextColor, Relayout, Filepanel
+and Fontpanel, separate-process MUI ASL requests, multi-file results, user
+font families, Text marking and additional escapes, menu copying, List
+column mapping and String hook actions, Process, Keyadjust and Fontdisplay.
+Textdata_SourceEncoding matches the observed no-op behaviour of MUI
+21.227 in the tested cases. Window opacity is stored; OS 3 has no
+composited transparent windows.
 
-Filepanel/Fontpanel, separate-process MUI ASL requests, multi-file results,
-user font families, Text marking and additional escapes, menu copying,
-List column mapping and String hook actions are implemented. Process,
-Keyadjust and Fontdisplay are available. Textdata_SourceEncoding matches
-the observed no-op behavior of the 21.227 reference in the tested cases.
+As in MUI 5, String implements the Textinput interface: marks, clipboard
+and edit methods, numeric input and the Textinput attributes.
+Textinput.mcc and Textinputscroll.mcc 29 are thin wrappers. A multiline
+String edits lines: Return inserts a newline and the cursor keys move
+between lines. Textinputscroll shows no scrollbars.
 
-As in MUI 5, String implements the Textinput API: marks, clipboard and
-edit methods, numeric input and the Textinput attributes. Textinput.mcc
-and Textinputscroll.mcc 29 are thin wrappers. A Multiline String edits
-lines: Return inserts a newline and the cursor keys move between lines.
-Textinputscroll does not show scrollbars.
+Not implemented: Screenmodepanel, Slave, undocumented preferences
+classes, complete theme compatibility. Native ASL handles unsupported
+requester options. External MCC versions and AfA OS interaction need their
+own application checks. Reproducible probes, reference differences and
+validation limits: tests/native/README.mui5.md in the source.
 
-Remaining gaps include Screenmodepanel, Slave, undocumented preferences
-classes, complete theme compatibility and full application workflows.
-Native ASL handles unsupported requester options. External MCC versions
-and AfA OS interactions need their own application checks. See
-tests/native/README.mui5.md in the source tree for reproducible probes,
-reference differences and exact validation limits.
-
-Implemented areas with isolated linked-code checks
--------------------------------------------------
+Checks that execute linked code
+-------------------------------
+These run m68k code with modelled OS services ("make check"):
 - Public library gates, register hooks and classic structure prefixes
 - Built-in and external class ownership, failure cleanup and expunge
-- Notification removal, re-entry, source disposal and symbolic destinations
-- Typed configuration lookup, numeric defaults and custom data pointers
-- Buffered input, ARexx fallback hooks, AppIcon drops, legacy menus and help
-- Floattext wrapping, dynamic group relayout and explicit cycle ordering
-- Numeric scale intervals, reverse mapping and large-range arithmetic
-- Signed String selection ranges and explicit up/down focus targets
-- Bitmap remap ownership, image allocation failure paths and nested clips
-- Pixmap raw/RLE/bzip2 decoding, data replacement and failed-allocation cleanup
+- Notification removal, re-entry, source disposal, symbolic destinations
+- Typed configuration lookup, numeric defaults, custom data pointers
+- Buffered input, ARexx fallback hooks, AppIcon drops, legacy menus, help
+- Floattext wrapping, dynamic group relayout, explicit cycle ordering
+- Numeric scale intervals, reverse mapping, large-range arithmetic
+- Signed String selection ranges, explicit up/down focus targets
+- Bitmap remap ownership, image allocation failure paths, nested clips
+- Pixmap raw/RLE/bzip2 decoding, data replacement, failed-allocation cleanup
 
-These checks execute m68k code with modelled OS services. They are not an
-AmigaOS application compatibility matrix or a physical-hardware result.
-Use separate OS installations when comparing MUI and Zune68, particularly
-with third-party MCCs which open muimaster.library themselves.
+They are not an AmigaOS application compatibility matrix and not a
+hardware result. When comparing MUI and OpenMUI, use separate OS
+installations, in particular with third-party MCCs that open
+muimaster.library themselves.
 
 Rendering and lifetime limits
 -----------------------------
@@ -78,7 +75,8 @@ Planar Bitmap rendering treats nonzero global alpha as opaque while
 retaining its mask; zero alpha is transparent. Core RTG rendering
 opens CyberGraphX V41 on demand and uses its classic pixel-array calls
 for software alpha blending. Text RGB/ARGB and inline image pixels are
-covered by a Picasso96 probe; complete RTG themes are not. Window refresh follows
+covered by a Picasso96 probe; complete RTG themes are not. Window refresh
+follows
 the configured preferences. Both refresh modes use clip regions outside
 an update, and managed refresh preserves pending damage while changing
 regions. Broad redraw/text caches need measurements and GUI evidence
@@ -111,32 +109,27 @@ output remains caller-owned. Use TRACE=0 for performance measurements.
 
 TheBar
 ------
-TheBar 26.22, TheBarVirt, TheButton, TheBar.mcp and the Toolbar wrapper are
-built for the 68000 without an FPU and loaded only when requested. The five
-stripped modules total 184,200 bytes. SDK headers, catalogs, documentation
-and Examples/TheBarDemo are included. See Docs/thebar/Native for details.
-
+TheBar 26.22, TheBarVirt, TheButton, TheBar.mcp and the Toolbar wrapper
+are built for the 68000 without an FPU and loaded only when requested. The
+five stripped modules total 184,200 bytes. SDK headers, catalogs,
+documentation and Examples/TheBarDemo are included (Docs/thebar/Native).
 On AmigaOS 3.2.3, TheBarDemo CHECK completes three construction,
-attribute, window-open and disposal cycles. The preferences page renders
-and Cancel exits with return code zero. This does not cover all optional
-RTG effects or every legacy Toolbar application's behavior.
+attribute, window-open and disposal cycles; the preferences page renders
+and Cancel exits with return code 0. Optional RTG effects and every legacy
+Toolbar application are not covered.
 
 Application results
 -------------------
-IBrowse 3.0a basic functionality is working and the browser is pretty
-usable. YAM 2.x, Voyager 3.5.2, Odyssey Web Browser, AmiPG and XSysInfo
-run as well. All 12 built-in
-Prefs pages display images;
-MCP pages appear once, and Prefs Test/Cancel returns successfully.
-
-In IBrowse, page rendering, URL editing, links, HTTP downloads, tab
-creation/switching/closing, bookmark navigation and menu Quit work.
-Settings pages open and Cancel restores the underlying page. Native
-list-tree glyphs and some settings layouts differ from original MUI.
-Newstring.mcc clipboard behavior matches original MUI 3.9.
+Functional in emulators: IBrowse 3.0a (page rendering, URL editing, links,
+HTTP downloads, tab handling, bookmarks, menu Quit, settings pages),
+YAM 2.x, Voyager 3.5.2, Odyssey Web Browser, AmiPG, XSysInfo. All 12
+built-in preferences pages display images; MCP pages appear once; Prefs
+Test and Cancel return successfully. Native list-tree glyphs and some
+settings layouts differ from MUI. Newstring.mcc clipboard behaviour matches
+MUI 3.9.
 
 IBrowse 3.0a runs with Newstring 16.18 and with the String-derived 21.26
-supplied with MUI 5. The latter requires muimaster.library version 20, so a
+supplied with MUI 5. The latter requires muimaster.library version 20; a
 MUI5_TEST=0 build shows "Couldn't create CL_URLString" with it. Check both
 MUI:Libs/mui and the browser's own mui drawer.
 
@@ -144,32 +137,29 @@ LumiZip 1.0.1 and LumiWeather 1.4.524 start and quit cleanly on AmigaOS
 3.2.3 with networking off. A shutdown freeze reported on OS 3.9/AfA OS has
 not been reproduced.
 
-This is a beta, and there are many ways to improve it. Settings edits,
-form handling, more applications, AmigaOS 3.1, 68000 machines and
-CyberGraphX truecolor rendering all need more testing. We need testers:
-please report what works and what doesn't.
+Not covered by tests so far: settings edits, form handling, further
+applications, 68000 machines with OS 3.1 on real hardware, CyberGraphX
+truecolor rendering.
 
-Settings, Snapshot, Popup and Iconify title-bar buttons are implemented.
-Iconify/restore and palette ownership work.
+Settings, Snapshot, Popup and Iconify title-bar buttons are implemented;
+iconify/restore and palette ownership work. With the default smart
+refresh the main windows of IBrowse, YAM and Voyager restore completely
+when uncovered. After a resize, YAM's message list area differs from MUI
+3.9 in both refresh modes.
 
-With the default smart refresh, the main windows of IBrowse, YAM and
-Voyager restore completely when uncovered. After a resize, YAM's message
-list area differs from MUI 3.9 in both refresh modes.
-
-Application stress tests complete 1000 control and 1000 queued-call
-lifetimes after warmup, with flat measured free memory/largest blocks
-and no discarded-method callbacks. Window stress completes 100 cycles
-with balanced setup/cleanup and stable measured memory and system colors.
-One window test ended 112 Fast RAM bytes below its initial sample, so
-window leaks are not ruled out. These results are not a general leak-free
-claim.
+Stress tests: 1,000 control and 1,000 queued-call lifetimes after warmup
+complete with flat free memory and largest blocks and no discarded-method
+callbacks. 100 window cycles complete with balanced setup/cleanup and
+stable memory and system colours. One window test ended 112 bytes of fast
+RAM below its initial sample, so a window leak is not ruled out. These
+results are not a general leak-free claim.
 
 Runtime workload
 ----------------
 From an Amiga Shell, after installing and rebooting:
 
-    Tests/compatcheck muimaster.library 100 >RAM:zune68-contracts.txt
-    Tests/compatcheck muimaster.library 100 gui >RAM:zune68-gui.txt
+    Tests/compatcheck muimaster.library 100 >RAM:openmui-contracts.txt
+    Tests/compatcheck muimaster.library 100 gui >RAM:openmui-gui.txt
 
 The executable requests a 64 KiB stack. The optional gui mode repeatedly
 opens and disposes a window, including group relayout. Run on a test
@@ -206,14 +196,14 @@ compatcheck-mui39, respectively. The MUI 5 SDK also works as the 3.9
 SDK.
 
 It then compares the value of every identifier that the SDK's
-libraries/mui.h and mui/*_mcc.h define and Zune68 also defines, and
+libraries/mui.h and mui/*_mcc.h define and OpenMUI also defines, and
 fails if any differ. Image and frame counts differ by design, so they
 are listed but not counted as errors. tools/check_sdk_ids.py --missing
-lists the SDK identifiers that Zune68 does not define.
+lists the SDK identifiers that OpenMUI does not define.
 
-Run that binary in separate MUI and Zune68 installations, then compare:
+Run that binary in separate MUI and OpenMUI installations, then compare:
 
-    python3 tools/compare_compat.py mui-contracts.txt zune68-contracts.txt
+    python3 tools/compare_compat.py mui-contracts.txt openmui-contracts.txt
 
 Matching contract output is one narrow result. Inspect timing/memory
 separately and exercise real application/MCC versions before making broad

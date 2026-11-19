@@ -1,9 +1,9 @@
 # OpenMUI against MUI 3.8 and MUI 5
 
-Part of the [reference](README.md). Collected on 2026-11-18 from `docs/lean/README.md` ("Left open" and the
-compatibility rounds), `docs/lean/roadmap.md`, the [developer guide](../developer-guide.md) ("Known
-differences from MUI"), the autodoc comments in the sources, and the generated class pages. All results are
-from emulators (Amiberry, FS-UAE) unless said otherwise; nothing is measured on a real Amiga. "MUI 3.8" and
+Part of the [reference](README.md). Sources: the [developer guide](../developer-guide.md) ("Known
+differences from MUI"), the autodoc comments in the sources, the generated class pages and the compatibility
+measurements in `docs/lean/README.md`. All results are from emulators (Amiberry, FS-UAE); nothing is
+measured on a real Amiga. "MUI 3.8" and
 "MUI 5" mean the real products as measured black-box. This page lists differences; the goal is that a
 program sees none at default settings.
 
@@ -25,7 +25,7 @@ whose "Behave as" says so.
 
 ## Not implemented
 
-*Read from the generated class pages; "not handled" means no built source mentions the attribute.*
+*From the generated class pages; "not handled" means no built source mentions the attribute.*
 
 | Name | Status |
 |---|---|
@@ -45,11 +45,11 @@ whose "Behave as" says so.
 | RegisterGadget's popup menu, FrameDynamic's hover (MUI 4/5) | not done; `MUIA_FrameDynamic` is kept, not acted on |
 | Busy's MUI 5 look (grey with blue blocks) | not done |
 | Popscreen's `WindowHook` | not set (MUI 3.8 sets it) |
-| The custom frames (settings `FST_CUSTOM1` to `16`, pictures loaded per window) | draw nothing (as on the earlier "lean" edition): no frame table ever held their frame image (2026-11-17, `docs/lean/README.md`) |
+| The custom frames (settings `FST_CUSTOM1` to `16`, pictures loaded per window) | drawn (added after 0.1b2, see the changelog) |
 
 ## Compatibility (measured against MUI 3.8)
 
-*From "Left open", compatibility round 5, 2026-11-18, branch `compat5`.*
+*Measured in compatibility round 5 (2026-11-18).*
 
 - **The group spare-pixel rule is a fit, not MUI 3.8's whole rule**: it reproduces 1,220 of 1,346 chosen
   layouts and 1,133 of 1,399 random ones. A first child clamped at its maximum gives up a pixel on MUI 3.8; an
@@ -65,12 +65,11 @@ whose "Behave as" says so.
 - **Cycle chain**: an object that joins the chain while its window is open goes to the chain's end (MUI 3.8 not
   probed for that alone).
 - **Groups with a zero-weight Rectangle beside a Space** (`HGroup(VGroup(object, VSpace(0)), HSpace(0))`)
-  got a box reaching across the screen and a test hung reading it, on the lean edition and the branch alike;
-  not compared with MUI 3.8, not traced.
+  get a box reaching across the screen and a test hung reading it; not compared with MUI 3.8, not traced.
 - **Programs that fail on OpenMUI for their own reasons**: Voyager 3.5.3 can reset the machine after a quit by
   its close gadget (its own blit is still running when its own `FreeBitMap` frees the bitmap; reproducible
   only on OpenMUI; decided as Voyager's bug). NewsCoaster 1.61 resets at its first start or at quit
-  (a stray write of its own lands in the library's code; it runs on the earlier edition). AmigaGPT keeps
+  (a stray write of its own lands in the library's code). AmigaGPT keeps
   MUI 3.8's geometry because it asks for version 19. AnimMaker's resets are its own (6.2 % of boots on
   OpenMUI and 6.4 % on MUI 3.8).
 
@@ -78,13 +77,11 @@ whose "Behave as" says so.
 
 Emulator figures (FS-UAE, `opbench`, `memtally`); real-hardware speed has not been measured.
 
-- The library file is about 256 KB against MUI 3.8's 166 KB (developer guide, 2026-11-12); class files in
-  `LIBS:OpenMUI` carry the rarely used classes. The first program uses 428,344-428,368 bytes against MUI
-  3.8's 460,296, each further program 193.3-193.6 KB against 210.6-218.9 KB (`docs/production.md`, gate
-  "memory", 2026-11-17).
-- Creating an application with its windows was 1.06 to 1.08 times MUI 3.8's in one measurement (2026-11-12);
-  later rounds measured 0.78-0.82. MUI 3.8 pools its objects; a pool here cost 0.8 to 23 KB per program and
-  was taken out.
+- The library file is 232,200 bytes (stripped); class files in `LIBS:OpenMUI` carry the rarely used
+  classes. The first MUI-Demo program uses 428,344-428,368 bytes against MUI 3.8's 460,296, each further
+  program 193.3 KB against 210.6-218.9 KB.
+- Creating an application with its windows takes 0.78-0.82 of MUI 3.8's time (A1200 and A600 emulation).
+  MUI 3.8 pools its objects; a pool in OpenMUI cost 0.8 to 23 KB per program and was removed.
 
 ## Identity and the library
 
@@ -97,8 +94,6 @@ Emulator figures (FS-UAE, `opbench`, `memtally`); real-hardware speed has not be
 - Open takes the requested version from `D2` (exec 40.10 and 47.8); another exec that passes neither `D0` nor
   `D2` would make every program MUI 3.8 under Automatic.
 - `MUIMASTER_VMIN`/`MUIMASTER_VLATEST` in the generated header are 0 (MUI's own header: 11 and 19).
-- The inner-spacing fields of the area data are at offset 84, the source comment says 88 in MUI
-  ([custom classes](custom-classes.md#the-public-area-data)).
 - Settings go to `ENV:OpenMUI` / `ENVARC:OpenMUI`, never into a real MUI's `ENV:MUI`; a program's own
   `MUIM_Application_Save` writes `ENV(ARC):MUI/<base>.cfg`, as MUI does.
 

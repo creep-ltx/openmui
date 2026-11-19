@@ -1,8 +1,11 @@
 # OpenMUI developer guide
 
 For people who write programs for OpenMUI, or work on OpenMUI itself.
-Users: see [user-guide.md](user-guide.md). The detail (functions, every class's attributes and methods,
-custom classes, differences) is in the [programmer reference](reference/README.md); this page is the overview.
+Users: see [user-guide.md](user-guide.md). The detail (functions, every
+class's attributes and methods, custom classes, differences) is in the
+[programmer reference](reference/README.md); this page is the overview.
+`docs/lean/` is the development log (rounds, measurements, class split,
+roadmap) and is not a reference.
 
 OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was created by Stefan Stuntz;
 MUI 4 and 5 come from the MUI team. OpenMUI is a separate library that is compatible
@@ -24,10 +27,9 @@ settings. The version it reports is 19.35 to MUI 3 programs.
 
 ### MUI 4 and MUI 5
 
-MUI 4/5 programs run as fully as possible, but a MUI 3 program pays nothing
-for it: every MUI 4/5-only piece is a file loaded on demand, or lies behind
-the per-program identity (below). What is in, as read from the sources and
-notes (`docs/lean/README.md`, "MUI 4/5 programs" and the rounds after it):
+MUI 4/5 programs are supported as fully as possible. A MUI 3 program pays
+nothing for it: every MUI 4/5-only piece is a file loaded on demand, or lies
+behind the per-program identity (below). Supported:
 
 | Area | What |
 |---|---|
@@ -75,13 +77,13 @@ for version 21. A program that asks for 19 gets MUI 3.8 under Automatic.
 
 ## Known differences from MUI
 
-From "Left open" in `docs/lean/README.md`, the roadmap and the identity notes.
 Emulator results only; nothing here is measured on a real Amiga.
 
 **Compatibility**
 
-- The group spare-pixel rule: a column case and one row case differ from MUI
-  3.8's by a pixel or more in some groups.
+- The group spare-pixel rule is a fit to measurements of MUI 3.8, not its
+  complete rule: 1,220 of 1,346 chosen layouts and 1,133 of 1,399 random
+  ones match; some groups differ by a pixel or more.
 - The window sizes of a few programs differ by pixels from MUI 3.8's (NFS-GUI's
   list by 1 pixel, TinyMeterPrefs' default height, and others listed in the
   README).
@@ -109,12 +111,14 @@ Emulator results only; nothing here is measured on a real Amiga.
 
 **Size and speed**
 
-- The library file is about 256 KB on disk against MUI 3.8's 166 KB (emulator build
-  figures, see `docs/lean/README.md`). What is left is mostly OpenMUI's own
-  code: List, Window, String, Group, Area, Application.
-- Creating an application with its windows is 1.06 to 1.08 times MUI 3.8's
-  (FS-UAE, `opbench`). MUI 3.8 pools its objects; a pool here cost the
-  first program 3 to 7 KB.
+- The library file is 232,200 bytes (stripped, 68000 build); MUI 3.8's
+  library alone takes 238,520 bytes in memory against OpenMUI's 246,048. The
+  rarely used classes are separate files in `LIBS:OpenMUI`.
+- First MUI-Demo program: 428.2 KB against MUI 3.8's 460.3 KB; each further
+  program 193.1 KB against 210.6-218.9 KB.
+- Creating an application with its windows takes 0.78-0.80 of MUI 3.8's time on
+  an emulated A1200 and 0.80-0.82 on an A600. MUI 3.8 pools its objects; a
+  pool in OpenMUI cost 0.8 to 23 KB per program and was removed.
 - Real-hardware speed has not been measured.
 
 **Tested only in emulators** (Amiberry headless, FS-UAE). RTG only as
@@ -155,7 +159,7 @@ m68k-amigaos-gcc -noixemul -Os -I../include -o HelloZune HelloZune.c -lmui
 
 The archive has an `Examples` drawer (HelloZune, HGroup, VGroup, VHGroup,
 VHGroup2, HVGroup, Notify, TheBarDemo). Open `muimaster.library` by that name
-(the second name `zunemaster.library` is gone).
+(there is no second name).
 
 The reference for the functions and classes is [reference/](reference/README.md); a custom class example
 is `SDK/examples/CustomClass.c`.
@@ -166,9 +170,9 @@ then `MUI/<name>` in `LIBS:`), `ENVARC:OpenMUI` and `ENV:OpenMUI` (settings:
 `global.prefs`, `<base>.prefs` per application, `BehaveAs`, `fontfamilies`,
 `PublicScreens.iff`), `LIBS:OpenMUI/Images` (external image classes), and the
 catalogs `System/Prefs/OpenMUI.catalog` and `System/Classes/OpenMUI/`.
-Earlier test builds used the name Zune for all of these. A program that
+Test builds before 0.1b2 used the name Zune for all of these. A program that
 writes its own settings with `MUIM_Application_Save` gets
-`ENV(ARC):MUI/<base>.cfg`, as with MUI (an earlier build's
+`ENV(ARC):MUI/<base>.cfg`, as with MUI (a pre-0.1b2 build's
 `ENV(ARC):Zune/<base>.cfg` is still read when that is missing). OpenMUI's own
 settings never go into a real MUI's `ENV:MUI`.
 
@@ -223,5 +227,5 @@ Issues and pull requests go to <https://github.com/creep-ltx/openmui>.
 - Put no private paths, keys or e-mail addresses in the repository.
 - Betas are `X.YbN`. Every change gets an entry in [../CHANGELOG.md](../CHANGELOG.md).
 
-Where the work stands, what is next and the open items:
-[lean/roadmap.md](lean/roadmap.md), `docs/lean/README.md` ("Left open").
+Open items and planned work: [lean/roadmap.md](lean/roadmap.md) and
+`docs/lean/README.md` ("Left open").

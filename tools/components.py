@@ -3,6 +3,7 @@
 import argparse
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -122,6 +123,22 @@ def copy(source, target):
         shutil.copyfile(source, target)
 
 
+DOCUMENTS = [('docs/user-guide.md', 'UserGuide.txt'),
+             ('docs/developer-guide.md', 'DeveloperGuide.txt'),
+             ('CHANGELOG.md', 'Changelog.txt')]
+
+
+def docs(build):
+    """OpenMUI's guides, reference and changelog as plain text (Latin-1,
+    76 columns) in Docs/OpenMUI, readable on an Amiga."""
+    sys.path.insert(0, str(ROOT / 'tools'))
+    from md2txt import convert_file
+    for source, name in DOCUMENTS:
+        convert_file(ROOT / source, build / 'Docs/OpenMUI' / name)
+    for source in sorted((ROOT / 'docs/reference').glob('*.md')):
+        convert_file(source, build / 'Docs/OpenMUI/Reference' / (source.stem + '.txt'))
+
+
 def sdk(build):
     copy(ROOT / 'dist/OpenMUI-Prefs.info', build / 'Prefs/OpenMUI.info')
     master = ROOT / 'workbench/libs/muimaster'
@@ -167,6 +184,7 @@ def sdk(build):
                     copy(source, build / 'Docs' / family / source.name)
     copy(ROOT / 'tools/thebar/Native', build / 'Docs/thebar/Native')
     upmcc(build)
+    docs(build)
     copy(ROOT / 'tests/native/thebar_demo.c', build / 'SDK/examples/TheBarDemo.c')
     for source in (master / 'tutorial/examples').glob('*'):
         if source.suffix in ('.c', '.h'):

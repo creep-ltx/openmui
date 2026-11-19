@@ -1,19 +1,31 @@
 # OpenMUI user guide
 
 OpenMUI is a free, open-source alternative to MUI (the Magic User
-Interface) for AmigaOS 3.x. Install it instead of MUI, and programs made for
-MUI 3, 4 and 5 work with it. It comes with everything MUI programs need:
-`muimaster.library`, the classes, and a preferences program. It runs programs
-written for MUI 3, 4 and 5, and aims at the look and the memory use of MUI 3.8.
+Interface) for AmigaOS 3.x. It provides `muimaster.library`, the built-in
+classes and a preferences program, and runs programs written for MUI 3, 4 and
+MUI 5. Its look and memory use follow MUI 3.8.
 
-> OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was created by Stefan Stuntz;
-> MUI 4 and 5 come from the MUI team. OpenMUI is a separate library that is compatible
-> with MUI's programming interface. It is built on Zune, the MUI-compatible
-> toolkit of AROS (The AROS Development Team), as ported to AmigaOS 3 by
-> Stefan Reinauer (Zune68).
+> OpenMUI is not MUI and is not affiliated with MUI's authors. MUI was created
+> by Stefan Stuntz; MUI 4 and 5 come from the MUI team. OpenMUI is a separate
+> library that is compatible with MUI's programming interface. It is based on
+> Zune, the MUI-compatible toolkit of AROS (The AROS Development Team), as
+> ported to AmigaOS 3 by Stefan Reinauer (Zune68).
 
-**Version 0.1b2, public beta.** Please report what works and what does not (see
-[Reporting a problem](#reporting-a-problem)).
+**Version 0.1b2, public beta.** Problem reports: see
+[Reporting a problem](#reporting-a-problem).
+
+## Memory and speed
+
+Cycle-exact FS-UAE emulation, OS 3.1, 4 MB fast RAM (MUI 5: OS 3.2.1). Not
+measured on a real Amiga.
+
+| | OpenMUI | MUI 3.8 | MUI 5 |
+|---|---:|---:|---:|
+| MUI-Demo, first program | 428.2 KB | 460.3 KB | 1,293.7 KB |
+| Each further program | 193.1 KB | 210.6-218.9 KB | 427-435 KB |
+| Inserting 1,000 list rows, A1200 | 248 ms | 6,652 ms | 20,253 ms |
+
+Further figures: [README](../README.md#speed).
 
 ## What you need
 
@@ -40,7 +52,7 @@ First it looks, and changes nothing of what it finds:
 - a MUI you already have (MUI 3.x, 4 or 5, in `MUI:` or `SYS:MUI`),
 - MUI's lines in `S:User-Startup`,
 - every `muimaster.library` in the `LIBS:` drawers,
-- an earlier OpenMUI (or "Zune68k lean") installation.
+- an earlier OpenMUI installation, including test builds named "Zune68k lean".
 
 Then it installs:
 
@@ -76,17 +88,17 @@ Then it installs:
 
 Run *Install* again. It offers "Install this version over it": the earlier
 installation is removed first (your own files are put back), then the new one
-is installed, so an update always starts from your own files. An earlier test
-build installed as "Zune68k lean" (`SYS:Zune68k`, `SYS:Prefs/Zune`) is
-removed the same way first. A second library `zunemaster.library` that
-earlier test builds installed is taken away: OpenMUI is one library now. If
-one is still there after that and it is your own, it is moved to the backup
-and put back by *Uninstall* and *Use real MUI*.
+is installed, so an update always starts from your own files. A test build
+installed as "Zune68k lean" (`SYS:Zune68k`, `SYS:Prefs/Zune`) is removed the
+same way first. The second library `zunemaster.library` that test builds
+installed is removed: OpenMUI is one library. If one remains and is not
+OpenMUI's, it is moved to the backup and restored by *Uninstall* and *Use
+real MUI*.
 
-Earlier test builds kept their class files in `LIBS:Zune` and their settings
-in `ENVARC:Zune` and `ENV:Zune`. An update moves the settings to
+Test builds kept their class files in `LIBS:Zune` and their settings in
+`ENVARC:Zune` and `ENV:Zune`. An update moves the settings to
 `ENVARC:OpenMUI` and `ENV:OpenMUI` (a file already there is not replaced; the
-old one then stays where it is), and takes the earlier build's own files out
+old one then stays where it is), and takes the test build's own files out
 of `LIBS:Zune`. Anything else in `LIBS:Zune` is yours: it goes to the backup
 and comes back with *Uninstall* or *Use real MUI*.
 
@@ -149,9 +161,9 @@ global settings are shown in the editor; *Save* or *Use* keeps them,
 Settings that OpenMUI keeps in `ENV:OpenMUI` and `ENVARC:OpenMUI` are separate
 from MUI's (`ENV:MUI`, `ENVARC:MUI`).
 
-Earlier test builds kept their settings in `ENVARC:Zune` and `ENV:Zune`.
-Installing over such a build moves them to the new names. If they are still
-there (OpenMUI copied in by hand, say), the library uses them until OpenMUI
+Test builds kept their settings in `ENVARC:Zune` and `ENV:Zune`. Installing
+over such a build moves them to the new names. If they are still there
+(for example after a manual copy), the library uses them until OpenMUI
 has settings of its own, and the preferences program copies them over the
 first time it runs; the old files are left as they are.
 

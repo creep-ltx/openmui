@@ -1,6 +1,6 @@
 # Writing a custom class and an external class
 
-Part of the [reference](README.md). Everything here was read from the sources (`mui_createcustomclass.c`,
+Part of the [reference](README.md). Derived from the sources (`mui_createcustomclass.c`,
 `support_classes.c`, `classes/area.c`, `classes/area.h`, `macros.h`, `identity.c`) except where it says
 *verified*. The example compiles; it has not been run.
 
@@ -17,7 +17,7 @@ MUI_DeleteCustomClass(mcc);          /* after every object of the class is dispo
 A complete, compiling program is [`CustomClass.c`](../../workbench/libs/muimaster/tutorial/examples/CustomClass.c)
 (shipped in `SDK/examples`): a `Meter` subclass of Area with a private attribute, `OM_NEW`/`OM_SET`/`OM_GET`,
 `MUIM_AskMinMax`, `MUIM_Setup`/`MUIM_Cleanup` (an event handler), `MUIM_HandleEvent` and `MUIM_Draw`, driven by a
-Slider and a notification. Build (verified 2026-11-18, no warnings with `-Wall`):
+Slider and a notification. Build (verified, no warnings with `-Wall`):
 
 ```sh
 PATH=~/opt/amiga-gcc16/bin:$PATH m68k-amigaos-gcc -noixemul -std=gnu17 -Os -Wall \
@@ -90,8 +90,7 @@ Defined in `libraries/mui.h` (`macros.h` in the source). Use them; do not read t
 
 These macros read the object through a fixed layout. Programs and classes compiled against MUI's header do
 the same, so **the layout must not change**: the object starts with a `MUI_NotifyData` (28 bytes), then the
-`MUI_AreaData`. Offsets inside `MUI_AreaData`, checked with static assertions against the headers on
-2026-11-18:
+`MUI_AreaData`. Offsets inside `MUI_AreaData`, checked with static assertions against the headers:
 
 | Offset | Field | Public through |
 |---|---|---|
@@ -102,9 +101,7 @@ the same, so **the layout must not change**: the object starts with a `MUI_Notif
 | 32 | `mad_addleft`, `mad_addtop`, `mad_subwidth`, `mad_subheight` (`BYTE`) | `_addleft` ... `_subheight` |
 | 36 | `mad_Flags` | `_flags` |
 | 40 to 76 | weights, IDCMP flags, background spec, font preset, short help (60), fix width/height (64, 68), `mad_VirtualTop` (72), `mad_Flags2` (76) | private, but kept at MUI's offsets because programs read them with MUI's private macros (Voyager's `_vtop` and `_shorthelp`) |
-
-The inner spacing bytes (`mad_InnerLeft` ...) are at 84 in OpenMUI; the source comment says MUI keeps them
-at 88. Whether any program reads them is not known (*read*, not tested).
+| 80 to 107 | `mad_FrameTitle` (80), `mad_Live` (84), inner spacing Left/Top/Right/Bottom (88-91), `mad_Frame` (92), control char (96), title height add/below/above (97-99), `mad_Rare` (100), `ehnPriority` (104), input mode (105), disable count (106) | inner spacing and control char at MUI 3.8's offsets (*verified* with `tests/native/areainner.c`: 3/5/7/9 and 'q' read back at 88-91 and 96); the structure is 108 bytes. What MUI keeps at 80-87 is not known |
 
 `muiNotifyData(obj)`, `muiAreaData(obj)`, `muiGlobalInfo(obj)`, `muiUserData(obj)` and `muiRenderInfo(obj)`
 are the accessors. Every other field and flag marked `PRIV` in `classes/area.h` may change between releases.
@@ -121,8 +118,7 @@ classes first (case-sensitive compare), then opens, with `OpenLibrary(path, 0)`,
 3. `MUI/<name>`
 
 each relative to `LIBS:` (and resident libraries). So a class in `LIBS:OpenMUI` wins over a same-named class in
-`LIBS:MUI`. (*read*, `mui_getclass.c`, `support_classes.c`. The class-split note still says `LIBS:Zune` for the
-class-file drawer; that is the earlier name.)
+`LIBS:MUI`. (Source: `mui_getclass.c`, `support_classes.c`.)
 
 **What the library must provide.** The library's `MCC_Query(0)` (vector 5, `-30`, the first one after the standard four) returns the
 `struct MUI_CustomClass *` of the class (an MCP's `MCC_Query(1)` is tried when `MCC_Query(0)` returns NULL);

@@ -2,10 +2,9 @@
 
 The reference for programs and classes written for OpenMUI's `muimaster.library`. The
 [developer guide](../developer-guide.md) is the overview (what is supported, how the identity works,
-building, tests, the clean-room rule); this is the detail. Status: written 2026-11-18 from the
-sources; nothing here has been run on a real Amiga. OpenMUI is not MUI and is not affiliated with MUI's
-authors. The pages describe OpenMUI's behaviour, written from its own sources and from black-box
-measurement of MUI; none of MUI's code is used.
+building, tests, the clean-room rule); this is the detail. Content is derived from OpenMUI's sources
+and from black-box measurement of MUI; nothing has been run on a real Amiga. OpenMUI is not MUI and is
+not affiliated with MUI's authors. None of MUI's code is used.
 
 ## Pages
 
@@ -29,7 +28,7 @@ dispatchers and `OM_NEW`/`OM_SET`/`OM_GET` code, and the autodoc blocks in the s
 sentence, correct the autodoc in the class source and run `python3 tools/gen_reference.py`. The
 pages `README.md`, `custom-classes.md` and `differences.md` are written by hand.
 
-Counts at the time of writing: 75 classes documented (and one, Scrmodelist, declared but not built),
+Counts: 75 classes documented (and one, Scrmodelist, declared but not built),
 524 attributes, 238 methods and 29 library functions.
 
 ## How OpenMUI relates to MUI's interface
@@ -47,8 +46,7 @@ Counts at the time of writing: 75 classes documented (and one, Scrmodelist, decl
   `MUIA_Gauge_DupInfoText`) are Zune's own extensions inherited from the code OpenMUI started from; they
   are marked `Zune` in the "Since" column. A program that wants to run on real MUI should not use them.
 - **Not provided:** `muiscreen.library` (its headers `libraries/muiscreen.h`,
-  `clib/muiscreen_protos.h` and the `.sfd` are in the SDK, but there is no implementation in the source tree: *read*,
-  2026-11-18); the private vectors `MUI_Priv1` to `MUI_Priv6`; MUI's private structures beyond what
+  `clib/muiscreen_protos.h` and the `.sfd` are in the SDK, but there is no implementation in the source tree); the private vectors `MUI_Priv1` to `MUI_Priv6`; MUI's private structures beyond what
   programs read through MUI's own macros (see [custom classes](custom-classes.md#the-public-area-data)).
 
 ## Where the headers are
@@ -74,7 +72,7 @@ Open it by name, `muimaster.library`, with the version your program needs:
 struct Library *MUIMasterBase = OpenLibrary("muimaster.library", 19);   /* MUIMASTER_VMIN/VLATEST */
 ```
 
-(The second name `zunemaster.library` of earlier test builds is gone.) The version you ask for **decides
+There is no second library name. The version you ask for **decides
 which MUI the program sees**:
 
 | You ask for | Under "Behave as: Automatic" the program gets | `lib_Version.lib_Revision` it sees |
@@ -87,7 +85,7 @@ The identity is the first match of the program's own line in `ENV:OpenMUI/Behave
 setting for all programs unless it is Automatic, then Automatic (the table above); it is decided at the
 program's first open and kept while it has the library open. The base in the library list reports MUI 5
 (21.227) so that exec lets every program in; `Open` hands out a base reporting the program's identity
-(*read*, `identity.c`, `native_version.h`; verified with `tests/lean/idtest.c`, see the developer guide).
+(source: `identity.c`, `native_version.h`; checked with `tests/lean/idtest.c`, see the developer guide).
 So: a program that asks for 19 gets MUI 3.8 geometry and behaviour, and a program that wants MUI 5
 behaviour asks for 21. An external class (`.mcc`) opens `muimaster.library` itself; OpenMUI gives it the
 identity of the program that loads it (see [custom classes](custom-classes.md#external-classes-mcc)).
@@ -112,7 +110,7 @@ m68k-amigaos-gcc -noixemul -Os -ISDK/include -o HelloZune HelloZune.c -lmui
 - A program that opens the library by hand and draws needs a stack of its own choice
   (`ULONG __stack = 65536;` in `tests/native/disablepaint.c`).
 - `CustomClass.c` in `SDK/examples` is built exactly like the others
-  (`m68k-amigaos-gcc -noixemul -Os -I<SDK/include> -o CustomClass CustomClass.c -lmui`); on 2026-11-18 it compiled without
+  (`m68k-amigaos-gcc -noixemul -Os -I<SDK/include> -o CustomClass CustomClass.c -lmui`); it compiles without
   warnings with `-Wall` against the headers a build generates. It has not been run.
 
 ## Conventions on the class pages
