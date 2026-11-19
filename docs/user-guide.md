@@ -11,7 +11,7 @@ MUI 5. Its look and memory use follow MUI 3.8.
 > Zune, the MUI-compatible toolkit of AROS (The AROS Development Team), as
 > ported to AmigaOS 3 by Stefan Reinauer (Zune68).
 
-**Version 0.1b2, public beta.** Problem reports: see
+**Version 1.0.** Problem reports: see
 [Reporting a problem](#reporting-a-problem).
 
 ## Memory and speed
@@ -37,7 +37,7 @@ Further figures: [README](../README.md#speed).
 
 ## Installing
 
-1. Unpack the archive `OpenMUI-0.1b2-YYYY.MM.DD-amigaos3-m68k.lha`.
+1. Unpack the archive `OpenMUI-1.0-YYYY.MM.DD-amigaos3-m68k.lha (on Aminet: OpenMUI.lha)`.
 2. Double-click *Install*, or from a Shell in that drawer:
    `Installer Install MINUSER AVERAGE`.
 3. Reboot when it is done.

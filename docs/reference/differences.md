@@ -45,7 +45,7 @@ whose "Behave as" says so.
 | RegisterGadget's popup menu, FrameDynamic's hover (MUI 4/5) | not done; `MUIA_FrameDynamic` is kept, not acted on |
 | Busy's MUI 5 look (grey with blue blocks) | not done |
 | Popscreen's `WindowHook` | not set (MUI 3.8 sets it) |
-| The custom frames (settings `FST_CUSTOM1` to `16`, pictures loaded per window) | drawn (added after 0.1b2, see the changelog) |
+| The custom frames (settings `FST_CUSTOM1` to `16`, pictures loaded per window) | drawn (added in 1.0, see the changelog) |
 
 ## Compatibility (measured against MUI 3.8)
 

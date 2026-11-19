@@ -14,7 +14,7 @@ documentation read; its code was never read or copied.
 Origins: Zune (The AROS Development Team), ported to AmigaOS 3 as Zune68
 (Stefan Reinauer); OpenMUI is the lean edition of Zune68.
 
-This is a public beta ([STAGE], [RELEASE]). All figures were measured in
+Version: [STAGE] ([RELEASE]). All figures were measured in
 an emulator (FS-UAE), not on a real Amiga.
 
 Documentation

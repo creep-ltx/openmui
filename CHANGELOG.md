@@ -8,6 +8,12 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+Nothing yet.
+
+## 1.0 (2026-11-19)
+
+The first release.
+
 ### Added
 
 - Programmer reference (`docs/reference/`): the `muimaster.library` functions
@@ -73,7 +79,7 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 - A settings file whose strings lack terminators no longer makes the library read
   past a setting.
 
-## 0.1b2 (2026-11-13, first public beta)
+## 0.1b2 (2026-11-13, private beta)
 
 Includes everything in 0.1b1.
 

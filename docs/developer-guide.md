@@ -228,7 +228,7 @@ Issues and pull requests go to <https://github.com/creep-ltx/openmui>.
   every allocation result is checked and a failed object creation leaves
   nothing behind; MUI is studied black-box.
 - Put no private paths, keys or e-mail addresses in the repository.
-- Betas are `X.YbN`. Every change gets an entry in [../CHANGELOG.md](../CHANGELOG.md).
+- Releases are numbered `X.Y`, betas `X.YbN`. Every change gets an entry in [../CHANGELOG.md](../CHANGELOG.md).
 
 Open items and planned work: [lean/roadmap.md](lean/roadmap.md) and
 `docs/lean/README.md` ("Left open").

@@ -12,7 +12,7 @@ use follow MUI 3.8.
 > 4 and 5 were studied black-box only: their behaviour was measured and their
 > public documentation read; their code was never read, disassembled or copied.
 
-**Version 0.1b2, public beta.** All figures in this document come from
+**Version 1.0.** All figures in this document come from
 cycle-exact emulation (FS-UAE) of an A1200 and an A600. They have not been
 measured on a real Amiga.
 

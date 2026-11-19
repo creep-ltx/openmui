@@ -1,5 +1,7 @@
 # OpenMUI 1.0: what production grade means
 
+**OpenMUI 1.0 was released on 2026-11-19.** The gates below record the state at release.
+
 This page lists the checkable criteria for OpenMUI 1.0. OpenMUI 1.0 ships when every gate is green; until then releases are
 `0.xbN` betas. Each gate names how it is measured. Emulator figures are labelled as such.
 
