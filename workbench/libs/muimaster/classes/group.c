@@ -3624,7 +3624,7 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
      * gets one, and what was given too much is taken back below, from
      * the first element on. So MUI 3.8 lays out (gdist.py: a first child
      * at its maximum gives up a pixel and the others are equal, 19/58/58
-     * of 135 with a maximum of 20; 89 more of the 3,543 measured lines
+     * of 135 with a maximum of 20; 96 more of the 3,543 measured lines
      * than giving the pixels from the last element back, none fewer). */
     if (rem > 0)
     {

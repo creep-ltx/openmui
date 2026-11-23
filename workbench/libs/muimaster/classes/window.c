@@ -1241,6 +1241,9 @@ struct MUI_WindowData
                                          * window's border */
 #define MUIWF_MOVED             (1<<22) /* the pointer moved since the last
                                          * tick (this tick's event) */
+#define MUIWF_TRAPPED           (1<<25) /* the pointer is over an object with a
+                                         * context menu: its moves are
+                                         * reported until it has left it */
 #define MUIWF_NOMENUS           (1<<23) /* MUIA_Window_NoMenus */
 #define MUIWF_SNAPSHOTCLICK     (1<<24) /* the snapshot gadget was clicked:
                                          * a double click undoes it */
@@ -1754,7 +1757,8 @@ static void ChangeEvents(struct MUI_WindowData *data, ULONG new_events)
 
     /* The mouse's moves are reported to the window (WFLG_REPORTMOUSE,
      * what Intuition's ReportMouse() sets) only while an event handler
-     * asks for them or a drag lasts. MUI 3.8 and MUI 5 do not get them at
+     * asks for them, a drag lasts or the pointer is over an object with
+     * a context menu (HandleInputEvent). MUI 3.8 and MUI 5 do not get them at
      * other times either (tests/native/idcmpprobe.c: their windows do
      * not ask for IDCMP_MOUSEMOVE with a context menu, bubble help, a
      * draggable object or MUIA_Window_NeedsMouseObject): a program is
@@ -1766,7 +1770,8 @@ static void ChangeEvents(struct MUI_WindowData *data, ULONG new_events)
      * one (HandleWindowEvent). */
     if (data->wd_RenderInfo.mri_Window)
     {
-        if ((new_events & IDCMP_MOUSEMOVE) || data->wd_DragObject)
+        if ((new_events & IDCMP_MOUSEMOVE) || data->wd_DragObject
+            || (data->wd_Flags & MUIWF_TRAPPED))
             AROS_ATOMIC_OR(data->wd_RenderInfo.mri_Window->Flags,
                 WFLG_REPORTMOUSE);
         else
@@ -2182,6 +2187,7 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
         ModifyIDCMP(win, data->wd_Events);
 
         data->wd_RenderInfo.mri_Window = win;
+        data->wd_Flags &= ~(MUIWF_MOVED | MUIWF_TRAPPED);
         ChangeEvents(data, GetDefaultEvents());     /* WFLG_REPORTMOUSE */
         data->wd_RenderInfo.mri_VertProp = data->wd_VertProp;
         data->wd_RenderInfo.mri_HorizProp = data->wd_HorizProp;
@@ -3706,14 +3712,26 @@ static void HandleInputEvent(Object *win, struct MUI_WindowData *data,
         if (!UpdatePointer(win, data, event->MouseX, event->MouseY, &cursor))
             goto finished;
 
+        /* Over an object with a context menu the right button is the
+         * object's, and the pointer's moves are reported from here on
+         * (MUIWF_TRAPPED): the window's menus are back with the move
+         * that leaves the object, not a tick later (a menu picked right
+         * after the pointer left a string found the button trapped) */
         if (ObjectUnderPointer(data, data->wd_RootObject,
                 event->MouseX, event->MouseY, ContextMenuUnderPointerCheck))
         {
-            AROS_ATOMIC_OR(iWin->Flags, WFLG_RMBTRAP);
+            data->wd_Flags |= MUIWF_TRAPPED;
+            AROS_ATOMIC_OR(iWin->Flags, WFLG_RMBTRAP | WFLG_REPORTMOUSE);
         }
-        else if (!(data->wd_Flags & MUIWF_NOMENUS) && data->wd_Menu)
+        else
         {
-            AROS_ATOMIC_AND(iWin->Flags, ~WFLG_RMBTRAP);
+            if (!(data->wd_Flags & MUIWF_NOMENUS) && data->wd_Menu)
+                AROS_ATOMIC_AND(iWin->Flags, ~WFLG_RMBTRAP);
+            if (data->wd_Flags & MUIWF_TRAPPED)
+            {
+                data->wd_Flags &= ~MUIWF_TRAPPED;
+                ChangeEvents(data, GetDefaultEvents());
+            }
         }
     }
 
