@@ -1707,15 +1707,7 @@ static void HideRenderInfo(struct MUI_RenderInfo *mri)
 
 /* Return the fixed IDCMP mask for size/change/refresh, mouse buttons,
  * menu pick, close, raw keys, ticks, activation and gadget-up events. No
- * allocation or state change occurs.
- * Not IDCMP_MOUSEMOVE: MUI 3.8 and MUI 5 do not ask for it while nothing
- * needs it (tests/native/idcmpprobe.c: not for a context menu, a help
- * bubble, a draggable object or MUIA_Window_NeedsMouseObject either), so
- * a program is not woken for every move of the mouse over its window.
- * What the window itself did on a move (the help bubble, the context
- * menu's trap, MUI 4/5's pointer shapes) it does on the first tick after
- * one (HandleWindowEvent); a handler that asks for moves gets them as
- * before, and so does a drag (ChangeEvents).
+ * allocation or state change occurs. IDCMP_MOUSEMOVE: ChangeEvents.
  */
 static ULONG GetDefaultEvents(void)
 {
@@ -1759,8 +1751,29 @@ static void ChangeEvents(struct MUI_WindowData *data, ULONG new_events)
      ** (also on MUI)
      */
     new_events &= ~IDCMP_VANILLAKEY;
-    if (data->wd_DragObject)    /* a drag follows the mouse */
-        new_events |= IDCMP_MOUSEMOVE;
+
+    /* The mouse's moves are reported to the window (WFLG_REPORTMOUSE,
+     * what Intuition's ReportMouse() sets) only while an event handler
+     * asks for them or a drag lasts. MUI 3.8 and MUI 5 do not get them at
+     * other times either (tests/native/idcmpprobe.c: their windows do
+     * not ask for IDCMP_MOUSEMOVE with a context menu, bubble help, a
+     * draggable object or MUIA_Window_NeedsMouseObject): a program is
+     * not woken for every move of the mouse over its window. The class
+     * itself stays in the IDCMP mask (a ModifyIDCMP at every button
+     * press and release otherwise: opbench "button click" +3 %). What
+     * the window did on a move (the help bubble, the context menu's
+     * trap, MUI 4/5's pointer shapes) it does on the first tick after
+     * one (HandleWindowEvent). */
+    if (data->wd_RenderInfo.mri_Window)
+    {
+        if ((new_events & IDCMP_MOUSEMOVE) || data->wd_DragObject)
+            AROS_ATOMIC_OR(data->wd_RenderInfo.mri_Window->Flags,
+                WFLG_REPORTMOUSE);
+        else
+            AROS_ATOMIC_AND(data->wd_RenderInfo.mri_Window->Flags,
+                ~WFLG_REPORTMOUSE);
+    }
+    new_events |= IDCMP_MOUSEMOVE;
 
     data->wd_Events = new_events;
     if ((old_events != new_events) && (data->wd_Flags & MUIWF_OPENED))
@@ -2156,6 +2169,7 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
         ModifyIDCMP(win, data->wd_Events);
 
         data->wd_RenderInfo.mri_Window = win;
+        ChangeEvents(data, GetDefaultEvents());     /* WFLG_REPORTMOUSE */
         data->wd_RenderInfo.mri_VertProp = data->wd_VertProp;
         data->wd_RenderInfo.mri_HorizProp = data->wd_HorizProp;
         SetDrMd(win->RPort, JAM1);
@@ -4281,7 +4295,7 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         | WFLG_CLOSEGADGET | WFLG_SIMPLE_REFRESH
         | WFLG_REPORTMOUSE | WFLG_NEWLOOKMENUS;
     data->wd_ZoomGadget = TRUE;
-    data->wd_Events = GetDefaultEvents();
+    data->wd_Events = GetDefaultEvents() | IDCMP_MOUSEMOVE;
     data->wd_ReqHeight = MUIV_Window_Height_Default;
     data->wd_ReqWidth = MUIV_Window_Width_Default;
 
@@ -5847,8 +5861,9 @@ IPTR Window__MUIM_RemControlCharHandler(struct IClass *cl, Object *obj,
 #include "../dragwin.c"
 #endif
 
-/* MUIM_Window_DragObject's: the drag begun, and the mouse's moves asked
- * for (ChangeEvents). Out of line: the method's frame. */
+/* MUIM_Window_DragObject's: the drag begun, and the mouse's moves
+ * reported while it lasts (ChangeEvents). Out of line: the method's
+ * frame. */
 static __attribute__((noinline)) IPTR Window_DragBegin(
     struct MUI_WindowData *data, struct MUIP_Window_DragObject *msg)
 {
