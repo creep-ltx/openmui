@@ -868,6 +868,29 @@ static void CalcWidths(struct IClass *cl, Object *obj)
             MAX(1, _font(obj)->tf_YSize + data->prefs_linespacing);
 }
 
+
+/* An attribute of the List's own, set for its notifications only: not
+ * passed on to the group's children (the entry area, the scrollbars and
+ * their arrows; each takes a set through three dispatchers). On the
+ * 68000 that was a quarter of an insert's time (pcsample: opbench "list
+ * insert 1"). */
+static __attribute__((noinline)) void List_Tell(struct IClass *cl,
+    Object *obj, ULONG attr, IPTR value)
+{
+    struct TagItem tags[3];
+    struct opSet msg;
+
+    tags[0].ti_Tag = MUIA_Group_Forward;
+    tags[0].ti_Data = FALSE;
+    tags[1].ti_Tag = attr;
+    tags[1].ti_Data = value;
+    tags[2].ti_Tag = TAG_DONE;
+    msg.MethodID = OM_SET;
+    msg.ops_AttrList = tags;
+    msg.ops_GInfo = NULL;
+    DoSuperMethodA(cl, obj, (Msg)&msg);
+}
+
 /**************************************************************************
  Calculates the number of visible entry lines. Returns 1 if it has
  changed
@@ -901,8 +924,8 @@ static int CalcVertVisible(struct IClass *cl, Object *obj)
 
     if (data->entries_visible != old_entries_visible)
     {
-        superset(cl, obj, MUIA_List_Visible, data->entries_visible);
-        superset(cl, obj, MUIA_List_VertProp_Visible, data->entries_visible);
+        List_Tell(cl, obj, MUIA_List_Visible, data->entries_visible);
+        List_Tell(cl, obj, MUIA_List_VertProp_Visible, data->entries_visible);
     }
 
     return (old_entries_visible != data->entries_visible)
@@ -3560,7 +3583,7 @@ IPTR List__MUIM_Insert(struct IClass *cl, Object *obj,
         if (!(data->flags & LIST_QUIET))
             MUI_Redraw(obj, MADF_DRAWUPDATE);
     }
-    superset(cl, obj, MUIA_List_InsertPosition, data->insert_position);
+    List_Tell(cl, obj, MUIA_List_InsertPosition, data->insert_position);
 
     /* Update index of active entry */
     if (!sort && data->entries_active >= data->insert_position)
@@ -4595,7 +4618,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
         case MUIKEY_PRESS:
             data->click_column = data->def_click_column;
-            superset(cl, obj, MUIA_Listview_ClickColumn,
+            List_Tell(cl, obj, MUIA_Listview_ClickColumn,
                 data->click_column);
             set(obj, MUIA_Listview_DoubleClick, TRUE);
             break;
@@ -4644,7 +4667,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
                     }
                     if (pos.column < 0) return 0;
                     data->title_click = pos.column;
-                    superset(cl, obj, MUIA_List_TitleClick, data->title_click);
+                    List_Tell(cl, obj, MUIA_List_TitleClick, data->title_click);
                     return MUI_EventHandlerRC_Eat;
                 }
                 if (_isinobject(area, imsg->MouseX,
@@ -4669,7 +4692,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
 
                         /* Handle MUIA_Listview_ClickColumn */
                         data->click_column = pos.column;
-                        superset(cl, obj, MUIA_Listview_ClickColumn,
+                        List_Tell(cl, obj, MUIA_Listview_ClickColumn,
                             data->click_column);
 
                         /* Handle double clicking */
@@ -4812,7 +4835,7 @@ IPTR List__MUIM_HandleEvent(struct IClass *cl, Object *obj,
     }
 
     if (changing)
-        superset(cl, obj, MUIA_Listview_SelectChange, TRUE);
+        List_Tell(cl, obj, MUIA_Listview_SelectChange, TRUE);
 
     return result;
 }
