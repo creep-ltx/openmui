@@ -5311,7 +5311,120 @@ the wrap's images); the pixel tests on 5f13b3c0 and 680f2736 (the later commits 
   gadget module first and made MUI-Demo load it: e67914a8 put it back).
 
 
+## Speed round against Zune68 Beta 5 (2026-11-23)
+
+After the measurement of 2026-11-23 (`measurements.md`) OpenMUI 1.0 was faster than Zune68 Beta 5 in all
+but these: an empty application's start (A1200 16.0 against 14.6 ms, A600 66.2 against 60.7, OS 3.2.1
+with MUI 5 identity 0.87), menu open+close on the A600 (46.3 against 40.0), text shorten set (OS 3.2.1,
+0.95) and text set (level). Goal of this round: faster than Zune68 in every measured operation and no
+more memory. Emulator figures (FS-UAE cycle-exact; demopix and the suite on Amiberry).
+
+### Targets and results
+
+ms per operation, `opbench` (the binary of 2026-11-19), medians of 9, two instances each, all libraries
+in one session (`measurements.md`, "Measurement of 2026-11-23 (2)").
+
+| target | MUI 3.8 / MUI 5 | Zune68 Beta 5 | OpenMUI 1.0 | after | reached |
+|---|---:|---:|---:|---:|---|
+| A1200 prefs+app (empty) | 90.9-91.5 | 14.4-14.6 | 15.9-16.2 | 9.7-9.9 | **yes** (Zune68 1.48 of it) |
+| A600 prefs+app (empty) | 352-359 | 61-63 | 66.0-66.3 | 37.3-38.1 | **yes** (1.64) |
+| OS 3.2.1 prefs+app (empty) | 300-301 | 14.9-15.3 | 18.2-18.7 | 11.0-11.3 | **yes** (1.36) |
+| A600 menu open+close | 45.4-48.1 | 40.1 | 46.1-46.4 | 45.5-46.5 | no: see below; the menus themselves 46.6 against Zune68's 120.0 |
+| OS 3.2.1 text shorten set | 4.68-4.69 | 3.21-3.22 | 3.43-3.45 | 3.12 | **yes** (1.03) |
+| A1200 text set | 2.50 | 2.39-2.40 | 2.39 | 2.37 | yes, by 1 % (A600 1 %, OS 3.2.1 2 %) |
+| memory: first program | 460,296 | 672,304 | 427,984 | 427,984 | **yes** (the same) |
+| memory: each further | 210,632-218,888 | 267,872-267,936 | 193,056-193,120 | 191,856-191,920 | **yes** (-1,200) |
+
+Within 10 % of Zune68 before and after (A1200): button click 1.08 -> 1.09, iconify 1.08 -> 1.09, list
+scroll page 1.10 -> 1.09 (not worked on; the same within the instances' spread).
+
+### Where the time went
+
+- **The empty application** (`opbench prof`, pcsample on the 68020): half of its 16 ms was Configdata's
+  OM_NEW building the settings from an empty dataspace: about 200 lookups (cfg_find, Dataspace_Find,
+  ds_find), 15 frame specs parsed and 24 key bindings (the key cache already spared their ParseIX). The
+  OS calls (`opbench count`) were Zune68's to within one or two (9 AllocMem, 4 AllocVec, 2 DoIO); a
+  quarter of the samples was the task preempted while ram-handler answered the two Locks of
+  `ENV:OpenMUI` and `ENV:Zune` (Zune68 opens the same files). **Cut**: the first application that reads
+  no settings file keeps its finished ZunePrefsNew for the library (`cfg_shared`, freed at expunge), the
+  next ones point to it; MUIM_Configdata_SetString (the only writer, MUIM_Application_SetConfigItem)
+  gives an application its own copy first and points the GlobalInfo at it. The prefs moved from the
+  instance data into an allocation of their own (the same 1,208 bytes for the first program, none for
+  the others). The default tables went to 16-bit fields (`spec_cfg` 12 -> 8 bytes, `def_ulval` 12 -> 8),
+  which paid for the new code: the library 232,084 bytes stripped (1.0 232,036), 56 bytes less in memory.
+- **Text set**: 41 % of the profile was the test program's own `sprintf` (locale.library's RawDoFmt,
+  through CallHookPkt per character: the 9 CallHookPkt per set are those), the same on every library;
+  OS calls equal to Zune68's. **Cut**: Text's update drew its background through MUIM_DrawBackground's
+  dispatch (Text -> Area); zune_draw_background calls Area's own when no class could intercept it.
+- **Text shorten set**: the OS calls equal to Zune68's, time inside them equal except AllocVec/FreeVec
+  (the memory list differs). **Cut**: text_shortened (Zmui45.mui) copied the RastPort and allocated the
+  elided chunks at every drawing; a one-chunk text in the object's own font and style (not centre
+  elision) measures with the object's RastPort (TextFit and TextLength only read it; SetSoftStyle with
+  the same style changes nothing) and keeps its two chunks in the copy's room on the stack (frame 228 ->
+  224).
+- **Menu open+close on the A600**: the program's task makes the same calls on both (GetMsg, DoIO);
+  the time is Intuition's. Zune68 asks for IDCMP_MENUVERIFY in every window; Intuition then waits for
+  the program's answer and takes it at its next input tick, and with the button already up shows no
+  menu; the operation ends before that tick: one tick on the A1200 (20.0 ms), two on the A600 (40.0).
+  An OpenMUI build that asked for MENUVERIFY in MUI 3 programs too measured exactly that (19.9 and 39.8
+  ms). Not kept: MUI 3.8 does not ask for it, and the menu is not faster. Measured until the menus have
+  been shown and closed (`menu shown+close`, `menu select`, new in opbench), Zune68 takes 120 ms (six
+  ticks) on both machines against OpenMUI's 13.2 (A1200) and 46.6 (A600).
+
+### Tried and not kept
+
+- MENUVERIFY for every program (above).
+- Detecting "nothing but defaults" by watching every lookup in cfg_find: cfg_find's frame 20 -> 24; a
+  flag set by the settings load instead.
+- `def_ulval`'s id as a word: MUIM_GetConfigItem's frame 24 -> 28 (a zero extension per compare); the
+  id stays a long.
+
+### Checked (emulators)
+
+The final build (4911e404; the commits after it change opbench and documents only) against release 1.0
+(`lean`, ec53ca8d), side by side in the same session.
+
+- `make check` after every commit.
+- `-fstack-usage` of every function of the changed files (configdata.c, configset.c, text.c and
+  Zmui45's textmark45.c) against lean: none larger under the same name; smaller: Configdata's OM_NEW 48
+  -> 44, OM_DISPOSE 32 -> 16, Configdata_SetString 52 -> 48, Text's Draw 68 -> 64, text_shortened 228 ->
+  224. New: cfg_load 40, cfg_build 40, cfg_free 20, cfg_own 12, Configdata_StoreField 8 (inlined in two
+  places before). The path through a settings file is one call deeper (OM_NEW 44 + cfg_load 40 +
+  cfg_read 260 against 48 + 260). stackrun (FS-UAE): MUI-Demo 4,924, Layout 2,224, Virtual 2,168, Pages
+  2,196, Slidorama 2,260 (lean in the same session: the same, Pages 2,212).
+- opbench, all 27, two instances each, A1200 and A600, against MUI 3.8 (`measurements.md`, section (2))
+  and, during the round, against lean (two instances): no operation slower than lean beyond the
+  instances' spread; creation 0.90-0.98 of lean's (the shared defaults), the A600's list insert 1 at
+  1.02 of MUI 3.8 as lean (32.9-33.0 against lean's 32.7-33.3).
+- Memory (`measure.sh`, FS-UAE): first program 427,984 bytes (lean 427,984), each further 191,856-191,920
+  (lean 193,056-193,120), the library alone 245,864 (245,920); with MUI 5 identity on OS 3.2.1 434,672,
+  200,504-200,544, 249,792 (lean 434,672, 201,704-201,744, 249,800).
+- fullcheck's demos (FS-UAE): MUI-Demo with its 8 sub-windows and the other 18 demos, windows and memory
+  lost: the same as lean, line for line.
+- Pixels, lean against the final build (FS-UAE): `framepix thick` and `framepix thin` (1,350 lines each;
+  framepix writes `ENV:OpenMUI/FPix.1.prefs`, so the path with a settings file ran too), `imgpix`,
+  `radiopix` and `radiopix set`, `pagepix`, `scrollpix`, `listclip`, `strkeys pix` identical; demopix
+  (Amiberry): 26 of 27 shots identical, InputHandler's timer-cycled text the other, as always.
+- The suite (Amiberry), lean and the final build side by side: mui3 99 of 100 the same, mcc and mui5 81
+  of 82. Calendar Demo2 froze once on the final build; run again on both: the same window, ok on both
+  (the flaky demo of earlier rounds). AmiDrop: lean opens a 452x83 "AmiDrop" window first and its main
+  window 556x216, the final build only the main window at 556x227, as MUI 3.8 (as an earlier round noted); twice
+  on each build. Not traced.
+
 ## Left open
+
+- **Speed round against Zune68 (2026-11-23)**: OpenMUI is faster than Zune68 Beta 5 in every
+  operation of opbench on the A1200 and on OS 3.2.1 except menu open+close there (level, both ask for
+  MENUVERIFY), and in 25 of 26 on the A600; the A600's menu open+close (Zune68 0.87 of OpenMUI) stops
+  before Zune68's menu is shown (above). **menu select is 1.01-1.05 of MUI 3.8's** on the A1200 and 1.02
+  on the A600, release 1.0 the same: the program's task makes no more OS calls than MUI 3.8's; not
+  traced (Intuition's menu boxes, their size, or the order of the program's wake-ups). **A settings file**
+  (a full `global.prefs`) still costs every application its load and parse (~40 ms on the 68020): the
+  shared copy covers only applications without a file; sharing a loaded one needs the dataspace kept by
+  the library with a reference count and a DOS notification the library owns (a library has no task:
+  NRF_SEND_MESSAGE to a port that is only polled when an application is made), and EndNotify outside
+  expunge's Forbid. Text set is 1-2 % faster than Zune68's; most of that operation is the test's own
+  sprintf and graphics.library.
 
 - **Compatibility round 5 (2026-11-18, `compat5`)**: the spare-pixel rule is a fit, not MUI 3.8's whole
   rule (1,220 of 1,346 chosen, 1,133 of 1,399 random layouts): a first child clamped at its maximum gives

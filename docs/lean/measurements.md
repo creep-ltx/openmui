@@ -1082,12 +1082,173 @@ installed as above with MUI 5's `MUI:Libs` moved aside; OpenMUI there with `ENVA
 Files on disk: Zune68 Beta 5 `muimaster.library` 433,720 bytes (all built-in classes inside) and 39
 optional class files in `Libs/MUI` (NList, NListtree, TextEditor, TheBar, BetterString and others)
 803,100 bytes, loaded only when a program asks for them; OpenMUI 232,036 bytes stripped (253,960
-unstripped) and 54 class files in `LIBS:OpenMUI` (359,108 bytes stripped in this build; 289,948 in the
-build of 2026-11-19) for the rarely used built-in classes, its bundled add-on classes (the same kind as
+unstripped) and 54 class files in `LIBS:OpenMUI` (289,948 bytes stripped, byte for byte the files of the
+1.0 archive; 364,304 unstripped; this section first said 359,108, a figure no strip of these files gives)
+for the rarely used built-in classes, its bundled add-on classes (the same kind as
 Zune68's 39) on top; MUI 3.8 166,412 and 36 files in `MUI:Libs/mui`
 271,208; MUI 5 565,488 and 80 files 2,053,912 (these three as on 2026-11-19).
 
 Raw output: `~/.cache/z68-beta5/out/` (outside the repository); tables in `measurements-2026-11-23.txt`.
+
+## Measurement of 2026-11-23 (2): after the speed round against Zune68
+
+The build after the round of this day (commits 441c72dd, 4911e404: the default settings built once and
+shared, Text's background without the dispatch, MUI 5's shortened text without an allocation; library
+254,008 bytes unstripped, 232,084 stripped), against the same Zune68 Beta 5 and MUI 3.8 installations as
+in the section above and with the same method (`opbench.sh`, the binary of 2026-11-19, medians of 9, two
+instances of each library, the instances of a round concurrently, all three libraries in the same
+session; OS 3.2.1 with `opbench v21`, MUI 5's text shorten set from a second pair of `v21` runs).
+Emulator figures (FS-UAE, cycle-exact, warp mode). Scripts: `final.sh`, `final32.sh` in the round's work
+folder (the same commands as `~/.cache/z68-beta5/s/run.sh` and `run32.sh`).
+
+### A1200 (68EC020): OpenMUI and Zune68 Beta 5 against MUI 3.8
+
+| operation | MUI 3.8 inst 1 | MUI 3.8 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | Zune68 inst 1 | Zune68 inst 2 | OpenMUI / MUI 3.8 | Zune68 / MUI 3.8 | Zune68 / OpenMUI |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 90.93 | 91.45 | 9.94 | 9.67 | 14.62 | 14.39 | 0.11 | 0.16 | 1.48 |
+| app+windows create | 234.79 | 235.76 | 185.37 | 178.00 | 268.90 | 255.87 | 0.77 | 1.12 | 1.44 |
+| window open+close | 520.12 | 520.21 | 401.26 | 398.77 | 601.57 | 581.89 | 0.77 | 1.14 | 1.48 |
+| full redraw | 140.65 | 150.68 | 132.79 | 132.77 | 153.63 | 153.04 | 0.91 | 1.05 | 1.15 |
+| relayout | 197.64 | 207.23 | 172.57 | 172.59 | 308.40 | 298.55 | 0.85 | 1.50 | 1.76 |
+| slider set | 4.09 | 4.04 | 2.72 | 2.72 | 4.45 | 4.44 | 0.67 | 1.09 | 1.63 |
+| notify chain | 7.93 | 7.82 | 5.64 | 5.64 | 9.09 | 9.09 | 0.72 | 1.15 | 1.61 |
+| cycle set | 2.43 | 2.44 | 2.02 | 2.02 | 4.89 | 4.55 | 0.83 | 1.94 | 2.34 |
+| radio set | 15.56 | 15.56 | 8.27 | 8.28 | 21.48 | 21.46 | 0.53 | 1.38 | 2.59 |
+| text set | 2.50 | 2.50 | 2.37 | 2.37 | 2.40 | 2.39 | 0.95 | 0.96 | 1.01 |
+| list insert 1 | 10.33 | 10.33 | 8.18 | 8.19 | 35.16 | 34.28 | 0.79 | 3.36 | 4.24 |
+| list insert 100 | 829.29 | 830.03 | 62.27 | 61.30 | 109.27 | 104.06 | 0.07 | 0.13 | 1.73 |
+| list insert 1000 | 6,653.0 | 6,652.3 | 247.72 | 248.72 | 688.38 | 644.60 | 0.04 | 0.10 | 2.69 |
+| list active | 21.13 | 21.16 | 18.82 | 18.81 | 24.16 | 23.11 | 0.89 | 1.12 | 1.26 |
+| list scroll line | 14.61 | 14.61 | 13.25 | 13.25 | 18.01 | 17.86 | 0.91 | 1.23 | 1.35 |
+| list scroll page | 44.41 | 44.39 | 39.17 | 38.97 | 42.74 | 42.56 | 0.88 | 0.96 | 1.09 |
+| list sort 1000 | 658.21 | 658.11 | 93.96 | 94.24 | 110.13 | 109.93 | 0.14 | 0.17 | 1.17 |
+| button click | 22.53 | 22.58 | 16.57 | 16.53 | 18.01 | 17.92 | 0.73 | 0.80 | 1.09 |
+| string type | 7.85 | 7.77 | 6.67 | 6.68 | 10.80 | 10.80 | 0.85 | 1.38 | 1.62 |
+| string backspace | 7.76 | 7.68 | 6.61 | 6.57 | 10.44 | 10.43 | 0.85 | 1.35 | 1.58 |
+| menu open+close | 13.21 | 13.23 | 13.17 | 13.28 | 19.99 | 19.99 | 1.00 | 1.51 | 1.51 |
+| iconify | 84.15 | 84.17 | 76.97 | 77.60 | 86.19 | 82.94 | 0.92 | 1.00 | 1.09 |
+| uniconify | 448.92 | 449.50 | 338.82 | 337.71 | 1,036.3 | 982.57 | 0.75 | 2.25 | 2.98 |
+| register page | 53.77 | 53.76 | 42.57 | 42.53 | 61.08 | 57.80 | 0.79 | 1.11 | 1.40 |
+| popup open+close | 120.01 | 120.00 | 96.01 | 95.35 | 139.96 | 139.95 | 0.80 | 1.17 | 1.46 |
+| window resize | 230.11 | 230.11 | 220.10 | 220.09 | 360.15 | 300.29 | 0.96 | 1.44 | 1.50 |
+
+OpenMUI: 25 of 26 below 1.00, menu open+close level (1.00; 13.17-13.28 against 13.21-13.23). Zune68: 7
+below 1.00, iconify level. Zune68 over OpenMUI: 1.01 (text set) to 4.24 (list insert 1) in all 26.
+
+### A600 (68000, 4 MB fast): OpenMUI and Zune68 Beta 5 against MUI 3.8
+
+| operation | MUI 3.8 inst 1 | MUI 3.8 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | Zune68 inst 1 | Zune68 inst 2 | OpenMUI / MUI 3.8 | Zune68 / MUI 3.8 | Zune68 / OpenMUI |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 358.84 | 351.61 | 38.08 | 37.26 | 62.70 | 60.82 | 0.11 | 0.17 | 1.64 |
+| app+windows create | 935.65 | 935.30 | 735.04 | 727.32 | 1,081.7 | 1,060.7 | 0.78 | 1.15 | 1.46 |
+| window open+close | 1,775.1 | 1,761.3 | 1,390.4 | 1,389.9 | 2,189.7 | 2,181.3 | 0.79 | 1.24 | 1.57 |
+| full redraw | 474.93 | 474.32 | 442.07 | 441.99 | 532.03 | 531.63 | 0.93 | 1.12 | 1.20 |
+| relayout | 702.95 | 702.39 | 608.35 | 607.40 | 1,166.5 | 1,154.1 | 0.87 | 1.65 | 1.91 |
+| slider set | 15.12 | 15.09 | 10.09 | 10.11 | 16.07 | 16.06 | 0.67 | 1.06 | 1.59 |
+| notify chain | 29.37 | 29.41 | 20.91 | 20.91 | 32.78 | 32.77 | 0.71 | 1.12 | 1.57 |
+| cycle set | 9.34 | 9.37 | 7.84 | 7.86 | 19.43 | 19.21 | 0.84 | 2.07 | 2.46 |
+| radio set | 60.42 | 60.42 | 32.31 | 32.30 | 82.30 | 82.33 | 0.53 | 1.36 | 2.55 |
+| text set | 9.71 | 9.70 | 9.31 | 9.33 | 9.39 | 9.40 | 0.96 | 0.97 | 1.01 |
+| list insert 1 | 32.39 | 32.36 | 32.99 | 32.93 | 127.07 | 126.20 | 1.02 | 3.91 | 3.84 |
+| list insert 100 | 2,745.5 | 2,743.9 | 227.51 | 226.88 | 422.74 | 418.08 | 0.08 | 0.15 | 1.85 |
+| list insert 1000 | 23,937.6 | 23,935.7 | 1,017.3 | 1,012.7 | 2,777.0 | 2,720.4 | 0.04 | 0.11 | 2.71 |
+| list active | 64.97 | 64.92 | 61.49 | 61.42 | 79.11 | 77.94 | 0.95 | 1.21 | 1.28 |
+| list scroll line | 40.17 | 40.09 | 37.37 | 37.33 | 57.71 | 56.67 | 0.93 | 1.43 | 1.53 |
+| list scroll page | 153.55 | 153.39 | 135.23 | 134.78 | 151.11 | 150.26 | 0.88 | 0.98 | 1.12 |
+| list sort 1000 | 2,493.2 | 2,490.0 | 378.89 | 385.39 | 434.77 | 435.15 | 0.15 | 0.17 | 1.14 |
+| button click | 92.10 | 92.10 | 68.83 | 68.52 | 74.47 | 73.91 | 0.75 | 0.81 | 1.08 |
+| string type | 30.32 | 31.42 | 26.28 | 26.31 | 43.86 | 43.87 | 0.85 | 1.42 | 1.67 |
+| string backspace | 30.08 | 31.17 | 25.86 | 25.90 | 42.56 | 42.53 | 0.85 | 1.39 | 1.64 |
+| menu open+close | 45.44 | 48.07 | 45.51 | 46.51 | 40.13 | 40.13 | 0.98 | 0.86 | 0.87 |
+| iconify | 298.61 | 296.58 | 233.28 | 235.87 | 264.89 | 264.81 | 0.79 | 0.89 | 1.13 |
+| uniconify | 1,544.3 | 1,535.2 | 1,243.7 | 1,243.4 | 4,002.9 | 3,968.3 | 0.81 | 2.59 | 3.20 |
+| register page | 160.70 | 160.59 | 145.03 | 145.12 | 223.06 | 219.09 | 0.90 | 1.38 | 1.52 |
+| popup open+close | 404.42 | 411.82 | 340.97 | 339.53 | 496.60 | 480.05 | 0.83 | 1.20 | 1.44 |
+| window resize | 620.25 | 610.38 | 530.20 | 520.16 | 809.89 | 790.36 | 0.85 | 1.30 | 1.52 |
+
+OpenMUI: 25 of 26 below 1.00; list insert 1 at 1.02 (32.93-32.99 against 32.36-32.39; release 1.0 32.68-33.33
+in this session's runs, List's, not touched). Zune68: 9 below 1.00. Zune68 over OpenMUI: 1.01 (text set)
+to 3.84 in 25 of 26; menu open+close 0.87 (below).
+
+### OS 3.2.1: OpenMUI (MUI 5 identity) and Zune68 Beta 5 against MUI 5 21.227
+
+| operation | MUI 5 inst 1 | MUI 5 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | Zune68 inst 1 | Zune68 inst 2 | OpenMUI / MUI 5 | Zune68 / MUI 5 | Zune68 / OpenMUI |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 299.66 | 301.09 | 10.99 | 11.30 | 14.94 | 15.29 | 0.04 | 0.05 | 1.36 |
+| app+windows create | 575.27 | 574.23 | 187.38 | 192.45 | 266.29 | 265.16 | 0.33 | 0.46 | 1.40 |
+| window open+close | 1,015.5 | 1,005.9 | 438.17 | 441.01 | 635.51 | 640.29 | 0.43 | 0.63 | 1.45 |
+| full redraw | 206.37 | 206.34 | 138.95 | 138.84 | 158.94 | 158.91 | 0.67 | 0.77 | 1.14 |
+| relayout | 316.67 | 316.81 | 181.48 | 181.60 | 309.94 | 311.57 | 0.57 | 0.98 | 1.71 |
+| slider set | 6.75 | 6.76 | 3.03 | 3.02 | 4.75 | 4.76 | 0.45 | 0.70 | 1.57 |
+| notify chain | 12.75 | 12.76 | 6.23 | 6.24 | 9.72 | 9.72 | 0.49 | 0.76 | 1.56 |
+| cycle set | 2.73 | 2.73 | 2.05 | 2.05 | 4.05 | 4.04 | 0.75 | 1.48 | 1.97 |
+| radio set | 11.89 | 11.89 | 8.39 | 8.40 | 21.79 | 21.78 | 0.71 | 1.83 | 2.59 |
+| text set | 2.25 | 2.25 | 1.63 | 1.63 | 1.67 | 1.66 | 0.72 | 0.74 | 1.02 |
+| list insert 1 | 22.80 | 22.86 | 9.04 | 9.04 | 34.18 | 34.13 | 0.40 | 1.50 | 3.78 |
+| list insert 100 | 2,035.6 | 2,034.5 | 62.55 | 62.74 | 104.82 | 104.94 | 0.03 | 0.05 | 1.67 |
+| list insert 1000 | 20,235.9 | 20,235.7 | 248.22 | 248.81 | 661.63 | 661.07 | 0.01 | 0.03 | 2.66 |
+| list active | 39.18 | 39.18 | 18.69 | 18.55 | 21.56 | 21.55 | 0.48 | 0.55 | 1.16 |
+| list scroll line | 21.15 | 21.09 | 14.57 | 14.57 | 16.83 | 16.79 | 0.69 | 0.80 | 1.15 |
+| list scroll page | 56.88 | 56.93 | 39.77 | 39.81 | 41.36 | 41.37 | 0.70 | 0.73 | 1.04 |
+| list sort 1000 | 2,305.6 | 2,307.9 | 137.04 | 137.33 | 152.37 | 153.59 | 0.06 | 0.07 | 1.12 |
+| button click | 21.16 | 21.21 | 16.63 | 16.62 | 18.45 | 18.08 | 0.78 | 0.86 | 1.10 |
+| string type | 15.26 | 15.34 | 7.48 | 7.48 | 10.78 | 10.79 | 0.49 | 0.70 | 1.44 |
+| string backspace | 14.61 | 14.73 | 7.43 | 7.42 | 10.48 | 10.45 | 0.51 | 0.71 | 1.41 |
+| menu open+close | 25.90 | 26.19 | 19.99 | 19.98 | 19.99 | 19.98 | 0.77 | 0.77 | 1.00 |
+| iconify | 197.27 | 192.33 | 96.55 | 96.74 | 101.62 | 101.10 | 0.50 | 0.52 | 1.05 |
+| uniconify | 1,219.8 | 1,218.6 | 372.12 | 372.36 | 1,063.5 | 1,044.1 | 0.31 | 0.86 | 2.83 |
+| register page | 88.57 | 88.59 | 44.84 | 44.93 | 54.31 | 54.30 | 0.51 | 0.61 | 1.21 |
+| popup open+close | 535.68 | 532.09 | 103.35 | 104.00 | 139.61 | 140.10 | 0.19 | 0.26 | 1.35 |
+| window resize | 290.10 | 290.11 | 170.19 | 170.28 | 240.11 | 240.16 | 0.59 | 0.83 | 1.41 |
+| text shorten set | 4.68 | 4.69 | 3.12 | 3.12 | 3.22 | 3.21 | 0.67 | 0.69 | 1.03 |
+
+OpenMUI: all 27 below 0.79. Zune68: 24 of 27 below 1.00 (relayout 0.98), cycle set, radio set and list
+insert 1 at 1.48, 1.83 and 1.50. Zune68 over OpenMUI: 1.02 (text set) to 3.78 in 26 of 27; menu
+open+close level (both 20.0 ms).
+
+### Menus: what "menu open+close" measures
+
+`menu open+close` writes the right button down and up into input.device and runs the program's loop
+until it has nothing more to do. A window that asks for IDCMP_MENUVERIFY (Zune68 always; OpenMUI only
+for programs that get MUI 4/5) makes Intuition wait for the program's answer, which Intuition takes at
+its next input tick; with the button already up by then no menu is shown, and the measurement ends
+before that tick. The figures: on the A1200 one tick (20.0 ms), on the A600 two (40.1 ms), whatever the
+menu costs; an OpenMUI build asking for MENUVERIFY in MUI 3 programs too measured exactly that (19.9 and
+39.8 ms; not kept, MUI 3.8 does not ask). Two operations added at the end of `tests/native/opbench.c`
+(the 25 before run as before) wait for the menus: `menu shown+close` runs the loop until the window is in
+its menu state (WFLG_MENUSTATE) and out of it again, `menu select` also moves onto the first title and
+its first item and waits for MUIA_Application_MenuAction. One instance each (OpenMUI and MUI 3.8 on the
+A1200 also a second, and release 1.0):
+
+| | A1200 OpenMUI | A1200 1.0 | A1200 MUI 3.8 | A1200 Zune68 | A600 OpenMUI | A600 1.0 | A600 MUI 3.8 | A600 Zune68 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| menu open+close | 13.2-13.4 | | 13.8 | 20.0 | 46.3 | | 46.6 | 39.8 |
+| menu shown+close | 13.1-13.2 | 13.1 | 13.2-13.3 | 120.0 | 46.5-46.6 | 49.0 | 45.7 | 120.0 |
+| menu select | 47.0-47.5 | 46.5-47.5 | 45.3-46.5 | 120.0 | 158.9-159.3 | 160.7 | 156.5 | 248.3 |
+
+Zune68's menus take six ticks (120 ms) from the button press to the closed menu on both machines.
+`menu select` is 1.01-1.05 of MUI 3.8's on the A1200 and 1.02 on the A600, release 1.0 the same (not traced; the OS
+call counts of the program's own task are no higher than MUI 3.8's: 3 SetAttrsA, 4 GetAttr and 17 GetMsg
+against 7, the rest Intuition's).
+
+### Memory (MUI-Demo cold, `measure.sh`, `libonly.sh`, bytes)
+
+The same machines and method as above; release 1.0 again in the same session. MUI 3.8, MUI 5 and Zune68
+are the figures of the section above (the same files).
+
+| | first program | each further | library alone | first window |
+|---|---:|---:|---:|---:|
+| OpenMUI after the round, OS 3.1 | 427,984 | 191,856-191,920 | 245,864 | 1.30 s |
+| OpenMUI 1.0, OS 3.1 | 427,984 | 193,056-193,120 | 245,920 | 1.30 s |
+| OpenMUI after the round, MUI 5 identity, OS 3.2.1 | 434,672 | 200,504-200,544 | 249,792 | 1.66-1.70 s |
+| OpenMUI 1.0, MUI 5 identity, OS 3.2.1 | 434,672 | 201,704-201,744 | 249,800 | 1.68-1.70 s |
+
+Each further program 1,200 bytes less: the settings (1,208 bytes) are shared while no settings file is
+read; the first program allocates them instead of keeping them in its instance data (the same bytes).
+Files: library 232,084 bytes stripped (1.0: 232,036), class files 290,056 (1.0: 289,948; `Zmui45.mui`
++108).
+
+Raw output: `~/.cache/z68-beta5/out-2026-11-23b/` (outside the repository).
 
 ## Tools
 

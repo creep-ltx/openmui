@@ -8,7 +8,41 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
-Nothing yet.
+### Changed
+
+- An application that reads no settings file (no `ENV:OpenMUI/global.prefs`
+  and no file of its own) no longer builds the default settings: the first
+  one builds them and keeps them for every later one (until the library is
+  expunged). Starting an empty application takes 9.7-9.9 ms instead of 16.0
+  on an emulated A1200 (Zune68 Beta 5: 14.4-14.6) and 37-38 instead of 66 on
+  an A600 (Zune68: 61-63); with MUI 5 behaviour on OS 3.2.1 11.0-11.3 instead
+  of 18.2-18.7 (Zune68: 14.9-15.3). Each further program needs 1,200 bytes
+  less (191.9 KB with MUI-Demo); the first program the same (428.0 KB).
+- A Text's new contents draw their background without going through the
+  object's dispatcher when no class of it could change the background: text
+  set 2.37 ms instead of 2.39 (A1200), 9.31-9.33 instead of 9.40-9.43 (A600),
+  1.63 instead of 1.66 (OS 3.2.1, MUI 5 behaviour).
+- MUI 5's shortened text (`MUIA_Text_Shorten`, in `Zmui45.mui`) measures with
+  the object's own RastPort and keeps its elided pieces on the stack for a
+  one-piece text in the object's font: 3.12 ms per set instead of 3.43-3.45
+  (Zune68: 3.21-3.22).
+- The default-settings tables use 16-bit fields (0.4 KB less code), so the
+  library stays the same size (232,084 bytes stripped).
+
+### Added
+
+- `opbench` (tests/native): `menu shown+close` and `menu select`, which wait
+  until Intuition has shown and closed the menus. `menu open+close` stops when
+  the program's loop has nothing more to do, which for a toolkit that asks for
+  IDCMP_MENUVERIFY is before its menu is shown.
+
+### Documentation
+
+- Measurements of 2026-11-23 against Zune68 Beta 5 and MUI 3.8 redone with
+  this build (README, statistics page, `docs/lean/measurements.md`).
+- The size of the class files in `LIBS:OpenMUI`: 289,948 bytes stripped for
+  release 1.0 (the developer guide was right; the measurements of 2026-11-23
+  said 359,108), 290,056 now.
 
 ## 1.0 (2026-11-19)
 

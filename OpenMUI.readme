@@ -74,26 +74,29 @@ Shell: SYS:OpenMUI/Data/OpenMUISwitch MUI|OPENMUI|UNINSTALL|STATUS.
 Performance
 -----------
 Cycle-exact FS-UAE emulation of an A1200 (68EC020), OS 3.1, 4 MB fast
-RAM; MUI 5 on OS 3.2.1. Measured 2026-11-23, in one session; Zune68 is
-Beta 5 (2026.11.22) as released. Not measured on a real Amiga.
+RAM; MUI 5 on OS 3.2.1. Measured 2026-11-23, in one session, with the
+build after that day's speed round; Zune68 is Beta 5 (2026.11.22) as
+released. Not measured on a real Amiga.
 
                           OpenMUI   MUI 3.8     Zune68     MUI 5
  MUI-Demo, first program  428.0 KB  460.3 KB    672.3 KB   1,293.7 KB
- each further program     193.1 KB  211-219 KB  267.9 KB   427-435 KB
+ each further program     191.9 KB  211-219 KB  267.9 KB   427-435 KB
 
  ms per operation (A1200) OpenMUI   MUI 3.8     Zune68
- application, empty       15.9-16.1  89-93       14.5-14.7
- application + windows    183-191    233-236     258-263
- window open + close      400        518         600
- button click             16.6       22-23       17.9
- string, one key          6.7        7.6-7.9     10.8
- list insert, 1,000 rows  248        6,648       642-659
+ application, empty       9.7-9.9    91          14.4-14.6
+ application + windows    178-185    235         256-269
+ window open + close      399        520         582-602
+ button click             16.5       23          17.9
+ string, one key          6.7        7.8         10.8
+ list insert, 1,000 rows  248        6,652       645-688
 
-OpenMUI takes 0.99 or less of MUI 3.8's time in all 26 common
-operations on an A1200 (24 of 26 on an A600, two level) and less than
-MUI 5's in all 27. Zune68 takes less than MUI 3.8's in 7 of 26 on the
-A1200 and less than MUI 5's in 23 of 27; it is faster than OpenMUI at
-starting an empty application. Tables: README, docs/lean/measurements.md.
+OpenMUI takes less than MUI 3.8's time in 25 of 26 common operations
+on an A1200 (menu open + close level) and on an A600 (list insert of
+one row 1.02), and less than MUI 5's in all 27. Zune68 takes less than
+MUI 3.8's in 7 of 26 on the A1200 and less than MUI 5's in 24 of 27;
+it takes more time than OpenMUI in every operation on the A1200 and in
+all but one on the A600 (menu open + close, which stops before
+Zune68's menu is shown). Tables: README, docs/lean/measurements.md.
 OpenMUI runs on a 68000 with OS 3.1.
 
 Compatibility

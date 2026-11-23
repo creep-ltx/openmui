@@ -22,79 +22,90 @@ measured on a real Amiga.
 
 ### Speed
 
-Milliseconds per operation, measured 2026-11-23: median of 9 repetitions, the same test
-program on every library, cycle-exact FS-UAE emulation of an A1200 (68EC020,
-14 MHz) and an A600 (68000, 7 MHz), OS 3.1 with 4 MB fast RAM, two instances
-of each library. Zune68 is Beta 5 (2026.11.22) as released. Lower is better.
-Ranges are the spread over the two instances.
+Milliseconds per operation, measured 2026-11-23 with the build after the
+first speed round of 2026-11-23 (shared default settings, Text drawing, MUI 5
+text shortening; see [CHANGELOG.md](CHANGELOG.md)): median of 9 repetitions,
+the same test program on every library, cycle-exact FS-UAE emulation of an
+A1200 (68EC020, 14 MHz) and an A600 (68000, 7 MHz), OS 3.1 with 4 MB fast RAM,
+two instances of each library. Zune68 is Beta 5 (2026.11.22) as released.
+Lower is better. Ranges are the spread over the two instances.
 
 | Operation | A1200 OpenMUI | A1200 MUI 3.8 | A1200 Zune68 | A600 OpenMUI | A600 MUI 3.8 | A600 Zune68 |
 |---|---:|---:|---:|---:|---:|---:|
-| Application, empty | 15.9-16.1 | 89-93 | 14.5-14.7 | 66 | 351 | 59-63 |
-| Application with windows, create | 183-191 | 233-236 | 258-263 | 745 | 931 | 1,045-1,079 |
-| Window open + close | 400 | 518 | 600 | 1,381 | 1,758 | 2,171-2,207 |
-| Full redraw | 133 | 141-151 | 153 | 442 | 475 | 531 |
-| Relayout | 173 | 198-207 | 300-304 | 608 | 702 | 1,157-1,175 |
-| Slider set | 2.7 | 4.0-4.1 | 4.4 | 10.1 | 15.1 | 16.0 |
+| Application, empty | 9.7-9.9 | 91 | 14.4-14.6 | 37-38 | 352-359 | 61-63 |
+| Application with windows, create | 178-185 | 235 | 256-269 | 727-735 | 935 | 1,061-1,082 |
+| Window open + close | 399 | 520 | 582-602 | 1,390 | 1,761 | 2,181 |
+| Full redraw | 133 | 141-151 | 153 | 442 | 474 | 532 |
+| Relayout | 173 | 198-207 | 299-308 | 607 | 702 | 1,154-1,167 |
+| Slider set | 2.7 | 4.0-4.1 | 4.4 | 10.1 | 15.1 | 16.1 |
 | Notification chain | 5.6 | 7.8-7.9 | 9.1 | 21 | 29 | 33 |
-| Cycle set | 2.0 | 2.4 | 4.7-4.8 | 7.8 | 9.3 | 19.1-19.6 |
+| Cycle set | 2.0 | 2.4 | 4.5-4.9 | 7.8 | 9.3 | 19.2-19.4 |
 | Radio set | 8.3 | 15.6 | 21 | 32 | 60 | 82 |
-| Text set | 2.4 | 2.5 | 2.4 | 9.4 | 9.7 | 9.4 |
-| List insert, 100 rows | 61-62 | 830 | 104-106 | 226 | 2,744 | 417-427 |
-| List insert, 1,000 rows | 248 | 6,648 | 642-659 | 1,009 | 23,924 | 2,689-2,794 |
-| List sort, 1,000 rows | 94 | 658 | 111 | 381 | 2,489 | 434 |
-| List scroll, one row | 13.2 | 14.6 | 18.0-18.3 | 37 | 40 | 56-58 |
-| Button click | 16.6 | 22-23 | 17.9 | 69 | 91-92 | 74 |
-| String, one key | 6.7 | 7.6-7.9 | 10.8 | 26 | 31 | 44 |
-| String, backspace | 6.6 | 7.5-7.8 | 10.4 | 26 | 31 | 42 |
-| Register page | 43 | 53 | 58-60 | 145 | 160 | 217-224 |
-| Popup open + close | 96 | 120 | 140 | 339 | 400-408 | 484-489 |
-| Uniconify | 336-340 | 446 | 996-1,018 | 1,228-1,248 | 1,532 | 3,939-4,122 |
+| Text set | 2.4 | 2.5 | 2.4 | 9.3 | 9.7 | 9.4 |
+| List insert, 100 rows | 61-62 | 829 | 104-109 | 227 | 2,744 | 418-423 |
+| List insert, 1,000 rows | 248 | 6,652 | 645-688 | 1,013 | 23,936 | 2,720-2,777 |
+| List sort, 1,000 rows | 94 | 658 | 110 | 379-385 | 2,490 | 435 |
+| List scroll, one row | 13.3 | 14.6 | 17.9 | 37 | 40 | 57-58 |
+| Button click | 16.5 | 23 | 17.9 | 69 | 92 | 74 |
+| String, one key | 6.7 | 7.8 | 10.8 | 26 | 30-31 | 44 |
+| String, backspace | 6.6 | 7.7-7.8 | 10.4 | 26 | 30-31 | 43 |
+| Register page | 43 | 54 | 58-61 | 145 | 161 | 219-223 |
+| Popup open + close | 95 | 120 | 140 | 340 | 404-412 | 480-497 |
+| Uniconify | 338 | 449 | 983-1,036 | 1,243 | 1,535 | 3,968 |
 
 Operations not listed (menu, iconify, window resize, list active, list scroll
 by page, list insert of one row) are in
-[docs/lean/measurements.md](docs/lean/measurements.md). OpenMUI is at 0.99 or
-below of MUI 3.8's time in all 26 operations on the A1200; on the A600, 24 of 26
-are faster, menu open + close is level (1.00) and list insert of one row is 1.01.
-Zune68 Beta 5 takes less time than MUI 3.8 in 7 of the 26 on the A1200 (empty
-application, list insert of 100 and 1,000 rows, list sort, button click, list
-scroll by page, text set) and 9 on the A600 (also menu open + close and iconify); iconify on the
-A1200 is level. Against OpenMUI, Zune68 is faster at starting an empty
-application (0.91 on the A1200, 0.92 on the A600) and at menu open + close on
-the A600 (0.86), and level at text set; OpenMUI is faster in the others.
+[docs/lean/measurements.md](docs/lean/measurements.md). OpenMUI is below MUI
+3.8's time in 25 of the 26 operations on the A1200 (menu open + close is level,
+1.00) and in 25 of 26 on the A600 (list insert of one row is 1.02, as in
+release 1.0). Zune68 Beta 5 takes less time than MUI 3.8 in 7 of the 26 on the
+A1200 (empty application, list insert of 100 and 1,000 rows, list sort, button
+click, list scroll by page, text set; iconify level) and in 9 on the A600 (also
+menu open + close and iconify). Against OpenMUI, Zune68 takes 1.01 to 4.24
+times OpenMUI's time in every operation on the A1200, and 1.01 to 3.84 times
+in 25 of 26 on the A600; there its menu open + close is 0.87 of OpenMUI's.
+That operation stops when the program has handled the events: Zune68 asks
+Intuition to wait for the program before it shows a menu (IDCMP_MENUVERIFY,
+MUI 4/5 behaviour), and the menu then appears at Intuition's next input tick,
+after the measurement has ended. Measured until the menu has been shown and
+closed again (`menu shown+close`, added to the test program), the A600 takes
+46.6 ms on OpenMUI, 45.7 on MUI 3.8 and 120.0 on Zune68 (A1200 13.2, 13.2-13.3
+and 120.0); choosing the first item of a menu (`menu select`) takes 159 ms on
+OpenMUI, 157 on MUI 3.8 and 248 on Zune68 (A1200 47.0-47.5, 45.3-46.5 and
+120.0).
 
 Against MUI 5 (A1200, OS 3.2.1, OpenMUI and Zune68 opened as MUI 5 version
 21.227, same conditions), OpenMUI is faster in all 27 operations measured (ratio
-0.01 to 0.80), Zune68 in 23 of 27 (0.03 to 0.89); relayout is level (1.01), and
-cycle set, radio set and list insert of one row take 1.48, 1.83 and 1.50 times
-MUI 5's time on Zune68. Zune68 is faster than OpenMUI at starting an empty
-application (0.87) and at shortening a text (0.95):
+0.01 to 0.78), Zune68 in 24 of 27 (0.03 to 0.98); cycle set, radio set and list
+insert of one row take 1.48 to 1.83 times MUI 5's time on Zune68. Zune68 takes
+1.02 to 3.78 times OpenMUI's time in 26 of the 27; menu open + close is level
+(20.0 ms on both: both ask for IDCMP_MENUVERIFY in MUI 5 behaviour):
 
 | Operation | OpenMUI | MUI 5 | Zune68 | OpenMUI / MUI 5 | Zune68 / MUI 5 |
 |---|---:|---:|---:|---:|---:|
-| Application, empty | 18.2-18.7 | 299 | 15.6-16.3 | 0.06 | 0.05 |
-| Application with windows, create | 197-204 | 574-582 | 270-288 | 0.35 | 0.48 |
-| Window open + close | 441-448 | 1,005-1,030 | 641-663 | 0.44 | 0.64 |
-| Full redraw | 139 | 207 | 159 | 0.67 | 0.77 |
-| Relayout | 181 | 317 | 313-326 | 0.57 | 1.01 |
+| Application, empty | 11.0-11.3 | 300 | 14.9-15.3 | 0.04 | 0.05 |
+| Application with windows, create | 187-192 | 574 | 265 | 0.33 | 0.46 |
+| Window open + close | 438 | 1,006 | 636 | 0.43 | 0.63 |
+| Full redraw | 139 | 206 | 159 | 0.67 | 0.77 |
+| Relayout | 181 | 317 | 310 | 0.57 | 0.98 |
 | Slider set | 3.0 | 6.8 | 4.8 | 0.45 | 0.70 |
 | Notification chain | 6.2 | 12.8 | 9.7 | 0.49 | 0.76 |
-| Cycle set | 2.0 | 2.7 | 4.1 | 0.75 | 1.48 |
-| Radio set | 8.4 | 11.9 | 22 | 0.70 | 1.83 |
-| Text set | 1.7 | 2.3 | 1.7 | 0.73 | 0.74 |
-| List insert, 100 rows | 62 | 2,037 | 106-112 | 0.03 | 0.05 |
-| List insert, 1,000 rows | 248 | 20,244 | 674-734 | 0.01 | 0.03 |
-| List sort, 1,000 rows | 137 | 2,306 | 153 | 0.06 | 0.07 |
+| Cycle set | 2.1 | 2.7 | 4.0 | 0.75 | 1.48 |
+| Radio set | 8.4 | 11.9 | 22 | 0.71 | 1.83 |
+| Text set | 1.6 | 2.3 | 1.7 | 0.72 | 0.74 |
+| List insert, 100 rows | 63 | 2,035 | 105 | 0.03 | 0.05 |
+| List insert, 1,000 rows | 248 | 20,236 | 661 | 0.01 | 0.03 |
+| List sort, 1,000 rows | 137 | 2,306 | 152 | 0.06 | 0.07 |
 | List scroll, one row | 14.6 | 21 | 16.8 | 0.69 | 0.80 |
-| Button click | 16.7 | 21 | 18.2-18.6 | 0.80 | 0.88 |
-| String, one key | 7.5 | 14.9 | 10.8 | 0.50 | 0.72 |
-| String, backspace | 7.4 | 14.2 | 10.5 | 0.52 | 0.73 |
+| Button click | 16.6 | 21 | 18.1-18.4 | 0.78 | 0.86 |
+| String, one key | 7.5 | 15.3 | 10.8 | 0.49 | 0.70 |
+| String, backspace | 7.4 | 14.6 | 10.5 | 0.51 | 0.71 |
 | Register page | 45 | 89 | 54 | 0.51 | 0.61 |
-| Popup open + close | 104 | 528-540 | 140 | 0.19 | 0.26 |
-| Uniconify | 371 | 1,214-1,230 | 1,064-1,104 | 0.30 | 0.89 |
-| Text shorten set | 3.4 | 4.7 | 3.2-3.3 | 0.73 | 0.69 |
+| Popup open + close | 103 | 532 | 140 | 0.19 | 0.26 |
+| Uniconify | 372 | 1,219 | 1,044-1,063 | 0.31 | 0.86 |
+| Text shorten set | 3.1 | 4.7 | 3.2 | 0.67 | 0.69 |
 | List insert, one row | 9.0 | 23 | 34 | 0.40 | 1.50 |
-| Menu open + close | 20.0 | 26-27 | 20.0 | 0.75 | 0.75 |
+| Menu open + close | 20.0 | 26 | 20.0 | 0.77 | 0.77 |
 
 
 ## What it contains

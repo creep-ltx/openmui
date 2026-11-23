@@ -86,7 +86,7 @@ th { color: var(--text-secondary); font-weight: 600; }
 <div class="wrap">
   <button class="toggle" id="theme" type="button">Light / dark</button>
   <h1>OpenMUI in numbers</h1>
-  <p class="lede">OpenMUI 1.0 next to Zune68 Beta 5 (2026.11.22), MUI 3.8 and MUI 5. All figures were measured in an
+  <p class="lede">OpenMUI (the build after the speed round of 2026-11-23) next to Zune68 Beta 5 (2026.11.22), MUI 3.8 and MUI 5. All figures were measured in an
   emulated Amiga 1200 (68EC020, OS 3.1 unless noted, FS-UAE), not on a real Amiga. Measured 2026-11-23, all libraries in one session.</p>
 
   <div class="lineage card" style="padding:12px 18px">
@@ -97,14 +97,14 @@ th { color: var(--text-secondary); font-weight: 600; }
   <div data-sec="headline" class="tiles">
     <div class="tile"><div class="k">First program, memory</div><div class="v">428.0 KB</div>
       <div class="d">MUI 3.8: 460.3 &middot; MUI 5: 1,294 &middot; Zune68 Beta 5: 672</div></div>
-    <div class="tile"><div class="k">Each further program</div><div class="v">193.1 KB</div>
+    <div class="tile"><div class="k">Each further program</div><div class="v">191.9 KB</div>
       <div class="d">MUI 3.8: 211&ndash;219 &middot; MUI 5: 427&ndash;435 &middot; Zune68 Beta 5: 268</div></div>
     <div class="tile"><div class="k">Operations at least as fast as MUI 3.8</div><div class="v">26 of 26</div>
-      <div class="d">A1200; A600: 24 of 26, two level; started at 12 of 26</div></div>
+      <div class="d">A1200 (25 faster, one level); A600: 25 of 26; started at 12 of 26</div></div>
     <div class="tile"><div class="k">Operations faster than MUI 5</div><div class="v">27 of 27</div>
-      <div class="d">1.2 to 81&times; faster; a third of its memory</div></div>
+      <div class="d">1.3 to 82&times; faster; a third of its memory</div></div>
     <div class="tile"><div class="k">Inserting 1,000 list entries</div><div class="v">27&times; faster</div>
-      <div class="d">248 ms against MUI 3.8's 6,649 ms and Zune68 Beta 5's 650 ms</div></div>
+      <div class="d">248 ms against MUI 3.8's 6,653 ms and Zune68 Beta 5's 666 ms</div></div>
   </div>
 
   <div data-sec="memory" class="card">
@@ -140,26 +140,27 @@ th { color: var(--text-secondary); font-weight: 600; }
   <div data-sec="speed-a600" class="card">
     <h2>Speed on an A600: OpenMUI's time as a share of MUI 3.8's</h2>
     <p class="sub">The same 26 operations on an emulated A600 (68000, 7&nbsp;MHz, 4&nbsp;MB fast memory), OS 3.1, measured 2026-11-23.
-      24 are faster; the menu is level and list insert of one row is 1 % slower.</p>
+      25 are faster; list insert of one row is 2 % slower (as in release 1.0).</p>
     <svg id="speed600"></svg>
   </div>
 
   <div data-sec="zune68" class="card">
     <h2>Against Zune68 Beta 5</h2>
-    <p class="sub">Zune68 Beta 5 (2026.11.22, as released) and OpenMUI 1.0, the same test on the same machine (A1200, OS 3.1), measured in one session on 2026-11-23. Each bar is the library's time as a share of MUI 3.8's; shorter is faster.</p>
+    <p class="sub">Zune68 Beta 5 (2026.11.22, as released) and OpenMUI after the speed round of 2026-11-23, the same test on the same machine (A1200, OS 3.1), measured in one session on 2026-11-23. Each bar is the library's time as a share of MUI 3.8's; shorter is faster.</p>
     <div class="legend" id="cmplegend"></div>
     <svg id="cmp"></svg>
     <div class="facts">
       <div><b>7 of 26</b><span>operations in which Zune68 takes less time than MUI 3.8 (starting an empty program, list insert of 100 and 1,000 rows, list sort, button click, list scroll by page, text set); OpenMUI: 26 of 26</span></div>
-      <div><b>0.91</b><span>Zune68's time over OpenMUI's at starting an empty program (14.6 against 16.0 ms); on an A600 Zune68 is also faster at opening and closing a menu (40.0 against 46.3 ms) and at starting an empty program (0.92)</span></div>
-      <div><b>4.2&times;</b><span>faster adding one list entry on OpenMUI (8.2 against 34.5 ms)</span></div>
-      <div><b>3.0&times;</b><span>faster bringing back an iconified program (338 against 1,007 ms)</span></div>
-      <div><b>2.6&times;</b><span>faster inserting 1,000 list rows (248 against 650 ms) and setting a radio button (8.3 against 21.5 ms)</span></div>
+      <div><b>1.01&ndash;4.24</b><span>Zune68's time over OpenMUI's in all 26 operations on the A1200 (text set 1.01, starting an empty program 1.48: 14.5 against 9.8 ms)</span></div>
+      <div><b>0.87</b><span>Zune68's time over OpenMUI's at opening and closing a menu on an A600 (40.1 against 46.0 ms), the one operation of 26 there below 1: it stops before Zune68's menu is shown (IDCMP_MENUVERIFY); until the menu has been shown and closed it is 120.0 against 46.6 ms</span></div>
+      <div><b>4.2&times;</b><span>faster adding one list entry on OpenMUI (8.2 against 34.7 ms)</span></div>
+      <div><b>3.0&times;</b><span>faster bringing back an iconified program (338 against 1,009 ms)</span></div>
+      <div><b>2.6&ndash;2.7&times;</b><span>faster inserting 1,000 list rows (248 against 666 ms) and setting a radio button (8.3 against 21.5 ms)</span></div>
       <div><b>1.4&ndash;1.8&times;</b><span>faster relayout, typing, creating windows and opening and closing a window</span></div>
-      <div><b>level</b><span>at text set; within 10 % at button click, iconify and scrolling a page of a list</span></div>
-      <div><b>672 KB</b><span>MUI-Demo's first program on Zune68 against 428 KB on OpenMUI (each further program 268 against 193 KB); Zune68's 434 KB library has every class inside and its 39 add-on classes are separate files</span></div>
+      <div><b>1&ndash;9 %</b><span>faster at text set, button click, iconify and scrolling a page of a list</span></div>
+      <div><b>672 KB</b><span>MUI-Demo's first program on Zune68 against 428 KB on OpenMUI (each further program 268 against 192 KB); Zune68's 434 KB library has every class inside and its 39 add-on classes are separate files</span></div>
     </div>
-    <p class="note">On OS 3.2.1 (Zune68 reports MUI 5 on every OS) Zune68 is faster than MUI 5 in 23 of 27 operations; relayout is level and cycle set, radio set and list insert of one row take 1.5 to 1.8 times MUI 5's time. OpenMUI is faster than MUI 5 in all 27. Zune68 is faster than OpenMUI at starting an empty program and at shortening a text there.</p>
+    <p class="note">On OS 3.2.1 (Zune68 reports MUI 5 on every OS) Zune68 is faster than MUI 5 in 24 of 27 operations; cycle set, radio set and list insert of one row take 1.5 to 1.8 times MUI 5's time. OpenMUI is faster than MUI 5 in all 27, and Zune68 takes 1.02 to 3.78 times OpenMUI's time in 26 of them; menu open + close is level (20.0 ms, both ask for IDCMP_MENUVERIFY there).</p>
   </div>
 
   <div data-sec="progress" class="card">
@@ -198,101 +199,101 @@ const LIBS = [
 // KB; null = not measured yet. Zune68 = Beta 5 (2026.11.22) as released, 68000 build. Measured 2026-11-23.
 const MEM = {
   first:   { openmui: 428.0, mui38: 460.3, mui5: 1293.7, zune68: 672.3 },
-  further: { openmui: 193.1, mui38: 214.8, mui5: 431.3, zune68: 267.9 },
+  further: { openmui: 191.9, mui38: 214.8, mui5: 431.3, zune68: 267.9 },
   lib:     { openmui: 245.9, mui38: 238.5, mui5: 581.0, zune68: 433.3 },
-  file:    { openmui: 232.0, mui38: 166.4, mui5: 565.5, zune68: 433.7 },
+  file:    { openmui: 232.1, mui38: 166.4, mui5: 565.5, zune68: 433.7 },
 };
 const MEMNOTE = { further: 'MUI 3.8: 210.6–218.9 KB, midpoint shown', file: 'Library file only. Class files on top (stripped): MUI 3.8 271 KB, OpenMUI 290 KB (loaded only when used), MUI 5 2,054 KB, Zune68 803 KB (39 add-on class files). MUI 3.8 and MUI 5 file sizes of 2026-11-19, the rest of 2026-11-23.' };
-// ms per operation, A1200, measured 2026-11-23, OS 3.1: [name, MUI 3.8, OpenMUI 1.0, Zune68 Beta 5]; mean of two instances.
+// ms per operation, A1200, measured 2026-11-23, OS 3.1: [name, MUI 3.8, OpenMUI (after the speed round of 2026-11-23), Zune68 Beta 5]; mean of two instances.
 const SPEED = [
-  ["Prefs + empty program", 90.58, 16.03, 14.57],
-  ["Program + windows created", 234.5, 187.1, 260.5],
-  ["Window open + close", 519.2, 400.8, 600.8],
-  ["Full redraw", 145.5, 132.9, 153.3],
-  ["Relayout", 202.2, 172.6, 302.2],
+  ["Prefs + empty program", 91.19, 9.81, 14.51],
+  ["Program + windows created", 235.3, 181.7, 262.4],
+  ["Window open + close", 520.2, 400.0, 591.7],
+  ["Full redraw", 145.7, 132.8, 153.3],
+  ["Relayout", 202.4, 172.6, 303.5],
   ["Slider set", 4.07, 2.72, 4.44],
-  ["Notify chain", 7.88, 5.64, 9.09],
-  ["Cycle set", 2.44, 2.02, 4.71],
-  ["Radio set", 15.56, 8.27, 21.47],
-  ["Text set", 2.5, 2.39, 2.4],
-  ["List: insert 1", 10.32, 8.2, 34.53],
-  ["List: insert 100", 830.8, 61.62, 104.8],
-  ["List: insert 1,000", 6648.6, 247.9, 650.4],
-  ["List: select", 21.13, 18.91, 23.46],
-  ["List: scroll a line", 14.63, 13.23, 18.13],
-  ["List: scroll a page", 44.4, 39.18, 42.94],
-  ["List: sort 1,000", 658.0, 94.59, 110.9],
-  ["Button click", 22.39, 16.59, 17.92],
-  ["Typing", 7.74, 6.67, 10.77],
-  ["Backspace", 7.66, 6.59, 10.44],
-  ["Menu open + close", 13.38, 13.29, 19.95],
-  ["Iconify", 83.92, 77.94, 83.83],
-  ["Uniconify", 447.9, 337.6, 1007.5],
-  ["Register page", 53.5, 42.61, 59.05],
-  ["Popup open + close", 120.0, 95.75, 139.8],
-  ["Window resize", 225.1, 220.1, 360.1]
+  ["Notify chain", 7.87, 5.64, 9.09],
+  ["Cycle set", 2.44, 2.02, 4.72],
+  ["Radio set", 15.56, 8.28, 21.47],
+  ["Text set", 2.5, 2.37, 2.4],
+  ["List: insert 1", 10.33, 8.19, 34.72],
+  ["List: insert 100", 829.7, 61.78, 106.7],
+  ["List: insert 1,000", 6652.6, 248.2, 666.5],
+  ["List: select", 21.14, 18.81, 23.64],
+  ["List: scroll a line", 14.61, 13.25, 17.93],
+  ["List: scroll a page", 44.4, 39.07, 42.65],
+  ["List: sort 1,000", 658.2, 94.1, 110.0],
+  ["Button click", 22.56, 16.55, 17.97],
+  ["Typing", 7.81, 6.68, 10.8],
+  ["Backspace", 7.72, 6.59, 10.44],
+  ["Menu open + close", 13.22, 13.22, 19.99],
+  ["Iconify", 84.16, 77.29, 84.57],
+  ["Uniconify", 449.2, 338.3, 1009.4],
+  ["Register page", 53.77, 42.55, 59.44],
+  ["Popup open + close", 120.0, 95.68, 140.0],
+  ["Window resize", 230.1, 220.1, 330.2]
 ];
 // OS 3.2.1, measured 2026-11-23: [name, MUI 5, OpenMUI behaving as MUI 5, Zune68 Beta 5]; mean of two instances.
 const SPEED5 = [
-  ["Prefs + empty program", 299.7, 18.43, 15.94],
-  ["Program + windows created", 577.7, 200.8, 278.9],
-  ["Window open + close", 1017.5, 444.3, 651.6],
-  ["Full redraw", 206.9, 139.1, 159.0],
-  ["Relayout", 317.3, 181.5, 319.1],
-  ["Slider set", 6.77, 3.02, 4.76],
-  ["Notify chain", 12.76, 6.23, 9.73],
-  ["Cycle set", 2.74, 2.05, 4.06],
-  ["Radio set", 11.92, 8.4, 21.8],
-  ["Text set", 2.25, 1.65, 1.67],
-  ["List: insert 1", 22.86, 9.04, 34.28],
-  ["List: insert 100", 2037.9, 62.04, 109.1],
-  ["List: insert 1,000", 20262.8, 248.7, 704.0],
-  ["List: select", 39.24, 18.54, 21.58],
-  ["List: scroll a line", 21.13, 14.58, 16.84],
-  ["List: scroll a page", 57.0, 39.83, 41.39],
-  ["List: sort 1,000", 2306.0, 137.9, 153.1],
-  ["Button click", 20.77, 16.68, 18.36],
-  ["Typing", 14.91, 7.5, 10.79],
-  ["Backspace", 14.27, 7.39, 10.47],
-  ["Menu open + close", 26.56, 19.98, 19.99],
-  ["Iconify", 195.3, 98.69, 103.6],
-  ["Uniconify", 1221.7, 371.7, 1083.8],
-  ["Register page", 88.67, 44.91, 54.39],
-  ["Popup open + close", 534.0, 104.0, 140.0],
-  ["Window resize", 290.1, 170.0, 240.1],
-  ["Shortened text set (MUI 4/5 only)", 4.69, 3.44, 3.25],
+  ["Prefs + empty program", 300.4, 11.14, 15.12],
+  ["Program + windows created", 574.7, 189.9, 265.7],
+  ["Window open + close", 1010.7, 439.6, 637.9],
+  ["Full redraw", 206.4, 138.9, 158.9],
+  ["Relayout", 316.7, 181.5, 310.8],
+  ["Slider set", 6.76, 3.02, 4.76],
+  ["Notify chain", 12.76, 6.23, 9.72],
+  ["Cycle set", 2.73, 2.05, 4.04],
+  ["Radio set", 11.89, 8.4, 21.78],
+  ["Text set", 2.25, 1.63, 1.67],
+  ["List: insert 1", 22.83, 9.04, 34.16],
+  ["List: insert 100", 2035.1, 62.65, 104.9],
+  ["List: insert 1,000", 20235.8, 248.5, 661.4],
+  ["List: select", 39.18, 18.62, 21.56],
+  ["List: scroll a line", 21.12, 14.57, 16.81],
+  ["List: scroll a page", 56.9, 39.79, 41.37],
+  ["List: sort 1,000", 2306.7, 137.2, 153.0],
+  ["Button click", 21.18, 16.63, 18.26],
+  ["Typing", 15.3, 7.48, 10.79],
+  ["Backspace", 14.67, 7.42, 10.47],
+  ["Menu open + close", 26.04, 19.99, 19.99],
+  ["Iconify", 194.8, 96.65, 101.4],
+  ["Uniconify", 1219.2, 372.2, 1053.8],
+  ["Register page", 88.58, 44.88, 54.3],
+  ["Popup open + close", 533.9, 103.7, 139.9],
+  ["Window resize", 290.1, 170.2, 240.1],
+  ["Shortened text set (MUI 4/5 only)", 4.69, 3.12, 3.22]
 ];
 // A600 (68000, 4 MB fast), OS 3.1, measured 2026-11-23: [name, MUI 3.8, OpenMUI 1.0, Zune68 Beta 5]; mean of two instances.
 const SPEED600 = [
-  ["Prefs + empty program", 352.3, 66.18, 60.66],
-  ["Program + windows created", 931.9, 747.2, 1062.1],
-  ["Window open + close", 1758.4, 1383.0, 2188.9],
-  ["Full redraw", 474.7, 441.8, 531.3],
-  ["Relayout", 702.0, 607.7, 1166.4],
-  ["Slider set", 15.11, 10.08, 16.05],
-  ["Notify chain", 29.35, 20.91, 32.77],
-  ["Cycle set", 9.34, 7.86, 19.34],
-  ["Radio set", 60.4, 32.32, 82.26],
-  ["Text set", 9.66, 9.43, 9.41],
-  ["List: insert 1", 32.43, 32.77, 126.8],
-  ["List: insert 100", 2744.3, 226.3, 422.3],
-  ["List: insert 1,000", 23926.7, 1009.8, 2741.5],
-  ["List: select", 64.93, 60.96, 78.35],
-  ["List: scroll a line", 39.91, 37.16, 57.09],
-  ["List: scroll a page", 153.6, 134.3, 150.6],
-  ["List: sort 1,000", 2491.1, 381.8, 434.3],
-  ["Button click", 91.92, 68.56, 74.33],
-  ["Typing", 31.54, 26.28, 43.79],
-  ["Backspace", 31.33, 25.89, 42.44],
-  ["Menu open + close", 46.47, 46.28, 39.99],
-  ["Iconify", 302.6, 232.4, 266.0],
-  ["Uniconify", 1535.8, 1237.8, 4030.1],
-  ["Register page", 160.6, 145.0, 220.5],
-  ["Popup open + close", 404.0, 339.0, 486.5],
-  ["Window resize", 619.4, 520.2, 800.5],
+  ["Prefs + empty program", 355.2, 37.67, 61.76],
+  ["Program + windows created", 935.5, 731.2, 1071.2],
+  ["Window open + close", 1768.2, 1390.1, 2185.5],
+  ["Full redraw", 474.6, 442.0, 531.8],
+  ["Relayout", 702.7, 607.9, 1160.3],
+  ["Slider set", 15.11, 10.1, 16.07],
+  ["Notify chain", 29.39, 20.91, 32.77],
+  ["Cycle set", 9.35, 7.85, 19.32],
+  ["Radio set", 60.42, 32.31, 82.31],
+  ["Text set", 9.71, 9.32, 9.4],
+  ["List: insert 1", 32.38, 32.96, 126.6],
+  ["List: insert 100", 2744.7, 227.2, 420.4],
+  ["List: insert 1,000", 23936.6, 1015.0, 2748.7],
+  ["List: select", 64.94, 61.46, 78.52],
+  ["List: scroll a line", 40.13, 37.35, 57.19],
+  ["List: scroll a page", 153.5, 135.0, 150.7],
+  ["List: sort 1,000", 2491.6, 382.1, 435.0],
+  ["Button click", 92.1, 68.68, 74.19],
+  ["Typing", 30.87, 26.29, 43.86],
+  ["Backspace", 30.63, 25.88, 42.55],
+  ["Menu open + close", 46.76, 46.01, 40.13],
+  ["Iconify", 297.6, 234.6, 264.8],
+  ["Uniconify", 1539.8, 1243.5, 3985.6],
+  ["Register page", 160.6, 145.1, 221.1],
+  ["Popup open + close", 408.1, 340.2, 488.3],
+  ["Window resize", 615.3, 525.2, 800.1]
 ];
 
-const ROUNDS = [['Start (lean)', 12], ['Speed round 1', 19], ['Speed round 2', 23], ['Speed round 3', 24], ['Rewrites, 2026-11-19', 26]];
+const ROUNDS = [['Start (lean)', 12], ['Speed round 1', 19], ['Speed round 2', 23], ['Speed round 3', 24], ['Rewrites, 2026-11-19', 26], ['Speed round, 2026-11-23', 26]];
 
 const NS = 'http://www.w3.org/2000/svg';
 const tip = document.getElementById('tip');
