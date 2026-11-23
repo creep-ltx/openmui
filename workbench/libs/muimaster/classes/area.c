@@ -3762,6 +3762,12 @@ static IPTR Area__MUIM_DeleteBubble(struct IClass *cl, Object *obj,
  * (when it listens to anything), given the new events and put back */
 static void area_events(Object *obj, struct MUI_AreaLive *live, ULONG events)
 {
+    /* in the window's list already: only its events change */
+    if (live->ehn.ehn_Events && events)
+    {
+        zune_window_handler_events(_win(obj), &live->ehn, events);
+        return;
+    }
     if (live->ehn.ehn_Events)
         DoMethod(_win(obj), MUIM_Window_RemEventHandler, (IPTR)&live->ehn);
     live->ehn.ehn_Events = events;

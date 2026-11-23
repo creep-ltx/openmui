@@ -78,6 +78,8 @@ struct ZuneWindowGuard
 };
 void ZuneRememberWindowPosition(Object *window);
 void ZuneWatchWindow(Object *window, struct ZuneWindowGuard *guard);
+void zune_window_handler_events(Object *window,
+    struct MUI_EventHandlerNode *ehn, ULONG events);
 void ZuneUnwatchWindow(Object *window, struct ZuneWindowGuard *guard);
 
 void ZuneResetWindowPointer(Object *window);

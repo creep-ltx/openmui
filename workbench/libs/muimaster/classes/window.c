@@ -1797,6 +1797,19 @@ static void CalcAltDimensions(Object *obj, struct MUI_WindowData *data,
 static void RemoveEventHandler(struct MUI_WindowData *data,
     struct MUI_EventHandlerNode *handler);
 
+/* Other events for a handler that is in the window's list: what
+ * MUIM_Window_RemEventHandler and AddEventHandler with the new events do
+ * (the list is in the order of priority and address, so the handler's
+ * place is the same), with one walk for the IDCMP mask instead of two,
+ * no list search and no dispatch. A button's press and its release each
+ * change its handler's events (opbench "button click"). */
+void zune_window_handler_events(Object *window,
+    struct MUI_EventHandlerNode *ehn, ULONG events)
+{
+    ehn->ehn_Events = events;
+    ChangeEvents(muiWindowData(window), GetDefaultEvents());
+}
+
 void ZuneWatchWindow(Object *window, struct ZuneWindowGuard *guard)
 {
     struct MUI_WindowData *data = muiWindowData(window);

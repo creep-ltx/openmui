@@ -2415,9 +2415,16 @@ static ULONG app_signal_mask(struct MUI_ApplicationData *data, UWORD field)
     return mask;
 }
 
+/* A look at a port's list instead of a GetMsg that finds nothing (a
+ * program that passes no signals to its input method has every port
+ * looked at each time; a message that arrives after the look has set
+ * the port's signal for the next round) */
+#define APP_PORT_HASMSG(port) ((port)->mp_MsgList.lh_Head->ln_Succ != NULL)
+
 /* Whether port has a message for signal */
 #define APP_PORT_SIGNALLED(port, signal) \
-    ((port) && ((signal) & (1L << (port)->mp_SigBit)))
+    ((port) && ((signal) & (1L << (port)->mp_SigBit)) \
+     && APP_PORT_HASMSG(port))
 
 /* The timers that came back: sent again, then their handler called (the
  * messages taken off the port first: a handler may remove its timer) */
@@ -2516,11 +2523,12 @@ static IPTR application_input(struct IClass *cl, Object *obj,
     if (signal & signalmask)
     {
         if (signal & (1L << data->app_GlobalInfo.mgi_WindowsPort->mp_SigBit))
-            while ((m = GetMsg(data->app_GlobalInfo.mgi_WindowsPort)))
+            while (APP_PORT_HASMSG(data->app_GlobalInfo.mgi_WindowsPort)
+                && (m = GetMsg(data->app_GlobalInfo.mgi_WindowsPort)))
                 /* the window replies (window.c) */
                 _zune_window_message((struct IntuiMessage *)m);
 
-        if (signal & (1L << data->app_TimerPort->mp_SigBit))
+        if (APP_PORT_SIGNALLED(data->app_TimerPort, signal))
             app_timers(data);
 
         app_other_ports(cl, obj, data, signal);
