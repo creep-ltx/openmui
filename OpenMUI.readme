@@ -74,25 +74,27 @@ Shell: SYS:OpenMUI/Data/OpenMUISwitch MUI|OPENMUI|UNINSTALL|STATUS.
 Performance
 -----------
 Cycle-exact FS-UAE emulation of an A1200 (68EC020), OS 3.1, 4 MB fast
-RAM; MUI 5 on OS 3.2.1. Measured 2026-11-19; not measured on a real
-Amiga.
+RAM; MUI 5 on OS 3.2.1. Measured 2026-11-23, in one session; Zune68 is
+Beta 5 (2026.11.22) as released. Not measured on a real Amiga.
 
-                           OpenMUI    MUI 3.8     MUI 5
- MUI-Demo, first program   428.2 KB   460.3 KB    1,293.7 KB
- each further program      193.1 KB   210.6-218.9 KB  427-435 KB
+                          OpenMUI   MUI 3.8     Zune68     MUI 5
+ MUI-Demo, first program  428.0 KB  460.3 KB    672.3 KB   1,293.7 KB
+ each further program     193.1 KB  211-219 KB  267.9 KB   427-435 KB
 
- ms per operation (A1200)  OpenMUI    MUI 3.8     MUI 5
- application + windows     189-190    235         577 *
- window open + close       399-401    520-521     1,028-1,030 *
- button click              16.6-16.9  22.4-22.6   20.8-21.2 *
- string, one key           6.7        7.8-7.9     14.9-15.4 *
- list insert, 1,000 rows   249        6,648-6,651 20,201-20,206 *
- (* MUI 5 column: OpenMUI measured 201-203, 442, 16.7-16.9, 7.5 and 249
- against it in the same session.)
+ ms per operation (A1200) OpenMUI   MUI 3.8     Zune68
+ application, empty       15.9-16.1  89-93       14.5-14.7
+ application + windows    183-191    233-236     258-263
+ window open + close      400        518         600
+ button click             16.6       22-23       17.9
+ string, one key          6.7        7.6-7.9     10.8
+ list insert, 1,000 rows  248        6,648       642-659
 
-Measured 2026-11-19. OpenMUI is as fast as MUI 3.8 or
-faster in all 26 common operations on an A1200 (24 of 26 on an A600, two
-level) and faster than MUI 5 in all 27. It runs on a 68000 with OS 3.1.
+OpenMUI takes 0.99 or less of MUI 3.8's time in all 26 common
+operations on an A1200 (24 of 26 on an A600, two level) and less than
+MUI 5's in all 27. Zune68 takes less than MUI 3.8's in 7 of 26 on the
+A1200 and less than MUI 5's in 23 of 27; it is faster than OpenMUI at
+starting an empty application. Tables: README, docs/lean/measurements.md.
+OpenMUI runs on a 68000 with OS 3.1.
 
 Compatibility
 -------------

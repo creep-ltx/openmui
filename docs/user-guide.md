@@ -17,13 +17,13 @@ MUI 5. Its look and memory use follow MUI 3.8.
 ## Memory and speed
 
 Cycle-exact FS-UAE emulation, OS 3.1, 4 MB fast RAM (MUI 5: OS 3.2.1),
-measured 2026-11-19. Not measured on a real Amiga.
+measured 2026-11-23 (Zune68: Beta 5, 2026.11.22). Not measured on a real Amiga.
 
-| | OpenMUI | MUI 3.8 | MUI 5 |
-|---|---:|---:|---:|
-| MUI-Demo, first program | 428.2 KB | 460.3 KB | 1,293.7 KB |
-| Each further program | 193.1 KB | 210.6-218.9 KB | 427-435 KB |
-| Inserting 1,000 list rows, A1200 | 249 ms | 6,648-6,651 ms | 20,201-20,206 ms |
+| | OpenMUI | MUI 3.8 | Zune68 | MUI 5 |
+|---|---:|---:|---:|---:|
+| MUI-Demo, first program | 428.0 KB | 460.3 KB | 672.3 KB | 1,293.7 KB |
+| Each further program | 193.1 KB | 210.6-218.9 KB | 267.9 KB | 427-435 KB |
+| Inserting 1,000 list rows, A1200 | 248 ms | 6,648 ms | 642-659 ms | 20,244 ms |
 
 Further figures: [README](../README.md#speed).
 

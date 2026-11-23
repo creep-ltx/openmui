@@ -934,6 +934,161 @@ and 80 files 2,053,912. The identity setting of the MUI 5 row: `ENVARC:OpenMUI/B
 tron-demo): 182 distinct entries, groups mui3 100, mui5 24, mcc 58 (61 lines). Earlier figures of 184
 (100 + 24 + 60), 181 and 132 + 60 do not match the table; 182 is used in the documentation.
 
+## Measurement of 2026-11-23: OpenMUI 1.0 against MUI 3.8, MUI 5 and Zune68 Beta 5
+
+Emulator figures (FS-UAE, cycle-exact, warp mode; the EClock counts emulated time), `opbench.sh`
+as on 2026-11-19, medians of 9 repetitions in ms per operation, two instances of each library; the
+instances of a round ran concurrently and all libraries were measured in the same session. OpenMUI = the
+library of release 1.0 (`lean`, 68000 build, GCC 16.2, unstripped, built from the same source as the
+release). **Zune68 = Beta 5 (release v2026.11.22, `Zune68-2026.11.22-amigaos3-m68k.lha`),
+`muimaster.library` 21.227 (22.11.2026) "Zune68 Beta 5", as shipped (433,720 bytes, 68000 build).** Its
+files were put where its installer puts them: `LIBS:muimaster.library` and the 39 class files of its
+`Libs/MUI` in `MUI:Libs/MUI` (the test machines have MUI 3.8's `MUI:` drawer; same-named files are
+replaced, as the installer does). The library reports MUI 5 (21.227) on every OS, so `opbench` opens it
+as version 19 on OS 3.1 and it hands out MUI 5's behaviour; Zune68 has no switch for a MUI 3.8
+identity. A1200 = a1200-31-mui38 (68EC020, OS 3.1, 4 MB fast); A600 = a600-31 (68000, OS 3.1) with
+`fast_memory = 4096` and MUI 3.8's `MUI:` drawer and startup assigns copied on; OS 3.2.1 = a1200-32-mui5
+(MUI 5 21.227) with `MUI:Libs` moved aside for OpenMUI (`opbench v21`, MUI 5 identity) and for Zune68
+(`opbench v21`). MUI 5's "text shorten set" comes from a second pair of runs with `v21`. Zune68 completed
+all operations on every machine, the popup included (its popup opened on another screen in the build
+measured on 2026-11-12). The ratio columns are the mean of the two instances of the library over the
+mean of the two of the reference (MUI 3.8 on OS 3.1, MUI 5 on OS 3.2.1); the last column is Zune68 over
+OpenMUI. One A600 OpenMUI instance lost its connection once and was run again alone: its figures are
+those of the repeat.
+
+### A1200 (68EC020): OpenMUI and Zune68 Beta 5 against MUI 3.8
+
+| operation | MUI 3.8 inst 1 | MUI 3.8 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | Zune68 inst 1 | Zune68 inst 2 | OpenMUI / MUI 3.8 | Zune68 / MUI 3.8 | Zune68 / OpenMUI |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 92.56 | 88.60 | 16.15 | 15.91 | 14.68 | 14.46 | 0.18 | 0.16 | 0.91 |
+| app+windows create | 236.14 | 232.83 | 190.81 | 183.46 | 263.22 | 257.81 | 0.80 | 1.11 | 1.39 |
+| window open+close | 520.71 | 517.71 | 401.58 | 400.06 | 600.36 | 601.23 | 0.77 | 1.16 | 1.50 |
+| full redraw | 140.55 | 150.54 | 132.76 | 132.96 | 153.40 | 153.29 | 0.91 | 1.05 | 1.15 |
+| relayout | 197.53 | 206.88 | 172.50 | 172.67 | 304.37 | 300.12 | 0.85 | 1.49 | 1.75 |
+| slider set | 4.10 | 4.04 | 2.72 | 2.72 | 4.44 | 4.44 | 0.67 | 1.09 | 1.63 |
+| notify chain | 7.93 | 7.84 | 5.64 | 5.64 | 9.09 | 9.09 | 0.72 | 1.15 | 1.61 |
+| cycle set | 2.44 | 2.44 | 2.01 | 2.02 | 4.77 | 4.66 | 0.83 | 1.93 | 2.34 |
+| radio set | 15.56 | 15.56 | 8.27 | 8.27 | 21.46 | 21.48 | 0.53 | 1.38 | 2.60 |
+| text set | 2.51 | 2.50 | 2.39 | 2.39 | 2.40 | 2.40 | 0.96 | 0.96 | 1.00 |
+| list insert 1 | 10.32 | 10.33 | 8.27 | 8.13 | 34.67 | 34.40 | 0.79 | 3.35 | 4.21 |
+| list insert 100 | 831.56 | 830.07 | 61.20 | 62.05 | 106.06 | 103.56 | 0.07 | 0.13 | 1.70 |
+| list insert 1000 | 6,648.5 | 6,648.8 | 247.80 | 247.95 | 658.85 | 641.86 | 0.04 | 0.10 | 2.62 |
+| list active | 21.15 | 21.12 | 19.04 | 18.79 | 23.61 | 23.31 | 0.90 | 1.11 | 1.24 |
+| list scroll line | 14.63 | 14.64 | 13.24 | 13.23 | 18.28 | 17.99 | 0.90 | 1.24 | 1.37 |
+| list scroll page | 44.42 | 44.38 | 39.29 | 39.06 | 43.10 | 42.78 | 0.88 | 0.97 | 1.10 |
+| list sort 1000 | 657.83 | 658.24 | 94.44 | 94.73 | 110.62 | 111.27 | 0.14 | 0.17 | 1.17 |
+| button click | 22.25 | 22.52 | 16.59 | 16.58 | 17.94 | 17.91 | 0.74 | 0.80 | 1.08 |
+| string type | 7.92 | 7.57 | 6.67 | 6.66 | 10.76 | 10.78 | 0.86 | 1.39 | 1.62 |
+| string backspace | 7.83 | 7.48 | 6.60 | 6.58 | 10.46 | 10.42 | 0.86 | 1.36 | 1.58 |
+| menu open+close | 13.54 | 13.22 | 13.42 | 13.15 | 19.99 | 19.92 | 0.99 | 1.49 | 1.50 |
+| iconify | 84.47 | 83.37 | 78.30 | 77.58 | 84.55 | 83.11 | 0.93 | 1.00 | 1.08 |
+| uniconify | 449.77 | 445.97 | 339.56 | 335.70 | 1,018.5 | 996.50 | 0.75 | 2.25 | 2.98 |
+| register page | 53.60 | 53.40 | 42.60 | 42.62 | 59.84 | 58.26 | 0.80 | 1.10 | 1.39 |
+| popup open+close | 120.01 | 120.00 | 95.87 | 95.63 | 139.96 | 139.69 | 0.80 | 1.17 | 1.46 |
+| window resize | 230.07 | 220.15 | 220.10 | 220.13 | 360.11 | 360.13 | 0.98 | 1.60 | 1.64 |
+
+OpenMUI: all 26 at 0.99 or below. Zune68: 7 below 1.00 (prefs+app 0.16, list insert 100 and 1000
+0.13 and 0.10, list sort 0.17, button click 0.80, list scroll page 0.97, text set 0.96), iconify level
+(1.00), 18 above (1.05 to 3.35). Against OpenMUI, Zune68 is faster only at starting an empty program
+(0.91) and level at text set.
+
+### A600 (68000, 4 MB fast): OpenMUI and Zune68 Beta 5 against MUI 3.8
+
+| operation | MUI 3.8 inst 1 | MUI 3.8 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | Zune68 inst 1 | Zune68 inst 2 | OpenMUI / MUI 3.8 | Zune68 / MUI 3.8 | Zune68 / OpenMUI |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 351.12 | 353.47 | 66.02 | 66.34 | 58.60 | 62.72 | 0.19 | 0.17 | 0.92 |
+| app+windows create | 931.11 | 932.73 | 744.84 | 749.47 | 1,044.9 | 1,079.3 | 0.80 | 1.14 | 1.42 |
+| window open+close | 1,759.2 | 1,757.6 | 1,384.6 | 1,381.3 | 2,170.9 | 2,206.8 | 0.79 | 1.24 | 1.58 |
+| full redraw | 474.59 | 474.88 | 441.71 | 441.87 | 530.91 | 531.75 | 0.93 | 1.12 | 1.20 |
+| relayout | 701.64 | 702.38 | 607.55 | 607.92 | 1,157.3 | 1,175.5 | 0.87 | 1.66 | 1.92 |
+| slider set | 15.12 | 15.11 | 10.06 | 10.09 | 16.05 | 16.06 | 0.67 | 1.06 | 1.59 |
+| notify chain | 29.37 | 29.33 | 20.88 | 20.93 | 32.76 | 32.78 | 0.71 | 1.12 | 1.57 |
+| cycle set | 9.32 | 9.37 | 7.83 | 7.90 | 19.12 | 19.57 | 0.84 | 2.07 | 2.46 |
+| radio set | 60.42 | 60.38 | 32.34 | 32.30 | 82.23 | 82.29 | 0.54 | 1.36 | 2.55 |
+| text set | 9.66 | 9.67 | 9.43 | 9.43 | 9.42 | 9.41 | 0.98 | 0.97 | 1.00 |
+| list insert 1 | 32.46 | 32.41 | 32.60 | 32.94 | 125.91 | 127.63 | 1.01 | 3.91 | 3.87 |
+| list insert 100 | 2,743.8 | 2,744.7 | 226.18 | 226.44 | 417.35 | 427.25 | 0.08 | 0.15 | 1.87 |
+| list insert 1000 | 23,924.4 | 23,929.1 | 1,010.7 | 1,008.8 | 2,688.8 | 2,794.3 | 0.04 | 0.11 | 2.71 |
+| list active | 64.85 | 65.00 | 60.78 | 61.13 | 77.44 | 79.27 | 0.94 | 1.21 | 1.29 |
+| list scroll line | 39.87 | 39.96 | 37.03 | 37.29 | 56.30 | 57.87 | 0.93 | 1.43 | 1.54 |
+| list scroll page | 153.63 | 153.56 | 134.00 | 134.58 | 149.89 | 151.40 | 0.87 | 0.98 | 1.12 |
+| list sort 1000 | 2,488.8 | 2,493.3 | 382.87 | 380.69 | 434.74 | 433.89 | 0.15 | 0.17 | 1.14 |
+| button click | 92.45 | 91.40 | 68.56 | 68.56 | 74.29 | 74.37 | 0.75 | 0.81 | 1.08 |
+| string type | 31.47 | 31.62 | 26.28 | 26.27 | 43.78 | 43.80 | 0.83 | 1.39 | 1.67 |
+| string backspace | 31.20 | 31.47 | 26.03 | 25.75 | 42.44 | 42.43 | 0.83 | 1.35 | 1.64 |
+| menu open+close | 46.48 | 46.46 | 46.43 | 46.13 | 39.85 | 40.13 | 1.00 | 0.86 | 0.86 |
+| iconify | 302.50 | 302.76 | 234.87 | 229.92 | 263.48 | 268.58 | 0.77 | 0.88 | 1.14 |
+| uniconify | 1,532.0 | 1,539.6 | 1,247.8 | 1,227.8 | 3,938.6 | 4,121.6 | 0.81 | 2.62 | 3.26 |
+| register page | 160.74 | 160.38 | 144.94 | 145.05 | 216.80 | 224.16 | 0.90 | 1.37 | 1.52 |
+| popup open+close | 400.19 | 407.75 | 338.86 | 339.17 | 484.01 | 489.08 | 0.84 | 1.20 | 1.44 |
+| window resize | 618.57 | 620.23 | 520.25 | 520.15 | 789.15 | 811.82 | 0.84 | 1.29 | 1.54 |
+
+OpenMUI: 24 of 26 below 1.00, menu open+close level (1.00), list insert 1 at 1.01. Zune68: 9 below 1.00
+(prefs+app 0.17, list insert 100 and 1000 0.15 and 0.11, list sort 0.17, button click 0.81, menu
+open+close 0.86, iconify 0.88, list scroll page 0.98, text set 0.97), 17 above (1.06 to 3.91). Against
+OpenMUI, Zune68 is faster at prefs+app (0.92) and menu open+close (0.86) and level at text set.
+
+### OS 3.2.1: OpenMUI (MUI 5 identity) and Zune68 Beta 5 against MUI 5 21.227
+
+| operation | MUI 5 inst 1 | MUI 5 inst 2 | OpenMUI inst 1 | OpenMUI inst 2 | Zune68 inst 1 | Zune68 inst 2 | OpenMUI / MUI 5 | Zune68 / MUI 5 | Zune68 / OpenMUI |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 300.68 | 298.73 | 18.69 | 18.17 | 16.27 | 15.62 | 0.06 | 0.05 | 0.87 |
+| app+windows create | 581.58 | 573.84 | 204.25 | 197.28 | 288.07 | 269.77 | 0.35 | 0.48 | 1.39 |
+| window open+close | 1,030.4 | 1,004.6 | 447.70 | 440.82 | 662.57 | 640.69 | 0.44 | 0.64 | 1.47 |
+| full redraw | 206.72 | 207.07 | 139.04 | 139.10 | 158.92 | 159.06 | 0.67 | 0.77 | 1.14 |
+| relayout | 317.24 | 317.31 | 181.63 | 181.45 | 325.72 | 312.50 | 0.57 | 1.01 | 1.76 |
+| slider set | 6.77 | 6.77 | 3.03 | 3.02 | 4.76 | 4.76 | 0.45 | 0.70 | 1.57 |
+| notify chain | 12.76 | 12.76 | 6.23 | 6.24 | 9.73 | 9.73 | 0.49 | 0.76 | 1.56 |
+| cycle set | 2.74 | 2.75 | 2.05 | 2.05 | 4.06 | 4.05 | 0.75 | 1.48 | 1.98 |
+| radio set | 11.91 | 11.92 | 8.39 | 8.40 | 21.79 | 21.80 | 0.70 | 1.83 | 2.60 |
+| text set | 2.25 | 2.26 | 1.66 | 1.65 | 1.66 | 1.67 | 0.73 | 0.74 | 1.01 |
+| list insert 1 | 22.84 | 22.89 | 9.05 | 9.04 | 34.33 | 34.23 | 0.40 | 1.50 | 3.79 |
+| list insert 100 | 2,037.0 | 2,038.9 | 62.33 | 61.74 | 112.14 | 106.04 | 0.03 | 0.05 | 1.76 |
+| list insert 1000 | 20,243.9 | 20,281.7 | 248.47 | 248.86 | 733.76 | 674.19 | 0.01 | 0.03 | 2.83 |
+| list active | 39.23 | 39.24 | 18.68 | 18.41 | 21.59 | 21.58 | 0.47 | 0.55 | 1.16 |
+| list scroll line | 21.12 | 21.14 | 14.58 | 14.58 | 16.85 | 16.84 | 0.69 | 0.80 | 1.16 |
+| list scroll page | 57.00 | 57.00 | 39.82 | 39.85 | 41.39 | 41.39 | 0.70 | 0.73 | 1.04 |
+| list sort 1000 | 2,305.8 | 2,306.1 | 138.27 | 137.47 | 152.58 | 153.70 | 0.06 | 0.07 | 1.11 |
+| button click | 20.77 | 20.78 | 16.70 | 16.66 | 18.16 | 18.56 | 0.80 | 0.88 | 1.10 |
+| string type | 14.89 | 14.93 | 7.51 | 7.50 | 10.78 | 10.80 | 0.50 | 0.72 | 1.44 |
+| string backspace | 14.24 | 14.30 | 7.36 | 7.41 | 10.46 | 10.48 | 0.52 | 0.73 | 1.42 |
+| menu open+close | 27.18 | 25.93 | 19.98 | 19.99 | 19.99 | 19.98 | 0.75 | 0.75 | 1.00 |
+| iconify | 195.85 | 194.70 | 100.71 | 96.67 | 104.90 | 102.38 | 0.51 | 0.53 | 1.05 |
+| uniconify | 1,213.7 | 1,229.6 | 372.11 | 371.24 | 1,103.8 | 1,063.7 | 0.30 | 0.89 | 2.92 |
+| register page | 88.62 | 88.71 | 44.94 | 44.88 | 54.37 | 54.40 | 0.51 | 0.61 | 1.21 |
+| popup open+close | 528.09 | 539.88 | 103.83 | 104.11 | 140.10 | 139.94 | 0.19 | 0.26 | 1.35 |
+| window resize | 290.11 | 290.10 | 169.93 | 170.05 | 240.08 | 240.11 | 0.59 | 0.83 | 1.41 |
+| text shorten set | 4.69 | 4.69 | 3.45 | 3.43 | 3.28 | 3.23 | 0.73 | 0.69 | 0.95 |
+
+OpenMUI: all 27 below 0.81. Zune68: 23 of 27 below 1.00 (0.03 to 0.89), relayout level (1.01), cycle set,
+radio set and list insert 1 slower (1.48, 1.83, 1.50). Against OpenMUI, Zune68 is faster at prefs+app
+(0.87) and text shorten set (0.95), level at menu open+close and text set.
+
+### Memory (MUI-Demo cold, `measure.sh`, `libonly.sh`, bytes)
+
+OS 3.1 on a1200-31-mui38, OS 3.2.1 on a1200-32-mui5; run twice (library alone once). Zune68 on OS 3.2.1
+installed as above with MUI 5's `MUI:Libs` moved aside; OpenMUI there with `ENVARC:OpenMUI/BehaveAs` =
+`MUI5`. All six cold boots ran in the same session as the speed figures.
+
+| | first program | each further | library alone | first window |
+|---|---:|---:|---:|---:|
+| OpenMUI 1.0, OS 3.1 | 427,984 | 193,056-193,120 | 245,920 | 1.32 s |
+| MUI 3.8, OS 3.1 | 460,296 | 210,632-210,696 / 218,888 | 238,520 | 1.46-1.56 s |
+| Zune68 Beta 5, OS 3.1 | 672,304 | 267,872-267,936 | 433,336 | 1.82 s |
+| OpenMUI 1.0, MUI 5 identity, OS 3.2.1 | 434,672 | 201,704-201,744 | 249,800 | 1.68-1.74 s |
+| MUI 5 21.227, OS 3.2.1 | 1,293,680 | 427,104-435,480 | 581,024 | 4.34-4.36 s |
+| Zune68 Beta 5, OS 3.2.1 | 667,728 | 272,488-272,552 | 437,544 | 1.80-1.84 s |
+
+Files on disk: Zune68 Beta 5 `muimaster.library` 433,720 bytes (all built-in classes inside) and 39
+optional class files in `Libs/MUI` (NList, NListtree, TextEditor, TheBar, BetterString and others)
+803,100 bytes, loaded only when a program asks for them; OpenMUI 232,036 bytes stripped (253,960
+unstripped) and 54 class files in `LIBS:OpenMUI` (359,108 bytes stripped in this build; 289,948 in the
+build of 2026-11-19) for the rarely used built-in classes, its bundled add-on classes (the same kind as
+Zune68's 39) on top; MUI 3.8 166,412 and 36 files in `MUI:Libs/mui`
+271,208; MUI 5 565,488 and 80 files 2,053,912 (these three as on 2026-11-19).
+
+Raw output: `~/.cache/z68-beta5/out/` (outside the repository); tables in `measurements-2026-11-23.txt`.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
