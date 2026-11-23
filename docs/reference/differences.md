@@ -59,15 +59,6 @@ whose "Behave as" says so.
   its minimum takes the odd pixel (101/42/42 of 185; OpenMUI 100/42/43). In round 5 six suite windows had
   moved a little away from MUI 3.8 (YAM 2.5's message list one pixel shorter, NFS-GUI, IBrowse 2.5,
   MultiRen, RO, TheBar demo 9) and one demopix window (Subtask), while 13 came nearer.
-- **The mouse's moves**: a window's IDCMP mask always has IDCMP_MOUSEMOVE (MUI 3.8 and MUI 5 add it only
-  when needed; MUI 3.8 keeps it once a help bubble has been shown), but its WFLG_REPORTMOUSE is set only
-  while an event handler asks for moves, a drag lasts or the pointer is over an object with a context
-  menu (MUI: always set). Either way a program gets no
-  move messages while nothing asks for them. A program that reads these two fields of the Intuition
-  window sees the difference. Help bubbles and MUI 4/5's pointer shapes follow the pointer at the next
-  tick after a move, and so does the context menu's WFLG_RMBTRAP when the pointer reaches such an object
-  (it is cleared with the move that leaves it) (`tests/native/idcmpprobe.c hold`: the same steps as on
-  MUI 3.8 at a quarter of a second's resolution).
 - **Strings and the right button**: over a String OpenMUI sets WFLG_RMBTRAP (its own edit menu) in a MUI 3
   program too; MUI 3.8 does not (`idcmpprobe hold`; as before this round).
 - **Window sizes**: NFS-GUI's list is 1 pixel off; TinyMeterPrefs' default height; the HTMLtext demo is 1

@@ -24,7 +24,7 @@ measured on a real Amiga.
 
 Milliseconds per operation, measured 2026-11-23 with the build after the
 second round of that day (settings shared between programs, smaller objects,
-list inserts, mouse moves; see [CHANGELOG.md](CHANGELOG.md)): median of 9
+list inserts; see [CHANGELOG.md](CHANGELOG.md)): median of 9
 repetitions, the same test program on every library, cycle-exact FS-UAE
 emulation of an A1200 (68EC020, 14 MHz) and an A600 (68000, 7 MHz), OS 3.1 with
 4 MB fast RAM, two instances of each library. Zune68 is Beta 5 (2026.11.22) as
@@ -71,7 +71,7 @@ Intuition's next input tick, after the measurement has ended. Measured until
 the menu has been shown and closed again (`menu shown+close`), the A600 takes
 46.3 ms on OpenMUI, 46.5-48.7 on MUI 3.8 and 119-120 on Zune68 (A1200 13.1,
 13.3 and 120); choosing the first item of a menu (`menu select`) takes
-155-157 ms on OpenMUI, 156 on MUI 3.8 and 243-254 on Zune68 (A1200 46.0-46.2,
+158-159 ms on OpenMUI, 156 on MUI 3.8 and 243-254 on Zune68 (A1200 47.1-47.9,
 45.4-46.6 and 120-121).
 
 An application's start with a full settings file (`ENV:OpenMUI/global.prefs`,

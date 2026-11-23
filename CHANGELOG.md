@@ -23,14 +23,6 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
   A1200 (MUI 3.8: 10.3), 29 ms instead of 33 on the A600 (MUI 3.8: 32). The
   list's own notification attributes (`MUIA_List_InsertPosition` and four
   others) are no longer handed to its scrollbars and their arrows.
-- A window has the mouse's moves reported only while one of its objects asks
-  for them (a pressed button, a drag, a marked text) or the pointer is over an
-  object with a context menu: a program is no longer woken by every move of
-  the mouse over its window. MUI 3.8 and MUI 5 do not
-  ask for mouse moves at other times either. Help bubbles, context menus and
-  MUI 4/5's pointer shapes follow the pointer at the next tick (a tenth of a
-  second) after a move. Choosing a menu item takes the time it takes on MUI
-  3.8 (it was 1.03 of it).
 - A button click takes 16.1 ms instead of 16.5 on the A1200 (MUI 3.8: 22.7)
   and 67 instead of 69 on the A600: the pressed object's event handler is
   changed in place instead of removed and added.

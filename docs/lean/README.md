@@ -5847,3 +5847,6 @@ unexplained bytes at 80-87, 94, 95, 97-99, left alone). Now the same on OpenMUI 
 88-91 InnerLeft..Bottom, 92 mad_Frame, 96 ControlChar, 97-99 TitleHeightAdd/Below/Above, 100
 mad_Rare, 104 ehnPriority, 105 InputMode, 106 DisableCount. Static asserts in `area.h`, ABI
 checks in `compatcheck.c`; `check_area_live.py` follows. Still open: what MUI keeps at 80-87.
+
+
+**Reverted after review (2026-11-23):** 40cf7110, af486ccf and eed8b621 (mouse moves reported only on demand, with WFLG_REPORTMOUSE no longer always set) were reverted before merging: MUI always sets WFLG_REPORTMOUSE, programs can read it, and the change had a side effect (a right click shortly after the pointer entered a String opened the window's menus). Compatibility first: menu select stays at 1.02-1.03 of MUI 3.8's time.
