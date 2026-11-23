@@ -906,9 +906,11 @@ IPTR Text__MUIM_Draw(struct IClass *cl, Object *obj,
     if (!(msg->flags & MADF_DRAWUPDATE))
         data->update = 0;
 
+    /* the contents' background: Area's own, without the dispatch, when
+     * no class of the object could intercept it (zune_draw_background) */
     if (msg->flags & MADF_DRAWUPDATE && data->update == 1)
     {
-        DoMethod(obj, MUIM_DrawBackground, _mleft(obj), _mtop(obj),
+        zune_draw_background(obj, _mleft(obj), _mtop(obj),
             _mwidth(obj), _mheight(obj), _mleft(obj), _mtop(obj),
             _flags(obj));
     }

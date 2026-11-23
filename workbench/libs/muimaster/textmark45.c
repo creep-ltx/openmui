@@ -60,7 +60,12 @@ static void text_shortened(ZText *text, Object *obj, WORD left,
         view.plain = FALSE;
         ZTextLine line = *source;
         ZTextChunk *chunk, *chunks = NULL;
-        struct RastPort rp = *_rp(obj);
+        /* the measuring RastPort: the object's own when its font and
+         * style are the text's (nothing is changed in it then), else a
+         * copy; with the copy's room for the elided chunks when they are
+         * one or two (no allocation per drawing) */
+        union { struct RastPort rp; ZTextChunk two[2]; } u;
+        struct RastPort *rp = _rp(obj);
         LONG count = 0, used = 0, suffix, i, budget, width;
         NewList((struct List *)&view.lines);
         zt_addtail(&view.lines, (struct MinNode *)&line.node);
@@ -71,7 +76,18 @@ static void text_shortened(ZText *text, Object *obj, WORD left,
         {
             for (chunk = (APTR)source->chunklist.mlh_Head; chunk->node.mln_Succ;
                 chunk = (APTR)chunk->node.mln_Succ) count++;
-            chunks = AllocVec((2 * count + 1) * sizeof(*chunks), MEMF_CLEAR);
+            chunk = (APTR)source->chunklist.mlh_Head;
+            if (count == 1 && mode != MUIV_Text_Shorten_ElideCenter
+                && rp->Font == _font(obj) && !rp->AlgoStyle
+                && !(chunk->style & ~ZTEXT_STYLE_HICHAR))
+                memset(chunks = u.two, 0, sizeof(u.two));
+            else if ((chunks = AllocVec((2 * count + 1) * sizeof(*chunks),
+                MEMF_CLEAR)))
+            {
+                u.rp = *rp;
+                rp = &u.rp;
+                SetFont(rp, _font(obj)); SetSoftStyle(rp, 0, AskSoftStyle(rp));
+            }
             if (!chunks)
             {
                 view.truncate = TRUE;
@@ -79,8 +95,7 @@ static void text_shortened(ZText *text, Object *obj, WORD left,
             }
             else
             {
-                SetFont(&rp, _font(obj)); SetSoftStyle(&rp, 0, AskSoftStyle(&rp));
-                LONG dots = TextLength(&rp, "...", 3);
+                LONG dots = TextLength(rp, "...", 3);
                 LONG remaining = MAX(0, available - dots);
                 LONG prefix = mode == MUIV_Text_Shorten_ElideLeft ? 0 :
                     mode == MUIV_Text_Shorten_ElideCenter ? remaining / 2 : remaining;
@@ -90,14 +105,14 @@ static void text_shortened(ZText *text, Object *obj, WORD left,
                 for (chunk = (APTR)source->chunklist.mlh_Head;
                     chunk->node.mln_Succ && budget > 0; chunk = (APTR)chunk->node.mln_Succ)
                 {
-                    width = elide_chunk(&rp, chunk, &chunks[used], budget, FALSE);
+                    width = elide_chunk(rp, chunk, &chunks[used], budget, FALSE);
                     if (!width) break;
                     zt_addtail(&line.chunklist, (struct MinNode *)&chunks[used++].node);
                     budget -= width; line.lwidth += width;
                     if (width < chunk->cwidth) break;
                 }
                 chunks[used].str = "..."; chunks[used].clen = 3;
-                chunks[used].cwidth = dots; chunks[used].cheight = rp.TxHeight;
+                chunks[used].cwidth = dots; chunks[used].cheight = rp->TxHeight;
                 chunks[used].dripen = TEXTPEN; chunks[used].pen = -1;
                 zt_addtail(&line.chunklist, (struct MinNode *)&chunks[used++].node);
                 line.lwidth += dots;
@@ -107,7 +122,7 @@ static void text_shortened(ZText *text, Object *obj, WORD left,
                 for (chunk = (APTR)source->chunklist.mlh_TailPred;
                     chunk->node.mln_Pred && budget > 0; chunk = (APTR)chunk->node.mln_Pred)
                 {
-                    width = elide_chunk(&rp, chunk, &chunks[used], budget, TRUE);
+                    width = elide_chunk(rp, chunk, &chunks[used], budget, TRUE);
                     if (!width) break;
                     used++; budget -= width; line.lwidth += width;
                     if (width < chunk->cwidth) break;
@@ -116,7 +131,8 @@ static void text_shortened(ZText *text, Object *obj, WORD left,
                     zt_addtail(&line.chunklist, (struct MinNode *)&chunks[i].node);
                 view.width = line.lwidth; view.truncate = TRUE;
                 visit(&view, obj, left, right, top, state);
-                FreeVec(chunks);
+                if (chunks != u.two)
+                    FreeVec(chunks);
             }
         }
         top += source->lheight;
