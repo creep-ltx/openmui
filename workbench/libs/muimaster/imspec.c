@@ -286,6 +286,9 @@ static struct dt_node *load_brush(CONST_STRPTR name, struct Screen *scr)
 #ifdef IMSPEC_EXTERNAL_PREFIX2
         IMSPEC_EXTERNAL_PREFIX2,
 #endif
+#ifdef IMSPEC_EXTERNAL_PREFIX3
+        IMSPEC_EXTERNAL_PREFIX3,
+#endif
     };
     struct dt_node *dt = dt_load_picture(name, scr);
     int p, size;

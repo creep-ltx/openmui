@@ -57,6 +57,9 @@ static CONST_STRPTR const boopsi_roots[] = {
 #ifdef IMSPEC_EXTERNAL_PREFIX2
     IMSPEC_EXTERNAL_PREFIX2,
 #endif
+#ifdef IMSPEC_EXTERNAL_PREFIX3
+    IMSPEC_EXTERNAL_PREFIX3,
+#endif
 };
 #define BOOPSI_ROOTS (sizeof(boopsi_roots) / sizeof(boopsi_roots[0]))
 

@@ -371,6 +371,9 @@ static CONST_STRPTR const external_roots[] = {
 #ifdef IMSPEC_EXTERNAL_PREFIX2
     IMSPEC_EXTERNAL_PREFIX2,
 #endif
+#ifdef IMSPEC_EXTERNAL_PREFIX3
+    IMSPEC_EXTERNAL_PREFIX3,
+#endif
 };
 #define EXTERNAL_ROOTS (sizeof(external_roots) / sizeof(external_roots[0]))
 
@@ -567,6 +570,7 @@ struct external_name
 {
     char *name;
     LONG type;
+    UBYTE root;
 };
 
 static int external_before(struct external_name *a, struct external_name *b)
@@ -580,67 +584,89 @@ static int external_before(struct external_name *a, struct external_name *b)
  * Insert the entries of root/reldir after list position pos, one level
  * deeper than depth, closed. Returns how many were inserted.
  */
-static LONG AddDirectory(Object *list, UBYTE root, CONST_STRPTR reldir,
-    LONG pos, UBYTE depth)
+static LONG AddDirectory(Object *list, CONST_STRPTR reldir, LONG pos,
+    UBYTE depth)
 {
-    CONST_STRPTR prefix = external_roots[root];
     char *path;
     BPTR lock;
     struct ExAllControl *eac;
     struct ExAllData *ead, *buffer;
     struct external_name *names = NULL;
     LONG count = 0, size = 0, more, i, j, inserted = 0;
-    ULONG pathlen = strlen(prefix) + strlen(reldir) + 2;
+    ULONG r;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR oldwin = me->pr_WindowPtr;
+    BOOL isproc = me->pr_Task.tc_Node.ln_Type == NT_PROCESS;
 
-    if (!(path = AllocVec(pathlen, MEMF_ANY)))
-        return 0;
-    snprintf(path, pathlen, "%s%s", prefix, reldir);
-    lock = Lock(path, ACCESS_READ);
-    FreeVec(path);
-    if (!lock)
-        return 0;
+    /* no "insert volume MUI" when MUI: is not assigned */
+    if (isproc)
+        me->pr_WindowPtr = (APTR)-1;
     eac = (struct ExAllControl *)AllocDosObject(DOS_EXALLCONTROL, NULL);
     buffer = AllocVec(1024, MEMF_ANY);
     if (!eac || !buffer)
         goto done;
-    eac->eac_LastKey = 0;
-    do
+    /* the drawer in every root, merged: a name found in an earlier root
+     * wins (OpenMUI's own, the older Zune one, MUI's) */
+    for (r = 0; r < EXTERNAL_ROOTS; r++)
     {
-        more = ExAll(lock, buffer, 1024, ED_TYPE, eac);
-        if (!more && IoErr() != ERROR_NO_MORE_ENTRIES)
+        ULONG pathlen = strlen(external_roots[r]) + strlen(reldir) + 2;
+        LONG firstnew = count;
+
+        if (!(path = AllocVec(pathlen, MEMF_ANY)))
             break;
-        for (ead = eac->eac_Entries ? buffer : NULL; ead; ead = ead->ed_Next)
+        snprintf(path, pathlen, "%s%s", external_roots[r], reldir);
+        lock = Lock(path, ACCESS_READ);
+        FreeVec(path);
+        if (!lock)
+            continue;
+        eac->eac_LastKey = 0;
+        do
         {
-            ULONG len = strlen(ead->ed_Name);
-
-            /* the second (selected) states of frames and brushes, and
-             * Workbench icons */
-            if (ead->ed_Type <= 0 && len > 4
-                && (!strcmp(ead->ed_Name + len - 4, ".mf1")
-                    || !strcmp(ead->ed_Name + len - 4, ".mb1")
-                    || !Stricmp(ead->ed_Name + len - 5, ".info")))
-                continue;
-            if (count == size)
-            {
-                struct external_name *grown =
-                    AllocVec((size + 32) * sizeof(*grown), MEMF_ANY);
-
-                if (!grown)
-                    break;
-                if (names)
-                {
-                    CopyMem(names, grown, count * sizeof(*grown));
-                    FreeVec(names);
-                }
-                names = grown;
-                size += 32;
-            }
-            if (!(names[count].name = StrDup(ead->ed_Name)))
+            more = ExAll(lock, buffer, 1024, ED_TYPE, eac);
+            if (!more && IoErr() != ERROR_NO_MORE_ENTRIES)
                 break;
-            names[count++].type = ead->ed_Type;
+            for (ead = eac->eac_Entries ? buffer : NULL; ead;
+                ead = ead->ed_Next)
+            {
+                ULONG len = strlen(ead->ed_Name);
+                LONG k;
+
+                /* the second (selected) states of frames and brushes, and
+                 * Workbench icons */
+                if (ead->ed_Type <= 0 && len > 4
+                    && (!strcmp(ead->ed_Name + len - 4, ".mf1")
+                        || !strcmp(ead->ed_Name + len - 4, ".mb1")
+                        || !Stricmp(ead->ed_Name + len - 5, ".info")))
+                    continue;
+                for (k = 0; k < firstnew; k++)
+                    if (!Stricmp(names[k].name, ead->ed_Name))
+                        break;
+                if (k < firstnew)
+                    continue;
+                if (count == size)
+                {
+                    struct external_name *grown =
+                        AllocVec((size + 32) * sizeof(*grown), MEMF_ANY);
+
+                    if (!grown)
+                        break;
+                    if (names)
+                    {
+                        CopyMem(names, grown, count * sizeof(*grown));
+                        FreeVec(names);
+                    }
+                    names = grown;
+                    size += 32;
+                }
+                if (!(names[count].name = StrDup(ead->ed_Name)))
+                    break;
+                names[count].root = r;
+                names[count++].type = ead->ed_Type;
+            }
         }
+        while (more);
+        UnLock(lock);
     }
-    while (more);
 
     /* insertion sort: a drawer holds tens of entries */
     for (i = 1; i < count; i++)
@@ -662,7 +688,7 @@ static LONG AddDirectory(Object *list, UBYTE root, CONST_STRPTR reldir,
         ele.namelen = strlen(names[i].name);
         ele.type = names[i].type;
         ele.depth = depth;
-        ele.root = root;
+        ele.root = names[i].root;
         if ((LONG)DoMethod(list, MUIM_List_InsertSingle, (IPTR)&ele,
                 pos + 1 + inserted) >= 0)
             inserted++;
@@ -675,7 +701,8 @@ done:
     FreeVec(buffer);
     if (eac)
         FreeDosObject(DOS_EXALLCONTROL, eac);
-    UnLock(lock);
+    if (isproc)
+        me->pr_WindowPtr = oldwin;
     return inserted;
 }
 
@@ -709,7 +736,7 @@ static void external_toggle(Object *list, LONG pos)
         {
             snprintf(rel, len, "%s%s%s", entry->reldir,
                 *entry->reldir ? "/" : "", entry->filename);
-            AddDirectory(list, entry->root, rel, pos, entry->depth + 1);
+            AddDirectory(list, rel, pos, entry->depth + 1);
             FreeVec(rel);
         }
         entry->open = TRUE;
@@ -1572,7 +1599,6 @@ IPTR Imageadjust__MUIM_Imageadjust_ReadExternal(struct IClass *cl,
     APTR oldwinptr = NULL;
 
     LONG entries = 0;
-    UBYTE root;
 
     /* Read once: the drawers the user opened stay open when the page is
      * shown again */
@@ -1587,11 +1613,7 @@ IPTR Imageadjust__MUIM_Imageadjust_ReadExternal(struct IClass *cl,
         oldwinptr = me->pr_WindowPtr;
         me->pr_WindowPtr = (APTR) - 1;
     }
-    for (root = 0; root < EXTERNAL_ROOTS; root++)
-    {
-        get(data->external_list, MUIA_List_Entries, &entries);
-        AddDirectory(data->external_list, root, "", entries - 1, 0);
-    }
+    AddDirectory(data->external_list, "", -1, 0);
     if (me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
         me->pr_WindowPtr = oldwinptr;
     set(data->external_list, MUIA_List_Quiet, FALSE);

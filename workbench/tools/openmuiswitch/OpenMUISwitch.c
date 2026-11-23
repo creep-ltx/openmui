@@ -33,6 +33,9 @@
  *          <home>/Data/Backup and written into the record as REPLACED with
  *          no file of OpenMUI's in its place, so that Uninstall and "Use
  *          real MUI" put it back.
+ *          Also (with or without an earlier record): LIBS:Zune/Images,
+ *          when there is no LIBS:OpenMUI/Images, is copied there (copied,
+ *          not moved, and not recorded: Uninstall leaves images alone).
  * STATUS:  what is installed where (Shell).
  *
  * zunemaster.library, the second name earlier editions installed the
@@ -91,7 +94,7 @@ static int Strnicmp(const char *a, const char *b, int n)
 
 #define Stricmp(a, b) Strnicmp((const char *)(a), (const char *)(b), 0x7fff)
 
-static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.2 (12.11.2026) OpenMUI 1.0";
+static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.3 (24.11.2026) OpenMUI 1.0";
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;
@@ -904,6 +907,60 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
     return kept ? 10 : 0;
 }
 
+/* Copy a drawer and what is in it (the user's data: nothing of it is
+ * recorded, so that Uninstall leaves it alone). Files already there stay. */
+static __attribute__((noinline)) void copy_tree(const char *from,
+    const char *to)
+{
+    char src[PATHLEN], dst[PATHLEN];
+    LONG used, at;
+    char *names = dir_names(from, &used);
+    BPTR lock;
+
+    if (!(lock = Lock((STRPTR)to, ACCESS_READ)))
+        lock = CreateDir((STRPTR)to);
+    if (!lock)
+    {
+        FreeVec(names);
+        return;
+    }
+    UnLock(lock);
+    for (at = 0; names && at < used; at += strlen(names + at) + 1)
+    {
+        LONG type = 0;
+
+        join(src, from, names + at);
+        join(dst, to, names + at);
+        if (exists(dst, NULL))
+            continue;
+        if (exists(src, &type) && type > 0)
+            copy_tree(src, dst);
+        else
+            copyfile(src, dst);
+    }
+    FreeVec(names);
+}
+
+/* An earlier edition's image drawer (LIBS:Zune/Images: MUI image sets the
+ * user put there) is copied to OpenMUI's when OpenMUI has none: the
+ * library looks in both anyway, this keeps them together. */
+static void migrate_images(void)
+{
+    LONG type = 0;
+
+    if (exists("LIBS:Zune/Images", &type) && type > 0
+        && !exists("LIBS:OpenMUI/Images", NULL))
+    {
+        BPTR lock = Lock("LIBS:OpenMUI", ACCESS_READ);
+
+        if (!lock)
+            lock = CreateDir("LIBS:OpenMUI");
+        if (lock)
+            UnLock(lock);
+        copy_tree("LIBS:Zune/Images", "LIBS:OpenMUI/Images");
+    }
+}
+
 /* An earlier edition's settings drawer into OpenMUI's: each file or drawer
  * not there yet is moved; one whose name is taken stays where it is. The
  * old drawer goes when it is empty. */
@@ -1154,6 +1211,7 @@ int main(void)
     }
     if (!Stricmp((STRPTR)action, (STRPTR)"MIGRATE"))
     {
+        migrate_images();
         migrate_settings("ENVARC:Zune", "ENVARC:OpenMUI");
         migrate_settings("ENV:Zune", "ENV:OpenMUI");
         if (args[1])

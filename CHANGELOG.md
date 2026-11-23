@@ -8,6 +8,17 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+### Fixed
+
+- External images are also looked for in `LIBS:Zune/Images` (earlier
+  installs) and, after it, `MUI:Images`; the External lists of the
+  preferences show all three drawers merged (the first drawer wins a name).
+  After an update over a hand-copied older build the lists were empty. The
+  installer and `OpenMUISwitch MIGRATE` (1.3) copy `LIBS:Zune/Images` to
+  `LIBS:OpenMUI/Images` when that does not exist, with or without an
+  earlier installer record; the copy is not recorded, so Uninstall leaves
+  it. OpenMUI ships no image sets.
+
 ### Changed
 
 - The settings file `ENV:OpenMUI/global.prefs` is read and parsed once for

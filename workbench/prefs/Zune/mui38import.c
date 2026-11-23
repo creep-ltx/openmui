@@ -45,9 +45,9 @@ static void make_dir(CONST_STRPTR name)
 }
 
 /* Where OpenMUI looks for a picture or image class without a volume (the
- * library's IMSPEC_EXTERNAL_PREFIX and IMSPEC_EXTERNAL_PREFIX2) */
+ * library's IMSPEC_EXTERNAL_PREFIX*) */
 static CONST_STRPTR const image_roots[] = {
-    "LIBS:OpenMUI/Images/", "MUI:Images/"
+    "LIBS:OpenMUI/Images/", "LIBS:Zune/Images/", "MUI:Images/"
 };
 
 static int have_file(const char *name)
@@ -57,7 +57,7 @@ static int have_file(const char *name)
 
     if (strchr(name, ':'))
         return exists(name);
-    for (i = 0; i < 2; i++)
+    for (i = 0; i < 3; i++)
     {
         snprintf(path, sizeof(path), "%s%s", image_roots[i], name);
         if (exists(path))

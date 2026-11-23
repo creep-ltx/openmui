@@ -29,6 +29,11 @@
 ;   and what is left in LIBS:Zune once the earlier record has taken its own
 ;   files away is the user's: kept in the backup and written down, so that
 ;   Uninstall and "Use real MUI" put it back (Tools/OpenMUISwitch MIGRATE);
+; - the user's MUI image sets in an earlier edition's LIBS:Zune/Images are
+;   copied to LIBS:OpenMUI/Images when that does not exist (also without an
+;   earlier record; copied, not recorded: Uninstall leaves images alone).
+;   OpenMUI ships no image sets; it also looks in LIBS:Zune/Images and
+;   MUI:Images;
 ; - an installation of the same program under its earlier name, Zune68k
 ;   lean (SYS:Zune68k, SYS:Prefs/Zune), is removed the same way first:
 ;   its record is in SYS:Zune68k/Data, and Tools/OpenMUISwitch reads it;
@@ -513,9 +518,9 @@
 (P_SaveRecord)
 ; ---- an earlier edition's names: its settings to ENV(ARC):OpenMUI, and
 ; what is left in its LIBS:Zune (the user's) to the backup, written down ----
-(if (and (or #update #old) (= @pretend 0))
+(if (= @pretend 0)
     (if (<> 0 (run (cat (P_Quote #tool) " MIGRATE QUIET HOME=" (P_Quote #home)
-            (if (= (exists #oldzunedir (noreq)) 2)
+            (if (and (or #update #old) (= (exists #oldzunedir (noreq)) 2))
                 (cat " " (P_Quote (P_Rel #oldzunedir))) ""))))
         (message "Some files in " #oldzunedir " could not be moved to the "
             "backup (" #backup "); they are left where they are." (all))

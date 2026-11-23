@@ -231,6 +231,23 @@ the file by hand, run OpenMUI prefs and press *Use*, or reboot.
 - A class that a program opens itself with `OpenLibrary` (not through MUI)
   gets the identity by the version the class asks for.
 
+## External images
+
+The External tab of the image and frame pop-ups lists image sets, pictures
+and image classes (`.image`, `.mim`, `.mi1`, `.mf0`, ...) from these drawers,
+in this order:
+
+1. `LIBS:OpenMUI/Images`
+2. `LIBS:Zune/Images` (earlier OpenMUI and Zune68k test builds)
+3. `MUI:Images` (a real MUI's images, only when `MUI:` is assigned)
+
+The lists are merged; when a name is in more than one drawer, the first one
+wins. Programs look in the same order when an image is not found by its full
+name. The installer copies `LIBS:Zune/Images` to `LIBS:OpenMUI/Images` when
+there is no such drawer (copied, not moved; Uninstall does not delete it).
+OpenMUI ships no image sets: the sets in MUI's packages belong to their
+authors and artists. Put your own into `LIBS:OpenMUI/Images`.
+
 ## The files in LIBS:OpenMUI
 
 About 45 rarely used classes and parts of the library are files of their own

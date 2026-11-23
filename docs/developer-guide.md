@@ -183,7 +183,7 @@ OpenMUI's own drawers: `LIBS:OpenMUI` (its class files and modules; an
 external class is looked for as `OpenMUI/<name>`, `Classes/OpenMUI/<name>`,
 then `MUI/<name>` in `LIBS:`), `ENVARC:OpenMUI` and `ENV:OpenMUI` (settings:
 `global.prefs`, `<base>.prefs` per application, `BehaveAs`, `fontfamilies`,
-`PublicScreens.iff`), `LIBS:OpenMUI/Images` (external image classes), and the
+`PublicScreens.iff`), `LIBS:OpenMUI/Images`, then `LIBS:Zune/Images`, then `MUI:Images` (external images and image classes; the first drawer holding a name wins), and the
 catalogs `System/Prefs/OpenMUI.catalog` and `System/Classes/OpenMUI/`.
 Test builds before 0.1b2 used the name Zune for all of these. A program that
 writes its own settings with `MUIM_Application_Save` gets
