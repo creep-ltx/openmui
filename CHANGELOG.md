@@ -68,6 +68,17 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 - The default-settings tables use 16-bit fields (0.4 KB less code), so the
   library stays the same size (232,084 bytes stripped).
 
+### Fixed
+
+- The preferences program no longer stops answering when UP-MCC's page is
+  chosen. Like MUI 3.8 and MUI 5 it lists a settings class (`.mcp`) only
+  from version 11 on (measured on both: 10 hidden, 11 shown); UP-MCC.mcp 1.0
+  is version 1, so its page is not listed, as with MUI. That page waits
+  forever on every MUI (checked on MUI 5 with a copy patched to version 11):
+  it reads its theme with libnix's `fopen`, whose
+  `malloc` locks a semaphore the class library never set up. OpenMUI's own
+  Busy.mcp and Listtree.mcp are now version 11.1 so that they stay listed.
+
 ### Added
 
 - `opbench` (tests/native): `menu shown+close` and `menu select`, which wait

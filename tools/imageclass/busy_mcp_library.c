@@ -28,9 +28,9 @@ struct BusyP_DATA
 #define CLASS "Busy.mcp"
 #define SUPERCLASSP MUIC_Mccprefs
 #define INSTDATAP BusyP_DATA
-#define VERSION 1
+#define VERSION 11
 #define REVISION 1
-#define USERLIBID CLASS " 1.1 (11.11.2026) Zune68k"
+#define USERLIBID CLASS " 11.1 (24.11.2026) Zune68k"
 #define MASTERVERSION 19
 #define MIN_STACKSIZE 8192
 #define CLASSEXPUNGE
@@ -130,7 +130,7 @@ static Object *BuildPage(struct BusyP_DATA *d)
             Child, d->frame = NumSlider(&FrameInfo, 0, 4),
         End,
         Child, TextObject, MUIA_Font, MUIV_Font_Tiny, MUIA_Text_PreParse, "\33c",
-            MUIA_Text_Contents, "Busy.mcp 1.1 (Zune68k)", End,
+            MUIA_Text_Contents, "Busy.mcp 11.1 (Zune68k)", End,
     End;
     return g;
 }

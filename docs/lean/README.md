@@ -5569,6 +5569,11 @@ eed8b621 after the suite had found Haracz (the figures here are the second run's
 
 ## Left open
 
+- **UP-MCC's settings page (2026-11-24)** is not shown: UP-MCC.mcp 1.0 is version 1 and, like MUI
+  3.8 and MUI 5, the preferences list a settings class from version 11 on. Its page waits forever on
+  every MUI (libnix `malloc` on a semaphore pointer the library never set up, from `fopen` in
+  ConfigToGadgets); the fix is UP-MCC's (reported to its author). It appears once a fixed UP-MCC.mcp
+  of version 11 or later is installed.
 - **Round `opt1` (2026-11-23)**: **An application's start with a settings file** still makes five DOS
   packets (Lock, Examine and UnLock of `ENV:OpenMUI/global.prefs`, two Opens that fail for the
   program's own file in ENV: and ENVARC:), about 15 of its 25 ms on the 68020. A notification owned by

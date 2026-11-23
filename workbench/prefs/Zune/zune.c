@@ -455,7 +455,12 @@ void find_mcps(void)
                     
                     if (num_page_entries < MAX_PAGE_ENTRIES)
                     {
-                        if ((mcclib = OpenLibrary(ap->ap_Buf, 0)))
+                        /* MUI 3.8 and MUI 5 list a settings class only
+                         * from version 11 on (measured: 10 hidden, 11
+                         * shown). UP-MCC.mcp 1.0 (version 1) hangs in
+                         * its first page call on every MUI: hidden, as
+                         * there */
+                        if ((mcclib = OpenLibrary(ap->ap_Buf, 11)))
                         {
                             struct MUI_CustomClass *mcp;
 
