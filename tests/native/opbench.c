@@ -411,6 +411,20 @@ static Object *build_small(void)
 /* ---- conditions for run_until ------------------------------------------- */
 static LONG want;
 static int cond_pressed(void) { return pressed >= want; }
+/* The program's loop until the window is (in) or is not in its menu
+ * state; timedout after 100,000 rounds (seconds) */
+static void menu_state(struct Window *w, BOOL in)
+{
+    LONG n;
+
+    for (n = 0; n < 100000; n++)
+    {
+        if (!(w->Flags & WFLG_MENUSTATE) == !in)
+            return;
+        DoMethod(app, MUIM_Application_InputBuffered);
+    }
+    timedout = 1;
+}
 static int cond_strlen(void)
 {
     STRPTR s = NULL;
@@ -800,6 +814,52 @@ int main(int argc, char **argv)
     }
     else
         puts("window 2 did not open");
+
+    /* The menus as the user sees them (added 2026-11-23, after the other
+     * operations so that those run as before). "menu open+close" stops
+     * when the program's loop has nothing more to do; a toolkit that asks
+     * for IDCMP_MENUVERIFY has then only answered it: Intuition takes the
+     * answer at its next input tick and shows the menus after that, or not
+     * at all when the button is already up. Here the program's loop runs
+     * until the window is in its menu state (WFLG_MENUSTATE: the menus
+     * are shown) and until it is out of it again. "menu shown+close": the
+     * right button down and up; "menu select": down, the pointer onto the
+     * first title, then onto its first item, up, until the program has
+     * the item (MUIA_Application_MenuAction). */
+    set(win, MUIA_Window_Open, TRUE);
+    settle();
+    DoMethod(app, MUIM_Notify, MUIA_Application_MenuAction, MUIV_EveryTime,
+        app, 2, MUIM_CallHook, &presshook);
+    {
+        int bh = scr->BarHeight, fh = scr->RastPort.TxHeight;
+        struct Window *mw = NULL;
+
+        get(win, MUIA_Window_Window, &mw);
+        centre(root, win, &x, &y);
+        pointer_to(x, y);
+        settle();
+        if (mw)
+        {
+            TIMED("menu shown+close", 1, {
+                mouse_button(IECODE_RBUTTON);
+                menu_state(mw, TRUE);
+                mouse_button(IECODE_RBUTTON | IECODE_UP_PREFIX);
+                menu_state(mw, FALSE);
+                DoMethod(app, MUIM_Application_InputBuffered); });
+            settle();
+            TIMED("menu select", 1, {
+                want = pressed + 1;
+                mouse_button(IECODE_RBUTTON);
+                menu_state(mw, TRUE);
+                pointer_to(12, bh / 2);
+                pointer_to(24, bh + 3 + fh / 2);
+                mouse_button(IECODE_RBUTTON | IECODE_UP_PREFIX);
+                run_until(cond_pressed);
+                pointer_to(x, y);
+                DoMethod(app, MUIM_Application_InputBuffered); });
+        }
+    }
+    set(win, MUIA_Window_Open, FALSE);
 
     /* MUI 4/5 only (opened as version 20 or higher): a Text that elides
      * what does not fit (MUIA_Text_Shorten, V20), set 100 times */
