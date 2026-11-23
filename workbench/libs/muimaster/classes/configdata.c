@@ -38,11 +38,37 @@
 
 extern struct Library *MUIMasterBase;
 
+/* ENV:OpenMUI/global.prefs read and parsed once for every application
+ * (an application's start with a full settings file was mostly this: 160
+ * records read, 200 lookups, 15 frame specs; opbench prof). Kept by the
+ * library while the file's date, size and key are the same (one Lock,
+ * Examine and UnLock per application instead of the load); an
+ * application holds the one it was made with until it is disposed of.
+ * Never written: an application's own records are in its own dataspace
+ * and looked at first (cfg_find); anything that changes or writes an
+ * application's records gives it copies of these first (cfg_records),
+ * and the settings follow cfg_own as the shared defaults do. */
+struct cfg_global
+{
+    LONG users;                 /* its applications, and 1 while current */
+    Object *ds;                 /* the file's records: a Dataspace */
+    LONG stamp[5];              /* the file's date, size and key */
+    struct ZunePrefsNew prefs;  /* built from the records alone */
+};
+static struct cfg_global *cfg_glob;     /* the current one, or NULL */
+
+BOOL zune_dataspace_only(struct IClass *cl, Object *obj, ULONG id);
+APTR zune_dataspace_get(struct IClass *cl, Object *obj, ULONG id);
+void zune_dataspace_underlay(struct IClass *cl, Object *obj, Object *src);
+
+#define CFG_LOADING 2
+
 struct MUI_ConfigdataData
 {
     Object                      *app;
     CONST_STRPTR                appbase;
-    struct ZunePrefsNew        *prefs;     /* own, or cfg_shared */
+    struct ZunePrefsNew        *prefs;     /* own, cfg_shared or glob's */
+    struct cfg_global          *glob;      /* the shared global settings */
     struct SignalSemaphore      psLock;
     struct MsgPort             *fsNotifyPort;
     struct DateStamp            created;   /* public screens read before this */
@@ -50,8 +76,10 @@ struct MUI_ConfigdataData
     struct MUI_InputHandlerNode fsNotifyIHN;
     struct NotifyRequest        fsNotifyRequest;
     struct List                 pubscreens;
-    struct IClass             *init_dataspace;
-    BOOL                        loaded;    /* a settings file read at creation */
+    UBYTE                       loaded;    /* a settings file read at creation */
+    UBYTE                       direct;    /* OM_NEW's reads: the lock is held */
+    UBYTE                       unshared;  /* glob's records are not looked at
+                                            * (CFG_LOADING: being read) */
 };
 
 IPTR Dataspace__MUIM_Find(struct IClass *cl, Object *obj,
@@ -61,16 +89,29 @@ IPTR Dataspace__MUIM_Find(struct IClass *cl, Object *obj,
  * settings at creation; ask the dataspace, our superclass, for each
  * without passing through our own dispatcher first, and take the
  * defaults from the tables being walked (perfbench create+dispose) */
-static APTR cfg_find(struct IClass *cl, Object *obj, ULONG id)
+static __attribute__((noinline)) APTR cfg_find(struct IClass *cl, Object *obj,
+    ULONG id)
 {
     struct MUIP_Dataspace_Find msg = { MUIM_Dataspace_Find, id };
 
     struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
 
     /* The constructor holds the dataspace lock across all initial reads. */
-    if (data->init_dataspace)
-        return (APTR)Dataspace__MUIM_Find(data->init_dataspace, obj, &msg);
+    if (data->direct)
+        return (APTR)Dataspace__MUIM_Find(cl->cl_Super, obj, &msg);
     return (APTR) DoSuperMethodA(cl, obj, (Msg) &msg);
+}
+
+/* A record of the object's own, else the shared global settings' (never
+ * written, so read without their lock) */
+static APTR cfg_get(struct IClass *cl, Object *obj, ULONG id)
+{
+    struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
+    APTR res = cfg_find(cl, obj, id);
+
+    if (!res && data->glob && !data->unshared)
+        return zune_dataspace_get(cl->cl_Super, data->glob->ds, id);
+    return res;
 }
 
 static ULONG cfg_ulong(struct IClass *cl, Object *obj, ULONG id);
@@ -145,7 +186,7 @@ static void init_imspecs(struct IClass *cl, Object *obj,
         CONST_STRPTR imspec;
         const struct spec_cfg *img = DefImspecValues + i;
 
-        imspec = cfg_find(cl, obj, img->cfgid);
+        imspec = cfg_get(cl, obj, img->cfgid);
         if (!imspec)
             imspec = img->defspec;
 /*          D(bug("init_imspecs: %ld %lx %s ...\n", img->muiv, img->cfgid, imspec)); */
@@ -193,7 +234,7 @@ static void init_framespecs(struct IClass *cl, Object *obj,
         CONST_STRPTR framespec;
         const struct spec_cfg *fcfg = DefFramespecValues + i;
 
-        framespec = cfg_find(cl, obj, fcfg->cfgid);
+        framespec = cfg_get(cl, obj, fcfg->cfgid);
         if (!framespec)
             framespec = fcfg->defspec;
         zune_frame_spec_to_intern(framespec,
@@ -349,23 +390,57 @@ static int keycache_count;
  * application its own copy first. Kept until expunge. */
 static struct ZunePrefsNew *cfg_shared;
 
-/* The shared defaults are never written: an own copy first, which the
+/* The settings are not the object's own to write or free */
+static BOOL cfg_borrowed(struct MUI_ConfigdataData *data)
+{
+    return data->prefs == cfg_shared
+        || (data->glob && data->prefs == &data->glob->prefs);
+}
+
+/* The shared settings are never written: an own copy first, which the
  * application's GlobalInfo then points to. FALSE without memory. */
 static __attribute__((noinline)) BOOL cfg_own(struct MUI_ConfigdataData *data)
 {
     struct ZunePrefsNew *own;
     struct MUI_GlobalInfo *mgi;
 
-    if (data->prefs != cfg_shared)
+    if (!cfg_borrowed(data))
         return TRUE;
     if (!(own = AllocMem(sizeof(*own), MEMF_ANY)))
         return FALSE;
-    CopyMem(cfg_shared, own, sizeof(*own));
-    data->prefs = own;
+    CopyMem(data->prefs, own, sizeof(*own));
     if (data->app && (mgi = muiNotifyData(data->app)->mnd_GlobalInfo)
-        && mgi->mgi_Prefs == cfg_shared)
+        && mgi->mgi_Prefs == data->prefs)
         mgi->mgi_Prefs = own;
+    data->prefs = own;
     return TRUE;
+}
+
+/* One user less; the last one frees it */
+static __attribute__((noinline)) void cfg_release(
+    register struct cfg_global *g __asm("a0"))
+{
+    LONG left;
+
+    if (!g)
+        return;
+    Forbid();
+    left = --g->users;
+    Permit();
+    if (left)
+        return;
+    if (g->ds)
+        MUI_DisposeObject(g->ds);
+    FreeMem(g, sizeof(*g));
+}
+
+/* Before the built-in classes are freed (expunge) */
+void zune_cfg_global_free(void)
+{
+    struct cfg_global *g = cfg_glob;
+
+    cfg_glob = NULL;
+    cfg_release(g);
 }
 
 static void Configdata__DisposeDescriptors(struct MUI_ConfigdataData *data);
@@ -384,8 +459,9 @@ static __attribute__((noinline)) void cfg_free(struct MUI_ConfigdataData *data)
     }
     if (MUIScreenBase)
         Configdata__DisposeDescriptors(data);
-    if (data->prefs && data->prefs != cfg_shared)
+    if (data->prefs && !cfg_borrowed(data))
         FreeMem(data->prefs, sizeof(*data->prefs));
+    cfg_release(data->glob);
 }
 
 void zune_keycache_free(void)
@@ -596,13 +672,137 @@ static __attribute__((noinline)) BOOL cfg_read(Object *ds, LONG which,
     return prefs_read(ds, filename, FALSE);
 }
 
+static void cfg_build(struct IClass *cl, Object *obj,
+    struct MUI_ConfigdataData *data);
+
+/* The library's class itself over the library's Dataspace: what OM_NEW's
+ * direct reads and the shared global settings need */
+static inline __attribute__((always_inline)) BOOL cfg_plain(
+    struct IClass *cl, Object *obj)
+{
+    return OCLASS(obj) == cl && cl->cl_Super->cl_ID
+        && !strcmp(cl->cl_Super->cl_ID, MUIC_Dataspace);
+}
+
+/* The date, size and key of ENV:OpenMUI/global.prefs; FALSE without it */
+#define CFG_GLOBAL "ENV:OpenMUI/global.prefs"
+static __attribute__((noinline)) BOOL cfg_stamp(LONG *stamp,
+    struct IFFHandle *iff)
+{
+    BPTR fh = iff ? (BPTR)iff->iff_Stream : 0;  /* open, or by name */
+    UBYTE room[sizeof(struct FileInfoBlock) + 2];
+    struct FileInfoBlock *fib = (APTR)(((IPTR)room + 2) & ~3);
+    BPTR lock = 0;
+    BOOL ok;
+
+    if (!fh && !(lock = Lock(CFG_GLOBAL, SHARED_LOCK)))
+        return FALSE;
+    if ((ok = fh ? ExamineFH(fh, fib) : Examine(lock, fib)))
+    {
+        stamp[0] = fib->fib_Date.ds_Days;
+        stamp[1] = fib->fib_Date.ds_Minute;
+        stamp[2] = fib->fib_Date.ds_Tick;
+        stamp[3] = fib->fib_Size;
+        stamp[4] = fib->fib_DiskKey;
+    }
+    if (lock)
+        UnLock(lock);
+    return ok;
+}
+
+/* The shared global settings for this application (data->glob, and
+ * data->prefs theirs): the current ones if the file is still the one
+ * they were read from (asked only when there are current ones), else
+ * read now. FALSE without the file (or without memory): the caller
+ * reads as before. Out of line: OM_NEW's frame. */
+static __attribute__((noinline)) BOOL cfg_attach(struct IClass *cl,
+    Object *obj, struct MUI_ConfigdataData *data)
+{
+    LONG stamp[5];
+    struct cfg_global *g = NULL, *old = NULL;
+    BOOL have;
+
+    if (cfg_glob)
+    {
+        have = cfg_stamp(stamp, NULL);
+        Forbid();
+        if ((g = cfg_glob) && have
+            && !memcmp(g->stamp, stamp, sizeof(stamp)))
+            g->users++;
+        else
+        {
+            old = g;
+            cfg_glob = g = NULL;
+        }
+        Permit();
+        cfg_release(old);
+        if (!have)
+            return FALSE;
+    }
+    if (!g)
+    {
+        if (!(g = AllocMem(sizeof(*g), MEMF_CLEAR)))
+            return FALSE;
+        g->users = 1;
+        /* (read through the object: its ReadIFF, cfg_records, takes the
+         * file's stamp from the open handle and hands the records on) */
+        data->glob = g;
+        data->unshared = CFG_LOADING;
+        if ((g->ds = MUI_NewObject(MUIC_Dataspace, TAG_DONE)))
+            have = prefs_read(obj, CFG_GLOBAL, FALSE);
+        data->unshared = FALSE;
+        if (!g->ds || !have)
+        {
+            data->glob = NULL;
+            cfg_release(g);
+            return FALSE;
+        }
+        data->glob = g;
+        data->prefs = &g->prefs;
+        data->loaded = TRUE;
+        cfg_build(cl, obj, data);
+        Forbid();
+        if (!cfg_glob)
+        {
+            cfg_glob = g;
+            g->users++;
+        }
+        Permit();
+    }
+    data->glob = g;
+    data->prefs = NULL;
+    data->unshared = TRUE;      /* reading its file changes nothing */
+    data->loaded = data->appbase && Stricmp(data->appbase, "global")
+        && (cfg_read(obj, 0, data->appbase)
+            || cfg_read(obj, CFG_ARC, data->appbase));
+    data->unshared = FALSE;
+    if (data->loaded && !zune_dataspace_only(cl->cl_Super, obj,
+            MUICFG_WindowPos)
+        && (data->prefs = AllocMem(sizeof(*data->prefs), MEMF_CLEAR)))
+        cfg_build(cl, obj, data);
+    if (!data->prefs)
+        data->prefs = &g->prefs;
+    data->loaded = TRUE;
+    DoMethod(obj, MUIM_Configdata_LoadPubScreens);
+    return TRUE;
+}
+
 /* The settings files over the object (the drawer checked first); TRUE
  * if one was read. Out of line: OM_NEW's frame. */
-static __attribute__((noinline)) BOOL cfg_load(Object *obj,
-    struct MUI_ConfigdataData *data)
+static __attribute__((noinline)) BOOL cfg_load(struct IClass *cl,
+    Object *obj, struct MUI_ConfigdataData *data)
 {
     BOOL loaded = FALSE;
     LONG res = 0;
+
+    /* An application's: the global settings as the library has them,
+     * and its own file over them. With nothing but window positions of
+     * its own (what an application saves at its end) the settings are
+     * the shared ones too. */
+    /* (while the library has them: no look at the drawer either) */
+    if (data->app && cfg_glob && cfg_plain(cl, obj)
+        && cfg_attach(cl, obj, data))
+        return TRUE;
 
     /* Without a preference drawer there is nothing to load: one Lock
      * replaces up to four failing Open calls (each a handler round
@@ -627,8 +827,15 @@ static __attribute__((noinline)) BOOL cfg_load(Object *obj,
      * positions remembered when the application quit; it must not hide
      * the global settings (it did: an application that once remembered
      * a window kept the settings of that moment for ever). */
-    loaded = !res && (cfg_read(obj, 0, "global")
+    if (!res && data->app && !cfg_glob && cfg_plain(cl, obj))
+    {
+        if (cfg_attach(cl, obj, data))
+            return TRUE;
+        res = CFG_ARC;      /* no such file in ENV: */
+    }
+    loaded = !(res & CFG_OLD) && ((!res && cfg_read(obj, 0, "global"))
         || cfg_read(obj, CFG_ARC, "global"));
+    res &= CFG_OLD;
 
     /* No global settings of OpenMUI's own: an earlier edition's */
     if (!loaded && (cfg_read(obj, CFG_OLD, "global")
@@ -657,17 +864,16 @@ static __attribute__((noinline)) void cfg_build(struct IClass *cl,
 
     /* Only bypass dispatch for the builtin object during construction.
      * Subclasses retain their inherited lookup and semaphore methods. */
-    if (OCLASS(obj) == cl && cl->cl_Super->cl_ID &&
-        !strcmp(cl->cl_Super->cl_ID, MUIC_Dataspace))
+    if (cfg_plain(cl, obj))
     {
         DoMethod(obj, MUIM_Semaphore_ObtainShared);
-        data->init_dataspace = cl->cl_Super;
+        data->direct = TRUE;
     }
 
     /*---------- init strings ----------*/
     for (i = 0; DefStrValues[i].id; i++)
     {
-        CONST_STRPTR value = cfg_find(cl, obj, DefStrValues[i].id);
+        CONST_STRPTR value = cfg_get(cl, obj, DefStrValues[i].id);
         Configdata_StoreField(data, DefStrValues[i].field,
             value ? value : DefStrValues[i].val);
     }
@@ -684,7 +890,7 @@ static __attribute__((noinline)) void cfg_build(struct IClass *cl,
     for (i = 0; DefULValues[i].id; i++)
     {
         const struct def_ulval *def = &DefULValues[i];
-        ULONG *stored = cfg_find(cl, obj, def->id);
+        ULONG *stored = cfg_get(cl, obj, def->id);
         ULONG value = stored ? AROS_BE2LONG(*stored) : def->val;
         APTR target = (UBYTE *)data->prefs + (def->offset & ~DEF_UWORD);
         if (def->offset & DEF_UWORD)
@@ -698,14 +904,14 @@ static __attribute__((noinline)) void cfg_build(struct IClass *cl,
     /* consecutive ids and fields */
     for (i = 0; i < 16; i++)
         (&data->prefs->customframe_config_1)[i] =
-            cfg_find(cl, obj, MUICFG_CustomFrame_1 + i);
+            cfg_get(cl, obj, MUICFG_CustomFrame_1 + i);
 
     /*---------- Special ----------*/
     /* all taken care of in frames and images */
 
-    if (data->init_dataspace)
+    if (data->direct)
     {
-        data->init_dataspace = NULL;
+        data->direct = FALSE;
         DoMethod(obj, MUIM_Semaphore_Release);
     }
 
@@ -763,7 +969,9 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
      * cycles and non-interactive uses never need. */
 
     /* No file read: the shared defaults, if built (cfg_shared) */
-    if (!cfg_load(obj, data) && (data->prefs = cfg_shared))
+    if (!cfg_load(cl, obj, data) && (data->prefs = cfg_shared))
+        return (IPTR) obj;
+    if (data->prefs)    /* the shared global settings', or over them */
         return (IPTR) obj;
     if (!(data->prefs = AllocMem(sizeof(*data->prefs), MEMF_CLEAR)))
     {
@@ -906,7 +1114,7 @@ static IPTR Configdata_SetWindowPos(struct IClass *cl, Object *obj,
 **************************************************************************/
 static CONST_STRPTR cfg_string(struct IClass *cl, Object *obj, ULONG id)
 {
-    CONST_STRPTR s = cfg_find(cl, obj, id);
+    CONST_STRPTR s = cfg_get(cl, obj, id);
     int i;
 
     if (s)
@@ -940,7 +1148,7 @@ IPTR Configdata__MUIM_GetString(struct IClass *cl, Object *obj,
 **************************************************************************/
 static ULONG cfg_ulong(struct IClass *cl, Object *obj, ULONG id)
 {
-    ULONG *vp = cfg_find(cl, obj, id);
+    ULONG *vp = cfg_get(cl, obj, id);
     int i;
 
     if (vp)
@@ -1275,10 +1483,48 @@ static __attribute__((noinline)) IPTR Configdata_SetString(struct IClass *cl,
     return 0;
 }
 
+/* The Dataspace methods that change, clear or write the object's
+ * records. With shared global settings their records become the
+ * object's own first (where it has none of that id): from then on it is
+ * as if it had read the file itself. The settings in use still point
+ * into the shared records, held until OM_DISPOSE. While the shared
+ * settings are being read (cfg_attach) ReadIFF is theirs: the file's
+ * stamp from its open handle, the records to their Dataspace. */
+static __attribute__((noinline)) IPTR cfg_records(struct IClass *cl,
+    Object *obj, Msg msg)
+{
+    struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
+
+    if (data->glob)
+    {
+        if (data->unshared == CFG_LOADING)
+        {
+            cfg_stamp(data->glob->stamp,
+                ((struct MUIP_Dataspace_ReadIFF *)msg)->handle);
+            return DoMethodA(data->glob->ds, msg);
+        }
+        if (!data->unshared)
+        {
+            data->unshared = TRUE;
+            zune_dataspace_underlay(cl->cl_Super, obj, data->glob->ds);
+        }
+    }
+    return DoSuperMethodA(cl, obj, msg);
+}
+
 BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
 {
     switch (msg->MethodID)
     {
+    case MUIM_Dataspace_Find:
+        return (IPTR)cfg_get(cl, obj,
+            ((struct MUIP_Dataspace_Find *)msg)->id);
+    case MUIM_Dataspace_Add:
+    case MUIM_Dataspace_Remove:
+    case MUIM_Dataspace_Clear:
+    case MUIM_Dataspace_ReadIFF:
+    case MUIM_Dataspace_WriteIFF:
+        return cfg_records(cl, obj, msg);
     case OM_NEW:
         return Configdata__OM_NEW(cl, obj, (struct opSet *)msg);
     case OM_DISPOSE:

@@ -81,6 +81,7 @@ BPTR LibExpunge(struct MUIMasterBase_intern *base __asm("a6"))
     }
     /* MUI's private application list object holds a Semaphore subclass */
     zune_applist_free();
+    zune_cfg_global_free();     /* a Dataspace object */
     if (!ZUNE_FreeBuiltinClasses(&base->library)) {
         base->library.lib_Flags |= LIBF_DELEXP;
         return 0;

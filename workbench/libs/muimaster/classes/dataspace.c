@@ -196,6 +196,40 @@ static void ds_link(struct MUI_DataspaceData *data,
     *chain = node;
 }
 
+/* For Configdata's shared global settings (configdata.c): TRUE if obj
+ * holds no record but id's */
+BOOL zune_dataspace_only(struct IClass *cl, Object *obj, ULONG id)
+{
+    struct MUI_DataspaceData *data = INST_DATA(cl, obj);
+    struct Dataspace_Node *node;
+
+    for (node = DS_FIRST(data); DS_VALID(node); node = DS_NEXT(node))
+        if (node->id != id)
+            return FALSE;
+    return TRUE;
+}
+
+/* The same: the data of obj's record id, or NULL; no lock */
+APTR zune_dataspace_get(struct IClass *cl, Object *obj, ULONG id)
+{
+    struct Dataspace_Node *node = ds_find(INST_DATA(cl, obj), id);
+
+    return node ? node + 1 : NULL;
+}
+
+/* The same: src's records added to obj where obj has none of that id */
+void zune_dataspace_underlay(struct IClass *cl, Object *obj, Object *src)
+{
+    struct MUI_DataspaceData *data = INST_DATA(cl, obj);
+    struct MUI_DataspaceData *sdata = INST_DATA(cl, src);
+    struct Dataspace_Node *node;
+
+    for (node = DS_FIRST(sdata); DS_VALID(node); node = DS_NEXT(node))
+        if (!ds_find(data, node->id))
+            CoerceMethod(cl, obj, MUIM_Dataspace_Add, (IPTR)(node + 1),
+                node->len, node->id);
+}
+
 /* Construct the Semaphore superclass, initialize the record list, and bind
  * a borrowed pool or create an owned one. On pool failure, dispose of the
  * partially built object and return zero; otherwise return the object.
