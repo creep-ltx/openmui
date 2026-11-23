@@ -309,9 +309,9 @@ struct Prop_DATA
 #endif
     LONG gadgetid;
 
-    int horiz;
-    int usewinborder;
-    int sb_type;
+    UBYTE horiz;
+    UBYTE usewinborder;
+    UBYTE sb_type;
     UWORD minwidth, minheight;
     UWORD maxwidth, maxheight;
     UWORD defwidth, defheight;

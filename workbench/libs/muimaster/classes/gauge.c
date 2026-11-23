@@ -225,6 +225,29 @@
 extern struct Library *MUIMasterBase;
 
 
+/* OM_DISPOSE's: a copied info text and the buffer */
+static __attribute__((noinline)) void Gauge_Free(struct Gauge_DATA *data)
+{
+    if (data->dupinfo && data->info)
+        FreeVec(data->info);
+    FreeVec(data->buf);
+}
+
+/* The info text with the current value. Its buffer is made with the
+ * first info text: a gauge without one (a plain bar) has none (256 bytes
+ * of every Gauge before). Without memory no text is drawn. */
+static __attribute__((noinline)) void Gauge_Format(struct Gauge_DATA *data)
+{
+    if (data->info && !data->buf)
+        data->buf = AllocVec(GAUGE_BUFSIZE, MEMF_ANY);
+    if (!data->buf)
+        return;
+    if (data->info)
+        snprintf(data->buf, GAUGE_BUFSIZE, data->info, data->current);
+    else
+        data->buf[0] = 0;
+}
+
 /*
  * Construct Area, apply final tags/defaults, divide and clamp Current,
  * optionally duplicate InfoText and format into owned inline buffer. Return
@@ -283,12 +306,7 @@ IPTR Gauge__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     if (data->dupinfo)
         data->info = StrDup(data->info);
 
-    if (data->info)
-    {
-        snprintf(data->buf, GAUGE_BUFSIZE, data->info, data->current);
-    }
-    else
-        data->buf[0] = 0;
+    Gauge_Format(data);
 
 /*      D(bug("Gauge_New(0x%p, %d)\n",obj,muiAreaData(obj)->mad_Frame)); */
 
@@ -303,8 +321,7 @@ IPTR Gauge__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 IPTR Gauge__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 {
     struct Gauge_DATA *data = INST_DATA(cl, obj);
-    if (data->dupinfo && data->info)
-        FreeVec(data->info);
+    Gauge_Free(data);
     return DoSuperMethodA(cl, obj, msg);
 }
 
@@ -398,12 +415,7 @@ IPTR Gauge__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
     if (info_changed)
     {
-        if (data->info)
-        {
-            snprintf(data->buf, GAUGE_BUFSIZE, data->info, data->current);
-        }
-        else
-            data->buf[0] = 0;
+        Gauge_Format(data);
     }
 
     if (need_redraw)
@@ -464,6 +476,10 @@ IPTR Gauge__MUIM_Setup(struct IClass *cl, Object *obj,
     struct MUIP_Setup *msg)
 {
     struct Gauge_DATA *data = INST_DATA(cl, obj);
+
+    /* the instance data's address in a register of its own, not the
+     * object's plus an index kept in a further register (the frame) */
+    __asm__ __volatile__("" : "+a" (data));
 
     if (!(DoSuperMethodA(cl, obj, (Msg) msg)))
         return 0;
@@ -570,9 +586,10 @@ IPTR Gauge__MUIM_AskMinMax(struct IClass *cl, Object *obj,
  */
 static void Gauge_DrawInfo(Object *obj, struct Gauge_DATA *data)
 {
-    ZText *ztext = zune_text_new("\33c", data->buf, ZTEXT_ARG_NONE, 0);
+    ZText *ztext;
 
-    if (!ztext)
+    if (!data->buf
+        || !(ztext = zune_text_new("\33c", data->buf, ZTEXT_ARG_NONE, 0)))
         return;
     zune_text_get_bounds(ztext, obj);
     ztext->truncate = 1;

@@ -14,9 +14,10 @@ struct Gauge_DATA
    ULONG divide;
    STRPTR info;
 
-   char buf[GAUGE_BUFSIZE];
    LONG info_width;
    LONG info_height;
+   char *buf;     /* the info text formatted, GAUGE_BUFSIZE bytes: made
+                   * when there is an info text (Gauge_Format) */
 };
 
 

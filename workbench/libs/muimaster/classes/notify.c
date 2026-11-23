@@ -347,8 +347,12 @@ struct NotifyList
 {
     struct MinList list;
     struct NotifyWalk *walk;
-    BOOL disposed;
 };
+/* The object was disposed of while its notifications were delivered: the
+ * list's head pointer cleared (a list in use never has a NULL head).
+ * Kept out of the structure: 16 bytes instead of 18, which exec rounds
+ * to 24, for every object with a notification. */
+#define NL_DISPOSED(l) (!(l)->list.mlh_Head)
 
 #define NN_RUNNING 1
 #define NN_REMOVED 2
@@ -558,11 +562,11 @@ IPTR Notify__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
     if (data->mnd_NotifyList)
     {
         struct NotifyList *list = (struct NotifyList *)data->mnd_NotifyList;
-        list->disposed = TRUE;
         while ((node = list->list.mlh_Head)->mln_Succ)
         {
             DeleteNNode(data, (struct NotifyNode *)node);
         }
+        list->list.mlh_Head = NULL;     /* NL_DISPOSED */
         if (!list->walk)
             zune_mem_free(list, sizeof(struct NotifyList));
         data->mnd_NotifyList = NULL;
@@ -780,11 +784,11 @@ IPTR Notify__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
     walk.previous = list->walk;
     list->walk = &walk;
     tags = msg->ops_AttrList;
-    while (!list->disposed && (tag = NextTagItem(&tags)))
+    while (!NL_DISPOSED(list) && (tag = NextTagItem(&tags)))
     {
         walk.next = (NNode)list->list.mlh_Head;
         walk.last = (NNode)list->list.mlh_TailPred;
-        while (!list->disposed && walk.next && walk.next->nn_Node.mln_Succ)
+        while (!NL_DISPOSED(list) && walk.next && walk.next->nn_Node.mln_Succ)
         {
             NNode node = walk.next;
             walk.next = node == walk.last ? NULL :
@@ -793,7 +797,7 @@ IPTR Notify__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         }
     }
     list->walk = walk.previous;
-    if (list->disposed && !list->walk)
+    if (NL_DISPOSED(list) && !list->walk)
         zune_mem_free(list, sizeof(struct NotifyList));
 
     return 0;

@@ -147,12 +147,23 @@ extern struct Library *MUIMasterBase;
 
 #include "native_version.h"
 
+/* A bar title and its parsed text, one block; made with the title */
+struct RectTitle
+{
+    ZText *ztext;
+    char text[1];
+};
+
+/* 4 bytes (was 12; MUI 3.8: 6): most rectangles are spaces without a
+ * title or a bar, and with Area's 136 bytes and the object's header 12
+ * more made a 160 byte block of what is now 152. */
 struct Rectangle_DATA
 {
-    STRPTR BarTitle;
-    ULONG Type;
-    ZText *ztext;
+    IPTR title;     /* a struct RectTitle * (NULL: no bar title) with
+                     * the RECTANGLE_TYPE_* in its two low bits */
 };
+#define RECT_TYPE(d) ((d)->title & 3)
+#define RECT_TITLE(d) ((struct RectTitle *)((d)->title & ~3))
 
 #define RECTANGLE_TYPE_NORMAL 0
 #define RECTANGLE_TYPE_HBAR 1
@@ -169,6 +180,19 @@ static void draw_line(struct RastPort *rp, int xa, int ya, int xb, int yb)
     Draw(rp, xb, yb);
 }
 
+
+/* The bar title copied into its block (the last one given counts) */
+static __attribute__((noinline)) void Rectangle_SetTitle(
+    struct Rectangle_DATA *data, CONST_STRPTR title)
+{
+    struct RectTitle *t = NULL;
+
+    FreeVec(RECT_TITLE(data));
+    if (title && (t = AllocVec(sizeof(struct RectTitle) + strlen(title),
+            MEMF_CLEAR)))
+        strcpy(t->text, title);
+    data->title = (data->title & 3) | (IPTR) t;
+}
 
 /*
  * Construct Area with overridable title-font default; parse bar tags by
@@ -190,8 +214,6 @@ IPTR Rectangle__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     /* Initial local instance data */
     data = INST_DATA(cl, obj);
 
-    data->Type = RECTANGLE_TYPE_NORMAL;
-
     /* parse initial taglist */
 
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
@@ -199,13 +221,13 @@ IPTR Rectangle__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         switch (tag->ti_Tag)
         {
         case MUIA_Rectangle_BarTitle:
-            data->BarTitle = StrDup((STRPTR) tag->ti_Data);
+            Rectangle_SetTitle(data, (STRPTR) tag->ti_Data);
             break;
         case MUIA_Rectangle_HBar:
-            data->Type = RECTANGLE_TYPE_HBAR;
+            data->title = (data->title & ~3) | RECTANGLE_TYPE_HBAR;
             break;
         case MUIA_Rectangle_VBar:
-            data->Type = RECTANGLE_TYPE_VBAR;
+            data->title = (data->title & ~3) | RECTANGLE_TYPE_VBAR;
             break;
         }
     }
@@ -225,8 +247,7 @@ IPTR Rectangle__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 {
     struct Rectangle_DATA *data = INST_DATA(cl, obj);
 
-    if (data->BarTitle)
-        mui_free(data->BarTitle);
+    FreeVec(RECT_TITLE(data));
 
     return DoSuperMethodA(cl, obj, msg);
 }
@@ -257,15 +278,15 @@ IPTR Rectangle__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
         return TRUE;
 
     case MUIA_Rectangle_BarTitle:
-        STORE = (IPTR) data->BarTitle;
+        STORE = RECT_TITLE(data) ? (IPTR) RECT_TITLE(data)->text : 0;
         return TRUE;
 
     case MUIA_Rectangle_HBar:
-        STORE = (data->Type == RECTANGLE_TYPE_HBAR);
+        STORE = (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR);
         return TRUE;
 
     case MUIA_Rectangle_VBar:
-        STORE = (data->Type == RECTANGLE_TYPE_VBAR);
+        STORE = (RECT_TYPE(data) == RECTANGLE_TYPE_VBAR);
         return TRUE;
     }
 
@@ -290,10 +311,10 @@ IPTR Rectangle__MUIM_Setup(struct IClass *cl, Object *obj,
     if (!(DoSuperMethodA(cl, obj, (Msg) msg)))
         return FALSE;
 
-    if (data->BarTitle)
+    if (RECT_TITLE(data))
     {
-        data->ztext = zune_text_new(NULL, data->BarTitle,
-            ZTEXT_ARG_NONE, 0);
+        RECT_TITLE(data)->ztext = zune_text_new(NULL,
+            RECT_TITLE(data)->text, ZTEXT_ARG_NONE, 0);
     }
 
     return TRUE;
@@ -310,8 +331,8 @@ IPTR Rectangle__MUIM_Cleanup(struct IClass *cl, Object *obj,
 {
     struct Rectangle_DATA *data = INST_DATA(cl, obj);
 
-    if (data->ztext)
-        zune_text_destroy(data->ztext);
+    if (RECT_TITLE(data) && RECT_TITLE(data)->ztext)
+        zune_text_destroy(RECT_TITLE(data)->ztext);
 
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
@@ -346,15 +367,15 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
      ** indeed need to *add* these values, not just set them!
      */
 
-    if (!data->BarTitle)
+    if (!RECT_TITLE(data))
     {
 /*          msg->MinMaxInfo->MinWidth += 1; */
 /*          msg->MinMaxInfo->MinHeight += 1;             */
         /* MUI 3.9 makes both kinds of bar at least 2x2; MUI 3.8 with
          * thick frames 4x2, also MUIO_VBar 1 or 2 (demopix: the Menus and
          * Subtask demos, measured with tests/lean/probe/objdump.c) */
-        if (data->Type == RECTANGLE_TYPE_HBAR
-            || data->Type == RECTANGLE_TYPE_VBAR)
+        if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR
+            || RECT_TYPE(data) == RECTANGLE_TYPE_VBAR)
         {
             msg->MinMaxInfo->MinWidth +=
                 !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
@@ -364,7 +385,7 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     }
     else
     {
-        zune_text_get_bounds(data->ztext, obj);
+        zune_text_get_bounds(RECT_TITLE(data)->ztext, obj);
         /* MUI 3.8: a bar title is 12 pixels wider and 1 taller than its text
          * (Busy 2.4's demo dumped: 84x9 for "Speed: 20" in topaz 8, Lamp's
          * demo 40x10 with 3D titles; OpenMUI had 72x8 and 28x9). MUI 5: 4
@@ -372,15 +393,15 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
          * tests/lean/probe/bars.c on MUI 5 and MUI 3.8 side by side) */
         if (ZUNE_APP_MUI45(obj))
         {
-            msg->MinMaxInfo->MinWidth += data->ztext->width + 4;
-            msg->MinMaxInfo->MinHeight += data->ztext->height;
+            msg->MinMaxInfo->MinWidth += RECT_TITLE(data)->ztext->width + 4;
+            msg->MinMaxInfo->MinHeight += RECT_TITLE(data)->ztext->height;
         }
         else
         {
-            msg->MinMaxInfo->MinWidth += data->ztext->width + 12;
-            msg->MinMaxInfo->MinHeight += data->ztext->height + 1;
+            msg->MinMaxInfo->MinWidth += RECT_TITLE(data)->ztext->width + 12;
+            msg->MinMaxInfo->MinHeight += RECT_TITLE(data)->ztext->height + 1;
         }
-        D(bug("rect: minheight %ld\n", data->ztext->height));
+        D(bug("rect: minheight %ld\n", RECT_TITLE(data)->ztext->height));
         if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
             GROUP_TITLE_COLOR_3D)
         {
@@ -447,7 +468,7 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
     /*
      * ok, everything ready to render...
      */
-    if (data->BarTitle)
+    if (RECT_TITLE(data))
     {
         /*
          * Rewrite me, I'm ugly ! (but right :)
@@ -467,19 +488,19 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
         if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
             GROUP_TITLE_COLOR_3D)
         {
-            tw = data->ztext->width + 1;
-            th = data->ztext->height + 1;
+            tw = RECT_TITLE(data)->ztext->width + 1;
+            th = RECT_TITLE(data)->ztext->height + 1;
             x1 = _mleft(obj) + (_mwidth(obj) - tw) / 2;
             x1 -= 1;
             x2 = x1 + tw;
             yt = _mtop(obj) + (_mheight(obj) - th) / 2;
-            zune_text_draw(data->ztext, obj, x1 + 1, x2, yt + 1);
+            zune_text_draw(RECT_TITLE(data)->ztext, obj, x1 + 1, x2, yt + 1);
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-            zune_text_draw(data->ztext, obj, x1, x2 - 1, yt);
+            zune_text_draw(RECT_TITLE(data)->ztext, obj, x1, x2 - 1, yt);
 
-            if (data->Type == RECTANGLE_TYPE_HBAR)
+            if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR)
             {
-                int y = yt + data->ztext->height / 2;
+                int y = yt + RECT_TITLE(data)->ztext->height / 2;
 
                 if ((x1 - 2) > _mleft(obj) && (x2 + 2) < _mright(obj))
                 {
@@ -499,17 +520,17 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
                 GROUP_TITLE_COLOR_HILITE)
                 SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
 
-            tw = data->ztext->width;
-            th = data->ztext->height;
+            tw = RECT_TITLE(data)->ztext->width;
+            th = RECT_TITLE(data)->ztext->height;
             x1 = _mleft(obj) + (_mwidth(obj) - tw) / 2;
             x2 = x1 + tw;
             yt = _mtop(obj) + (_mheight(obj) - th) / 2;
 
-            zune_text_draw(data->ztext, obj, x1, x2 - 1, yt);
+            zune_text_draw(RECT_TITLE(data)->ztext, obj, x1, x2 - 1, yt);
 
-            if (data->Type == RECTANGLE_TYPE_HBAR)
+            if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR)
             {
-                int y = yt + data->ztext->height / 2;
+                int y = yt + RECT_TITLE(data)->ztext->height / 2;
 
                 if ((x1 - 2) > _mleft(obj) && (x2 + 2) < _mright(obj))
                 {
@@ -526,7 +547,7 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
     }
     else                        /* no bar title */
     {
-        if (data->Type == RECTANGLE_TYPE_HBAR)
+        if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR)
         {
             int y = _mtop(obj) + _mheight(obj) / 2 - 1;
 
@@ -536,7 +557,7 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
             SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
             draw_line(_rp(obj), _mleft(obj), y + 1, _mright(obj), y + 1);
         }
-        else if (data->Type == RECTANGLE_TYPE_VBAR)
+        else if (RECT_TYPE(data) == RECTANGLE_TYPE_VBAR)
         {
             /* with thick frames MUI 3.8 doubles both lines, like the
              * sides of a frame, also on a bar narrower than the four

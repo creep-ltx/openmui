@@ -260,14 +260,21 @@ extern struct Library *MUIMasterBase;
 #include "debug.h"
 
 
+/* What only a MUI 5 program's Text has: marking with the mouse
+ * (MUIA_Text_Marking; the handler's object is set then) and a Textdata
+ * object (MUIA_Text_Data). Made with the first of the two. */
 struct TextMark
 {
     struct MUI_EventHandlerNode handler;
     LONG anchor, end;
     BOOL dragging, focused;
+    Object *textdata;
 };
+#define TEXT_MARKING(data) ((data)->mark && (data)->mark->handler.ehn_Object)
+#define TEXT_DATA(data) ((data)->mark ? (data)->mark->textdata : NULL)
 
-/* 38 bytes (was 50): with Area's a Text object is 192 bytes */
+/* 34 bytes (was 38, and 50): with Area's and the object's header a Text
+ * is a 184 byte block (was 192). MUI 3.8: 16 bytes. */
 struct MUI_TextData
 {
     UBYTE mtd_Flags;    /* MTDF_* */
@@ -283,8 +290,7 @@ struct MUI_TextData
     ZText *ztext;
     ZTextChunk *plain_chunk; /* the one chunk of a ztext of plain contents */
     STRPTR owned_contents;
-    Object *textdata;
-    struct TextMark *mark;
+    struct TextMark *mark;  /* MUI 5's marking and Textdata, or NULL */
 };
 
 #define MTDF_SETMIN    (1<<0)
@@ -364,6 +370,18 @@ static BOOL store_contents(struct MUI_TextData *data, CONST_STRPTR src)
 /**************************************************************************
 OM_NEW
 **************************************************************************/
+/* MUIA_Text_Data, in the block made for it or for marking (kept until
+ * OM_DISPOSE). FALSE without memory. */
+static __attribute__((noinline)) BOOL text_set_data(
+    struct MUI_TextData *data, Object *textdata)
+{
+    if (!data->mark
+        && !(data->mark = AllocVec(sizeof(*data->mark), MEMF_CLEAR)))
+        return FALSE;
+    data->mark->textdata = textdata;
+    return TRUE;
+}
+
 /*
  * Construct Area and store flags, then copy the last Contents tag (unless
  * Copy is FALSE) and last nonempty PreParse tag once. Dispose partial object
@@ -376,6 +394,7 @@ IPTR Text__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     struct TagItem *tags, *tag;
     CONST_STRPTR initial_contents = "", initial_preparse = NULL;
     BOOL marking = FALSE;
+    Object *textdata = NULL;
 
     obj = (Object *) DoSuperMethodA(cl, obj, (Msg) msg);
     if (!obj)
@@ -415,7 +434,7 @@ IPTR Text__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         case MUIA_Text_Copy: data->copy_contents = !!tag->ti_Data; break;
         case MUIA_Text_Shorten: data->shorten = tag->ti_Data; break;
-        case MUIA_Text_Data: data->textdata = (APTR)tag->ti_Data; break;
+        case MUIA_Text_Data: textdata = (APTR)tag->ti_Data; break;
         case MUIA_Text_Marking: marking = !!tag->ti_Data; break;
 
         case MUIA_Text_SetMin:
@@ -441,10 +460,15 @@ IPTR Text__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         CoerceMethod(cl, obj, OM_DISPOSE);
         return 0;
     }
+    if (textdata && !text_set_data(data, textdata))
+    {
+        CoerceMethod(cl, obj, OM_DISPOSE);
+        return 0;
+    }
     if (marking)
     {
-        data->mark = AllocVec(sizeof(*data->mark), MEMF_CLEAR);
-        if (!data->mark) { CoerceMethod(cl, obj, OM_DISPOSE); return 0; }
+        if (!text_set_data(data, textdata))
+        { CoerceMethod(cl, obj, OM_DISPOSE); return 0; }
         data->mark->handler.ehn_Events = IDCMP_MOUSEBUTTONS |
             IDCMP_MOUSEMOVE | IDCMP_RAWKEY | IDCMP_INACTIVEWINDOW;
         data->mark->handler.ehn_Priority = 1;
@@ -469,10 +493,10 @@ IPTR Text__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 {
     struct MUI_TextData *data = INST_DATA(cl, obj);
 
+    if (TEXT_DATA(data)) MUI_DisposeObject(TEXT_DATA(data));
     FreeVec(data->mark);
     FreeVec(data->owned_contents);
     FreeVec((APTR) data->preparse);
-    if (data->textdata) MUI_DisposeObject(data->textdata);
 
     return DoSuperMethodA(cl, obj, msg);
 }
@@ -507,7 +531,7 @@ IPTR Text__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
         {
         case MUIA_Text_Data:
             /* Replacing returns ownership of the previous object. */
-            data->textdata = (Object *)tag->ti_Data;
+            text_set_data(data, (Object *)tag->ti_Data);
             if (data->ztext) { zune_text_destroy(data->ztext); data->ztext = NULL; }
             data->plain_chunk = NULL;
             if (_flags(obj) & MADF_SETUP) setup_text(data, obj);
@@ -541,7 +565,7 @@ IPTR Text__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
 
                 /* Plain status text keeps its parsed form and gets the
                  * new string, which needs no parsing either */
-                if (!data->textdata && data->plain_chunk && (len = plain_length(src)) > 0
+                if (!TEXT_DATA(data) && data->plain_chunk && (len = plain_length(src)) > 0
                     && store_contents_len(data, src, len))
                 {
                     zune_text_set_plain(data->ztext, data->plain_chunk,
@@ -633,8 +657,8 @@ IPTR Text__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 #define STORE *(msg->opg_Storage)
     switch (msg->opg_AttrID)
     {
-    case MUIA_Text_Marking: STORE = data->mark != NULL; return TRUE;
-    case MUIA_Text_Data: STORE = (IPTR)data->textdata; return TRUE;
+    case MUIA_Text_Marking: STORE = TEXT_MARKING(data); return TRUE;
+    case MUIA_Text_Data: STORE = (IPTR)TEXT_DATA(data); return TRUE;
     case MUIA_Text_Copy: STORE = data->copy_contents; return TRUE;
     case MUIA_Text_ControlChar: STORE = data->controlchar; return TRUE;
     case MUIA_Text_Shorten: STORE = data->shorten; return TRUE;
@@ -676,9 +700,9 @@ IPTR Text__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 static void setup_text(struct MUI_TextData *data, Object *obj)
 {
     CONST_STRPTR contents = data->contents;
-    if (data->textdata)
+    if (TEXT_DATA(data))
     {
-        contents = (CONST_STRPTR)DoMethod(data->textdata,
+        contents = (CONST_STRPTR)DoMethod(TEXT_DATA(data),
             MUIM_Textdata_Convert, 0);
         if (!contents) contents = "";
     }
@@ -725,7 +749,7 @@ IPTR Text__MUIM_Setup(struct IClass *cl, Object *obj,
         return FALSE;
 
     setup_text(data, obj);
-    if (data->mark)
+    if (TEXT_MARKING(data))
         DoMethod(_win(obj), MUIM_Window_AddEventHandler, &data->mark->handler);
 
     return TRUE;
@@ -744,7 +768,7 @@ IPTR Text__MUIM_Cleanup(struct IClass *cl, Object *obj,
 {
     struct MUI_TextData *data = INST_DATA(cl, obj);
 
-    if (data->mark)
+    if (TEXT_MARKING(data))
     {
         DoMethod(_win(obj), MUIM_Window_RemEventHandler, &data->mark->handler);
         data->mark->anchor = data->mark->end = 0;

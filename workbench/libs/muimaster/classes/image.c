@@ -263,6 +263,7 @@ extern struct Library *MUIMasterBase;
 #define MIF_FREEHORIZ        (1<<1)
 #define MIF_FONTMATCHWIDTH   (1<<3)
 #define MIF_FONTMATCHHEIGHT  (1<<4)
+#define MIF_PROPIMAGE        (1<<5) /* drawn from the prop's image sheet */
 
 /* MUIA_Image_Prop (private).
  * Internal constructor-only borrowed Prop connection for custom scrollbar
@@ -272,18 +273,18 @@ extern struct Library *MUIMasterBase;
  * Draw bypasses Area drawing/flag check, draws parent background and the
  * custom state image. No public getter/setter or ownership transfer.
  */
-/* 28 bytes (was 36): with Area's an image object is 176 bytes */
+/* 20 bytes (was 28, and 36): with Area's an image object is 168 bytes.
+ * MUI 3.8: 16. */
 struct MUI_ImageData
 {
-    UWORD  state;
+    UBYTE  state;
     UBYTE  flags;
     UBYTE  builtin;
+    UBYTE  specnr;  /* a numeric spec below 255 (the arrows'), else 0xff */
     char *spec;
     struct MUI_ImageSpec_intern *img;
-    struct  NewImage *propimage;
     struct Image *old_image;
     Object *prop; /* private hack to use prop images */
-    ULONG  specnr;
 };
 
 
@@ -296,7 +297,7 @@ static BOOL ImageSetSpec(struct MUI_ImageData *data, IPTR spec)
     if (data->spec && data->spec != text)
         zune_image_spec_free(data->spec);
     data->spec = text;
-    data->specnr = spec;
+    data->specnr = spec < 0xff ? spec : 0xff;
     return TRUE;
 }
 
@@ -452,7 +453,7 @@ IPTR Image__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
                 D(bug("Image_Set(%p): state=%ld\n", obj, data->state));
                 break;
             case MUIA_Image_State:
-                if (data->state != (LONG)tag->ti_Data)
+                if (data->state != (UBYTE)tag->ti_Data)
                 {
                     data->state = (LONG)tag->ti_Data;
                     MUI_Redraw(obj,MADF_DRAWOBJECT);
@@ -557,7 +558,7 @@ IPTR Image__MUIM_Setup(struct IClass *cl, Object *obj, struct MUIP_Setup *msg)
     struct MUI_ImageData *data = INST_DATA(cl, obj);
     if (!DoSuperMethodA(cl, obj, (Msg)msg))
         return (IPTR)NULL;
-    data->propimage = NULL;
+    data->flags &= ~MIF_PROPIMAGE;
 
     if (data->prop)
     {
@@ -648,7 +649,7 @@ IPTR Image__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax
             msg->MinMaxInfo->MinHeight = ni->h;
             msg->MinMaxInfo->MaxHeight = ni->h;
             msg->MinMaxInfo->DefHeight = ni->h;
-            data->propimage = ni;
+            data->flags |= MIF_PROPIMAGE;
             return(1);
         }
     }
@@ -857,7 +858,7 @@ IPTR Image__MUIM_Draw(struct IClass *cl, Object *obj,struct MUIP_Draw *msg)
                 obj, ((struct MUIP_Draw *)msg)->flags, data->state,
                 !!(_flags(obj) & MADF_SHOWSELSTATE)));
 
-    if (data->propimage == NULL)
+    if (!(data->flags & MIF_PROPIMAGE))
     {
         DoSuperMethodA(cl,obj,(Msg)msg);
 
@@ -865,7 +866,7 @@ IPTR Image__MUIM_Draw(struct IClass *cl, Object *obj,struct MUIP_Draw *msg)
             return 0;
     }
 
-    if (data->propimage)
+    if (data->flags & MIF_PROPIMAGE)
     {
         //Object *p = NULL;
         //get(obj, MUIA_Parent, &p);
@@ -873,7 +874,8 @@ IPTR Image__MUIM_Draw(struct IClass *cl, Object *obj,struct MUIP_Draw *msg)
         //else
         DoMethod(obj, MUIM_DrawParentBackground, _left(obj), _top(obj), _width(obj), _height(obj), _left(obj), _top(obj), 0);
 
-        DrawAlphaStateImageToRP(_rp(obj), data->propimage, data->state, _left(obj), _top(obj));
+        DrawAlphaStateImageToRP(_rp(obj), GetPropImage(data, data->prop),
+            data->state, _left(obj), _top(obj));
     }
     else if (data->img)
     {
