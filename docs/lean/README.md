@@ -5411,23 +5411,207 @@ The final build (4911e404; the commits after it change opbench and documents onl
   window 556x216, the final build only the main window at 556x227, as MUI 3.8 (as an earlier round noted); twice
   on each build. Not traced.
 
+## Round `opt1`: settings shared between programs, smaller objects, List's inserts, the mouse's moves, the spare-pixel rule (2026-11-23)
+
+Branch `opt1`, from `lean` after the speed round against Zune68 (above). Goal: more speed, less memory
+and more compatibility than release 1.0 against MUI 3.8, MUI 5 and Zune68 Beta 5, compatibility first.
+Emulator figures (FS-UAE cycle-exact; demopix and the suite on Amiberry); MUI only as a black box.
+
+### Targets and results
+
+ms per operation, `opbench`, medians of 9, two instances each, every library in one session
+(`measurements.md`, "Measurement of 2026-11-23 (3)").
+
+| target | MUI 3.8 | Zune68 Beta 5 | before | after | reached |
+|---|---:|---:|---:|---:|---|
+| A1200 application start, a full `global.prefs` | | | 59.3 | 25.2 | **yes** (-58 %); the file's load is gone, five DOS packets are left |
+| A600 the same | | | 238.9 | 92.1 | **yes** (-61 %) |
+| A600 list insert 1 | 32.4-32.5 | 126-127 | 32.7-33.3 (1.02) | 28.8-29.2 (0.89) | **yes** |
+| A1200 list insert 1 | 10.3 | 34.4-34.8 | 8.1-8.2 | 7.3-7.4 (0.71) | yes |
+| A1200 menu select | 45.4-46.6 | 120-121 | 47.1-47.9 (1.03) | 46.0-46.2 (1.00) | **yes** (level) |
+| A600 menu select | 155.6-155.7 | 243-254 | 158.4-159.1 (1.02) | 154.8-156.8 (1.00) | **yes** (level) |
+| A1200 button click (Zune68 1.09 of OpenMUI) | 22.5-22.9 | 18.0 | 16.5 | 16.1 (Zune68 1.12) | a little |
+| A1200 iconify (Zune68 1.09) | 83.9-84.3 | 84.8-85.8 | 77.4-77.5 | 75.9-76.6 (Zune68 1.12) | a little |
+| A1200 list scroll page (Zune68 1.09) | 44.4 | 43.0-43.1 | 39.0-39.2 | 39.4-39.6 (Zune68 1.09) | no |
+| memory: first program (MUI-Demo cold) | 460,296 | 672,304 | 427,984 | 427,288 | **yes** (-696 with 2.6 KB more code) |
+| memory: each further | 210,632-218,888 | 267,936 | 191,856-191,920 | 188,544-188,608 | **yes** (-3,312) |
+| memory with MUI 5 identity, OS 3.2.1: first / each further | 1,293,680 / 427,168-435,480 (MUI 5) | 667,728 / 272,448-272,552 | 434,672 / 200,440-200,544 | 433,928-433,952 / 197,144-197,184 | **yes** |
+| the spare-pixel rule: MUI 3.8's measured layouts reproduced | | | 3,117 of 3,543 | 3,213 of 3,543 | partly (below) |
+
+OpenMUI is now at or below MUI 3.8's time in all 26 operations on the A1200 and the A600 (menu
+open+close 0.99 on both), below MUI 5's in all 27 on OS 3.2.1, and Zune68 Beta 5 takes 1.01 to 4.73
+times OpenMUI's time everywhere but the A600's menu open+close (0.87: it stops before Zune68's menu is
+shown) and OS 3.2.1's (level).
+
+### What was done
+
+| commit | what |
+|---|---|
+| f4805b11 | **`ENV:OpenMUI/global.prefs` read and parsed once for every application.** The library keeps the file's records (a Dataspace object) and the settings built from them (`cfg_global`), with the file's date, size and key; an application asks for those three (Lock, Examine, UnLock) and, if they are the same, takes the shared ones: no Open, no IFF parse, no 160 records, no 200 lookups. Its own file (`<base>.prefs`) is read into its own dataspace, which is looked at first (`cfg_get`); with nothing but window positions in it the parsed settings are shared too, else it builds its own over the shared records. Never written: the Dataspace methods that change, clear or write an application's records (Add, Remove, Clear, ReadIFF, WriteIFF) first give it copies of the shared records (`cfg_records`), and MUIM_Configdata_SetString copies the settings as it did for the shared defaults (`cfg_own`). A changed, deleted or new file is noticed by the next application made (an application keeps the settings it was made with, as before); the library's copy goes at expunge. Without a settings file nothing changes: the drawer is looked at first as before, and the shared copy is asked for only when the library has one. The first reader takes the stamp from the open file (its ReadIFF goes through the application's Configdata), so it pays one packet more than before. Not shared: a Configdata without an application (the settings program's), the earlier edition's `ENV:Zune` and a file only in ENVARC. `tests/native/cfgshare.c` (14 checks: two applications on one file, a changed file, SetConfigItem on one of them, an own file with window positions only and with a setting, a deleted file) |
+| 73d0fa78 | **List's own notification attributes are not passed on to the group's children.** `MUIA_List_InsertPosition` (every insert), `MUIA_List_Visible`, `MUIA_Listview_ClickColumn`, `MUIA_List_TitleClick` and `MUIA_Listview_SelectChange` were set through Group's OM_SET, which hands every attribute to the entry area, the scrollbars and their arrows (three dispatchers each; `MUIA_List_Entries` and the like were kept from that already). pcsample on the A600: a quarter of an insert's time was Area's, Notify's and Group's OM_SET and ZuneNextTagItem. The OS calls of an insert were fewer than MUI 3.8's already (no ClipBlit, no RefreshGList) |
+| 5d46d5f8 | **Smaller objects** (below) |
+| 40cf7110, af486ccf | **The mouse's moves are reported to a window only while an event handler asks for them or a drag lasts.** Every window asked for IDCMP_MOUSEMOVE with WFLG_REPORTMOUSE all the time: the program was woken for every move of the mouse over its window and walked the object tree for a context menu each time. MUI 3.8 and MUI 5 do not ask for the class at idle (`tests/native/idcmpprobe.c`: not with a context menu, bubble help, a draggable object, a menu strip or MUIA_Window_NeedsMouseObject; MUI 3.8 adds it once a bubble has been shown). What the window did on a move (the help bubble removed and its delay started again, WFLG_RMBTRAP over an object with a context menu, MUI 4/5's pointer shapes) it now does at the first tick after one. The first version took the class out of the IDCMP mask; a press and a release then each cost a ModifyIDCMP (button click +3 %), so the mask stays as it was and WFLG_REPORTMOUSE (what Intuition's ReportMouse() sets) is switched |
+| eed8b621 | **The moves are reported while the pointer is over an object with a context menu**, so that the trap goes with the move that leaves the object and not a tick later. The suite found it: Haracz did not quit by its menu in 5 of 7 runs (the build before: 0 of 7). The suite picks the menu a few milliseconds after moving the pointer off a String, which has a menu of its own in OpenMUI (also in a MUI 3 program), and found the right button still trapped. With the change 6 of 6 runs quit. Reaching such an object is still seen at the next tick |
+| 9fa29e69 | **A pressed button's handler events changed in place** (`zune_window_handler_events`): a press and a release each removed and added the object's event handler (two dispatches, a list search, two walks of every handler for the IDCMP mask); the list is in the order of priority and address, so the place is the same. **No GetMsg on an empty port** in the input method (a look at the port's list first): 3.6 GetMsg per menu select against 15.6 (MUI 3.8: 7.8) |
+| 1271a546 | **The spare-pixel rule** (below) |
+
+### Smaller objects
+
+`memtally` on MUI-Demo's second copy: 382 objects are 72,008 of the program's 119,050 bytes (72 Texts,
+72 Images, 58 Groups, 45 Rectangles, 20 Props, 13 Scrollbars, 9 Windows), 262 notification blocks 7,936.
+`tests/native/instsizes.c` prints every class's instance size from the installed library
+(`MUI_GetClass(name)->cl_InstSize`): MUI 3.8's Text has 16 bytes of its own, Image 16, Rectangle 6,
+Prop 56, Gauge 26, Group 42 (OpenMUI 36), Window 590 (480), List 390 (324), Area 108 (108). An object
+is its classes' data plus a 12-byte header in a block of exec's 8-byte steps, so only a size that
+crosses a step counts:
+
+| class | own data before | after | MUI 3.8 | block | how |
+|---|---:|---:|---:|---|---|
+| Text | 38 | 34 | 16 | 192 -> 184 | MUI 5's Textdata object in the block that marking has (made with the first of the two: a MUI 3 program has neither) |
+| Image | 28 | 20 | 16 | 176 -> 168 | the state and the arrow's number as bytes; the prop image (custom scrollbar arrows) looked up when drawn |
+| Rectangle | 12 | 4 | 6 | 160 -> 152 | the bar title and its parsed text one block made with a title; the type in the pointer's two low bits |
+| Prop | 124 | 116 | 56 | 272 -> 264 | three ints as bytes |
+| Gauge | 284 | 32 | 26 | 432 -> 184 | the info text's 256-byte buffer made with the first info text |
+| a notification list's head | 18 | 16 | | 24 -> 16 | the "disposed while notifying" mark is the cleared head pointer |
+
+Window's data stays 480 bytes (the last pointer place for the tick's test needs four; two BOOLs became
+flag bits). Left: Prop's custom-scrollbar fields (a hook and seven pointers, 48 bytes of every Prop),
+Group (36: eight bytes to the next step), the menu classes (40 against MUI 3.8's 6-14: MUI 4/5's images),
+Numeric (98 against 60), Cycle (98 against 20), Balance (96 against 8), Register (60 against 4).
+
+### The spare-pixel rule
+
+Compatibility round 5's rule left "a first child clamped at its maximum gives up a pixel" open
+(19/58/58 of 135 with a first child's maximum of 20, where the rule gave 20/57/58). Read from
+`gdist-cases-mui38.txt` as series over the group's width: with a first child of maximum 20 and three
+free ones, MUI 3.8 gives 20/32/32/32 at 116, 19/31/32/32 at 114 and 19/32/32/32 at 115: whenever fewer
+pixels are left after the weighted passes than children can still grow, **every one of them gets a
+pixel, and the pixels given too much are taken back from the first child on**. That step is now in
+`LayDistribute` before the one-pixel passes (which only take back then). Against MUI 3.8's measured
+layouts (`gdist.py`): chosen cases 1,220 -> 1,278 of 1,346, random 1,133 -> 1,152 of 1,399, hdist
+374 -> 384 and 376 -> 385 of 392, the 14 default-size lines as before; 96 lines more, none fewer.
+`gdist.c` on the build: 1,346 of 1,346 and 398 of 398 lines as `gdist.py`'s rule.
+
+Still not MUI 3.8's whole rule (330 of 3,543 lines differ). What the data shows and no tried rule
+gives: with a child other than the first clamped, the odd pixel goes to the **first** free child
+(58/20/57 of 135 with a middle child's maximum of 20, 43/42/100 of 185 with a last child's minimum of
+100), while two free children alone get it at the **last** (42/43 of 85); a first child clamped at its
+**minimum** takes the odd pixel (101/42/42 of 185). The same step for a negative remainder (all
+shrink, give back) with the give-back from the first child on fits 71 more random lines and 84 fewer
+chosen ones; from the last child back it changes nothing in the sums. A search over 336 more rule
+variants (start: floor, running, rounded; shares: truncated, floor, ceiling, away from zero, half up,
+half away; divisor: all or the movable weights; one after the other or each for itself; both orders
+of the one-pixel passes) found none above the rule of round 5.
+
+### Tried and not kept
+
+- IDCMP_MOUSEMOVE out of the window's IDCMP mask at idle (MUI's exact flags): a ModifyIDCMP at every
+  press and release, button click +3 % on both CPUs (above).
+- Text's "contents changed" and "copy" bytes as flag bits: Text's dispatcher frame 76 -> 80 (the
+  Textdata pointer moved instead).
+- The settings' stamp through a fourth argument of `prefs_read`, or through its `clear` argument:
+  its frame 32 -> 36 in every form tried (one more data register); the stamp is taken in the
+  object's ReadIFF instead.
+- Prop's RefreshGList after SetGadgetAttrs left out: the call is MUI 3.8's, not OpenMUI's (the
+  first count had the two machines' outputs the wrong way round); no change.
+- Gauge's Setup with the data's fields at small offsets used an index register more (frame 388 ->
+  392): the data pointer is kept in a register of its own (`asm` barrier).
+
+### Checked (emulators)
+
+The final build (eed8b621) against the build before (`lean`, 54caeac2), side by side in the same
+session. The speed, memory, pixel and suite runs were made twice: once for 1271a546, and again for
+eed8b621 after the suite had found Haracz (the figures here are the second run's).
+
+- `make check` after every commit.
+- `-fstack-usage` of every function of the changed files (configdata.c, dataspace.c, list.c, text.c,
+  notify.c, prop.c, image.c, rectangle.c, window.c, area.c, application.c, group.c, muimaster_lib.c
+  and Gauge.mui's gauge.c) against lean: none larger under the same name. Smaller: CalcVertVisible
+  76 -> 68, Rectangle's Setup 28 -> 24 and OM_GET 8 -> 4, Gauge's OM_NEW 40 -> 36, Window's
+  DragObject 24 -> 0 (its body in the new Window_DragBegin, 36), area_events 24 -> 0. New: cfg_attach
+  64, cfg_get 28, cfg_records 28, cfg_release 16, cfg_stamp 288 (a FileInfoBlock; a leaf beside the
+  path that had cfg_read's 260), zune_dataspace_underlay 52, List_Tell 48, Gauge_Format 24,
+  Rectangle_SetTitle 12 and five of 8 or less. stackrun (FS-UAE): MUI-Demo 4,924, Layout
+  2,224, Virtual 2,168, Pages 2,196, Slidorama 2,260 on both builds.
+- opbench, all 26 (27 on OS 3.2.1), two instances each of MUI 3.8 (MUI 5), the build before, the
+  final build and Zune68 Beta 5 on the A1200, the A600 and OS 3.2.1, and the menu operations
+  (`measurements.md`, section (3)): on the A600 no operation above the build before's range. On the
+  A1200 list sort 1000, list active and list scroll page lie 1 to 2 % above the build before's two
+  instances in the final run (95.4-96.0 against 93.4-94.3, 18.8-19.1 against 18.5-18.8, 39.4-39.6
+  against 39.0-39.2); five more instances of those operations alone gave the opposite order for list
+  active (18.5-18.7 against 19.0) and 95.0-97.2 against 95.1 for the sort, with one percent between two
+  instances of the same build: the library's place in memory and in the 68020's instruction cache.
+  The empty application has two modes half a millisecond apart on that CPU (9.4 and 9.9 ms; 10.9 and
+  11.7 on OS 3.2.1), each build showing both.
+- Memory (`measure.sh`, FS-UAE): the table above.
+- fullcheck's demos (FS-UAE): MUI-Demo with its 8 sub-windows and the other 18 demos: the same
+  windows; memory lost 608 bytes for MUI-Demo, 200 for 17 demos, 264 for AppWindow on the final build in
+  both runs and on lean in the first (in the second lean's Virtual had 152 and its EnvBrowser 176).
+- Pixels, lean against the final build (FS-UAE): `framepix thick` and `thin` (1,293 lines each),
+  `imgpix` (173), `radiopix` and `radiopix set` (60 and 120 lines), `pagepix`, `scrollpix`, `listclip` (4,181), `strkeys pix`, the new
+  `proppix` (57 steps: scrollbars after inserts, removals, sets of entries, visible and first,
+  disabled) identical; demopix (Amiberry): 26 of 27 shots identical, the other Layout's random places, as always; against
+  MUI 3.8 every other shot's differing pixels as before.
+- Behaviour probes, lean against the final build: `ctxdrag` (context menu, a click that must not
+  drag, a drag onto a drop target) the same 11 lines; `cfgshare` the same 15 lines on both (lean
+  reads the file each time); `idcmpprobe hold` (the pointer onto an object with a context menu, a
+  string, an object with bubble help, off again): the same steps on lean, the final build and MUI 3.8 (WFLG_RMBTRAP on over the context menu's object, the bubble shown after the delay, gone at a
+  move, shown again), OpenMUI's string alone also sets the trap (its own menu, as before).
+- The suite (Amiberry), lean and the final build side by side: mui3 98 of 100 the same (AnimMaker:
+  lean reset at its second quit and showed its Tool Box, the final build did not; its resets are its
+  own, earlier rounds), mcc 55 of 58, mui5 23 of 24. The mcc differences are "frozen" results from the
+  minutes when ten more emulators ran on the host (lean's hotkeystr-demo, the final build's
+  mimeeditor-demo and speedbar-demo2; both of the latter ran alone afterwards without fault, as did
+  mui5-laygroup and mui5-title, frozen in a first mui5 run of those minutes, three times each). mui5:
+  the MenuImages demo opened no window on the final build; started alone 0 to 8 s after a boot it
+  does that in 2 of 9 starts on lean and 2 of 9 on the final build (Left open). In the first run of
+  the suite (commit 1271a546) Haracz did not quit by its menu on the final build: the commit after it.
+
 ## Left open
+
+- **Round `opt1` (2026-11-23)**: **An application's start with a settings file** still makes five DOS
+  packets (Lock, Examine and UnLock of `ENV:OpenMUI/global.prefs`, two Opens that fail for the
+  program's own file in ENV: and ENVARC:), about 15 of its 25 ms on the 68020. A notification owned by
+  the library would save the first three, but a library has no task: EndNotify (a packet and a Wait)
+  can run neither at expunge (inside any task's AllocMem) nor usefully at the last Close (programs run
+  one after the other would then share nothing); a list of the names known to be missing in the two
+  drawers would save the other two and needs the same notification. A settings file found only in
+  ENVARC: or in the earlier edition's `ENV:Zune` is read by every application as before. **Reaching an object with a context
+  menu** is seen at the first tick after the move (leaving it at once): a right click within a tenth of
+  a second after the pointer came onto a String in a window with menus opens the window's menus, not
+  the String's. **Against Zune68 Beta 5** the narrow ones stay narrow: list scroll page 1.09 (A600
+  1.12), button click 1.12 (1.11), iconify 1.12 (1.14) (OS 3.2.1: 1.04, 1.12, 1.05); text set 1.01.
+  **On the 68EC020** two instances of one build differ by one percent in the list operations and by
+  half a millisecond in an empty application's start (where the library's code lies); a difference of
+  that size between two builds needs more than two instances. **Objects**: Prop keeps 48 bytes of custom-scrollbar
+  fields in every object (a hook and seven pointers, used at about a hundred places in prop.c and its
+  render hook), Group is eight bytes above the next block step, the menu classes carry MUI 4/5's image
+  fields (40 bytes against MUI 3.8's 6-14), Numeric 98 against 60, Cycle 98 against 20, Balance 96
+  against 8, Register 60 against 4; a notification with three parameters is a 40-byte block for 36
+  bytes. **The spare-pixel rule** is nearer but not MUI 3.8's whole rule (3,213 of 3,543 measured
+  layouts): with a child other than the first at its limit MUI 3.8 gives the odd pixel to the first
+  free child, with none at a limit to the last, and a first child at its minimum takes it; the same
+  "all, then take back" step for a negative remainder fits more random layouts and fewer chosen ones
+  (above). **MUI 5's MenuImages demo** sometimes opens no window when started in the first seconds
+  after a boot (the program runs on, 363,144 bytes more in use than with its window): 2 of 9 starts
+  on the build before and 2 of 9 on the final build (0 to 8 s after the boot, Amiberry), not traced.
+  **Not done in this round**: when MUI 5 wraps a too-large window in scrollbars (no black-box
+  measurement made), what MUI 3.8 keeps in Area's bytes 80-87 and 94-95 (the same), the 200-270 bytes
+  two NList demos keep after quitting (not traced). **OpenMUI's String sets WFLG_RMBTRAP** under the
+  pointer in a MUI 3 program too (its own edit menu; MUI 3.8 does not: `idcmpprobe hold`), so a right
+  click over a string does not open the window's menus there.
 
 - **Speed round against Zune68 (2026-11-23)**: OpenMUI is faster than Zune68 Beta 5 in every
   operation of opbench on the A1200 and on OS 3.2.1 except menu open+close there (level, both ask for
   MENUVERIFY), and in 25 of 26 on the A600; the A600's menu open+close (Zune68 0.87 of OpenMUI) stops
-  before Zune68's menu is shown (above). **menu select is 1.01-1.05 of MUI 3.8's** on the A1200 and 1.02
-  on the A600, release 1.0 the same: the program's task makes no more OS calls than MUI 3.8's; not
-  traced (Intuition's menu boxes, their size, or the order of the program's wake-ups). **A settings file**
-  (a full `global.prefs`) still costs every application its load and parse (~40 ms on the 68020): the
-  shared copy covers only applications without a file; sharing a loaded one needs the dataspace kept by
-  the library with a reference count and a DOS notification the library owns (a library has no task:
-  NRF_SEND_MESSAGE to a port that is only polled when an application is made), and EndNotify outside
-  expunge's Forbid. Text set is 1-2 % faster than Zune68's; most of that operation is the test's own
+  before Zune68's menu is shown (above). Menu select (1.01-1.05 of MUI 3.8's then) and a settings file's
+  load and parse per application (~40 ms on the 68020 then) were taken up in round `opt1` (above:
+  menu select level with MUI 3.8, the file parsed once and shared by a date check). Text set is 1-2 % faster than Zune68's; most of that operation is the test's own
   sprintf and graphics.library.
 
 - **Compatibility round 5 (2026-11-18, `compat5`)**: the spare-pixel rule is a fit, not MUI 3.8's whole
-  rule (1,220 of 1,346 chosen, 1,133 of 1,399 random layouts): a first child clamped at its maximum gives
+  rule (1,220 of 1,346 chosen, 1,133 of 1,399 random layouts then; 1,278 and 1,152 since round `opt1`,
+  which added the first child's given-up pixel): a first child clamped at its maximum gives
   up a pixel on MUI 3.8, an extra pixel after clamps sometimes goes to the first child; six suite windows
   moved a little away from MUI 3.8 (YAM 2.5's message list a pixel shorter, NFS-GUI, IBrowse 2.5,
   MultiRen, RO, TheBar demo 9) and demopix's Subtask, while 13 came nearer; NFS-GUI's list pixel and

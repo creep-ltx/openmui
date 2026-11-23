@@ -49,13 +49,27 @@ whose "Behave as" says so.
 
 ## Compatibility (measured against MUI 3.8)
 
-*Measured in compatibility round 5 (2026-11-18).*
+*Measured in compatibility round 5 (2026-11-18) and in the round of 2026-11-23.*
 
-- **The group spare-pixel rule is a fit, not MUI 3.8's whole rule**: it reproduces 1,220 of 1,346 chosen
-  layouts and 1,133 of 1,399 random ones. A first child clamped at its maximum gives up a pixel on MUI 3.8; an
-  extra pixel after clamps sometimes goes to the first child here. Six suite windows moved a little away
-  from MUI 3.8 (YAM 2.5's message list one pixel shorter, NFS-GUI, IBrowse 2.5, MultiRen, RO, TheBar demo 9) and
-  one demopix window (Subtask), while 13 came nearer.
+- **The group spare-pixel rule is a fit, not MUI 3.8's whole rule**: it reproduces 1,278 of 1,346 chosen
+  layouts and 1,152 of 1,399 random ones (since 2026-11-23, when the first child's given-up pixel went in:
+  with fewer pixels left than children that can grow, each gets one and the excess is taken from the first
+  child on; 1,220 and 1,133 before). Still different: with a child other than the first at its limit MUI
+  3.8 gives the odd pixel to the first free child (58/20/57 of 135; OpenMUI 57/20/58), and a first child at
+  its minimum takes the odd pixel (101/42/42 of 185; OpenMUI 100/42/43). In round 5 six suite windows had
+  moved a little away from MUI 3.8 (YAM 2.5's message list one pixel shorter, NFS-GUI, IBrowse 2.5,
+  MultiRen, RO, TheBar demo 9) and one demopix window (Subtask), while 13 came nearer.
+- **The mouse's moves**: a window's IDCMP mask always has IDCMP_MOUSEMOVE (MUI 3.8 and MUI 5 add it only
+  when needed; MUI 3.8 keeps it once a help bubble has been shown), but its WFLG_REPORTMOUSE is set only
+  while an event handler asks for moves, a drag lasts or the pointer is over an object with a context
+  menu (MUI: always set). Either way a program gets no
+  move messages while nothing asks for them. A program that reads these two fields of the Intuition
+  window sees the difference. Help bubbles and MUI 4/5's pointer shapes follow the pointer at the next
+  tick after a move, and so does the context menu's WFLG_RMBTRAP when the pointer reaches such an object
+  (it is cleared with the move that leaves it) (`tests/native/idcmpprobe.c hold`: the same steps as on
+  MUI 3.8 at a quarter of a second's resolution).
+- **Strings and the right button**: over a String OpenMUI sets WFLG_RMBTRAP (its own edit menu) in a MUI 3
+  program too; MUI 3.8 does not (`idcmpprobe hold`; as before this round).
 - **Window sizes**: NFS-GUI's list is 1 pixel off; TinyMeterPrefs' default height; the HTMLtext demo is 1
   pixel narrower, and its string is not active at the start (MUI 3.8's is). Pointers is 640x244 against
   640x256. What makes MUI 5 wrap a too-large window (a plain probe window opened clipped, without
@@ -77,9 +91,14 @@ whose "Behave as" says so.
 
 Emulator figures (FS-UAE, `opbench`, `memtally`); real-hardware speed has not been measured.
 
-- The library file is 232,200 bytes (stripped); class files in `LIBS:OpenMUI` carry the rarely used
-  classes. The first MUI-Demo program uses 428,152-428,176 bytes against MUI 3.8's 460,296, each further
-  program 193.0-193.1 KB against 210.6-218.9 KB (2026-11-19).
+- The library file is 234,760 bytes (stripped); class files in `LIBS:OpenMUI` carry the rarely used
+  classes. The first MUI-Demo program uses 427,288 bytes against MUI 3.8's 460,296, each further
+  program 188.6 KB against 210.6-218.9 KB (2026-11-23).
+- Instance data per object (`tests/native/instsizes.c`): Area 108 bytes as MUI 3.8's; Text 34 against
+  16, Image 20 against 16, Rectangle 4 against 6, Group 36 against 42, Prop 116 against 56, List 324
+  against 390, Window 480 against 590.
+- A settings file is read by the first program and shared (`ENV:OpenMUI/global.prefs`, checked by date,
+  size and key at each program's start); MUI 3.8 was not measured for that.
 - Creating an application with its windows takes 0.81-0.82 of MUI 3.8's time (A1200 and A600 emulation, 2026-11-19).
   MUI 3.8 pools its objects; a pool in OpenMUI cost 0.8 to 23 KB per program and was removed.
 

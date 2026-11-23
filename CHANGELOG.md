@@ -10,6 +10,42 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- The settings file `ENV:OpenMUI/global.prefs` is read and parsed once for
+  all programs. The library keeps the parsed settings while the file's date,
+  size and key stay the same; each program checks those (three DOS calls)
+  instead of loading the file. A program's own file (`<base>.prefs`) is still
+  read by that program and laid over the shared settings. With a full
+  settings file (160 settings) an application's start takes 25 ms instead of
+  59 on an emulated A1200 and 92 instead of 239 on an A600. A changed or
+  deleted file is used by the next program that starts, as before. Programs
+  without a settings file are not affected.
+- Inserting a row into a visible list is faster: 7.3 ms instead of 8.2 on the
+  A1200 (MUI 3.8: 10.3), 29 ms instead of 33 on the A600 (MUI 3.8: 32). The
+  list's own notification attributes (`MUIA_List_InsertPosition` and four
+  others) are no longer handed to its scrollbars and their arrows.
+- A window has the mouse's moves reported only while one of its objects asks
+  for them (a pressed button, a drag, a marked text) or the pointer is over an
+  object with a context menu: a program is no longer woken by every move of
+  the mouse over its window. MUI 3.8 and MUI 5 do not
+  ask for mouse moves at other times either. Help bubbles, context menus and
+  MUI 4/5's pointer shapes follow the pointer at the next tick (a tenth of a
+  second) after a move. Choosing a menu item takes the time it takes on MUI
+  3.8 (it was 1.03 of it).
+- A button click takes 16.1 ms instead of 16.5 on the A1200 (MUI 3.8: 22.7)
+  and 67 instead of 69 on the A600: the pressed object's event handler is
+  changed in place instead of removed and added.
+- Less memory per program: Text objects are 8 bytes smaller, Image objects 8,
+  Rectangle objects 8, Prop objects 8, a Gauge without an info text 248, and
+  every object with a notification 8. MUI-Demo needs 427.3 KB as the first
+  program (was 428.0) and 188.6 KB as each further one (was 191.9); with MUI
+  5 behaviour on OS 3.2.1 433.9 and 197.2 KB (were 434.7 and 200.5). The
+  library file is 234,760 bytes stripped (was 232,084).
+- Groups: when fewer pixels are left over than children can still grow,
+  each of them gets one and the excess is taken from the first child on, as
+  MUI 3.8 does (a first child at its maximum of 20 in a 135 pixel row:
+  19/58/58, was 20/57/58). Of 3,543 layouts measured on MUI 3.8, 3,213 are
+  now the same (were 3,117); none that was the same differs now.
+
 - An application that reads no settings file (no `ENV:OpenMUI/global.prefs`
   and no file of its own) no longer builds the default settings: the first
   one builds them and keeps them for every later one (until the library is

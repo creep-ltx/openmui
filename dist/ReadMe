@@ -110,8 +110,8 @@ in that list.
 Status
 ------
 muimaster.library [VERSION], dated [RELEASE]. Emulator measurements of
-2026-11-23 (A1200, OS 3.1, 4 MB fast RAM): MUI-Demo needs 428 KB for the first program (MUI
-3.8: 460 KB, Zune68 Beta 5: 672 KB) and 192 KB for each further one (MUI 3.8:
+2026-11-23 (A1200, OS 3.1, 4 MB fast RAM): MUI-Demo needs 427 KB for the first program (MUI
+3.8: 460 KB, Zune68 Beta 5: 672 KB) and 189 KB for each further one (MUI 3.8:
 211-219 KB, Zune68 Beta 5: 268 KB). Not measured on a real Amiga. Reports: https://github.com/creep-ltx/openmui
 
 Developing with the SDK

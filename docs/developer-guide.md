@@ -111,23 +111,27 @@ Emulator results only; nothing here is measured on a real Amiga.
 
 **Size and speed**
 
-- The library file is 232,084 bytes (stripped with `m68k-amigaos-strip`,
-  68000 build; 254,008 unstripped); MUI 3.8's library alone takes 238,520
-  bytes in memory against OpenMUI's 245,864. The rarely used classes are
-  separate files in `LIBS:OpenMUI` (54 files, 290,056 bytes stripped, 364,412
+- The library file is 234,760 bytes (stripped with `m68k-amigaos-strip`,
+  68000 build; 256,840 unstripped); MUI 3.8's library alone takes 238,520
+  bytes in memory against OpenMUI's 248,472. The rarely used classes are
+  separate files in `LIBS:OpenMUI` (54 files, 290,120 bytes stripped, 364,476
   unstripped; the installer puts `Pixmap.mui` there too, 28,768 bytes; MUI
   3.8: 36 files, 271,208; MUI 5: 80 files, 2,053,912). (The figure of 359,108
   bytes in the measurements of 2026-11-23 was wrong: the 54 files of that
   build were 289,948 bytes stripped, byte for byte the files of the 1.0
   archive, and 364,304 unstripped.)
-- First MUI-Demo program: 428.0 KB against MUI 3.8's 460.3 KB; each further
-  program 191.9 KB against 210.6-218.9 KB (measured 2026-11-23, after the
-  shared default settings; with MUI 5 behaviour on OS 3.2.1: 434.7 KB and
-  200.5 KB against MUI 5's 1,293.7 KB and 427-435 KB).
+- First MUI-Demo program: 427.3 KB against MUI 3.8's 460.3 KB; each further
+  program 188.6 KB against 210.6-218.9 KB (measured 2026-11-23, after the
+  round that made Text, Image, Rectangle, Prop and Gauge objects and the
+  notification lists smaller; with MUI 5 behaviour on OS 3.2.1: 433.9 KB and
+  197.2 KB against MUI 5's 1,293.7 KB and 427-435 KB).
 - Creating an application with its windows takes 0.77 of MUI 3.8's time on
   an emulated A1200 and 0.78 on an A600; an empty application 0.11 (2026-11-23).
   The default settings are built once and shared by every application that
-  reads no settings file (`classes/configdata.c`, `cfg_shared`); a program that
+  reads no settings file (`classes/configdata.c`, `cfg_shared`), and a
+  settings file `ENV:OpenMUI/global.prefs` is read and parsed once and shared
+  while its date, size and key stay the same (`cfg_global`: an application's
+  start with a full file takes 25 ms instead of 59 on the A1200); a program that
   changes a setting (MUIM_Configdata_SetString) gets its own copy first. MUI 3.8 pools its objects; a
   pool in OpenMUI cost 0.8 to 23 KB per program and was removed.
 - Real-hardware speed has not been measured.

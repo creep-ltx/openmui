@@ -21,9 +21,9 @@ measured 2026-11-23 (Zune68: Beta 5, 2026.11.22). Not measured on a real Amiga.
 
 | | OpenMUI | MUI 3.8 | Zune68 | MUI 5 |
 |---|---:|---:|---:|---:|
-| MUI-Demo, first program | 428.0 KB | 460.3 KB | 672.3 KB | 1,293.7 KB |
-| Each further program | 193.1 KB | 210.6-218.9 KB | 267.9 KB | 427-435 KB |
-| Inserting 1,000 list rows, A1200 | 248 ms | 6,648 ms | 642-659 ms | 20,244 ms |
+| MUI-Demo, first program | 427.3 KB | 460.3 KB | 672.3 KB | 1,293.7 KB |
+| Each further program | 188.6 KB | 210.6-218.9 KB | 267.9 KB | 427-435 KB |
+| Inserting 1,000 list rows, A1200 | 248 ms | 6,653 ms | 674-683 ms | 20,244-20,302 ms |
 
 Further figures: [README](../README.md#speed).
 
