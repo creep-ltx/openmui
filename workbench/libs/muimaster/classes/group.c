@@ -3620,6 +3620,27 @@ static __attribute__((noinline)) void LayDistribute(struct LaySet *L,
             break;
         rem = left;
     }
+    /* Fewer pixels left than elements that can still grow: each of those
+     * gets one, and what was given too much is taken back below, from
+     * the first element on. So MUI 3.8 lays out (gdist.py: a first child
+     * at its maximum gives up a pixel and the others are equal, 19/58/58
+     * of 135 with a maximum of 20; 89 more of the 3,543 measured lines
+     * than giving the pixels from the last element back, none fewer). */
+    if (rem > 0)
+    {
+        LONG can = 0;
+
+        for (m = first; m; m = LayNext(L, m))
+            if (m[osz] < m[omax])
+                can++;
+        if (rem < can)
+        {
+            for (m = first; m; m = LayNext(L, m))
+                if (m[osz] < m[omax])
+                    m[osz]++;
+            rem -= can;
+        }
+    }
     while (rem)
     {
         BOOL moved = FALSE, back = rem > 0;

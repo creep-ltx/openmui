@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """gdist.py FILE...: MUI 3.8's spare-pixel rule as OpenMUI has it since
-Compatibility round 5 (group.c, LayDistribute), checked against gdist.c's
+Compatibility round 5 and 2026-11-23 (group.c, LayDistribute), checked against gdist.c's
 output (lines "H|V spacing length: min/def/max/weight ... = size ...", and
 "C<columns> spacing width: ..." for a ColGroup) and hdist.c's files. Prints how
 many lines the rule gets right. MUI 3.8's own files: gdist-*-mui38.txt
@@ -34,6 +34,13 @@ def rule(kids, length, spacing):
                 moved = True
         if not moved:
             break
+    # fewer pixels left than children that can grow: each gets one, the
+    # excess is taken back below, from the first child on (2026-11-23)
+    can = [i for i, k in enumerate(kids) if s[i] < k[2]]
+    if 0 < rem < len(can):
+        for i in can:
+            s[i] += 1
+        rem -= len(can)
     while rem:
         moved = False
         order = range(len(kids) - 1, -1, -1) if rem > 0 else range(len(kids))
