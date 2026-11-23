@@ -1148,7 +1148,6 @@ struct MUI_WindowData
     ULONG wd_Flags;             /* various status flags */
     struct MUI_ImageSpec_intern *wd_Background;
     ULONG wd_DisabledKeys;
-    BOOL wd_NoMenus;            /* MUIA_Window_NoMenus */
 
     struct ZuneDrag wd_Drag;    /* drag and drop (dragwin.h) */
     struct AppWindow *wd_AppWindow;
@@ -1171,11 +1170,13 @@ struct MUI_WindowData
     Object *wd_HelpObject;
     APTR wd_HelpBubble;
     WORD wd_HelpTicker;
+    WORD wd_MoveX;              /* the pointer at the last tick or move */
 
     struct Screen *wd_UserScreen;
     STRPTR wd_UserPublicScreen;
 
     WORD wd_SleepCount;         /* MUIA_Window_Sleep nests */
+    WORD wd_MoveY;
     LONG wd_SleepMaxHeight;     /* Remember Min/Max values for wakeup */
     LONG wd_SleepMaxWidth;
     LONG wd_SleepMinHeight;
@@ -1187,7 +1188,6 @@ struct MUI_WindowData
 #ifdef ZUNE68_GCC_NATIVE
     struct Gadget *wd_TitleGadgets[4]; /* extra title gadgets, TG_* */
     ULONG wd_SnapshotSeconds, wd_SnapshotMicros;
-    BOOL wd_SnapshotClick;
 #endif
     struct WindowEventCursor *wd_EventCursors;
     struct WindowArrow *wd_Arrow;   /* a held border arrow's repeat, or NULL */
@@ -1239,6 +1239,11 @@ struct MUI_WindowData
                                          * around the program's root */
 #define MUIWF_WRAPBORDERS       (1<<21) /* and its scrollbars are in the
                                          * window's border */
+#define MUIWF_MOVED             (1<<22) /* the pointer moved since the last
+                                         * tick (this tick's event) */
+#define MUIWF_NOMENUS           (1<<23) /* MUIA_Window_NoMenus */
+#define MUIWF_SNAPSHOTCLICK     (1<<24) /* the snapshot gadget was clicked:
+                                         * a double click undoes it */
 
 /* Bubble help delays in IntuiTicks (1/10 s), from the settings as on
  * MUI 3.8 (2.0 s and 0.3 s by default); Zune used fixed 1.0 and 0.3 s */
@@ -1700,14 +1705,22 @@ static void HideRenderInfo(struct MUI_RenderInfo *mri)
     mri->mri_RastPort = NULL;
 }
 
-/* Return the fixed IDCMP mask for size/change/refresh, mouse buttons/move,
+/* Return the fixed IDCMP mask for size/change/refresh, mouse buttons,
  * menu pick, close, raw keys, ticks, activation and gadget-up events. No
  * allocation or state change occurs.
+ * Not IDCMP_MOUSEMOVE: MUI 3.8 and MUI 5 do not ask for it while nothing
+ * needs it (tests/native/idcmpprobe.c: not for a context menu, a help
+ * bubble, a draggable object or MUIA_Window_NeedsMouseObject either), so
+ * a program is not woken for every move of the mouse over its window.
+ * What the window itself did on a move (the help bubble, the context
+ * menu's trap, MUI 4/5's pointer shapes) it does on the first tick after
+ * one (HandleWindowEvent); a handler that asks for moves gets them as
+ * before, and so does a drag (ChangeEvents).
  */
 static ULONG GetDefaultEvents(void)
 {
     return IDCMP_NEWSIZE | IDCMP_CHANGEWINDOW | IDCMP_REFRESHWINDOW
-        | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | IDCMP_MENUPICK | IDCMP_MENUVERIFY
+        | IDCMP_MOUSEBUTTONS | IDCMP_MENUPICK | IDCMP_MENUVERIFY
         | IDCMP_CLOSEWINDOW | IDCMP_RAWKEY | IDCMP_INTUITICKS
         | IDCMP_ACTIVEWINDOW | IDCMP_INACTIVEWINDOW | IDCMP_GADGETUP;
 }
@@ -1746,6 +1759,8 @@ static void ChangeEvents(struct MUI_WindowData *data, ULONG new_events)
      ** (also on MUI)
      */
     new_events &= ~IDCMP_VANILLAKEY;
+    if (data->wd_DragObject)    /* a drag follows the mouse */
+        new_events |= IDCMP_MOUSEMOVE;
 
     data->wd_Events = new_events;
     if ((old_events != new_events) && (data->wd_Flags & MUIWF_OPENED))
@@ -1917,10 +1932,10 @@ static __attribute__((noinline)) void TitleGadgetUp(Object *win, struct MUI_Wind
     else if (which == TG_SNAPSHOT)
     {
         /* a double-click forgets: the first click snapshots */
-        BOOL undo = data->wd_SnapshotClick && DoubleClick(
+        BOOL undo = (data->wd_Flags & MUIWF_SNAPSHOTCLICK) && DoubleClick(
             data->wd_SnapshotSeconds, data->wd_SnapshotMicros,
             seconds, micros);
-        data->wd_SnapshotClick = !undo;
+        _handle_bool_tag(data->wd_Flags, !undo, MUIWF_SNAPSHOTCLICK);
         data->wd_SnapshotSeconds = seconds;
         data->wd_SnapshotMicros = micros;
         action = undo ? ZUNE_TA_UNSNAPSHOT : ZUNE_TA_SNAPSHOT;
@@ -2109,7 +2124,7 @@ static __attribute__((noinline)) BOOL DisplayWindow(Object *obj, struct MUI_Wind
         (IPTR) ((buttons & MUIV_Window_Button_Iconify) != 0) ? TRUE : FALSE,
 #endif
         /* MUI 3.9 also traps the right button without a menu strip */
-        data->wd_NoMenus || !menu ?
+        (data->wd_Flags & MUIWF_NOMENUS) || !menu ?
         WA_RMBTrap :
         TAG_IGNORE, (IPTR) TRUE,
         WA_Gadgets, (IPTR) gadgets,
@@ -3065,7 +3080,17 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
         break;
 
     case IDCMP_INTUITICKS:
-        if (data->wd_HelpTicker && !--data->wd_HelpTicker)
+        /* The pointer moved since the last tick: the bubble goes and its
+         * delay starts again, HandleInputEvent looks at what is under
+         * the pointer (MUIWF_MOVED) */
+        if (imsg->MouseX != data->wd_MoveX || imsg->MouseY != data->wd_MoveY)
+        {
+            data->wd_MoveX = imsg->MouseX;
+            data->wd_MoveY = imsg->MouseY;
+            data->wd_Flags |= MUIWF_MOVED;
+            KillHelpBubble(data, oWin, FALSE);
+        }
+        else if (data->wd_HelpTicker && !--data->wd_HelpTicker)
         {
             Object *underobj = ObjectUnderPointer(data, data->wd_RootObject,
                 imsg->MouseX, imsg->MouseY, ShortHelpUnderPointerCheck);
@@ -3094,6 +3119,8 @@ BOOL HandleWindowEvent(Object *oWin, struct MUI_WindowData *data,
 
 
     case IDCMP_MOUSEMOVE:
+        data->wd_MoveX = imsg->MouseX;
+        data->wd_MoveY = imsg->MouseY;
         KillHelpBubble(data, oWin, FALSE);
         is_handled = FALSE;
         break;
@@ -3644,8 +3671,9 @@ static void HandleInputEvent(Object *win, struct MUI_WindowData *data,
     }
 
     BeginEventDispatch(data, &cursor);
-    if (mask == IDCMP_MOUSEMOVE)
+    if (mask == IDCMP_MOUSEMOVE || (data->wd_Flags & MUIWF_MOVED))
     {
+        data->wd_Flags &= ~MUIWF_MOVED;
         struct Window *iWin;
         iWin = event->IDCMPWindow;
         if (!UpdatePointer(win, data, event->MouseX, event->MouseY, &cursor))
@@ -3656,7 +3684,7 @@ static void HandleInputEvent(Object *win, struct MUI_WindowData *data,
         {
             AROS_ATOMIC_OR(iWin->Flags, WFLG_RMBTRAP);
         }
-        else if (!data->wd_NoMenus && data->wd_Menu)
+        else if (!(data->wd_Flags & MUIWF_NOMENUS) && data->wd_Menu)
         {
             AROS_ATOMIC_AND(iWin->Flags, ~WFLG_RMBTRAP);
         }
@@ -4302,7 +4330,8 @@ IPTR Window__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_Window_NoMenus:
-            data->wd_NoMenus = (BOOL) tag->ti_Data;
+            _handle_bool_tag(data->wd_Flags, (BOOL) tag->ti_Data,
+                MUIWF_NOMENUS);
             break;
 
         /* the zoomed box (WORDs) */
@@ -4513,10 +4542,11 @@ IPTR Window__OM_SET(struct IClass *cl, Object *obj, struct opSet *msg)
             break;
 
         case MUIA_Window_NoMenus:
-            data->wd_NoMenus = (BOOL) tag->ti_Data;
+            _handle_bool_tag(data->wd_Flags, (BOOL) tag->ti_Data,
+                MUIWF_NOMENUS);
             if (data->wd_RenderInfo.mri_Window)
             {
-                if (data->wd_NoMenus || !data->wd_Menu)
+                if ((data->wd_Flags & MUIWF_NOMENUS) || !data->wd_Menu)
                     AROS_ATOMIC_OR(data->wd_RenderInfo.mri_Window->Flags, WFLG_RMBTRAP);
                 else
                     AROS_ATOMIC_AND(data->wd_RenderInfo.mri_Window->Flags, ~WFLG_RMBTRAP);
@@ -5817,6 +5847,18 @@ IPTR Window__MUIM_RemControlCharHandler(struct IClass *cl, Object *obj,
 #include "../dragwin.c"
 #endif
 
+/* MUIM_Window_DragObject's: the drag begun, and the mouse's moves asked
+ * for (ChangeEvents). Out of line: the method's frame. */
+static __attribute__((noinline)) IPTR Window_DragBegin(
+    struct MUI_WindowData *data, struct MUIP_Window_DragObject *msg)
+{
+    IPTR res = zune_drag_begin(&data->wd_Drag, msg->obj, msg->touchx,
+        msg->touchy, msg->flags, data->wd_RenderInfo.mri_Screen);
+
+    ChangeEvents(data, GetDefaultEvents());
+    return res;
+}
+
 /* Private MUIM_Window_DragObject: ask the live source obj for a drag image
  * using touchx/touchy/flags, create a drag context and bitmap node,
  * attach/prepare it for the render screen, then mark the source dragging
@@ -5829,8 +5871,7 @@ IPTR Window__MUIM_DragObject(struct IClass *cl, Object *obj,
 {
     struct MUI_WindowData *data = INST_DATA(cl, obj);
     if (msg->obj)
-        return zune_drag_begin(&data->wd_Drag, msg->obj, msg->touchx,
-            msg->touchy, msg->flags, data->wd_RenderInfo.mri_Screen);
+        return Window_DragBegin(data, msg);
     return 0;
 }
 
