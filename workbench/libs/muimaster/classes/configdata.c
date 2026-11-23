@@ -42,7 +42,7 @@ struct MUI_ConfigdataData
 {
     Object                      *app;
     CONST_STRPTR                appbase;
-    struct ZunePrefsNew         prefs;
+    struct ZunePrefsNew        *prefs;     /* own, or cfg_shared */
     struct SignalSemaphore      psLock;
     struct MsgPort             *fsNotifyPort;
     struct DateStamp            created;   /* public screens read before this */
@@ -51,6 +51,7 @@ struct MUI_ConfigdataData
     struct NotifyRequest        fsNotifyRequest;
     struct List                 pubscreens;
     struct IClass             *init_dataspace;
+    BOOL                        loaded;    /* a settings file read at creation */
 };
 
 IPTR Dataspace__MUIM_Find(struct IClass *cl, Object *obj,
@@ -148,8 +149,8 @@ static void init_imspecs(struct IClass *cl, Object *obj,
         if (!imspec)
             imspec = img->defspec;
 /*          D(bug("init_imspecs: %ld %lx %s ...\n", img->muiv, img->cfgid, imspec)); */
-        data->prefs.imagespecs[img->muiv] = imspec;
-        if (!data->prefs.imagespecs[img->muiv])
+        data->prefs->imagespecs[img->muiv] = imspec;
+        if (!data->prefs->imagespecs[img->muiv])
         {
 /*              D(bug("*** init_imspecs: null imagespec %ld\n", img->muiv)); */
         }
@@ -196,7 +197,7 @@ static void init_framespecs(struct IClass *cl, Object *obj,
         if (!framespec)
             framespec = fcfg->defspec;
         zune_frame_spec_to_intern(framespec,
-            &data->prefs.frames[fcfg->muiv]);
+            &data->prefs->frames[fcfg->muiv]);
     }
 }
 
@@ -206,8 +207,9 @@ static void init_framespecs(struct IClass *cl, Object *obj,
 
 
 #define PREF_DEFAULT(id, value, field) \
-    {id, value, offsetof(struct ZunePrefsNew, field), \
-     sizeof(((struct ZunePrefsNew *)0)->field)}
+    {id, value, offsetof(struct ZunePrefsNew, field) \
+     | (sizeof(((struct ZunePrefsNew *)0)->field) == sizeof(UWORD) \
+        ? DEF_UWORD : 0)}
 
 /* The defaults are MUI 3.8's, read from its settings program (frames:
  * top and bottom inner spacing 1; groups 6/3; window 4/3; titles above;
@@ -266,7 +268,7 @@ const static struct def_ulval DefULValues[] = {
     PREF_DEFAULT(MUICFG_Interfaces_EnableARexx, TRUE, interfaces_enable_arexx),
     PREF_DEFAULT(MUICFG_BubbleHelp_FirstDelay, 20, bubblehelp_first_delay),
     PREF_DEFAULT(MUICFG_BubbleHelp_NextDelay, 3, bubblehelp_next_delay),
-    {0, 0, 0, 0},
+    {0, 0, 0},
 };
 
 #undef PREF_DEFAULT
@@ -339,9 +341,60 @@ static struct { CONST_STRPTR str; IX ix; UWORD field; UBYTE well, owned; }
     keycache[KEYCACHE];
 static int keycache_count;
 
+/* The settings of an application that read no settings file: the
+ * defaults, the same for every such application, built by the first one
+ * and shared by the others (an empty application's start was mostly
+ * this build: about 200 lookups in an empty dataspace, 15 frame specs
+ * and 24 key bindings). Never written: Configdata_StoreString gives an
+ * application its own copy first. Kept until expunge. */
+static struct ZunePrefsNew *cfg_shared;
+
+/* The shared defaults are never written: an own copy first, which the
+ * application's GlobalInfo then points to. FALSE without memory. */
+static __attribute__((noinline)) BOOL cfg_own(struct MUI_ConfigdataData *data)
+{
+    struct ZunePrefsNew *own;
+    struct MUI_GlobalInfo *mgi;
+
+    if (data->prefs != cfg_shared)
+        return TRUE;
+    if (!(own = AllocMem(sizeof(*own), MEMF_ANY)))
+        return FALSE;
+    CopyMem(cfg_shared, own, sizeof(*own));
+    data->prefs = own;
+    if (data->app && (mgi = muiNotifyData(data->app)->mnd_GlobalInfo)
+        && mgi->mgi_Prefs == cfg_shared)
+        mgi->mgi_Prefs = own;
+    return TRUE;
+}
+
+static void Configdata__DisposeDescriptors(struct MUI_ConfigdataData *data);
+
+/* At OM_DISPOSE: the notification, the public screen descriptions and
+ * the own settings */
+static __attribute__((noinline)) void cfg_free(struct MUI_ConfigdataData *data)
+{
+    if (data->fsNotifyPort) {
+        DoMethod(data->app, MUIM_Application_RemInputHandler, (IPTR) &data->fsNotifyIHN);
+        EndNotify(&data->fsNotifyRequest);
+        if (data->signalPort)
+            ZuneDeleteSharedPort(data->fsNotifyPort);
+        else
+            DeleteMsgPort(data->fsNotifyPort);
+    }
+    if (MUIScreenBase)
+        Configdata__DisposeDescriptors(data);
+    if (data->prefs && data->prefs != cfg_shared)
+        FreeMem(data->prefs, sizeof(*data->prefs));
+}
+
 void zune_keycache_free(void)
 {
     int i;
+
+    if (cfg_shared)
+        FreeMem(cfg_shared, sizeof(*cfg_shared));
+    cfg_shared = NULL;
 
     for (i = 0; i < keycache_count; i++)
         if (keycache[i].owned)
@@ -426,7 +479,7 @@ static __attribute__((noinline)) void Configdata__SetKey(ZuneKeySpec *key,
 static void Configdata_StoreField(struct MUI_ConfigdataData *data,
     UWORD field, CONST_STRPTR val)
 {
-    APTR at = (UBYTE *)&data->prefs + (field & ~KEYFIELD);
+    APTR at = (UBYTE *)data->prefs + (field & ~KEYFIELD);
 
     if (field == NOFIELD)
         return;
@@ -441,10 +494,13 @@ static void Configdata_StoreString(struct MUI_ConfigdataData *data,
 {
     int i;
 
+    if (!cfg_own(data))
+        return;
+
     /* the 16 custom frames: consecutive ids and fields */
     if (id >= MUICFG_CustomFrame_1 && id <= MUICFG_CustomFrame_16)
     {
-        (&data->prefs.customframe_config_1)[id - MUICFG_CustomFrame_1] = val;
+        (&data->prefs->customframe_config_1)[id - MUICFG_CustomFrame_1] = val;
         return;
     }
     for (i = 0; DefStrValues[i].id; i++)
@@ -540,47 +596,13 @@ static __attribute__((noinline)) BOOL cfg_read(Object *ds, LONG which,
     return prefs_read(ds, filename, FALSE);
 }
 
-IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
+/* The settings files over the object (the drawer checked first); TRUE
+ * if one was read. Out of line: OM_NEW's frame. */
+static __attribute__((noinline)) BOOL cfg_load(Object *obj,
+    struct MUI_ConfigdataData *data)
 {
-    struct MUI_ConfigdataData *data;
-    struct TagItem *tags;
-    struct TagItem *tag;
-    //APTR cdata;
-    int i, res = 0;
-
-    obj = (Object *) DoSuperMethodA(cl, obj, (Msg) msg);
-    if (!obj)
-        return (IPTR) NULL;
-
-/*      D(bug("Configdata_New(%p)\n", obj)); */
-
-    data = INST_DATA(cl, obj);
-
-    NEWLIST(&data->pubscreens);
-    InitSemaphore(&data->psLock);
-    DateStamp(&data->created);
-
-    for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
-    {
-        switch (tag->ti_Tag)
-        {
-        case MUIA_Configdata_SignalPort:
-            data->signalPort = (struct MsgPort *) tag->ti_Data;
-            break;
-
-        case MUIA_Configdata_Application:
-            data->app = (Object *) tag->ti_Data;
-            break;
-        case MUIA_Configdata_ApplicationBase:
-            data->appbase = (CONST_STRPTR) tag->ti_Data;
-            break;
-        }
-    }
-
-    if (data->app && !data->appbase)
-    {
-        get(data->app, MUIA_Application_Base, &data->appbase);
-    }
+    BOOL loaded = FALSE;
+    LONG res = 0;
 
     /* Without a preference drawer there is nothing to load: one Lock
      * replaces up to four failing Open calls (each a handler round
@@ -595,10 +617,9 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
         if (!drawer && (drawer = Lock("ENV:Zune", SHARED_LOCK)))
             res = CFG_OLD;
-        if (drawer)
-            UnLock(drawer);
-        else
-            res = -1;
+        if (!drawer)
+            return FALSE;
+        UnLock(drawer);
     }
 
     /* As MUI does: the global settings first, then the application's
@@ -606,32 +627,33 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
      * positions remembered when the application quit; it must not hide
      * the global settings (it did: an application that once remembered
      * a window kept the settings of that moment for ever). */
-    if (res >= 0)
-    {
-        BOOL loaded = !res && (cfg_read(obj, 0, "global")
-            || cfg_read(obj, CFG_ARC, "global"));
+    loaded = !res && (cfg_read(obj, 0, "global")
+        || cfg_read(obj, CFG_ARC, "global"));
 
-        /* No global settings of OpenMUI's own: an earlier edition's */
-        if (!loaded && (cfg_read(obj, CFG_OLD, "global")
-            || cfg_read(obj, CFG_OLD | CFG_ARC, "global")))
-            loaded = res = CFG_OLD;
+    /* No global settings of OpenMUI's own: an earlier edition's */
+    if (!loaded && (cfg_read(obj, CFG_OLD, "global")
+        || cfg_read(obj, CFG_OLD | CFG_ARC, "global")))
+        loaded = res = CFG_OLD;
 
-        /* The application's own file, from the same drawer as the
-         * global settings (window positions saved while the settings are
-         * still the earlier edition's go to OpenMUI's drawer: they are
-         * read once the settings have been moved there) */
-        if (data->appbase && Stricmp(data->appbase, "global")
-            && (cfg_read(obj, res, data->appbase)
-                || cfg_read(obj, res | CFG_ARC, data->appbase)))
-            loaded = TRUE;
-        if (loaded)
-            DoMethod(obj, MUIM_Configdata_LoadPubScreens);
-    }
+    /* The application's own file, from the same drawer as the
+     * global settings (window positions saved while the settings are
+     * still the earlier edition's go to OpenMUI's drawer: they are
+     * read once the settings have been moved there) */
+    if (data->appbase && Stricmp(data->appbase, "global")
+        && (cfg_read(obj, res, data->appbase)
+            || cfg_read(obj, res | CFG_ARC, data->appbase)))
+        loaded = TRUE;
+    if (loaded)
+        DoMethod(obj, MUIM_Configdata_LoadPubScreens);
+    return data->loaded = loaded;
+}
 
-    /* The public screen file notification starts when the application
-     * first waits for input (MUIM_Configdata_SetupNotify): a DOS
-     * notification costs a handler round trip, which create/dispose
-     * cycles and non-interactive uses never need. */
+/* data->prefs from the dataspace and the defaults; without a file read,
+ * the shared defaults from then on. Out of line: OM_NEW's frame. */
+static __attribute__((noinline)) void cfg_build(struct IClass *cl,
+    Object *obj, struct MUI_ConfigdataData *data)
+{
+    int i;
 
     /* Only bypass dispatch for the builtin object during construction.
      * Subclasses retain their inherited lookup and semaphore methods. */
@@ -664,18 +686,18 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         const struct def_ulval *def = &DefULValues[i];
         ULONG *stored = cfg_find(cl, obj, def->id);
         ULONG value = stored ? AROS_BE2LONG(*stored) : def->val;
-        APTR target = (UBYTE *)&data->prefs + def->offset;
-        if (def->size == sizeof(UWORD))
+        APTR target = (UBYTE *)data->prefs + (def->offset & ~DEF_UWORD);
+        if (def->offset & DEF_UWORD)
             *(UWORD *)target = value;
         else
             *(ULONG *)target = value;
     }
-    data->prefs.register_look = REGISTER_LOOK_TRADITIONAL;
+    data->prefs->register_look = REGISTER_LOOK_TRADITIONAL;
 
     /*---------- CustomFrames ----------*/
     /* consecutive ids and fields */
     for (i = 0; i < 16; i++)
-        (&data->prefs.customframe_config_1)[i] =
+        (&data->prefs->customframe_config_1)[i] =
             cfg_find(cl, obj, MUICFG_CustomFrame_1 + i);
 
     /*---------- Special ----------*/
@@ -687,6 +709,68 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         DoMethod(obj, MUIM_Semaphore_Release);
     }
 
+    /* the defaults, from now on for every application without a file */
+    if (!data->loaded)
+    {
+        Forbid();
+        if (!cfg_shared)
+            cfg_shared = data->prefs;
+        Permit();
+    }
+}
+
+IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
+{
+    struct MUI_ConfigdataData *data;
+    struct TagItem *tags;
+    struct TagItem *tag;
+
+    obj = (Object *) DoSuperMethodA(cl, obj, (Msg) msg);
+    if (!obj)
+        return (IPTR) NULL;
+
+    data = INST_DATA(cl, obj);
+
+    NEWLIST(&data->pubscreens);
+    InitSemaphore(&data->psLock);
+    DateStamp(&data->created);
+
+    for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
+    {
+        switch (tag->ti_Tag)
+        {
+        case MUIA_Configdata_SignalPort:
+            data->signalPort = (struct MsgPort *) tag->ti_Data;
+            break;
+
+        case MUIA_Configdata_Application:
+            data->app = (Object *) tag->ti_Data;
+            break;
+        case MUIA_Configdata_ApplicationBase:
+            data->appbase = (CONST_STRPTR) tag->ti_Data;
+            break;
+        }
+    }
+
+    if (data->app && !data->appbase)
+    {
+        get(data->app, MUIA_Application_Base, &data->appbase);
+    }
+
+    /* The public screen file notification starts when the application
+     * first waits for input (MUIM_Configdata_SetupNotify): a DOS
+     * notification costs a handler round trip, which create/dispose
+     * cycles and non-interactive uses never need. */
+
+    /* No file read: the shared defaults, if built (cfg_shared) */
+    if (!cfg_load(obj, data) && (data->prefs = cfg_shared))
+        return (IPTR) obj;
+    if (!(data->prefs = AllocMem(sizeof(*data->prefs), MEMF_CLEAR)))
+    {
+        CoerceMethod(cl, obj, OM_DISPOSE);
+        return (IPTR) NULL;
+    }
+    cfg_build(cl, obj, data);
     return (IPTR) obj;
 }
 
@@ -710,19 +794,7 @@ static void Configdata__DisposeDescriptors(struct MUI_ConfigdataData *data)
 **************************************************************************/
 IPTR Configdata__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
 {
-    struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
-
-    if (data->fsNotifyPort) {
-        DoMethod(data->app, MUIM_Application_RemInputHandler, (IPTR) &data->fsNotifyIHN);
-        EndNotify(&data->fsNotifyRequest);
-        if (data->signalPort)
-            ZuneDeleteSharedPort(data->fsNotifyPort);
-        else
-            DeleteMsgPort(data->fsNotifyPort);
-    }
-
-    if (MUIScreenBase)
-        Configdata__DisposeDescriptors(data);
+    cfg_free(INST_DATA(cl, obj));
 
     return DoSuperMethodA(cl, obj, msg);
 }
@@ -740,7 +812,7 @@ IPTR Configdata__OM_GET(struct IClass *cl, Object *obj,
     switch (tag)
     {
     case MUIA_Configdata_ZunePrefs:
-        *store = (IPTR) & data->prefs;
+        *store = (IPTR) data->prefs;
         DoMethod(obj, MUIM_Configdata_GetWindowPos, 0);
         return 1;
     }
