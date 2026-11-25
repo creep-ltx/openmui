@@ -152,10 +152,6 @@ struct MUI_CycleData
     const char **entries;
     int entries_active;
     int entries_num;
-    int entries_width;
-    int entries_height;
-    int cycle_width;
-    int cycle_height;
     Object *pageobj;
     Object *imgobj;
     struct MUI_EventHandlerNode ehn;

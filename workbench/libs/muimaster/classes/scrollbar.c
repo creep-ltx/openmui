@@ -133,6 +133,29 @@ struct Scrollbar_DATA
     ULONG incdec;
 };
 
+/* One arrow button: repeats Prop_Decrease or Prop_Increase by incdec
+ * while held (the two arrows were written out in full, trim1) */
+static __attribute__((noinline)) Object *sb_arrow(ULONG spec, Object *prop,
+    ULONG method, ULONG incdec)
+{
+    Object *arrow = ImageObject,
+        MUIA_Background, MUII_ButtonBack,
+        MUIA_Weight, 0,
+        ImageButtonFrame,
+        MUIA_InputMode, MUIV_InputMode_RelVerify,
+        MUIA_Image_Spec, spec,
+        /* MUI 3.8 scales the arrows' height with the font (measured:
+         * 5 pixels in topaz 8 and helvetica 9, 6 in helvetica 11, 8
+         * in 13; their width stays) */
+        MUIA_Image_FontMatchHeight, TRUE,
+        MUIA_Image_Prop, (IPTR)prop, End;
+
+    if (arrow)
+        DoMethod(arrow, MUIM_Notify, MUIA_Timer, MUIV_EveryTime,
+            (IPTR) prop, 2, method, incdec);
+    return arrow;
+}
+
 
 /*
  * Create Prop while temporarily suppressing the first ShowMe tag, restore
@@ -185,38 +208,10 @@ IPTR Scrollbar__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     if (!usewinborder)
     {
-        data->up_arrow = ImageObject,
-            MUIA_Background, MUII_ButtonBack,
-            MUIA_Weight, 0,
-            ImageButtonFrame,
-            MUIA_InputMode, MUIV_InputMode_RelVerify,
-            MUIA_Image_Spec, horiz ? MUII_ArrowLeft : MUII_ArrowUp,
-            /* MUI 3.8 scales the arrows' height with the font (measured:
-             * 5 pixels in topaz 8 and helvetica 9, 6 in helvetica 11, 8
-             * in 13; their width stays) */
-            MUIA_Image_FontMatchHeight, TRUE,
-            MUIA_Image_Prop, (IPTR)prop, End;
-        if (data->up_arrow)
-        {
-            DoMethod(data->up_arrow, MUIM_Notify, MUIA_Timer,
-                MUIV_EveryTime, (IPTR) prop, 2,
-                MUIM_Prop_Decrease, incdec);
-        }
-
-        data->down_arrow = ImageObject,
-            MUIA_Background, MUII_ButtonBack,
-            MUIA_Weight, 0,
-            ImageButtonFrame,
-            MUIA_InputMode, MUIV_InputMode_RelVerify,
-            MUIA_Image_Spec, horiz ? MUII_ArrowRight : MUII_ArrowDown,
-            MUIA_Image_FontMatchHeight, TRUE,
-            MUIA_Image_Prop, (IPTR)prop, End;
-        if (data->down_arrow)
-        {
-            DoMethod(data->down_arrow, MUIM_Notify, MUIA_Timer,
-                MUIV_EveryTime, (IPTR) prop, 2,
-                MUIM_Prop_Increase, incdec);
-        }
+        data->up_arrow = sb_arrow(horiz ? MUII_ArrowLeft : MUII_ArrowUp,
+            prop, MUIM_Prop_Decrease, incdec);
+        data->down_arrow = sb_arrow(horiz ? MUII_ArrowRight
+            : MUII_ArrowDown, prop, MUIM_Prop_Increase, incdec);
 
         switch (sb_pos)
         {
