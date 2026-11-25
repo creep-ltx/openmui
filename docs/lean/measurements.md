@@ -1445,6 +1445,166 @@ Props, 13 Scrollbars, 9 Windows; 262 notification blocks, 7,936 bytes. Instance 
 
 Raw output: the round's work folder (outside the repository; deleted after the round).
 
+## Measurement of 2026-11-25: after the round `trim1` (Zune's leftovers cut)
+
+The build of branch `trim1` (164b3637; library 254,156 bytes unstripped, 232,100 stripped) against the
+build it started from (`lean` 47730569, "lean"), MUI 3.8 (MUI 5 21.227 on OS 3.2.1) and Zune68 Beta 5
+(2026.11.22), all in one session: `opbench` (the binary of 2026-11-19), medians of 9, cycle-exact
+FS-UAE in warp mode, two instances of MUI 3.8/MUI 5 and Zune68, four of lean and trim1 (two rounds),
+eight instances at a time. Ranges over the instances, ratios of the means. Emulator figures.
+
+New this time, asked for by our partner (the most common A1200 today): **A1200/030**, a1200-31-mui38
+booted with `amiga-test ... --cpu 030 --config uae_z3mem_size=16` plus the cycle-exact settings: a
+68030 at 50 MHz (`uae_cpu_frequency = 50000000`) with a 68882, instruction and data caches on (`cpu`:
+"INST: Cache Burst, DATA: Cache NoBurst"), 16 MB Zorro III + the machine's 4 MB fast RAM. FS-UAE
+emulates the 030's caches only in cycle-exact mode; the timing is FS-UAE's 030, not a real card's.
+
+### A1200 (68EC020, OS 3.1)
+
+| operation | MUI 3.8 | lean | trim1 | Zune68 Beta 5 | trim1 / lean | trim1 / MUI 3.8 | Zune68 / trim1 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 92.18-92.63 | 9.24-9.97 | 9.05-9.28 | 14.81-14.83 | 0.96 | 0.10 | 1.62 |
+| app+windows create | 233.8-239.3 | 173.7-180.3 | 173.2-179.0 | 265.3-266.2 | 1.00 | 0.75 | 1.50 |
+| window open+close | 520.2-526.2 | 397.7-399.9 | 398.9-400.5 | 600.6-601.5 | 1.00 | 0.76 | 1.50 |
+| full redraw | 150.7 | 132.8-132.9 | 132.7-132.8 | 153.4 | 1.00 | 0.88 | 1.16 |
+| relayout | 207.0-207.1 | 172.5-172.8 | 172.4-172.6 | 306.1-308.0 | 1.00 | 0.83 | 1.78 |
+| slider set | 4.03-4.04 | 2.72 | 2.71-2.72 | 4.44 | 1.00 | 0.67 | 1.64 |
+| notify chain | 7.81-7.83 | 5.63-5.64 | 5.63-5.64 | 9.09 | 1.00 | 0.72 | 1.61 |
+| cycle set | 2.44-2.45 | 2.02 | 2.01-2.02 | 4.86-4.87 | 1.00 | 0.83 | 2.42 |
+| radio set | 15.55-15.56 | 8.25-8.28 | 8.26-8.28 | 21.47 | 1.00 | 0.53 | 2.60 |
+| text set | 2.50 | 2.36-2.37 | 2.37 | 2.40 | 1.00 | 0.95 | 1.01 |
+| list insert 1 | 10.33 | 7.18-7.24 | 7.17-7.33 | 34.97-35.06 | 1.00 | 0.70 | 4.86 |
+| list insert 100 | 829.4-830.3 | 60.22-61.25 | 60.52-60.96 | 107.5-108.4 | 1.00 | 0.07 | 1.78 |
+| list insert 1000 | 6,649.3-6,650.8 | 246.6-248.0 | 247.1-248.7 | 673.5-676.9 | 1.00 | 0.04 | 2.72 |
+| list active | 21.14-21.15 | 18.43-18.80 | 18.41 | 23.88-23.96 | 0.99 | 0.87 | 1.30 |
+| list scroll line | 14.63-14.64 | 13.21-13.26 | 13.15-13.21 | 18.48-18.54 | 1.00 | 0.90 | 1.40 |
+| list scroll page | 44.38-44.42 | 39.01-39.26 | 38.96-39.04 | 43.30-43.34 | 1.00 | 0.88 | 1.11 |
+| list sort 1000 | 657.1-658.5 | 95.70-96.12 | 94.23-94.73 | 109.9-111.0 | 0.99 | 0.14 | 1.17 |
+| button click | 22.33-22.85 | 16.03-16.42 | 16.00-16.32 | 17.95-17.96 | 1.00 | 0.71 | 1.12 |
+| string type | 7.75-7.81 | 6.61-6.62 | 6.57-6.58 | 10.77 | 0.99 | 0.84 | 1.64 |
+| string backspace | 7.64-7.71 | 6.49-6.55 | 6.44-6.45 | 10.40-10.41 | 0.99 | 0.84 | 1.61 |
+| menu open+close | 13.23-13.37 | 13.02-13.11 | 13.03-13.04 | 19.99 | 1.00 | 0.98 | 1.53 |
+| iconify | 83.71-83.79 | 75.99-77.65 | 75.57-77.17 | 84.91-85.59 | 0.99 | 0.91 | 1.12 |
+| uniconify | 446.2-447.5 | 335.3-337.4 | 334.5-337.6 | 1,037.1-1,037.6 | 1.00 | 0.75 | 3.08 |
+| register page | 53.59-53.67 | 42.65-42.70 | 42.60-42.66 | 60.03 | 1.00 | 0.79 | 1.41 |
+| popup open+close | 120.0 | 94.74-95.23 | 94.56-94.86 | 139.9-140.0 | 1.00 | 0.79 | 1.48 |
+| window resize | 230.1-280.1 | 220.1 | 220.1 | 360.2 | 1.00 | 0.86 | 1.64 |
+
+### A1200/030 (68030 50 MHz, 20 MB fast, OS 3.1)
+
+| operation | MUI 3.8 | lean | trim1 | Zune68 Beta 5 | trim1 / lean | trim1 / MUI 3.8 | Zune68 / trim1 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 116.6-141.6 | 10.15-10.50 | 9.76-9.97 | 15.11-15.26 | 0.96 | 0.08 | 1.54 |
+| app+windows create | 281.0-299.9 | 188.0-190.6 | 182.9-188.5 | 275.6-278.3 | 0.98 | 0.64 | 1.49 |
+| window open+close | 571.9-579.1 | 416.6-420.2 | 415.7-419.3 | 621.8-625.1 | 1.00 | 0.72 | 1.49 |
+| full redraw | 147.8-156.9 | 139.1-139.4 | 139.0-139.2 | 161.1-161.4 | 1.00 | 0.91 | 1.16 |
+| relayout | 206.9-215.9 | 180.2-181.2 | 180.2-180.8 | 323.4-323.6 | 1.00 | 0.85 | 1.79 |
+| slider set | 4.17-4.26 | 2.89 | 2.88-2.90 | 4.71 | 1.00 | 0.68 | 1.63 |
+| notify chain | 8.05-8.21 | 5.97-6.00 | 6.00-6.01 | 9.64 | 1.00 | 0.74 | 1.61 |
+| cycle set | 2.57 | 2.16-2.17 | 2.17 | 4.94-5.16 | 1.00 | 0.84 | 2.33 |
+| radio set | 16.42 | 8.88-8.90 | 8.88-8.93 | 22.97-22.99 | 1.00 | 0.54 | 2.58 |
+| text set | 2.55-2.56 | 2.42-2.44 | 2.41-2.43 | 2.45 | 1.00 | 0.95 | 1.01 |
+| list insert 1 | 10.61-10.62 | 7.46-7.61 | 7.46-7.64 | 36.13-36.41 | 1.00 | 0.71 | 4.83 |
+| list insert 100 | 850.7-852.5 | 63.17-63.48 | 62.40-63.60 | 113.0-113.1 | 0.99 | 0.07 | 1.80 |
+| list insert 1000 | 6,840.8-6,845.0 | 256.7-261.7 | 258.2-259.6 | 706.0-708.0 | 1.00 | 0.04 | 2.73 |
+| list active | 21.81-21.82 | 19.22-19.61 | 19.31-19.63 | 24.14-24.52 | 1.00 | 0.89 | 1.25 |
+| list scroll line | 14.98 | 13.34-13.51 | 13.35-13.57 | 18.81-18.90 | 1.00 | 0.90 | 1.40 |
+| list scroll page | 46.13-46.15 | 40.01-40.33 | 40.01-40.68 | 44.40-44.79 | 1.00 | 0.87 | 1.11 |
+| list sort 1000 | 658.2-658.9 | 95.45-97.54 | 95.07-95.71 | 114.0-114.6 | 0.99 | 0.14 | 1.20 |
+| button click | 23.78-23.98 | 17.07-17.12 | 17.06-17.16 | 19.10-19.53 | 1.00 | 0.72 | 1.13 |
+| string type | 8.41-8.42 | 7.09-7.11 | 7.04-7.08 | 11.37-11.45 | 0.99 | 0.84 | 1.62 |
+| string backspace | 8.31-8.35 | 6.95-7.04 | 6.93-6.99 | 11.03-11.05 | 0.99 | 0.84 | 1.59 |
+| menu open+close | 13.86-13.93 | 13.54-14.24 | 13.65-13.80 | 19.98 | 0.99 | 0.99 | 1.46 |
+| iconify | 98.58-98.59 | 79.44-80.66 | 79.37-80.63 | 87.44-87.91 | 1.00 | 0.81 | 1.09 |
+| uniconify | 494.9-498.8 | 351.7-353.0 | 350.8-353.2 | 1,067.0-1,087.4 | 1.00 | 0.71 | 3.06 |
+| register page | 55.51-55.54 | 44.57-44.77 | 44.65-44.72 | 62.51-63.23 | 1.00 | 0.80 | 1.41 |
+| popup open+close | 120.0 | 98.50-98.78 | 98.13-98.74 | 139.8-140.1 | 1.00 | 0.82 | 1.42 |
+| window resize | 230.1 | 220.1 | 220.1 | 360.2 | 1.00 | 0.96 | 1.64 |
+
+### A600 (68000, 4 MB fast, OS 3.1)
+
+| operation | MUI 3.8 | lean | trim1 | Zune68 Beta 5 | trim1 / lean | trim1 / MUI 3.8 | Zune68 / trim1 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 357.0-364.0 | 37.03-39.68 | 34.76-36.01 | 61.62-61.73 | 0.93 | 0.10 | 1.74 |
+| app+windows create | 938.2-942.1 | 712.6-722.9 | 703.6-729.7 | 1,065.7-1,069.2 | 1.00 | 0.76 | 1.49 |
+| window open+close | 1,763.8-1,765.5 | 1,385.5-1,394.9 | 1,388.1-1,396.5 | 2,190.0-2,194.9 | 1.00 | 0.79 | 1.57 |
+| full redraw | 470.7-475.2 | 442.1-442.3 | 441.8-442.2 | 532.3-532.7 | 1.00 | 0.93 | 1.20 |
+| relayout | 698.9-702.6 | 607.5-609.0 | 607.1-608.9 | 1,168.0-1,170.0 | 1.00 | 0.87 | 1.92 |
+| slider set | 15.12-15.74 | 10.07-10.12 | 10.09-10.11 | 16.05-16.06 | 1.00 | 0.65 | 1.59 |
+| notify chain | 29.38-30.64 | 20.90-20.95 | 20.93-20.95 | 32.83-32.84 | 1.00 | 0.70 | 1.57 |
+| cycle set | 9.36 | 7.85-7.89 | 7.83-7.89 | 18.08-19.31 | 1.00 | 0.84 | 2.38 |
+| radio set | 60.46-60.52 | 32.31-32.36 | 32.29-32.38 | 82.36-82.38 | 1.00 | 0.53 | 2.55 |
+| text set | 9.69 | 9.29-9.33 | 9.30-9.33 | 9.38-9.41 | 1.00 | 0.96 | 1.01 |
+| list insert 1 | 32.39-32.49 | 28.96-29.17 | 28.76-29.18 | 125.0-127.2 | 1.00 | 0.89 | 4.35 |
+| list insert 100 | 2,746.3-2,747.7 | 223.0-225.4 | 221.6-224.4 | 422.1-424.2 | 1.00 | 0.08 | 1.89 |
+| list insert 1000 | 23,958.0-23,962.3 | 1,008.6-1,013.2 | 1,003.9-1,008.3 | 2,752.2-2,779.2 | 1.00 | 0.04 | 2.75 |
+| list active | 64.97-65.14 | 60.81-61.49 | 60.76-61.61 | 75.94-78.71 | 1.00 | 0.94 | 1.26 |
+| list scroll line | 39.97-40.11 | 37.17-37.47 | 37.07-37.47 | 55.57-57.44 | 1.00 | 0.93 | 1.52 |
+| list scroll page | 153.7-153.8 | 134.1-135.3 | 134.2-135.1 | 148.8-150.6 | 1.00 | 0.88 | 1.11 |
+| list sort 1000 | 2,494.4-2,496.8 | 380.2-385.1 | 378.9-383.4 | 434.8-434.9 | 1.00 | 0.15 | 1.14 |
+| button click | 91.12-92.34 | 60.49-66.62 | 61.40-66.90 | 74.46-74.63 | 1.01 | 0.71 | 1.15 |
+| string type | 31.55-31.72 | 26.07-26.14 | 25.86-25.97 | 43.79-43.83 | 0.99 | 0.82 | 1.69 |
+| string backspace | 31.20-31.32 | 25.60-25.74 | 25.41-25.64 | 42.41-42.57 | 0.99 | 0.82 | 1.67 |
+| menu open+close | 46.49-46.66 | 45.37-50.02 | 46.08-50.63 | 40.13-40.15 | 1.00 | 1.02 | 0.84 |
+| iconify | 301.6-303.2 | 229.6-235.1 | 229.6-232.5 | 264.5-266.9 | 1.00 | 0.76 | 1.15 |
+| uniconify | 1,535.3-1,541.1 | 1,243.3-1,247.9 | 1,211.2-1,247.9 | 3,987.5-4,023.1 | 0.99 | 0.80 | 3.25 |
+| register page | 163.1-163.2 | 145.0-145.5 | 145.2-145.5 | 218.3-220.5 | 1.00 | 0.89 | 1.51 |
+| popup open+close | 404.6-404.7 | 339.0-339.3 | 338.9-341.0 | 481.5-486.4 | 1.00 | 0.84 | 1.42 |
+| window resize | 620.2-621.6 | 470.1-520.3 | 470.8-519.6 | 791.0-800.3 | 1.00 | 0.78 | 1.65 |
+
+### OS 3.2.1 (A1200, `opbench v21`; MUI 5 at version 19)
+
+| operation | MUI 5 | lean | trim1 | Zune68 Beta 5 | trim1 / lean | trim1 / MUI 5 | Zune68 / trim1 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 306.5-307.0 | 11.18-11.52 | 10.55-11.53 | 15.55-16.07 | 0.97 | 0.04 | 1.44 |
+| app+windows create | 577.8-579.3 | 186.2-196.5 | 186.1-194.9 | 271.6-277.8 | 1.00 | 0.33 | 1.44 |
+| window open+close | 1,006.8-1,022.4 | 438.3-442.8 | 440.1-445.5 | 638.5-642.2 | 1.00 | 0.44 | 1.45 |
+| full redraw | 206.2-206.6 | 138.9-139.0 | 138.9 | 159.0 | 1.00 | 0.67 | 1.14 |
+| relayout | 316.8-317.2 | 181.3-181.7 | 181.1-181.6 | 314.4-318.7 | 1.00 | 0.57 | 1.75 |
+| slider set | 6.75-6.76 | 3.02-3.03 | 3.02 | 4.76 | 1.00 | 0.45 | 1.58 |
+| notify chain | 12.76-12.77 | 6.22-6.23 | 6.22 | 9.72-9.73 | 1.00 | 0.49 | 1.56 |
+| cycle set | 2.73-2.74 | 2.05-2.06 | 2.05-2.06 | 4.05 | 1.00 | 0.75 | 1.97 |
+| radio set | 11.86-11.91 | 8.39 | 8.38-8.40 | 21.77 | 1.00 | 0.71 | 2.59 |
+| text set | 2.25 | 1.63 | 1.63 | 1.67 | 1.00 | 0.72 | 1.02 |
+| list insert 1 | 22.82-22.88 | 7.29-7.30 | 7.29 | 34.21-34.29 | 1.00 | 0.32 | 4.70 |
+| list insert 100 | 2,033.1-2,036.7 | 59.26-61.28 | 59.91-61.05 | 106.9-108.9 | 1.00 | 0.03 | 1.78 |
+| list insert 1000 | 20,202.1-20,275.0 | 246.8-248.7 | 247.8-248.3 | 683.8-699.4 | 1.00 | 0.01 | 2.79 |
+| list active | 39.08-39.24 | 18.58-18.69 | 18.43-18.66 | 21.58-21.59 | 0.99 | 0.47 | 1.16 |
+| list scroll line | 21.11-21.14 | 14.56-14.61 | 14.56-14.59 | 16.80-16.82 | 1.00 | 0.69 | 1.15 |
+| list scroll page | 56.86-56.92 | 39.79-39.92 | 39.76-39.78 | 41.29-41.39 | 1.00 | 0.70 | 1.04 |
+| list sort 1000 | 2,306.7-2,307.6 | 139.1-140.2 | 137.1-138.3 | 152.4-154.4 | 0.98 | 0.06 | 1.12 |
+| button click | 21.24-21.29 | 16.15-16.36 | 16.14-16.23 | 18.12-18.22 | 1.00 | 0.76 | 1.12 |
+| string type | 15.20-15.31 | 7.44-7.46 | 7.41-7.45 | 10.81 | 1.00 | 0.49 | 1.45 |
+| string backspace | 14.63-14.72 | 7.35-7.42 | 7.28-7.35 | 10.43-10.44 | 0.99 | 0.50 | 1.43 |
+| menu open+close | 25.57-26.02 | 19.93-19.99 | 19.92-19.99 | 19.98-19.99 | 1.00 | 0.77 | 1.00 |
+| iconify | 195.9-197.3 | 96.07-99.44 | 96.30-97.93 | 103.6-104.1 | 1.00 | 0.49 | 1.07 |
+| uniconify | 1,219.5-1,219.6 | 370.2-372.5 | 370.1-373.6 | 1,063.7-1,084.7 | 1.00 | 0.30 | 2.89 |
+| register page | 88.49-88.68 | 44.95-45.03 | 44.91-44.94 | 54.27-54.30 | 1.00 | 0.51 | 1.21 |
+| popup open+close | 532.6-540.7 | 103.0-104.0 | 102.9-103.7 | 139.6-139.9 | 1.00 | 0.19 | 1.35 |
+| window resize | 290.1 | 170.0-170.1 | 170.0-170.1 | 240.1 | 1.00 | 0.59 | 1.41 |
+| text shorten set | - | 3.10-3.11 | 3.11-3.12 | 3.23 | 1.00 | - | 1.04 |
+
+Single instances above lean's highest by more than 0.5 %: A1200 list insert 1 (7.33 against 7.24, the
+other three 7.17-7.18), A1200/030 list scroll page (40.68 against 40.33, the others 40.01-40.10), A600
+app+windows create, menu open+close, popup open+close and button click (bimodal on both builds, as in
+the rounds before), OS 3.2.1 window open+close (445.5 against 442.8, the others 440.1-443.0): the
+library's place in memory, one percent between two instances of the same build (`opt1`). The means:
+trim1/lean 0.93-1.01 everywhere, none above 1.00 but the A600's button click (1.01, bimodal).
+
+### Memory (MUI-Demo cold, `measure.sh` twice each, FS-UAE, bytes)
+
+| | first program | each further |
+|---|---:|---:|
+| trim1, A1200 OS 3.1 + 4 MB fast | 423,536 | 187,272-187,336 |
+| lean, the same | 426,984-427,032 | 188,544-188,608 |
+| trim1, A1200/030 | 423,536 | 187,336 |
+| lean, A1200/030 | 427,032 | 188,544-188,608 |
+| MUI 3.8, A1200/030 | 460,248-460,296 | 210,632-218,824 |
+| Zune68 Beta 5, A1200/030 | 672,304 | 267,872 |
+
+(`libonly.sh` did not run: its helper `$ZWORK/libs` is gone.) Raw output: the round's work folder
+(outside the repository; deleted after the round).
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
@@ -1469,7 +1629,8 @@ Raw output: the round's work folder (outside the repository; deleted after the r
   `count`, `time`, `who=NAME`) with `syscount-compare.py` and `syscount-who.py`; `pagepix.c` and
   `scrollpix.c`: the window's checksums after page switches and list scrolls;
   `tests/lean/framepix.c` (every frame type, raised and recessed, at many sizes, thick and thin)
-  and `imgpix.c` (every built-in image 1:0 to 1:23): pixel checksums to compare builds.
+  `imgpix.c` (every built-in image 1:0 to 1:23) and `rectpix.c` (Rectangle's bars and bar titles in
+  four title colours, thick and thin): pixel checksums to compare builds.
 - `tests/native/cfgshare.c` (the shared settings file: applications made before and after a change
   of `ENV:OpenMUI/global.prefs`, SetConfigItem, own files), `proppix.c` (scrollbars' pixels after
   their values change), `instsizes.c` (every class's instance size, from any muimaster.library),

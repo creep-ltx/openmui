@@ -18,6 +18,9 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Fixed
 
+- A window that is an AppWindow (`MUIA_Window_AppWindow`) is removed from
+  Workbench's list when it closes. It never was: Workbench kept the closed
+  window, and 64 bytes were lost each time.
 - External images are also looked for in `LIBS:Zune/Images` (earlier
   installs) and, after it, `MUI:Images`; the External lists of the
   preferences show all three drawers merged (the first drawer wins a name).
@@ -29,6 +32,14 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- Code inherited from Zune that could not run on AmigaOS 3 is gone: the
+  public screen list of muiscreen.library (which the library never opened)
+  with the file notification every program started for it, and the custom
+  scrollbar knob of AROS. Rectangle's bars are drawn by smaller code. The
+  library is 2.2 KB smaller; every Prop object 54 bytes, every Cycle 16 and
+  every program's settings object 152; MUI-Demo needs 3.5 KB less for its
+  first copy and 1.3 KB less for each further one. Same pixels, same speed
+  (emulated A600, A1200 with a 68020 and with a 68030, OS 3.2.1).
 - The settings file `ENV:OpenMUI/global.prefs` is read and parsed once for
   all programs. The library keeps the parsed settings while the file's date,
   size and key stay the same; each program checks those (three DOS calls)

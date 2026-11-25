@@ -111,8 +111,8 @@ Emulator results only; nothing here is measured on a real Amiga.
 
 **Size and speed**
 
-- The library file is 234,760 bytes (stripped with `m68k-amigaos-strip`,
-  68000 build; 256,840 unstripped); MUI 3.8's library alone takes 238,520
+- The library file is 232,100 bytes (stripped with `m68k-amigaos-strip`,
+  68000 build; 254,156 unstripped; round trim1, 2026-11-25); MUI 3.8's library alone takes 238,520
   bytes in memory against OpenMUI's 248,472. The rarely used classes are
   separate files in `LIBS:OpenMUI` (54 files, 290,120 bytes stripped, 364,476
   unstripped; the installer puts `Pixmap.mui` there too, 28,768 bytes; MUI

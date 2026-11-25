@@ -71,12 +71,13 @@ Performance
 -----------
 Cycle-exact FS-UAE emulation of an A1200 (68EC020), OS 3.1, 4 MB fast
 RAM; MUI 5 on OS 3.2.1. Measured 2026-11-23, in one session, with the
-build after that day's second round; Zune68 is Beta 5 (2026.11.22) as
-released. Not measured on a real Amiga.
+build after that day's second round (OpenMUI's memory: 2026-11-25);
+Zune68 is Beta 5 (2026.11.22) as released. Not measured on a real
+Amiga.
 
                           OpenMUI   MUI 3.8     Zune68     MUI 5
- MUI-Demo, first program  427.3 KB  460.3 KB    672.3 KB   1,293.7 KB
- each further program     188.6 KB  211-219 KB  267.9 KB   427-435 KB
+ MUI-Demo, first program  423.5 KB  460.3 KB    672.3 KB   1,293.7 KB
+ each further program     187.3 KB  211-219 KB  267.9 KB   427-435 KB
 
  ms per operation (A1200) OpenMUI   MUI 3.8     Zune68
  application, empty       9.6-9.8    92          14.4-14.7

@@ -5567,10 +5567,154 @@ eed8b621 after the suite had found Haracz (the figures here are the second run's
   does that in 2 of 9 starts on lean and 2 of 9 on the final build (Left open). In the first run of
   the suite (commit 1271a546) Haracz did not quit by its menu on the final build: the commit after it.
 
+## Trim round 1: Zune's leftovers cut (2026-11-25, branch `trim1`)
+
+Branch `trim1`, from `lean` 47730569. Goal: cut code inherited from Zune (AROS, other platforms) that no
+MUI 3/4/5 program can reach on AmigaOS 3, without changing behaviour; not slower anywhere, memory and
+stack frames no larger. In the order asked: Configdata, the menu classes, Cycle, Text,
+Prop/Slider/Numeric/Scrollbar, Notify, Image/Rectangle/Dataspace/Family. Emulator figures (FS-UAE
+cycle-exact; MUI only as a black box).
+
+### What was cut, and why it could not be reached
+
+| commit | what |
+|---|---|
+| a41d5bb5 | **Configdata: the public screen code** (PSI descriptions loaded from `ENV:OpenMUI/PublicScreens.iff`, their lookup, Window's "open the settings' public screen through muiscreen.library", a DOS notification on that file). `MUIScreenBase` was opened only by the AROS init (`muimaster_init-aros.c`); the native library declared it and never opened it, so all of it tested a NULL base. The notification was not dead but useless: every application made a port share, an input handler and a StartNotify (a packet) at its first wait, to reload a list that could not be loaded. Gone with its instance fields: Configdata's data 172 -> 20 bytes, code 8,304 -> 7,372. A settings public screen that is not open is not opened, as before on AmigaOS 3 |
+| ab74434a | **Prop: Zune's custom scrollbar knob** (a display hook, two image containers, two bitmaps, a RastPort: 48 bytes of every Prop). Set only under `#ifdef __AROS__` (the hook was AROS's private `WDM_DRAW_BORDERPROPKNOB`); on AmigaOS 3 they stayed NULL, yet Dispose, Setup and Draw tested and cleared them. The custom background's sizes in Setup (reachable) stay. Prop's data 116 -> 62 bytes (MUI 3.8: 56), code 3,908 -> 3,484 |
+| a854d6b9, 579b95d3 | **Rectangle's Draw rewritten** (the bars and bar titles: 1,716 bytes of `_mleft(obj)` and line pairs): the bar's two lines one function, the 3D and plain title one path with the 3D offsets as 0/1, the title and the bars tail-called (`noipa`: the frames are not added). Rectangle 2,940 -> 2,288. New `tests/lean/rectpix.c` (plain, HBar, VBar, two titled HBars and a titled VBar at 24 sizes, drawn and redrawn alone; four title colours, thick and thin frames: 1,740 checksums) |
+| 8a1b30ac | **Cycle**: four fields never read or written (`entries_width`, `entries_height`, `cycle_width`, `cycle_height`): Cycle's data 98 -> 82 |
+| 604c8b98 | **Window: an AppWindow is removed when its window closes** (a bug, found by counting each field's uses: `wd_AppWindow` was written and never read). Zune's code called AddAppWindowA at every open and never RemoveAppWindow: workbench.library kept the closed window in its list and its node was lost (fullcheck's AppWindow demo: 264 bytes per run) |
+| 8b32cdda, 164b3637 | **AskMinMax reads the MinMax pointer once** after the super call (List, Text, Prop; Register, Panel in their class files). With `-fno-strict-aliasing` every store reloaded `msg->MinMaxInfo`. Where the local cost a saved register (Image, Rectangle, Slider, String, Balance, Gauge, Scale: their frames 4-12 bytes larger) it is undone |
+
+Nothing was moved into a module: what was left reachable is MUI 3.8 behaviour that programs use at once
+(below, "Looked at and kept").
+
+### Sizes
+
+| | lean (47730569) | trim1 (164b3637) |
+|---|---:|---:|
+| classes/configdata.o | 8,304 (+972 bss) | 7,372 (+972 bss) |
+| classes/prop.o | 3,908 | 3,484 |
+| classes/rectangle.o | 2,940 | 2,288 |
+| classes/text.o | 4,444 | 4,420 |
+| classes/list.o | 23,944 | 23,896 |
+| classes/window.o | 21,892 | 21,848 (+ RemoveAppWindow) |
+| classes/application.o | 11,548 | 11,448 |
+| library code (`size`) | 218,804 | 216,580 (-2,224) |
+| library file, stripped | 234,512 | 232,100 |
+| class files (OpenMUI/*.mui) | 364,680 | 364,668 |
+| instance data: Prop / Cycle / Configdata | 116 / 98 / 172 | 62 / 82 / 20 (MUI 3.8: 56 / 20 / -) |
+| MUI-Demo first program (MUI 3.8: 460,296) | 426,984-427,032 | 423,536 (-3,496) |
+| MUI-Demo each further (MUI 3.8: 210,632-218,824) | 188,544-188,608 | 187,272-187,336 (-1,272) |
+
+The same memory figures on the 68030 machine (below): lean 427,032 / 188,544-188,608, trim1 423,536 /
+187,336, MUI 3.8 460,248-460,296 / 210,632-218,824, Zune68 Beta 5 672,304 / 267,872.
+
+### Speed
+
+`opbench` (the binary of 2026-11-19), medians of 9, every library in one session, cycle-exact FS-UAE
+(warp mode: the EClock counts emulated time). Machines: **A1200** a1200-31-mui38 (68EC020 14 MHz, OS 3.1,
+4 MB fast); **A1200/030** the same booted with `--cpu 030 --config uae_z3mem_size=16` (a 68030 at
+50 MHz with a 68882, instruction and data caches on, 16 MB Zorro III + 4 MB fast: as close to a 50 MHz
+030 card as FS-UAE goes); **A600** a600-31 (68000 7 MHz, OS 3.1, 4 MB fast); **OS 3.2.1** a1200-32-mui5
+(`opbench v21`: OpenMUI's MUI 5 identity; against MUI 5 21.227). Two instances of each library (four of
+lean and trim1 where marked), `measurements.md` "Measurement of 2026-11-25" has every operation.
+
+| operation | A1200 trim1/lean | A1200 trim1/MUI 3.8 | A1200/030 trim1/lean | 030 trim1/MUI 3.8 | 030 Zune68/trim1 | A600 trim1/lean | A600 trim1/MUI 3.8 | OS 3.2.1 trim1/lean | trim1/MUI 5 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 0.96 | 0.10 | 0.96 | 0.08 | 1.54 | 0.93 | 0.10 | 0.97 | 0.04 |
+| app+windows create | 1.00 | 0.75 | 0.98 | 0.64 | 1.49 | 1.00 | 0.76 | 1.00 | 0.33 |
+| window open+close | 1.00 | 0.76 | 1.00 | 0.72 | 1.49 | 1.00 | 0.79 | 1.00 | 0.44 |
+| full redraw | 1.00 | 0.88 | 1.00 | 0.91 | 1.16 | 1.00 | 0.93 | 1.00 | 0.67 |
+| relayout | 1.00 | 0.83 | 1.00 | 0.85 | 1.79 | 1.00 | 0.87 | 1.00 | 0.57 |
+| text set | 1.00 | 0.95 | 1.00 | 0.95 | 1.01 | 1.00 | 0.96 | 1.00 | 0.72 |
+| cycle set | 1.00 | 0.83 | 1.00 | 0.84 | 2.33 | 1.00 | 0.84 | 1.00 | 0.75 |
+| list insert 1 | 1.00 | 0.70 | 1.00 | 0.71 | 4.83 | 1.00 | 0.89 | 1.00 | 0.32 |
+| list scroll page | 1.00 | 0.88 | 1.00 | 0.87 | 1.11 | 1.00 | 0.88 | 1.00 | 0.70 |
+| button click | 1.00 | 0.71 | 1.00 | 0.72 | 1.13 | 1.01 | 0.71 | 1.00 | 0.76 |
+| string type | 0.99 | 0.84 | 0.99 | 0.84 | 1.62 | 0.99 | 0.82 | 1.00 | 0.49 |
+| menu open+close | 1.00 | 0.98 | 0.99 | 0.99 | 1.46 | 1.00 | 1.02 | 1.00 | 0.77 |
+| iconify | 0.99 | 0.91 | 1.00 | 0.81 | 1.09 | 1.00 | 0.76 | 1.00 | 0.49 |
+| register page | 1.00 | 0.79 | 1.00 | 0.80 | 1.41 | 1.00 | 0.89 | 1.00 | 0.51 |
+| popup open+close | 1.00 | 0.79 | 1.00 | 0.82 | 1.42 | 1.00 | 0.84 | 1.00 | 0.19 |
+| window resize | 1.00 | 0.86 | 1.00 | 0.96 | 1.64 | 1.00 | 0.78 | 1.00 | 0.59 |
+
+The other ten operations: trim1/lean 0.98-1.01 on every machine. Means of four instances of lean and of
+trim1 (two of MUI 3.8, MUI 5 and Zune68): **trim1 is at or below lean's time in every operation on all
+four machines** but the A600's button click (1.01; bimodal on both builds), and single instances lie
+up to 1.2 % above lean's highest (A1200 list insert 1, 030 list scroll page, OS 3.2.1 window
+open+close; the library's place in memory, as in `opt1`). The empty application starts 2-8 % faster
+(no public screen list, a smaller Configdata). trim1 is below MUI 3.8's time in all 26 operations on
+the A1200 and the 030, on the A600 in all but menu open+close (1.02: bimodal, 46.1-50.6 ms against
+MUI 3.8's 46.5-46.7; lean 45.4-50.0), and below MUI 5's in all 27 on OS 3.2.1. **On the 030** (new):
+OpenMUI 0.08-0.99 of MUI 3.8 (menu open+close 0.99, window resize 0.96, text set 0.95), Zune68 Beta 5
+1.01-4.83 times OpenMUI's time. Every operation and machine:
+`measurements.md`, "Measurement of 2026-11-25".
+
+### Looked at and kept
+
+- **Cycle's popup** (MakePopupWin, its drawing and the menu-mode keys, about 2.4 KB): MUI 3.8's popup
+  menu on every press of a cycle with two or more entries; in a module it would load at the first press in
+  any MUI 3 program. The four unused fields are gone.
+- **The menu classes**: every attribute is MUI's (MUI 3's and MUI 4/5's images, CopyStrings, the
+  Menuitem copy); the NewMenu build asks each child by `get()` so that subclasses are honoured.
+- **Configdata's tables** are MUI 3.8's defaults; the setters are already in Zprefs.mui. **Text,
+  Notify, Dataspace, Family, Slider, Numeric**: no unreachable path found (Text's Import/Export bodies
+  were `#if 0` already); Numeric's 50-byte format buffer and Cycle's 82 bytes against MUI 3.8's 20 stay.
+- **Image's prop images** (the Zune skins' scrollbar arrows): reachable through a `5:` image spec of a
+  skin drawer (datatypescache's `MODE_PROP`).
+
+### Tried and not kept
+
+- Scrollbar's two arrow buttons made by one function (-112 bytes): the function's tag list put 104 bytes
+  under OM_NEW's 72 (lean's OM_NEW alone 140): the chain to the Image's creation 36 bytes deeper.
+- The MinMax pointer in Image, Rectangle, Slider, String, Balance, Gauge, Scale: a saved register more.
+- The MinMax pointer read before the super call (the first version of 8b32cdda): **Area's AskMinMax
+  points the message at the object's own MinMax**, so the subclasses' sizes went to the caller's buffer:
+  opbench's windows opened 344x12 instead of 344x76 and its list operations looked two to five times
+  faster. `make check` passed; the window sizes opbench prints gave it away (164b3637).
+
+### Checked (emulators)
+
+The final build (164b3637) against lean (47730569), side by side in the same session.
+
+- `make check` after every commit.
+- `-fstack-usage` of every function against lean: none larger under the same name. Smaller:
+  Rectangle's Draw 84 -> 24 (its title 84, its bars 52, the bar lines 36: below the title's text
+  drawing, lean's deepest path through Draw), Prop's Draw 80 -> 32 and OM_DISPOSE 36 -> 20, cfg_free
+  20 -> 8, Configdata's dispatcher 56 -> 52 and Load 20 -> 12, application_input 72 -> 68,
+  Application_ReloadConfigdata 28 -> 20. stackrun (FS-UAE): MUI-Demo 4,920 (lean 4,924), Layout 2,224,
+  Virtual 2,168, Pages 2,196, Slidorama 2,260 on both.
+- Speed and memory: above, and `measurements.md`.
+- fullcheck (FS-UAE): the same windows for MUI-Demo with its 8 sub-windows and the 18 demos; memory lost
+  as lean's but for the AppWindow demo, **264 -> 200** bytes (the others' 200, and 152/200 for Class1,
+  Class3 and Menus, vary between runs on both builds).
+- Pixels, lean against the final build (FS-UAE): `framepix thick` and `thin` (1,293 lines each),
+  `imgpix` (173), `radiopix` and `radiopix set` (60 and 120), `pagepix`, `scrollpix`, `proppix` (57),
+  `listclip` (4,181), `strkeys pix` (78) and the new `rectpix` (six runs, 1,740 lines) identical;
+  demopix (Amiberry): **all 27 shots pixel-identical**.
+- The suite (Amiberry), lean and the final build side by side: mui3 100 of 100, mcc and mui5 82 of 82
+  with the same status and windows, but AmiDrop (mui3): lean showed "could not open its TCP port" and
+  the final build its QR code. Started alone, lean shows the QR code too (the same 556x227 window): the
+  two emulators' TCP stacks share the host's ports, and the one started second loses AmiDrop's port.
+  Memory lost per program (the suite's second run): 64 bytes less on the final build for RO, BeeBase,
+  AmigaAMP's prefs, Albin, U64Ctl, MUIbase, MultiRen, NListtree's demo, ViewCSV and iGame (the
+  AppWindow's node), 80-160 less for EvenMore, NewsRog and WookieChat, 64 and 128 more for AnimMaker
+  and Amplifier (both vary between runs), the other 167 as lean.
+
 ## Left open
 
 - **UP-MCC no longer bundled (2026-11-25)**: OpenMUI 1.1 does not ship Spot's UP-MCC (branch `noupmcc`). Everything below about the bundled UP-MCC is history. Updates from 1.0 leave UP-MCC's files in place (OpenMUISwitch 1.4 skips them in 1.0's record). The compatibility fixes and the `up-demo` suite entry stay.
 
+=======
+- **Round `trim1` (2026-11-25)**: **A settings public screen** (the settings' `MUICFG_PublicScreen`)
+  that is not open is still not opened: MUI 3.8 opens one described in its PSI file; OpenMUI never
+  could on AmigaOS 3 (muiscreen.library was never opened) and the dead AROS code is gone, so it would be
+  new work (a module), not a restore. **Cycle's popup** (2.4 KB) and the **menu classes' MUI 4/5 image
+  fields** stay in the library (above, "Looked at and kept"). **Image's prop images** (Zune skins'
+  scrollbar arrows through a `5:` spec) are Zune's, not MUI's; reachable, so kept; a candidate for a
+  module if skins are ever looked at. **Numeric** 98 bytes against MUI 3.8's 60 (a 50-byte format
+  buffer). The 030 figures are FS-UAE's 68030 at 50 MHz, not a real card's.
 - **UP-MCC's settings page (2026-11-24)** is not shown: UP-MCC.mcp 1.0 is version 1 and, like MUI
   3.8 and MUI 5, the preferences list a settings class from version 11 on. Its page waits forever on
   every MUI (libnix `malloc` on a semaphore pointer the library never set up, from `fopen` in
@@ -5590,10 +5734,9 @@ eed8b621 after the suite had found Haracz (the figures here are the second run's
   1.12), button click 1.12 (1.11), iconify 1.12 (1.14) (OS 3.2.1: 1.04, 1.12, 1.05); text set 1.01.
   **On the 68EC020** two instances of one build differ by one percent in the list operations and by
   half a millisecond in an empty application's start (where the library's code lies); a difference of
-  that size between two builds needs more than two instances. **Objects**: Prop keeps 48 bytes of custom-scrollbar
-  fields in every object (a hook and seven pointers, used at about a hundred places in prop.c and its
-  render hook), Group is eight bytes above the next block step, the menu classes carry MUI 4/5's image
-  fields (40 bytes against MUI 3.8's 6-14), Numeric 98 against 60, Cycle 98 against 20, Balance 96
+  that size between two builds needs more than two instances. **Objects**: (Prop's 48 bytes of custom-scrollbar fields: gone in
+  round `trim1`) Group is eight bytes above the next block step, the menu classes carry MUI 4/5's image
+  fields (40 bytes against MUI 3.8's 6-14), Numeric 98 against 60, Cycle 98 (82 since `trim1`) against 20, Balance 96
   against 8, Register 60 against 4; a notification with three parameters is a 40-byte block for 36
   bytes. **The spare-pixel rule** is nearer but not MUI 3.8's whole rule (3,213 of 3,543 measured
   layouts): with a child other than the first at its limit MUI 3.8 gives the odd pixel to the first
