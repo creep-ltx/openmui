@@ -170,14 +170,22 @@ struct Rectangle_DATA
 #define RECTANGLE_TYPE_VBAR 2
 
 /*
- * Draw one line on the caller-supplied RastPort using its current pen and
- * drawing mode. Requires valid coordinates and live RastPort. Mutates
- * graphics cursor, allocates nothing and returns no status.
+ * A bar's two lines: the shadow pen's at y, the shine pen's at y + 1 (a
+ * horizontal bar) or at x + 1 (vertical: x1 == x2), each from (x1, y1)
+ * to (x2, y2). Leaves the shine pen set and the pen at the second line's
+ * end, as the lines drawn one by one did.
  */
-static void draw_line(struct RastPort *rp, int xa, int ya, int xb, int yb)
+static __attribute__((noinline)) void bar_lines(struct RastPort *rp,
+    const UWORD *pens, LONG x1, LONG y1, LONG x2, LONG y2)
 {
-    Move(rp, xa, ya);
-    Draw(rp, xb, yb);
+    LONG dx = x1 == x2, dy = !dx;
+
+    SetAPen(rp, pens[MPEN_SHADOW]);
+    Move(rp, x1, y1);
+    Draw(rp, x2, y2);
+    SetAPen(rp, pens[MPEN_SHINE]);
+    Move(rp, x1 + dx, y1 + dy);
+    Draw(rp, x2 + dx, y2 + dy);
 }
 
 
@@ -465,99 +473,49 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
     if (_mwidth(obj) < 1 || _mheight(obj) < 1)
         return TRUE;
 
-    /*
-     * ok, everything ready to render...
-     */
-    if (RECT_TITLE(data))
     {
-        /*
-         * Rewrite me, I'm ugly ! (but right :)
-         */
-        int tw;
-        int th;
-        int x1;
-        int x2;
-        int yt;
+        struct RectTitle *title = RECT_TITLE(data);
+        int type = RECT_TYPE(data);
+        struct RastPort *rp = _rp(obj);
+        const UWORD *pens = _pens(obj);
+        LONG l = _mleft(obj), t = _mtop(obj), r = _mright(obj);
 
-        /*  D(bug("muimaster.library/rectangle.c: Draw Rectangle Object "
-            "at 0x%p %ldx%ldx%ldx%ld\n mw=%ld mh=%ld\n",
-            obj, _left(obj), _top(obj), _right(obj), _bottom(obj),
-            _mwidth(obj), _mheight(obj))); */
-
-        SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-        if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
-            GROUP_TITLE_COLOR_3D)
+        if (title)
         {
-            tw = RECT_TITLE(data)->ztext->width + 1;
-            th = RECT_TITLE(data)->ztext->height + 1;
-            x1 = _mleft(obj) + (_mwidth(obj) - tw) / 2;
-            x1 -= 1;
-            x2 = x1 + tw;
-            yt = _mtop(obj) + (_mheight(obj) - th) / 2;
-            zune_text_draw(RECT_TITLE(data)->ztext, obj, x1 + 1, x2, yt + 1);
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-            zune_text_draw(RECT_TITLE(data)->ztext, obj, x1, x2 - 1, yt);
+            ZText *zt = title->ztext;
+            int color = muiGlobalInfo(obj)->mgi_Prefs->group_title_color;
+            int d3 = color == GROUP_TITLE_COLOR_3D;
+            LONG tw = zt->width + d3, th = zt->height + d3;
+            LONG x1 = l + (_mwidth(obj) - tw) / 2 - d3, x2 = x1 + tw;
+            LONG yt = t + (_mheight(obj) - th) / 2;
 
-            if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR)
+            SetAPen(rp, pens[MPEN_SHADOW]);
+            if (d3)
             {
-                int y = yt + RECT_TITLE(data)->ztext->height / 2;
+                /* the shadow one pixel down and right, the shine over it */
+                zune_text_draw(zt, obj, x1 + 1, x2, yt + 1);
+                SetAPen(rp, pens[MPEN_SHINE]);
+            }
+            else if (color == GROUP_TITLE_COLOR_HILITE)
+                SetAPen(rp, pens[MPEN_SHINE]);
+            zune_text_draw(zt, obj, x1, x2 - 1, yt);
 
-                if ((x1 - 2) > _mleft(obj) && (x2 + 2) < _mright(obj))
-                {
-                    SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-                    draw_line(_rp(obj), _mleft(obj), y, x1 - 2, y);
-                    draw_line(_rp(obj), x2 + 3, y, _mright(obj), y);
+            if (type == RECTANGLE_TYPE_HBAR
+                && (x1 - 2) > l && (x2 + 2) < r)
+            {
+                LONG y = yt + zt->height / 2;
 
-                    SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-                    draw_line(_rp(obj), _mleft(obj), y + 1, x1 - 2, y + 1);
-                    draw_line(_rp(obj), x2 + 3, y + 1, _mright(obj), y + 1);
-                }
+                bar_lines(rp, pens, l, y, x1 - 3 + d3, y);
+                bar_lines(rp, pens, x2 + 2 + d3, y, r, y);
             }
         }
-        else                    /* black or white */
+        else if (type == RECTANGLE_TYPE_HBAR)
         {
-            if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
-                GROUP_TITLE_COLOR_HILITE)
-                SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
+            LONG y = t + _mheight(obj) / 2 - 1;
 
-            tw = RECT_TITLE(data)->ztext->width;
-            th = RECT_TITLE(data)->ztext->height;
-            x1 = _mleft(obj) + (_mwidth(obj) - tw) / 2;
-            x2 = x1 + tw;
-            yt = _mtop(obj) + (_mheight(obj) - th) / 2;
-
-            zune_text_draw(RECT_TITLE(data)->ztext, obj, x1, x2 - 1, yt);
-
-            if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR)
-            {
-                int y = yt + RECT_TITLE(data)->ztext->height / 2;
-
-                if ((x1 - 2) > _mleft(obj) && (x2 + 2) < _mright(obj))
-                {
-                    SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-                    draw_line(_rp(obj), _mleft(obj), y, x1 - 3, y);
-                    draw_line(_rp(obj), x2 + 2, y, _mright(obj), y);
-
-                    SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-                    draw_line(_rp(obj), _mleft(obj), y + 1, x1 - 3, y + 1);
-                    draw_line(_rp(obj), x2 + 2, y + 1, _mright(obj), y + 1);
-                }
-            }
+            bar_lines(rp, pens, l, y, r, y);
         }
-    }
-    else                        /* no bar title */
-    {
-        if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR)
-        {
-            int y = _mtop(obj) + _mheight(obj) / 2 - 1;
-
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-            draw_line(_rp(obj), _mleft(obj), y, _mright(obj), y);
-
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-            draw_line(_rp(obj), _mleft(obj), y + 1, _mright(obj), y + 1);
-        }
-        else if (RECT_TYPE(data) == RECTANGLE_TYPE_VBAR)
+        else if (type == RECTANGLE_TYPE_VBAR)
         {
             /* with thick frames MUI 3.8 doubles both lines, like the
              * sides of a frame, also on a bar narrower than the four
@@ -565,29 +523,19 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
              * demos) */
             int thick = !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
                 && ZUNE_APP_MUI38(obj);
-            int x = _mleft(obj) + _mwidth(obj) / 2 - 1;
+            LONG x = l + _mwidth(obj) / 2 - 1, b = _mbottom(obj);
 
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-            draw_line(_rp(obj), x, _mtop(obj), x, _mbottom(obj));
             if (thick)
-                draw_line(_rp(obj), x - 1, _mtop(obj), x - 1, _mbottom(obj));
-
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
-            draw_line(_rp(obj), x + 1, _mtop(obj), x + 1, _mbottom(obj));
-            if (thick)
-                draw_line(_rp(obj), x + 2, _mtop(obj), x + 2, _mbottom(obj));
-        }
-        else
-        {
-#ifdef MYDEBUG
-            WORD pnts[] =
-                { _mleft(obj), _mtop(obj), _mleft(obj), _mbottom(obj),
-                _mright(obj), _mbottom(obj), _mright(obj), _mtop(obj)
-            };
-            SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
-            Move(_rp(obj), _mright(obj), _mtop(obj));
-            PolyDraw(_rp(obj), 4, pnts);
-#endif
+            {
+                SetAPen(rp, pens[MPEN_SHADOW]);
+                Move(rp, x - 1, t);
+                Draw(rp, x - 1, b);
+                bar_lines(rp, pens, x, t, x, b);
+                Move(rp, x + 2, t);
+                Draw(rp, x + 2, b);
+            }
+            else
+                bar_lines(rp, pens, x, t, x, b);
         }
     }
     return TRUE;
