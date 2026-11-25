@@ -126,8 +126,7 @@ extern struct Library *MUIMasterBase;
 *   BUGS
 *       Opening has incomplete checks for optional images, scrollbars, menus
 *       and AppWindow registration. Setup success does not guarantee that every
-*       optional resource exists. The AppWindow handle is not removed by this
-*       file's close or disposal paths. See AppWindow, Setup and AllocGadgetID
+*       optional resource exists. See AppWindow, Setup and AllocGadgetID
 *       for specific limitations.
 *
 */
@@ -391,9 +390,8 @@ extern struct Library *MUIMasterBase;
 *       reply to it.
 *
 *   BUGS
-*       Registration failure is ignored. No RemoveAppWindow call appears in this
-*       file's close or disposal paths, so registration lifetime is not
-*       correctly paired with window lifetime here.
+*       Registration failure is ignored. The registration is removed when the
+*       window closes (trim1; it was never removed before).
 *
 */
 /****** Window.mui/MUIA_Window_CloseRequest ************
@@ -2200,6 +2198,14 @@ static void UndisplayWindow(Object *obj, struct MUI_WindowData *data)
 
 
     WindowArrowStop(obj, data);
+    /* The AppWindow was never removed (Zune's code): workbench.library
+     * kept the closed window in its list, and its node (the AppWindow
+     * demo's 264 bytes lost per run in fullcheck), trim1 */
+    if (data->wd_AppWindow)
+    {
+        RemoveAppWindow(data->wd_AppWindow);
+        data->wd_AppWindow = NULL;
+    }
     data->wd_RenderInfo.mri_Window = NULL;
     data->wd_RenderInfo.mri_VertProp = NULL;
     data->wd_RenderInfo.mri_HorizProp = NULL;
