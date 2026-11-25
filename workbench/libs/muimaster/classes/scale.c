@@ -232,28 +232,29 @@ IPTR Scale__MUIM_Setup(struct IClass *cl, Object *obj,
 IPTR Scale__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct Scale_DATA *data = INST_DATA(cl, obj);
     DoSuperMethodA(cl, obj, (Msg) msg);
 
     if (data->horiz)
     {
-        msg->MinMaxInfo->MinWidth += data->label_minwidth;
-        msg->MinMaxInfo->MinHeight += data->label_height + 4;
-        msg->MinMaxInfo->DefWidth += data->label_minwidth;
-        msg->MinMaxInfo->DefHeight += data->label_height + 4;
-        msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
-        msg->MinMaxInfo->MaxHeight += data->label_height + 4;
+        mm->MinWidth += data->label_minwidth;
+        mm->MinHeight += data->label_height + 4;
+        mm->DefWidth += data->label_minwidth;
+        mm->DefHeight += data->label_height + 4;
+        mm->MaxWidth = MUI_MAXMAX;
+        mm->MaxHeight += data->label_height + 4;
     }
     else
     {
         /* MUI 3.9 reserves this much for a vertical scale and draws
          * nothing into it (tests/native/widgetsizes.c, scaleview.c) */
-        msg->MinMaxInfo->MinWidth += data->label_minwidth + 4;
-        msg->MinMaxInfo->MinHeight += data->label_height * 2 + 2;
-        msg->MinMaxInfo->DefWidth += data->label_minwidth + 4;
-        msg->MinMaxInfo->DefHeight += data->label_height * 2 + 2;
-        msg->MinMaxInfo->MaxWidth += data->label_minwidth + 4;
-        msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
+        mm->MinWidth += data->label_minwidth + 4;
+        mm->MinHeight += data->label_height * 2 + 2;
+        mm->DefWidth += data->label_minwidth + 4;
+        mm->DefHeight += data->label_height * 2 + 2;
+        mm->MaxWidth += data->label_minwidth + 4;
+        mm->MaxHeight = MUI_MAXMAX;
     }
     return 0;
 }

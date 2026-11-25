@@ -308,7 +308,6 @@ struct Prop_DATA
 
     UBYTE horiz;
     UBYTE usewinborder;
-    UBYTE sb_type;
     UWORD minwidth, minheight;
     UWORD maxwidth, maxheight;
     UWORD defwidth, defheight;
@@ -645,6 +644,7 @@ IPTR Prop__OM_GET(struct IClass *cl, Object *obj, struct opGet *msg)
 IPTR Prop__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct Prop_DATA *data = INST_DATA(cl, obj);
 
     /*
@@ -653,15 +653,15 @@ IPTR Prop__MUIM_AskMinMax(struct IClass *cl, Object *obj,
      */
     DoSuperMethodA(cl, obj, (Msg) msg);
 
-    msg->MinMaxInfo->MinWidth += data->minwidth;
-    msg->MinMaxInfo->DefWidth += data->defwidth;
-    msg->MinMaxInfo->MaxWidth = data->maxwidth;
+    mm->MinWidth += data->minwidth;
+    mm->DefWidth += data->defwidth;
+    mm->MaxWidth = data->maxwidth;
 
-    msg->MinMaxInfo->MinHeight += data->minheight;
-    msg->MinMaxInfo->DefHeight += data->defheight;
-    msg->MinMaxInfo->MaxHeight = data->maxheight;
+    mm->MinHeight += data->minheight;
+    mm->DefHeight += data->defheight;
+    mm->MaxHeight = data->maxheight;
 
-    D(bug("Prop %p minheigh=%d\n", obj, msg->MinMaxInfo->MinHeight));
+    D(bug("Prop %p minheigh=%d\n", obj, mm->MinHeight));
 
     return TRUE;
 }

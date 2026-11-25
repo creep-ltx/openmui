@@ -2147,6 +2147,7 @@ static BOOL List_DimsValid(Object *obj, struct MUI_ListData *data)
 IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct MUI_ListData *data = INST_DATA(cl, obj);
     WORD strip = List_TitleStrip(obj, data);
 
@@ -2165,9 +2166,9 @@ IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
     if ((data->flags & LIST_ADJUSTWIDTH) && (data->entries_num > 0))
     {
-        msg->MinMaxInfo->MinWidth += data->entries_maxwidth;
-        msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth;
-        msg->MinMaxInfo->MaxWidth = msg->MinMaxInfo->MinWidth;
+        mm->MinWidth += data->entries_maxwidth;
+        mm->DefWidth = mm->MinWidth;
+        mm->MaxWidth = mm->MinWidth;
     }
     else
     {
@@ -2175,18 +2176,18 @@ IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
          * fitting stages): 40 pixels of content at least, 100 by
          * default, inside the frame. The frame belongs to the entry
          * area, whose MinMax the group already included. */
-        msg->MinMaxInfo->MinWidth +=
+        mm->MinWidth +=
             MAX(40 - _minwidth(data->area) + _subwidth(data->area), 0);
-        msg->MinMaxInfo->DefWidth +=
+        mm->DefWidth +=
             MAX(100 - _defwidth(data->area) + _subwidth(data->area), 0);
-        msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
+        mm->MaxWidth = MUI_MAXMAX;
     }
 
     if ((data->flags & LIST_ADJUSTHEIGHT) && (data->entries_num > 0))
     {
-        msg->MinMaxInfo->MinHeight += data->entries_totalheight + strip;
-        msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight;
-        msg->MinMaxInfo->MaxHeight = msg->MinMaxInfo->MinHeight;
+        mm->MinHeight += data->entries_totalheight + strip;
+        mm->DefHeight = mm->MinHeight;
+        mm->MaxHeight = mm->MinHeight;
     }
     else
     {
@@ -2199,14 +2200,14 @@ IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
         /* the scroller beside the title strip counts against both */
         LONG frame = _subheight(obj) + _subheight(data->area) + strip;
 
-        msg->MinMaxInfo->MinHeight = MAX(msg->MinMaxInfo->MinHeight,
+        mm->MinHeight = MAX(mm->MinHeight,
             frame + 3 * row);
-        msg->MinMaxInfo->DefHeight = MAX(msg->MinMaxInfo->DefHeight,
+        mm->DefHeight = MAX(mm->DefHeight,
             frame + 8 * row);
-        msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
+        mm->MaxHeight = MUI_MAXMAX;
     }
     D(bug("List %p minheight=%d, line maxh=%d\n",
-            obj, msg->MinMaxInfo->MinHeight, data->entry_maxheight));
+            obj, mm->MinHeight, data->entry_maxheight));
 
     return TRUE;
 }

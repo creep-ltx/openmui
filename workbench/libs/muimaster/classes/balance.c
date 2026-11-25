@@ -210,6 +210,7 @@ IPTR Balance__MUIM_Cleanup(struct IClass *cl, Object *obj,
 IPTR Balance__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct Balance_DATA *data = INST_DATA(cl, obj);
 
     /* MUI 3.9: at least 3x3, 3 pixels thick (balancebounds); a quiet
@@ -220,21 +221,21 @@ IPTR Balance__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
     if (data->horizgroup)
     {
-        msg->MinMaxInfo->MinHeight += size;
-        msg->MinMaxInfo->DefHeight += size;
-        msg->MinMaxInfo->MinWidth += size;
-        msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth;
-        msg->MinMaxInfo->MaxWidth = msg->MinMaxInfo->DefWidth;
-        msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
+        mm->MinHeight += size;
+        mm->DefHeight += size;
+        mm->MinWidth += size;
+        mm->DefWidth = mm->MinWidth;
+        mm->MaxWidth = mm->DefWidth;
+        mm->MaxHeight = MUI_MAXMAX;
     }
     else
     {
-        msg->MinMaxInfo->MinWidth += size;
-        msg->MinMaxInfo->DefWidth += size;
-        msg->MinMaxInfo->MinHeight += size;
-        msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight;
-        msg->MinMaxInfo->MaxHeight = msg->MinMaxInfo->DefHeight;
-        msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
+        mm->MinWidth += size;
+        mm->DefWidth += size;
+        mm->MinHeight += size;
+        mm->DefHeight = mm->MinHeight;
+        mm->MaxHeight = mm->DefHeight;
+        mm->MaxWidth = MUI_MAXMAX;
     }
 
     return TRUE;

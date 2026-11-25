@@ -828,6 +828,7 @@ MUIM_AskMinMax
 IPTR Text__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     int height;
     struct MUI_TextData *data = INST_DATA(cl, obj);
 
@@ -850,8 +851,8 @@ IPTR Text__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     if ((data->mtd_Flags & MTDF_SETMIN) || data->shorten)
     {
         if (!data->shorten)
-            msg->MinMaxInfo->MinWidth += data->ztext->width;
-        msg->MinMaxInfo->DefWidth += data->ztext->width;
+            mm->MinWidth += data->ztext->width;
+        mm->DefWidth += data->ztext->width;
     }
     else
     {
@@ -859,28 +860,28 @@ IPTR Text__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
         zune_init_rastport(&rp);
         SetFont(&rp, _font(obj));
-        msg->MinMaxInfo->DefWidth += TextLength(&rp, "WWW", 3);
+        mm->DefWidth += TextLength(&rp, "WWW", 3);
     }
 
     if (data->mtd_Flags & MTDF_SETMAX)
-        msg->MinMaxInfo->MaxWidth += data->ztext->width;
+        mm->MaxWidth += data->ztext->width;
     else
-        msg->MinMaxInfo->MaxWidth += MUI_MAXMAX;
+        mm->MaxWidth += MUI_MAXMAX;
 
-    msg->MinMaxInfo->MinHeight += height;
-    msg->MinMaxInfo->DefHeight += height;
+    mm->MinHeight += height;
+    mm->DefHeight += height;
 
     if (!(data->mtd_Flags & MTDF_SETVMAX))
-        msg->MinMaxInfo->MaxHeight += MUI_MAXMAX;
+        mm->MaxHeight += MUI_MAXMAX;
     else
-        msg->MinMaxInfo->MaxHeight += height;
+        mm->MaxHeight += height;
 
     D(bug
         ("Text_AskMinMax 0x%p (%s): Min=%ldx%ld Max=%ldx%ld Def=%ldx%ld\n",
-            obj, data->contents, msg->MinMaxInfo->MinWidth,
-            msg->MinMaxInfo->MinHeight, msg->MinMaxInfo->MaxWidth,
-            msg->MinMaxInfo->MaxHeight, msg->MinMaxInfo->DefWidth,
-            msg->MinMaxInfo->DefHeight));
+            obj, data->contents, mm->MinWidth,
+            mm->MinHeight, mm->MaxWidth,
+            mm->MaxHeight, mm->DefWidth,
+            mm->DefHeight));
 
     return TRUE;
 }

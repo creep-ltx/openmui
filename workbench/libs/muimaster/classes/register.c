@@ -809,40 +809,41 @@ IPTR Register__MUIM_Cleanup(struct IClass *cl, Object *obj,
 IPTR Register__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct Register_DATA *data = INST_DATA(cl, obj);
 
     DoSuperMethodA(cl, obj, (Msg) msg);
 /*      D(bug("Register_AskMinMax1 : %ld, %ld, %ld\n", */
-/*            msg->MinMaxInfo->MinWidth, msg->MinMaxInfo->DefWidth, */
-/*            msg->MinMaxInfo->MaxWidth)); */
+/*            mm->MinWidth, mm->DefWidth, */
+/*            mm->MaxWidth)); */
 
 
 /*      D(bug("Register_AskMinMax : spacings = %d, minw=%d, defw=%d, " */
 /*          "mymin=%d, mydef=%d\n", */
-/*          data->total_hspacing, msg->MinMaxInfo->MinWidth, */
-/*          msg->MinMaxInfo->DefWidth, */
+/*          data->total_hspacing, mm->MinWidth, */
+/*          mm->DefWidth, */
 /*          data->min_width, data->def_width)); */
 
-    msg->MinMaxInfo->MinWidth =
-        MAX(msg->MinMaxInfo->MinWidth, data->min_width);
+    mm->MinWidth =
+        MAX(mm->MinWidth, data->min_width);
     /* MUI 3.8 (measured): a register group may always grow, also when
      * all its pages have fixed sizes (Archiver's settings), so its window
      * keeps a size gadget */
-    msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
-    msg->MinMaxInfo->DefWidth =
-        MAX(msg->MinMaxInfo->DefWidth, data->def_width);
+    mm->MaxWidth = MUI_MAXMAX;
+    mm->DefWidth =
+        MAX(mm->DefWidth, data->def_width);
 
-/*      msg->MinMaxInfo->MinHeight += data->tab_height; */
-/*      msg->MinMaxInfo->DefHeight += data->tab_height; */
-    msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
+/*      mm->MinHeight += data->tab_height; */
+/*      mm->DefHeight += data->tab_height; */
+    mm->MaxHeight = MUI_MAXMAX;
 
 /*      D(bug("Register_AskMinMax %p : tabheight=%d, minh=%d\n", obj, */
 /*          data->tab_height, */
-/*          msg->MinMaxInfo->MinHeight)); */
+/*          mm->MinHeight)); */
 
 /*      D(bug("Register_AskMinMax2 : %ld, %ld, %ld\n", */
-/*            msg->MinMaxInfo->MinWidth, msg->MinMaxInfo->DefWidth, */
-/*            msg->MinMaxInfo->MaxWidth)); */
+/*            mm->MinWidth, mm->DefWidth, */
+/*            mm->MaxWidth)); */
     return TRUE;
 }
 

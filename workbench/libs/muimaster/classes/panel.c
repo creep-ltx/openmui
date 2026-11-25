@@ -621,16 +621,17 @@ IPTR PanelTitle__MUIM_Cleanup(struct IClass *cl, Object *obj, struct MUIP_Cleanu
 
 IPTR PanelTitle__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct PanelTitle_DATA *data = INST_DATA(cl, obj);
     IPTR result;
 
     result = DoSuperMethodA(cl, obj, (Msg) msg);
 
     if (!data->text) {
-        msg->MinMaxInfo->MinWidth = msg->MinMaxInfo->DefWidth = 0;
-        msg->MinMaxInfo->MinHeight = msg->MinMaxInfo->DefHeight = 0;
-        msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
-        msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
+        mm->MinWidth = mm->DefWidth = 0;
+        mm->MinHeight = mm->DefHeight = 0;
+        mm->MaxWidth = MUI_MAXMAX;
+        mm->MaxHeight = MUI_MAXMAX;
         return result;
     }
 
@@ -650,17 +651,17 @@ IPTR PanelTitle__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskM
 
     switch (data->position) {
     case MUIV_PanelTitle_Position_Top:
-        msg->MinMaxInfo->MinWidth = msg->MinMaxInfo->DefWidth = total_width;
-        msg->MinMaxInfo->MinHeight = msg->MinMaxInfo->DefHeight = total_height + (data->show_separator ? 1 : 0);
-        msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
-        msg->MinMaxInfo->MaxHeight = total_height + (data->show_separator ? 1 : 0);
+        mm->MinWidth = mm->DefWidth = total_width;
+        mm->MinHeight = mm->DefHeight = total_height + (data->show_separator ? 1 : 0);
+        mm->MaxWidth = MUI_MAXMAX;
+        mm->MaxHeight = total_height + (data->show_separator ? 1 : 0);
         break;
 
     case MUIV_PanelTitle_Position_Left:
-        msg->MinMaxInfo->MinWidth = msg->MinMaxInfo->DefWidth = total_width + (data->show_separator ? 1 : 0);
-        msg->MinMaxInfo->MinHeight = msg->MinMaxInfo->DefHeight = total_height;
-        msg->MinMaxInfo->MaxWidth = total_width + (data->show_separator ? 1 : 0);
-        msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
+        mm->MinWidth = mm->DefWidth = total_width + (data->show_separator ? 1 : 0);
+        mm->MinHeight = mm->DefHeight = total_height;
+        mm->MaxWidth = total_width + (data->show_separator ? 1 : 0);
+        mm->MaxHeight = MUI_MAXMAX;
         break;
     }
 

@@ -634,6 +634,8 @@ IPTR Image__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax
 {
     struct MUI_ImageData *data = INST_DATA(cl, obj);
 
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
+
     DoSuperMethodA(cl, obj, (Msg)msg);
 
 
@@ -642,13 +644,13 @@ IPTR Image__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax
         struct NewImage *ni = GetPropImage(data, data->prop);
         if (ni)
         {
-            msg->MinMaxInfo->MinWidth = ni->w >> 2;
-            msg->MinMaxInfo->MaxWidth = ni->w >> 2;
-            msg->MinMaxInfo->DefWidth = ni->w >> 2;
+            mm->MinWidth = ni->w >> 2;
+            mm->MaxWidth = ni->w >> 2;
+            mm->DefWidth = ni->w >> 2;
 
-            msg->MinMaxInfo->MinHeight = ni->h;
-            msg->MinMaxInfo->MaxHeight = ni->h;
-            msg->MinMaxInfo->DefHeight = ni->h;
+            mm->MinHeight = ni->h;
+            mm->MaxHeight = ni->h;
+            mm->DefHeight = ni->h;
             data->flags |= MIF_PROPIMAGE;
             return(1);
         }
@@ -662,8 +664,8 @@ IPTR Image__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax
          * like an unusable spec (tests/native/imgsizes.c) */
         WORD fixed = 1;
         /* the frame and spacing the superclass already counted */
-        WORD base_w = msg->MinMaxInfo->MinWidth;
-        WORD base_h = msg->MinMaxInfo->MinHeight;
+        WORD base_w = mm->MinWidth;
+        WORD base_h = mm->MinHeight;
 
         zune_imspec_askminmax(data->img, &minmax);
         switch (data->img->type)
@@ -680,15 +682,15 @@ IPTR Image__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax
 
         if (data->flags & MIF_FREEHORIZ)
         {
-            msg->MinMaxInfo->MinWidth += minmax.MinWidth;
-            msg->MinMaxInfo->MaxWidth += minmax.MaxWidth;
-            msg->MinMaxInfo->DefWidth += minmax.DefWidth;
+            mm->MinWidth += minmax.MinWidth;
+            mm->MaxWidth += minmax.MaxWidth;
+            mm->DefWidth += minmax.DefWidth;
         }
         else
         {
-            msg->MinMaxInfo->MinWidth += fixed * minmax.DefWidth;
-            msg->MinMaxInfo->MaxWidth += fixed * minmax.DefWidth;
-            msg->MinMaxInfo->DefWidth += minmax.DefWidth;
+            mm->MinWidth += fixed * minmax.DefWidth;
+            mm->MaxWidth += fixed * minmax.DefWidth;
+            mm->DefWidth += minmax.DefWidth;
         }
 
         /* MUI 3.9: a font-matched image is fixed at its size scaled by
@@ -696,61 +698,61 @@ IPTR Image__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax
          * mark is 13 pixels high under a 15-pixel font) */
         if (data->flags & MIF_FONTMATCHWIDTH)
         {
-            msg->MinMaxInfo->MinWidth = base_w
+            mm->MinWidth = base_w
                 + minmax.DefWidth * _font(obj)->tf_XSize / 8;
-            msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth;
-            msg->MinMaxInfo->MaxWidth = msg->MinMaxInfo->MinWidth;
+            mm->DefWidth = mm->MinWidth;
+            mm->MaxWidth = mm->MinWidth;
         }
 
 
         if (data->flags & MIF_FREEVERT)
         {
-            msg->MinMaxInfo->MinHeight += minmax.MinHeight;
-            msg->MinMaxInfo->MaxHeight += minmax.MaxHeight;
-            msg->MinMaxInfo->DefHeight += minmax.DefHeight;
+            mm->MinHeight += minmax.MinHeight;
+            mm->MaxHeight += minmax.MaxHeight;
+            mm->DefHeight += minmax.DefHeight;
         }
         else
         {
-            msg->MinMaxInfo->MinHeight += fixed * minmax.DefHeight;
-            msg->MinMaxInfo->MaxHeight += fixed * minmax.DefHeight;
-            msg->MinMaxInfo->DefHeight += minmax.DefHeight;
+            mm->MinHeight += fixed * minmax.DefHeight;
+            mm->MaxHeight += fixed * minmax.DefHeight;
+            mm->DefHeight += minmax.DefHeight;
         }
 
         if (data->flags & MIF_FONTMATCHHEIGHT)
         {
-            msg->MinMaxInfo->MinHeight = base_h
+            mm->MinHeight = base_h
                 + minmax.DefHeight * _font(obj)->tf_YSize / 8;
-            msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight;
-            msg->MinMaxInfo->MaxHeight = msg->MinMaxInfo->MinHeight;
+            mm->DefHeight = mm->MinHeight;
+            mm->MaxHeight = mm->MinHeight;
         }
     }
     else if (data->old_image)
     {
-        msg->MinMaxInfo->MinWidth += data->old_image->Width;
-        msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth;
-        msg->MinMaxInfo->MaxWidth = msg->MinMaxInfo->MinWidth;
+        mm->MinWidth += data->old_image->Width;
+        mm->DefWidth = mm->MinWidth;
+        mm->MaxWidth = mm->MinWidth;
 
-        msg->MinMaxInfo->MinHeight += data->old_image->Height;
-        msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight;
-        msg->MinMaxInfo->MaxHeight = msg->MinMaxInfo->MinHeight;
+        mm->MinHeight += data->old_image->Height;
+        mm->DefHeight = mm->MinHeight;
+        mm->MaxHeight = mm->MinHeight;
     }
     else /* no imagespec specified */
     {
         /* MUI 3.9 answers an unusable spec ("noimage", NList's) with
          * nothing at minimum and maximum but an 8x8 default
          * (tests/native/imgspec.c) */
-        msg->MinMaxInfo->MaxWidth = msg->MinMaxInfo->MinWidth;
-        msg->MinMaxInfo->MaxHeight = msg->MinMaxInfo->MinHeight;
-        msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth + 8;
-        msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight + 8;
+        mm->MaxWidth = mm->MinWidth;
+        mm->MaxHeight = mm->MinHeight;
+        mm->DefWidth = mm->MinWidth + 8;
+        mm->DefHeight = mm->MinHeight + 8;
 /*      D(bug("*** Image_AskMinMax : no img, no old_img\n")); */
-/*      msg->MinMaxInfo->MinWidth += 8; */
-/*      msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth; */
-/*      msg->MinMaxInfo->MaxWidth = msg->MinMaxInfo->MinWidth; */
+/*      mm->MinWidth += 8; */
+/*      mm->DefWidth = mm->MinWidth; */
+/*      mm->MaxWidth = mm->MinWidth; */
 
-/*      msg->MinMaxInfo->MinHeight += 8; */
-/*      msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight; */
-/*      msg->MinMaxInfo->MaxHeight = msg->MinMaxInfo->MinHeight;         */
+/*      mm->MinHeight += 8; */
+/*      mm->DefHeight = mm->MinHeight; */
+/*      mm->MaxHeight = mm->MinHeight;         */
     }
     return 1;
 }

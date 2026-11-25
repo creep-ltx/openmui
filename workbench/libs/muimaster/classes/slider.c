@@ -529,6 +529,7 @@ IPTR Slider__MUIM_Cleanup(struct IClass *cl, Object *obj,
 IPTR Slider__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct MUI_SliderData *data = INST_DATA(cl, obj);
     LONG min = 0, max = 0;
 
@@ -541,21 +542,21 @@ IPTR Slider__MUIM_AskMinMax(struct IClass *cl, Object *obj,
      * the frame to MUI_MAXMAX (tests/native/widgetsizes.c) */
     if (data->flags & SLIDER_HORIZ)
     {
-        msg->MinMaxInfo->MinWidth += data->knob_width + 1;
-        msg->MinMaxInfo->MinHeight += data->knob_height;
-        msg->MinMaxInfo->DefWidth += data->knob_width * 4;
-        msg->MinMaxInfo->DefHeight += data->knob_height;
-        msg->MinMaxInfo->MaxWidth += MUI_MAXMAX;
-        msg->MinMaxInfo->MaxHeight += data->knob_height;
+        mm->MinWidth += data->knob_width + 1;
+        mm->MinHeight += data->knob_height;
+        mm->DefWidth += data->knob_width * 4;
+        mm->DefHeight += data->knob_height;
+        mm->MaxWidth += MUI_MAXMAX;
+        mm->MaxHeight += data->knob_height;
     }
     else
     {
-        msg->MinMaxInfo->MinWidth += data->knob_width;
-        msg->MinMaxInfo->MinHeight += data->knob_height + 1;
-        msg->MinMaxInfo->DefWidth += data->knob_width;
-        msg->MinMaxInfo->DefHeight += data->knob_height * 4;
-        msg->MinMaxInfo->MaxWidth += data->knob_width;
-        msg->MinMaxInfo->MaxHeight += MUI_MAXMAX;
+        mm->MinWidth += data->knob_width;
+        mm->MinHeight += data->knob_height + 1;
+        mm->DefWidth += data->knob_width;
+        mm->DefHeight += data->knob_height * 4;
+        mm->MaxWidth += data->knob_width;
+        mm->MaxHeight += MUI_MAXMAX;
     }
 
     return TRUE;

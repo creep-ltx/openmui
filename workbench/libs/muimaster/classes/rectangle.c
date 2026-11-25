@@ -362,6 +362,7 @@ IPTR Rectangle__MUIM_Cleanup(struct IClass *cl, Object *obj,
 IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
+    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct Rectangle_DATA *data = INST_DATA(cl, obj);
 
     /*
@@ -377,18 +378,18 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
     if (!RECT_TITLE(data))
     {
-/*          msg->MinMaxInfo->MinWidth += 1; */
-/*          msg->MinMaxInfo->MinHeight += 1;             */
+/*          mm->MinWidth += 1; */
+/*          mm->MinHeight += 1;             */
         /* MUI 3.9 makes both kinds of bar at least 2x2; MUI 3.8 with
          * thick frames 4x2, also MUIO_VBar 1 or 2 (demopix: the Menus and
          * Subtask demos, measured with tests/lean/probe/objdump.c) */
         if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR
             || RECT_TYPE(data) == RECTANGLE_TYPE_VBAR)
         {
-            msg->MinMaxInfo->MinWidth +=
+            mm->MinWidth +=
                 !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
                 && ZUNE_APP_MUI38(obj) ? 4 : 2;
-            msg->MinMaxInfo->MinHeight += 2;
+            mm->MinHeight += 2;
         }
     }
     else
@@ -401,28 +402,28 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
          * tests/lean/probe/bars.c on MUI 5 and MUI 3.8 side by side) */
         if (ZUNE_APP_MUI45(obj))
         {
-            msg->MinMaxInfo->MinWidth += RECT_TITLE(data)->ztext->width + 4;
-            msg->MinMaxInfo->MinHeight += RECT_TITLE(data)->ztext->height;
+            mm->MinWidth += RECT_TITLE(data)->ztext->width + 4;
+            mm->MinHeight += RECT_TITLE(data)->ztext->height;
         }
         else
         {
-            msg->MinMaxInfo->MinWidth += RECT_TITLE(data)->ztext->width + 12;
-            msg->MinMaxInfo->MinHeight += RECT_TITLE(data)->ztext->height + 1;
+            mm->MinWidth += RECT_TITLE(data)->ztext->width + 12;
+            mm->MinHeight += RECT_TITLE(data)->ztext->height + 1;
         }
         D(bug("rect: minheight %ld\n", RECT_TITLE(data)->ztext->height));
         if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
             GROUP_TITLE_COLOR_3D)
         {
-            msg->MinMaxInfo->MinWidth += 1;
-            msg->MinMaxInfo->MinHeight += 1;
+            mm->MinWidth += 1;
+            mm->MinHeight += 1;
         }
     }
 
-    msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth;
-    msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight;
+    mm->DefWidth = mm->MinWidth;
+    mm->DefHeight = mm->MinHeight;
 
-    msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
-    msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
+    mm->MaxWidth = MUI_MAXMAX;
+    mm->MaxHeight = MUI_MAXMAX;
 
     return TRUE;
 }
