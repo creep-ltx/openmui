@@ -13,9 +13,6 @@
 #include <proto/muimaster.h>
 #include <proto/cybergraphics.h>
 
-#ifdef __AROS__
-#include <intuition/windecorclass.h>
-#endif
 #include <cybergraphx/cybergraphics.h>
 #include <graphics/rpattr.h>
 
@@ -315,18 +312,11 @@ struct Prop_DATA
     UWORD minwidth, minheight;
     UWORD maxwidth, maxheight;
     UWORD defwidth, defheight;
-    UWORD propwidth, propheight;
 
     Object *prop_object;
     struct MUI_EventHandlerNode ehn;
-    struct Hook dhook;
-    struct dt_node *node;
-    Object *obj;
-    struct NewImage *buffer;
-    struct NewImage *temp;
-    struct BitMap *mapbuffer;
-    struct BitMap *maptemp;
-    struct RastPort *tmprp;
+    /* (Zune's custom scrollbar buffers and display hook, 48 bytes, were
+     * AROS-only: never set on AmigaOS 3, gone in trim1) */
 };
 
 #if SCALE16_METHOD == 1
@@ -492,8 +482,8 @@ IPTR Prop__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 }
 
 /*
- * Remove/dispose an owned nonborder gadget if still present, free
- * referenced image/bitmap/RastPort buffers and dispose Area. Requires valid
+ * Remove/dispose an owned nonborder gadget if still present and dispose
+ * Area. Requires valid
  * window if removing a gadget and prior handler Cleanup. Borrowed border
  * gadget is not disposed. Return superclass result.
  */
@@ -506,21 +496,6 @@ IPTR Prop__OM_DISPOSE(struct IClass *cl, Object *obj, Msg msg)
         RemoveGadget(_window(obj), (struct Gadget *)data->prop_object);
         DisposeObject(data->prop_object);
     }
-
-    DisposeImageContainer(data->buffer);
-    DisposeImageContainer(data->temp);
-    if (data->mapbuffer != NULL)
-        FreeBitMap(data->mapbuffer);
-    if (data->maptemp != NULL)
-        FreeBitMap(data->maptemp);
-    if (data->tmprp != NULL)
-        FreeRastPort(data->tmprp);
-
-    data->buffer = NULL;
-    data->temp = NULL;
-    data->mapbuffer = NULL;
-    data->maptemp = NULL;
-    data->tmprp = NULL;
 
     return DoSuperMethodA(cl, obj, msg);
 }
@@ -694,8 +669,8 @@ IPTR Prop__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 /*
  * Set up Area, register IDCMPUPDATE handler and allocate nonborder gadget
  * ID; choose custom-background thickness when available. Return zero on
- * Area failure, otherwise one. Resets buffer pointers without freeing old
- * allocations; requires paired lifecycle and connected window/preferences.
+ * Area failure, otherwise one. Requires paired lifecycle and connected
+ * window/preferences.
  * Handler/ID results are not validated.
  */
 IPTR Prop__MUIM_Setup(struct IClass *cl, Object *obj,
@@ -707,12 +682,6 @@ IPTR Prop__MUIM_Setup(struct IClass *cl, Object *obj,
         return 0;
 
     DoMethod(_win(obj), MUIM_Window_AddEventHandler, (IPTR) & data->ehn);
-
-    data->buffer = NULL;
-    data->temp = NULL;
-    data->mapbuffer = NULL;
-    data->maptemp = NULL;
-    data->tmprp = NULL;
 
     if (!data->usewinborder)
     {
@@ -776,8 +745,7 @@ IPTR Prop__MUIM_Setup(struct IClass *cl, Object *obj,
 /*
  * Release nonborder gadget ID or clear borrowed border pointer/ID, remove
  * event handler, then return Area Cleanup result. Requires prior Hide and
- * matching Setup. Does not free custom buffers or restore borrowed gadget
- * UserData.
+ * matching Setup. Does not restore borrowed gadget UserData.
  */
 IPTR Prop__MUIM_Cleanup(struct IClass *cl, Object *obj,
     struct MUIP_Cleanup *msg)
@@ -797,356 +765,7 @@ IPTR Prop__MUIM_Cleanup(struct IClass *cl, Object *obj,
     return DoSuperMethodA(cl, obj, (Msg) msg);
 }
 
-#ifdef __AROS__
-/*
- * Blend a source ARGB rectangle into destination pixels, forcing alpha 255.
- * Components use separate right shifts by eight, so this is the implemented
- * approximation, not exact division by 255. Requires valid nonoverlapping
- * image storage and in-bounds rectangles; no clipping, allocation or
- * status.
- */
-void WritePixelArrayAlphaToImage(struct NewImage *in, UWORD sx, UWORD sy,
-    struct NewImage *out, UWORD xp, UWORD yp, UWORD w, UWORD h)
-{
-    ULONG argb, rgb;
-    UBYTE rs, gs, bs, as, rd, gd, bd;
-    UWORD r, g, b;
-    UWORD x, y;
-    for (y = 0; y < h; y++)
-    {
-        for (x = 0; x < w; x++)
-        {
-            argb = in->data[x + sx + (y + sy) * in->w];
 
-            as = GET_A(argb);
-            rs = GET_R(argb);
-            gs = GET_G(argb);
-            bs = GET_B(argb);
-            // as = 255;
-            rgb = out->data[x + xp + (y + yp) * out->w];
-
-            rd = GET_R(rgb);
-            gd = GET_G(rgb);
-            bd = GET_B(rgb);
-
-
-            r = ((rs * as) >> 8) + ((rd * (255 - as)) >> 8);
-            g = ((gs * as) >> 8) + ((gd * (255 - as)) >> 8);
-            b = ((bs * as) >> 8) + ((bd * (255 - as)) >> 8);
-
-            out->data[x + xp + (y + yp) * out->w] = SET_ARGB(255, r, g, b);
-
-        }
-    }
-}
-
-/*
- * Repeat a source strip across dw pixels into optional image and/or
- * RastPort; return final x, or xp when sw/dw is zero. Requires positive
- * strip width for positive destination width and valid image rectangles; sh
- * is unused. Negative sw can prevent progress. No bounds checks or resource
- * transfer; bitmap mask is used when present.
- */
-int WriteTiledImageHorizontal(struct NewImage *dst, struct RastPort *maprp,
-    struct NewImage *ni, int sx, int sy, int sw, int sh, int xp, int yp,
-    int dw, int dh)
-{
-    int w = dw;
-    int x = xp;
-    int ddw;
-    if ((sw == 0) || (dw == 0))
-        return xp;
-
-    while (w > 0)
-    {
-        ddw = sw;
-        if (w < ddw)
-            ddw = w;
-
-        if (dst != NULL)
-            WritePixelArrayAlphaToImage(ni, sx, sy, dst, x, yp, ddw, dh);
-        if ((maprp != NULL) && (ni->bitmap != NULL))
-        {
-            if (ni->mask)
-            {
-                BltMaskBitMapRastPort(ni->bitmap, sx, sy, maprp, x, yp, ddw,
-                    dh, 0xe0, (PLANEPTR) ni->mask);
-            }
-            else
-                BltBitMapRastPort(ni->bitmap, sx, sy, maprp, x, yp, ddw, dh,
-                    0xc0);
-        }
-        w -= ddw;
-        x += ddw;
-    }
-    return x;
-}
-
-/*
- * Repeat source strip down dh pixels into optional image and/or RastPort;
- * return final y, or yp when sh/dh is zero. Requires positive strip height
- * for positive destination height and valid rectangles; sw is unused.
- * Negative sh can prevent progress. No allocation or clipping; uses bitmap
- * mask when present.
- */
-int WriteTiledImageVertical(struct NewImage *dst, struct RastPort *maprp,
-    struct NewImage *ni, int sx, int sy, int sw, int sh, int xp, int yp,
-    int dw, int dh)
-{
-    int h = dh;
-    int y = yp;
-    int ddh;
-    if ((sh == 0) || (dh == 0))
-        return yp;
-    while (h > 0)
-    {
-        ddh = sh;
-        if (h < ddh)
-            ddh = h;
-
-        if (dst != NULL)
-            WritePixelArrayAlphaToImage(ni, sx, sy, dst, xp, y, dw, ddh);
-        if ((maprp != NULL) && (ni->bitmap != NULL))
-        {
-            if (ni->mask)
-            {
-                BltMaskBitMapRastPort(ni->bitmap, sx, sy, maprp, xp, y, dw,
-                    ddh, 0xe0, (PLANEPTR) ni->mask);
-            }
-            else
-                BltBitMapRastPort(ni->bitmap, sx, sy, maprp, xp, y, dw, ddh,
-                    0xc0);
-        }
-        h -= ddh;
-        y += ddh;
-    }
-    return y;
-}
-
-#endif
-
-#ifdef __AROS__
-/*
- * AROS-only private display hook handles WDM_DRAW_BORDERPROPKNOB using
- * borrowed skin images and window geometry. Restore saved background into
- * temporary buffers, tile container/knob for state, then copy to window
- * RastPort. Requires complete valid paired buffers, skin slices and in-
- * bounds geometry; no validation or result. Other methods do nothing; never
- * retain the borrowed message.
- */
-AROS_UFH3
-    (void, CustomPropRenderFunc,
-    AROS_UFHA(struct Hook *, h, A0),
-    AROS_UFHA(Object *, obj, A2),
-    AROS_UFHA(struct wdpDrawBorderPropKnob *, msg, A1))
-{
-    AROS_USERFUNC_INIT
-
-    struct Prop_DATA *node = h->h_Data;
-    struct dt_node *data = node->node;
-
-    if (msg->MethodID == WDM_DRAW_BORDERPROPKNOB)
-    {
-        struct Window *window = msg->wdp_Window;
-        struct NewImage *temp;
-        struct RastPort *winrp = msg->wdp_RPort;
-        struct RastPort *maprp;
-        struct Gadget *gadget = msg->wdp_Gadget;
-        struct Rectangle *r = msg->wdp_RenderRect;
-        struct PropInfo *pi = ((struct PropInfo *)gadget->SpecialInfo);
-        BOOL hit = (msg->wdp_Flags & WDF_DBPK_HIT) ? TRUE : FALSE;
-        ULONG y, x;
-        int size, is, pos;
-        UWORD MinX, MinY, MaxX, MaxY, StartX, StartY;
-
-
-        int i;
-
-        temp = node->temp;
-        maprp = node->tmprp;
-
-        if (node->buffer)
-            for (i = 0; i < (node->buffer->w * node->buffer->h); i++)
-                node->temp->data[i] = node->buffer->data[i];
-        if (node->mapbuffer)
-            BltBitMap(node->mapbuffer, 0, 0, node->maptemp, 0, 0,
-                node->propwidth, node->propheight, 0xc0, 0xff, NULL);
-
-
-        r = msg->wdp_PropRect;
-        StartX = r->MinX;
-        StartY = r->MinY;
-        MinX = 0;
-        MinY = 0;
-        MaxX = r->MaxX - r->MinX;
-        MaxY = r->MaxY - r->MinY;
-
-        if ((pi->Flags & FREEVERT) != 0)
-        {
-            is = data->img_verticalcontainer->w >> 1;
-            if (window->Flags & WFLG_WINDOWACTIVE)
-                pos = 0;
-            else
-                pos = is;
-            y = MinY;
-            size =
-                MaxY - MinY - data->ContainerTop_s -
-                data->ContainerBottom_s + 1;
-            y = WriteTiledImageVertical(temp, maprp,
-                data->img_verticalcontainer, pos, data->ContainerTop_o, is,
-                data->ContainerTop_s, MinX, y, is, data->ContainerTop_s);
-            if (size > 0)
-                y = WriteTiledImageVertical(temp, maprp,
-                    data->img_verticalcontainer, pos,
-                    data->ContainerVertTile_o, is,
-                    data->ContainerVertTile_s, MinX, y, is, size);
-            y = WriteTiledImageVertical(temp, maprp,
-                data->img_verticalcontainer, pos, data->ContainerBottom_o,
-                is, data->ContainerBottom_s, MinX, y, is,
-                data->ContainerBottom_s);
-        }
-        else if ((pi->Flags & FREEHORIZ) != 0)
-        {
-            is = data->img_horizontalcontainer->h >> 1;
-            if (window->Flags & WFLG_WINDOWACTIVE)
-                pos = 0;
-            else
-                pos = is;
-            x = MinX;
-            size =
-                MaxX - MinX - data->ContainerLeft_s -
-                data->ContainerRight_s + 1;
-            x = WriteTiledImageHorizontal(temp, maprp,
-                data->img_horizontalcontainer, data->ContainerLeft_o, pos,
-                data->ContainerLeft_s, is, x, MinY, data->ContainerLeft_s,
-                is);
-            if (size > 0)
-                x = WriteTiledImageHorizontal(temp, maprp,
-                    data->img_horizontalcontainer, data->ContainerHorTile_o,
-                    pos, data->ContainerHorTile_s, is, x, MinY, size, is);
-            x = WriteTiledImageHorizontal(temp, maprp,
-                data->img_horizontalcontainer, data->ContainerRight_o, pos,
-                data->ContainerRight_s, is, x, MinY, data->ContainerRight_s,
-                is);
-        }
-
-        r = msg->wdp_RenderRect;
-        MinX = r->MinX - StartX;
-        MinY = r->MinY - StartY;
-        MaxX = r->MaxX - StartX;
-        MaxY = r->MaxY - StartY;
-
-        if ((pi->Flags & FREEVERT) != 0)
-        {
-            is = data->img_verticalknob->w / 3;
-            if (hit)
-                pos = is;
-            else if (window->Flags & WFLG_WINDOWACTIVE)
-                pos = 0;
-            else
-                pos = is * 2;
-            y = MinY;
-            size = MaxY - MinY - data->KnobTop_s - data->KnobBottom_s + 1;
-            y = WriteTiledImageVertical(temp, maprp, data->img_verticalknob,
-                pos, data->KnobTop_o, is, data->KnobTop_s, MinX, y, is,
-                data->KnobTop_s);
-            if (size > 0)
-            {
-                if (size > data->KnobVertGripper_s)
-                {
-                    size = size - data->KnobVertGripper_s;
-                    int size_bak = size;
-                    size = size / 2;
-                    if (size > 0)
-                        y = WriteTiledImageVertical(temp, maprp,
-                            data->img_verticalknob, pos,
-                            data->KnobTileTop_o, is, data->KnobTileTop_s,
-                            MinX, y, is, size);
-                    y = WriteTiledImageVertical(temp, maprp,
-                        data->img_verticalknob, pos,
-                        data->KnobVertGripper_o, is,
-                        data->KnobVertGripper_s, MinX, y, is,
-                        data->KnobVertGripper_s);
-                    size = size_bak - size;
-                    if (size > 0)
-                        y = WriteTiledImageVertical(temp, maprp,
-                            data->img_verticalknob, pos,
-                            data->KnobTileBottom_o, is,
-                            data->KnobTileBottom_s, MinX, y, is, size);
-                }
-                else
-                {
-                    y = WriteTiledImageVertical(temp, maprp,
-                        data->img_verticalknob, pos, data->KnobTileTop_o,
-                        is, data->KnobTileTop_s, MinX, y, is, size);
-                }
-            }
-            y = WriteTiledImageVertical(temp, maprp, data->img_verticalknob,
-                pos, data->KnobBottom_o, is, data->KnobBottom_s, MinX, y,
-                is, data->KnobBottom_s);
-        }
-        else if ((pi->Flags & FREEHORIZ) != 0)
-        {
-            is = data->img_horizontalknob->h / 3;
-            if (hit)
-                pos = is;
-            else if (window->Flags & WFLG_WINDOWACTIVE)
-                pos = 0;
-            else
-                pos = is * 2;
-            x = MinX;
-            size = MaxX - MinX - data->KnobLeft_s - data->KnobRight_s + 1;
-            x = WriteTiledImageHorizontal(temp, maprp,
-                data->img_horizontalknob, data->KnobLeft_o, pos,
-                data->KnobLeft_s, is, x, MinY, data->KnobLeft_s, is);
-            if (size > 0)
-            {
-                if (size > data->KnobHorGripper_s)
-                {
-                    size = size - data->KnobHorGripper_s;
-                    int size_bak = size;
-                    size = size / 2;
-                    if (size > 0)
-                        x = WriteTiledImageHorizontal(temp, maprp,
-                            data->img_horizontalknob, data->KnobTileLeft_o,
-                            pos, data->KnobTileLeft_s, is, x, MinY, size,
-                            is);
-                    x = WriteTiledImageHorizontal(temp, maprp,
-                        data->img_horizontalknob, data->KnobHorGripper_o,
-                        pos, data->KnobHorGripper_s, is, x, MinY,
-                        data->KnobHorGripper_s, is);
-                    size = size_bak - size;
-                    if (size > 0)
-                        x = WriteTiledImageHorizontal(temp, maprp,
-                            data->img_horizontalknob, data->KnobTileRight_o,
-                            pos, data->KnobTileRight_s, is, x, MinY, size,
-                            is);
-                }
-                else
-                {
-                    x = WriteTiledImageHorizontal(temp, maprp,
-                        data->img_horizontalknob, data->KnobTileRight_o,
-                        pos, data->KnobTileRight_s, is, x, MinY, size, is);
-                }
-            }
-            x = WriteTiledImageHorizontal(temp, maprp,
-                data->img_horizontalknob, data->KnobRight_o, pos,
-                data->KnobRight_s, is, x, MinY, data->KnobRight_s, is);
-        }
-
-        if (node->temp)
-            WritePixelArray(node->temp->data, 0, 0, node->temp->w * 4,
-                winrp, _left(node->obj), _top(node->obj), node->temp->w,
-                node->temp->h, RECTFMT_ARGB);
-        if (node->maptemp)
-            BltBitMapRastPort(node->maptemp, 0, 0, winrp, _left(node->obj),
-                _top(node->obj), node->propwidth, node->propheight, 0xc0);
-
-    }
-
-    AROS_USERFUNC_EXIT
-}
-#endif
 
 /*
  * Call Area Show then create/replace owned nonborder gadget only if fully
@@ -1157,15 +776,8 @@ AROS_UFH3
 IPTR Prop__MUIM_Show(struct IClass *cl, Object *obj, struct MUIP_Show *msg)
 {
     struct Prop_DATA *data = INST_DATA(cl, obj);
-#ifdef __AROS__
-    struct MUI_AreaData *adata = muiAreaData(obj);
-    struct MUI_ImageSpec_intern *spec = adata->mad_Background;
-#endif
 
     ULONG rc = DoSuperMethodA(cl, obj, (Msg) msg);
-#ifdef __AROS__
-    data->dhook.h_Entry = (HOOKFUNC) CustomPropRenderFunc;
-#endif
     if (!data->usewinborder)
     {
         BOOL isnewlook, completely_visible = TRUE;;
@@ -1211,102 +823,6 @@ IPTR Prop__MUIM_Show(struct IClass *cl, Object *obj, struct MUIP_Show *msg)
 
             ULONG width = _mwidth(obj);
             ULONG height = _mheight(obj);
-#ifdef __AROS__
-            struct Hook *dhook = NULL;
-
-            ULONG depth =
-                (ULONG) GetBitMapAttr(_window(obj)->RPort->BitMap,
-                BMA_DEPTH);
-            if (muiGlobalInfo(obj)->mgi_Prefs->scrollbar_type ==
-                SCROLLBAR_TYPE_CUSTOM)
-            {
-                if (spec)
-                {
-                    if (spec->type == IST_BITMAP)
-                    {
-                        struct dt_node *node = spec->u.bitmap.dt;
-                        if (node)
-                        {
-                            if (node->mode == MODE_PROP)
-                            {
-                                data->dhook.h_Entry =
-                                    (HOOKFUNC) CustomPropRenderFunc;
-                                data->node = node;
-                                data->dhook.h_Data = data;
-                                data->obj = obj;
-                                dhook = &data->dhook;
-
-                                if (data->horiz)
-                                    height =
-                                        node->img_horizontalcontainer->
-                                        h >> 1;
-                                else
-                                    width =
-                                        node->img_verticalcontainer->w >> 1;
-                                DisposeImageContainer(data->buffer);
-                                DisposeImageContainer(data->temp);
-                                data->propwidth = width;
-                                data->propheight = height;
-                                if (data->mapbuffer)
-                                    FreeBitMap(data->mapbuffer);
-                                if (data->maptemp)
-                                    FreeBitMap(data->maptemp);
-                                if (depth >= 15)
-                                {
-                                    data->buffer =
-                                        NewImageContainer(width, height);
-                                    data->temp =
-                                        NewImageContainer(width, height);
-                                    data->mapbuffer = NULL;
-                                    data->maptemp = NULL;
-                                    if ((data->buffer == NULL)
-                                        || (data->temp == NULL))
-                                    {
-                                        dhook = NULL;
-                                        DisposeImageContainer(data->buffer);
-                                        DisposeImageContainer(data->temp);
-                                        data->buffer = NULL;
-                                        data->temp = NULL;
-                                    }
-                                }
-                                else
-                                {
-                                    data->temp = NULL;
-                                    data->buffer = NULL;
-                                    data->tmprp = NULL;
-                                    data->mapbuffer =
-                                        AllocBitMap(width, height, 1,
-                                        BMF_MINPLANES,
-                                        _window(obj)->RPort->BitMap);
-                                    data->maptemp =
-                                        AllocBitMap(width, height, 1,
-                                        BMF_MINPLANES,
-                                        _window(obj)->RPort->BitMap);
-                                    data->tmprp = CreateRastPort();
-                                    if ((data->mapbuffer == NULL)
-                                        || (data->maptemp == NULL)
-                                        || (data->tmprp == NULL))
-                                    {
-                                        dhook = NULL;
-                                        if (data->mapbuffer)
-                                            FreeBitMap(data->mapbuffer);
-                                        if (data->maptemp)
-                                            FreeBitMap(data->maptemp);
-                                        if (data->tmprp)
-                                            FreeRastPort(data->tmprp);
-                                        data->mapbuffer = NULL;
-                                        data->maptemp = NULL;
-                                        data->tmprp = NULL;
-                                    }
-                                    else
-                                        data->tmprp->BitMap = data->maptemp;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-#endif
 
             if (data->prop_object)
             {
@@ -1320,10 +836,6 @@ IPTR Prop__MUIM_Show(struct IClass *cl, Object *obj, struct MUIP_Show *msg)
                         GA_Top, _mtop(obj),
                         GA_Width, width,
                         GA_Height, height, GA_ID, data->gadgetid,
-#ifdef __AROS__
-                        /* custom prop gadget implementation (not finished) */
-                        PGA_DisplayHook, dhook,
-#endif
                         PGA_Freedom, data->horiz ? FREEHORIZ : FREEVERT,
                         PGA_Total, downscale(data, data->entries),
                         PGA_Visible, downscale(data, data->visible),
@@ -1408,29 +920,6 @@ IPTR Prop__MUIM_Draw(struct IClass *cl, Object *obj,
     if (!(msg->flags & MADF_DRAWOBJECT))
         return 1;
 
-    if (data->buffer || data->mapbuffer)
-    {
-//       Object *p = NULL;
-//         get(obj, MUIA_Parent, &p);
-        //if (p)
-        //    DoMethod(p, MUIM_DrawParentBackground, _left(obj), _top(obj),
-        //    _width(obj), _height(obj), _left(obj), _top(obj), 0);
-        //else
-        DoMethod(obj, MUIM_DrawParentBackground, _left(obj), _top(obj),
-            _width(obj), _height(obj), _left(obj), _top(obj), 0);
-
-        if (data->buffer)
-            ReadPixelArray(data->buffer->data, 0, 0, data->buffer->w * 4,
-                _rp(data->obj), _mleft(data->obj), _mtop(data->obj),
-                data->buffer->w, data->buffer->h, RECTFMT_ARGB);
-        if (data->mapbuffer)
-            BltBitMap(_window(data->obj)->RPort->BitMap,
-                _window(data->obj)->LeftEdge + _mleft(data->obj),
-                _window(data->obj)->TopEdge + _mtop(data->obj),
-                data->mapbuffer, 0, 0, data->propwidth, data->propheight,
-                0xc0, 0xff, NULL);
-    }
-
     if (data->prop_object)
         RefreshGList((struct Gadget *)data->prop_object, _window(obj), NULL,
             1);
@@ -1440,8 +929,7 @@ IPTR Prop__MUIM_Draw(struct IClass *cl, Object *obj,
 /*
  * Remove and dispose only owned nonborder gadget, clearing its pointer,
  * then return Area Hide result. Requires live window and shown state.
- * Borrowed border gadget and custom buffers remain; Cleanup is still
- * required.
+ * Borrowed border gadget remains; Cleanup is still required.
  */
 IPTR Prop__MUIM_Hide(struct IClass *cl, Object *obj,
     struct MUIP_Hide *msg)
