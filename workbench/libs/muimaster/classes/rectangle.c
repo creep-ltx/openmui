@@ -175,9 +175,11 @@ struct Rectangle_DATA
  * to (x2, y2). Leaves the shine pen set and the pen at the second line's
  * end, as the lines drawn one by one did.
  */
-static __attribute__((noinline)) void bar_lines(struct RastPort *rp,
-    const UWORD *pens, LONG x1, LONG y1, LONG x2, LONG y2)
+static __attribute__((noinline)) void bar_lines(Object *obj,
+    LONG x1, LONG y1, LONG x2, LONG y2)
 {
+    struct RastPort *rp = _rp(obj);
+    const UWORD *pens = _pens(obj);
     LONG dx = x1 == x2, dy = !dx;
 
     SetAPen(rp, pens[MPEN_SHADOW]);
@@ -200,6 +202,77 @@ static __attribute__((noinline)) void Rectangle_SetTitle(
             MEMF_CLEAR)))
         strcpy(t->text, title);
     data->title = (data->title & 3) | (IPTR) t;
+}
+
+/* A bar title, centred, over a horizontal bar's two lines left and right
+ * of it (a vertical bar with a title draws the title alone). Tail-called
+ * from Draw: its frame is not added to Draw's. */
+static __attribute__((noinline, noipa)) IPTR rect_title(Object *obj,
+    struct RectTitle *title, int type)
+{
+    ZText *zt = title->ztext;
+    int color = muiGlobalInfo(obj)->mgi_Prefs->group_title_color;
+    LONG d3 = color == GROUP_TITLE_COLOR_3D;
+    LONG x1 = _mleft(obj) + (_mwidth(obj) - (zt->width + d3)) / 2 - d3;
+    LONG x2 = x1 + zt->width + d3;
+    LONG yt = _mtop(obj) + (_mheight(obj) - (zt->height + d3)) / 2;
+
+    SetAPen(_rp(obj), _pens(obj)[MPEN_SHADOW]);
+    if (d3)
+    {
+        /* the shadow one pixel down and right, the shine over it */
+        zune_text_draw(zt, obj, x1 + 1, x2, yt + 1);
+        SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
+    }
+    else if (color == GROUP_TITLE_COLOR_HILITE)
+        SetAPen(_rp(obj), _pens(obj)[MPEN_SHINE]);
+    zune_text_draw(zt, obj, x1, x2 - 1, yt);
+
+    if (type == RECTANGLE_TYPE_HBAR && (x1 - 2) > _mleft(obj)
+        && (x2 + 2) < _mright(obj))
+    {
+        yt += zt->height / 2;
+        bar_lines(obj, _mleft(obj), yt, x1 - 3 + d3, yt);
+        bar_lines(obj, x2 + 2 + d3, yt, _mright(obj), yt);
+    }
+    return TRUE;
+}
+
+/* A bar without a title: two lines across the middle. Tail-called from
+ * Draw. */
+static __attribute__((noinline, noipa)) IPTR rect_bar(Object *obj, int type)
+{
+    struct RastPort *rp = _rp(obj);
+    LONG t = _mtop(obj);
+
+    if (type == RECTANGLE_TYPE_HBAR)
+    {
+        LONG y = t + _mheight(obj) / 2 - 1;
+
+        bar_lines(obj, _mleft(obj), y, _mright(obj), y);
+    }
+    else if (type == RECTANGLE_TYPE_VBAR)
+    {
+        /* with thick frames MUI 3.8 doubles both lines, like the
+         * sides of a frame, also on a bar narrower than the four
+         * pixels (demopix: MUIO_VBar 1 and 2 in the Menus and Subtask
+         * demos) */
+        LONG x = _mleft(obj) + _mwidth(obj) / 2 - 1, b = _mbottom(obj);
+
+        if (!(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
+            && ZUNE_APP_MUI38(obj))
+        {
+            SetAPen(rp, _pens(obj)[MPEN_SHADOW]);
+            Move(rp, x - 1, t);
+            Draw(rp, x - 1, b);
+            bar_lines(obj, x, t, x, b);
+            Move(rp, x + 2, t);
+            Draw(rp, x + 2, b);
+        }
+        else
+            bar_lines(obj, x, t, x, b);
+    }
+    return TRUE;
 }
 
 /*
@@ -362,7 +435,6 @@ IPTR Rectangle__MUIM_Cleanup(struct IClass *cl, Object *obj,
 IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
-    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct Rectangle_DATA *data = INST_DATA(cl, obj);
 
     /*
@@ -378,18 +450,18 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
 
     if (!RECT_TITLE(data))
     {
-/*          mm->MinWidth += 1; */
-/*          mm->MinHeight += 1;             */
+/*          msg->MinMaxInfo->MinWidth += 1; */
+/*          msg->MinMaxInfo->MinHeight += 1;             */
         /* MUI 3.9 makes both kinds of bar at least 2x2; MUI 3.8 with
          * thick frames 4x2, also MUIO_VBar 1 or 2 (demopix: the Menus and
          * Subtask demos, measured with tests/lean/probe/objdump.c) */
         if (RECT_TYPE(data) == RECTANGLE_TYPE_HBAR
             || RECT_TYPE(data) == RECTANGLE_TYPE_VBAR)
         {
-            mm->MinWidth +=
+            msg->MinMaxInfo->MinWidth +=
                 !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
                 && ZUNE_APP_MUI38(obj) ? 4 : 2;
-            mm->MinHeight += 2;
+            msg->MinMaxInfo->MinHeight += 2;
         }
     }
     else
@@ -402,28 +474,28 @@ IPTR Rectangle__MUIM_AskMinMax(struct IClass *cl, Object *obj,
          * tests/lean/probe/bars.c on MUI 5 and MUI 3.8 side by side) */
         if (ZUNE_APP_MUI45(obj))
         {
-            mm->MinWidth += RECT_TITLE(data)->ztext->width + 4;
-            mm->MinHeight += RECT_TITLE(data)->ztext->height;
+            msg->MinMaxInfo->MinWidth += RECT_TITLE(data)->ztext->width + 4;
+            msg->MinMaxInfo->MinHeight += RECT_TITLE(data)->ztext->height;
         }
         else
         {
-            mm->MinWidth += RECT_TITLE(data)->ztext->width + 12;
-            mm->MinHeight += RECT_TITLE(data)->ztext->height + 1;
+            msg->MinMaxInfo->MinWidth += RECT_TITLE(data)->ztext->width + 12;
+            msg->MinMaxInfo->MinHeight += RECT_TITLE(data)->ztext->height + 1;
         }
         D(bug("rect: minheight %ld\n", RECT_TITLE(data)->ztext->height));
         if (muiGlobalInfo(obj)->mgi_Prefs->group_title_color ==
             GROUP_TITLE_COLOR_3D)
         {
-            mm->MinWidth += 1;
-            mm->MinHeight += 1;
+            msg->MinMaxInfo->MinWidth += 1;
+            msg->MinMaxInfo->MinHeight += 1;
         }
     }
 
-    mm->DefWidth = mm->MinWidth;
-    mm->DefHeight = mm->MinHeight;
+    msg->MinMaxInfo->DefWidth = msg->MinMaxInfo->MinWidth;
+    msg->MinMaxInfo->DefHeight = msg->MinMaxInfo->MinHeight;
 
-    mm->MaxWidth = MUI_MAXMAX;
-    mm->MaxHeight = MUI_MAXMAX;
+    msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
+    msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
 
     return TRUE;
 }
@@ -474,71 +546,10 @@ IPTR Rectangle__MUIM_Draw(struct IClass *cl, Object *obj,
     if (_mwidth(obj) < 1 || _mheight(obj) < 1)
         return TRUE;
 
-    {
-        struct RectTitle *title = RECT_TITLE(data);
-        int type = RECT_TYPE(data);
-        struct RastPort *rp = _rp(obj);
-        const UWORD *pens = _pens(obj);
-        LONG l = _mleft(obj), t = _mtop(obj), r = _mright(obj);
-
-        if (title)
-        {
-            ZText *zt = title->ztext;
-            int color = muiGlobalInfo(obj)->mgi_Prefs->group_title_color;
-            int d3 = color == GROUP_TITLE_COLOR_3D;
-            LONG tw = zt->width + d3, th = zt->height + d3;
-            LONG x1 = l + (_mwidth(obj) - tw) / 2 - d3, x2 = x1 + tw;
-            LONG yt = t + (_mheight(obj) - th) / 2;
-
-            SetAPen(rp, pens[MPEN_SHADOW]);
-            if (d3)
-            {
-                /* the shadow one pixel down and right, the shine over it */
-                zune_text_draw(zt, obj, x1 + 1, x2, yt + 1);
-                SetAPen(rp, pens[MPEN_SHINE]);
-            }
-            else if (color == GROUP_TITLE_COLOR_HILITE)
-                SetAPen(rp, pens[MPEN_SHINE]);
-            zune_text_draw(zt, obj, x1, x2 - 1, yt);
-
-            if (type == RECTANGLE_TYPE_HBAR
-                && (x1 - 2) > l && (x2 + 2) < r)
-            {
-                LONG y = yt + zt->height / 2;
-
-                bar_lines(rp, pens, l, y, x1 - 3 + d3, y);
-                bar_lines(rp, pens, x2 + 2 + d3, y, r, y);
-            }
-        }
-        else if (type == RECTANGLE_TYPE_HBAR)
-        {
-            LONG y = t + _mheight(obj) / 2 - 1;
-
-            bar_lines(rp, pens, l, y, r, y);
-        }
-        else if (type == RECTANGLE_TYPE_VBAR)
-        {
-            /* with thick frames MUI 3.8 doubles both lines, like the
-             * sides of a frame, also on a bar narrower than the four
-             * pixels (demopix: MUIO_VBar 1 and 2 in the Menus and Subtask
-             * demos) */
-            int thick = !(muiRenderInfo(obj)->mri_Flags & MUIMRI_THINFRAMES)
-                && ZUNE_APP_MUI38(obj);
-            LONG x = l + _mwidth(obj) / 2 - 1, b = _mbottom(obj);
-
-            if (thick)
-            {
-                SetAPen(rp, pens[MPEN_SHADOW]);
-                Move(rp, x - 1, t);
-                Draw(rp, x - 1, b);
-                bar_lines(rp, pens, x, t, x, b);
-                Move(rp, x + 2, t);
-                Draw(rp, x + 2, b);
-            }
-            else
-                bar_lines(rp, pens, x, t, x, b);
-        }
-    }
+    if (RECT_TITLE(data))
+        return rect_title(obj, RECT_TITLE(data), RECT_TYPE(data));
+    if (RECT_TYPE(data))
+        return rect_bar(obj, RECT_TYPE(data));
     return TRUE;
 }
 

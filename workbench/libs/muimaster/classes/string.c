@@ -1098,31 +1098,30 @@ IPTR String__MUIM_Cleanup(struct IClass *cl, Object *obj,
 IPTR String__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
-    struct MUI_MinMax *mm = msg->MinMaxInfo;
     struct MUI_StringData *data = INST_DATA(cl, obj);
 
     DoSuperMethodA(cl, obj, (Msg) msg);
 
     if (data->Columns >= 0)
     {
-        mm->MinWidth += _font(obj)->tf_XSize * data->Columns;
-        mm->DefWidth += _font(obj)->tf_XSize * data->Columns;
-        mm->MaxWidth += _font(obj)->tf_XSize * data->Columns;
+        msg->MinMaxInfo->MinWidth += _font(obj)->tf_XSize * data->Columns;
+        msg->MinMaxInfo->DefWidth += _font(obj)->tf_XSize * data->Columns;
+        msg->MinMaxInfo->MaxWidth += _font(obj)->tf_XSize * data->Columns;
     }
     else
     {
         /* MUI 3.8/3.9 use fixed content widths, independent of font */
-        mm->MinWidth += 20;
-        mm->DefWidth += 100;
-        mm->MaxWidth = MUI_MAXMAX;
+        msg->MinMaxInfo->MinWidth += 20;
+        msg->MinMaxInfo->DefWidth += 100;
+        msg->MinMaxInfo->MaxWidth = MUI_MAXMAX;
     }
 
-    mm->MinHeight += _font(obj)->tf_YSize;
-    mm->DefHeight += _font(obj)->tf_YSize;
-    mm->MaxHeight += _font(obj)->tf_YSize;
+    msg->MinMaxInfo->MinHeight += _font(obj)->tf_YSize;
+    msg->MinMaxInfo->DefHeight += _font(obj)->tf_YSize;
+    msg->MinMaxInfo->MaxHeight += _font(obj)->tf_YSize;
     /* Textinputscroll subclasses add rows on top of this */
     if (MULTILINE(data))
-        mm->MaxHeight = MUI_MAXMAX;
+        msg->MinMaxInfo->MaxHeight = MUI_MAXMAX;
     return TRUE;
 }
 
