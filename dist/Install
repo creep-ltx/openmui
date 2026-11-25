@@ -17,9 +17,8 @@
 ; - installs a bundled MUI class only when the user has no newer one of
 ;   their own (in any LIBS:MUI drawer but MUI's own; classes of a real MUI
 ;   are written for that MUI and are not used by OpenMUI);
-;   Spot's UP-MCC is not bundled (available separately from its author); an
-;   update from 1.0, which did bundle it, leaves its files in place: they
-;   are the user's own now (Tools/OpenMUISwitch skips them in 1.0's record);
+;   an update from 1.0, which bundled Spot's UP-MCC, leaves its files in
+;   place: they are the user's own now (Tools/OpenMUISwitch skips them in 1.0's record);
 ; - an earlier OpenMUI installation is removed first (its backups put
 ;   back), so that an update starts from the user's own files; the
 ;   settings (ENVARC:OpenMUI, ENV:OpenMUI) are kept;

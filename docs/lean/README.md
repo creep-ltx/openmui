@@ -5569,7 +5569,7 @@ eed8b621 after the suite had found Haracz (the figures here are the second run's
 
 ## Left open
 
-- **UP-MCC no longer bundled (2026-11-25)**: OpenMUI 1.1 does not ship Spot's UP-MCC (branch `noupmcc`); Spot releases it separately. Everything below about the bundled UP-MCC is history. Updates from 1.0 leave UP-MCC's files in place (OpenMUISwitch 1.4 skips them in 1.0's record). The compatibility fixes and the `up-demo` suite entry stay.
+- **UP-MCC no longer bundled (2026-11-25)**: OpenMUI 1.1 does not ship Spot's UP-MCC (branch `noupmcc`). Everything below about the bundled UP-MCC is history. Updates from 1.0 leave UP-MCC's files in place (OpenMUISwitch 1.4 skips them in 1.0's record). The compatibility fixes and the `up-demo` suite entry stay.
 
 - **UP-MCC's settings page (2026-11-24)** is not shown: UP-MCC.mcp 1.0 is version 1 and, like MUI
   3.8 and MUI 5, the preferences list a settings class from version 11 on. Its page waits forever on

@@ -77,9 +77,8 @@ Then it installs:
 - **Bundled classes** (NList, NListtree, TextEditor, TheBar and others) are
   installed only when you do not have the same or a newer version in a
   `LIBS:MUI` drawer. An older one of yours goes to the backup.
-  UP-MCC is available separately from its author (github.com/spotUP/selecta).
-  Updating from 1.0, which bundled it, leaves any installed UP-MCC files in
-  place (Uninstall leaves them too).
+  Updating from 1.0 leaves any UP-MCC files it installed in place (Uninstall
+  leaves them too).
 - **A real MUI's own classes** (in `MUI:Libs/mui`) belong to that MUI. OpenMUI
   does not use them and does not touch them. It uses its own copies.
 - **Your settings are kept.** MUI's settings (`ENVARC:MUI`) are not read or

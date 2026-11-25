@@ -28,8 +28,6 @@ Contents
   settings.
 - [PLUGINS] bundled MUI classes with their preference pages: NList,
   NListtree, TextEditor, BetterString, TheBar, Busy, Listtree and others.
-- UP-MCC is available separately from its author (github.com/spotUP/selecta). Updating from 1.0, which
-  bundled it, leaves its installed files in place.
 - Swedish catalogs, an SDK with examples, the user guide, developer guide,
   programmer reference and changelog (Docs/OpenMUI), and the full source.
 

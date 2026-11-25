@@ -62,8 +62,6 @@ Bundled MUI classes (NList, TextEditor, TheBar and others) are
 installed only when no same or newer version is in a LIBS:MUI drawer; an
 older one is kept in the backup. Classes of a real MUI (MUI:Libs/mui)
 belong to that MUI and are not used by OpenMUI, which has its own copies.
-UP-MCC is available separately from its author (github.com/spotUP/selecta).
-Updating from 1.0, which bundled it, leaves any installed UP-MCC files in place.
 The last installer page lists what was done with each.
 
 Running Install again offers "Install this version over it" (an update:

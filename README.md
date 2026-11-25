@@ -129,9 +129,6 @@ behaviour):
   settings.
 - **Bundled MUI classes** with their preference pages: NList, NListtree,
   TextEditor, BetterString, TheBar, Busy, Listtree and others.
-  [UP-MCC](https://github.com/spotUP/selecta) is available separately from its
-  author; updating from 1.0, which bundled it, leaves its installed files in
-  place.
 - **Installer** that leaves a real MUI alone, keeps every file it replaces and
   provides *Use real MUI*, *Use OpenMUI* and *Uninstall* in `SYS:OpenMUI`.
 - Swedish catalogs, an SDK with examples, the programmer reference and the

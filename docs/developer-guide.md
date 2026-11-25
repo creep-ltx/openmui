@@ -14,7 +14,7 @@ with MUI's programming interface.
 ## What OpenMUI supports
 
 OpenMUI is one library, `muimaster.library`, plus class files in
-`LIBS:OpenMUI` and bundled add-on classes in `LIBS:MUI` (UP-MCC is available separately from its author (github.com/spotUP/selecta).). It implements MUI's
+`LIBS:OpenMUI` and bundled add-on classes in `LIBS:MUI`. It implements MUI's
 public programming interface: the built-in classes (Notify, Family,
 Application, Window, Area, Rectangle, Group, Image, Text, String, List,
 Listview, Numeric, Slider, Prop, Scrollbar, Cycle, Radio, Popstring and the
