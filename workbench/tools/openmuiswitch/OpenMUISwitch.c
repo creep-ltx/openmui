@@ -14,6 +14,11 @@
  *   BACKUP <name>       <home>/Data/Backup/<name>
  *   DIR <path>          a drawer the installer made
  *
+ * Spot's UP-MCC: the 1.0 edition bundled it and wrote its files into the
+ * record. They are the user's own now (UP-MCC is released separately):
+ * read_manifest() leaves them out, so that neither Uninstall, an update nor
+ * the switch touches them.
+ *
  * MUI:     every OpenMUI file in the LIBS directory (muimaster.library,
  *          LIBS:OpenMUI/..., the classes in LIBS:MUI; zunemaster.library and
  *          LIBS:Zune/... in an earlier edition's record) is moved to
@@ -94,7 +99,7 @@ static int Strnicmp(const char *a, const char *b, int n)
 
 #define Stricmp(a, b) Strnicmp((const char *)(a), (const char *)(b), 0x7fff)
 
-static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.3 (24.11.2026) OpenMUI 1.0";
+static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.4 (25.11.2026) OpenMUI 1.0";
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;
@@ -426,12 +431,59 @@ static char *dupstr(const char *s, int len)
     return d;
 }
 
+/* Does the path belong to Spot's UP-MCC (bundled by 1.0 only)? Its files
+ * are the user's now: UP-*.mcc, UP-MCC.mcp, up-mcc.library, the Inter font,
+ * the UP-MCC drawers (themes, Docs/UP-MCC) and its SDK headers. */
+static BOOL is_upmcc(const char *path)
+{
+    const char *base = path, *c;
+    int n = strlen(path), i;
+
+    for (c = path; *c; c++)
+        if (*c == '/' || *c == ':')
+            base = c + 1;
+    for (i = 0; i + 6 <= n; i++)
+        if (!Strnicmp(path + i, "UP-MCC", 6)
+            && (i == 0 || path[i - 1] == '/' || path[i - 1] == ':')
+            && (path[i + 6] == 0 || path[i + 6] == '/' || path[i + 6] == '.'))
+            return TRUE;
+    if (!Strnicmp(base, "UP-", 3) || !Strnicmp(base, "up_mcc", 6)
+        || !Strnicmp(base, "up-mcc", 6) || !Stricmp(base, "Inter-Regular.ttf"))
+        return TRUE;
+    for (i = 0; i + 9 <= n; i++)
+        if (!Strnicmp(path + i, "/include/", 9))
+        {
+            const char *r = path + i + 9;
+
+            if (!Strnicmp(r, "mcc/up", 6) || !Strnicmp(r, "selecta", 7))
+                return TRUE;
+        }
+    return FALSE;
+}
+
+/* A NEW, REPLACED or DIR line of an UP-MCC file. Not BACKUP lines: they
+ * name files in Data/Backup, and a REPLACED one skipped here takes its
+ * BACKUP line (the user's older file, theirs again) with it, ignored. */
+static BOOL is_upmcc_line(const char *line, int len)
+{
+    char tmp[PATHLEN];
+    int skip = !strncmp(line, "NEW ", 4) ? 4 : !strncmp(line, "DIR ", 4) ? 4
+        : !strncmp(line, "REPLACED ", 9) ? 9 : 0;
+
+    if (!skip || len - skip >= PATHLEN)
+        return FALSE;
+    memcpy(tmp, line + skip, len - skip);
+    tmp[len - skip] = 0;
+    return is_upmcc(tmp);
+}
+
 static BOOL read_manifest(void)
 {
     char path[PATHLEN], *line, *end;
     BPTR fh;
     LONG size;
     struct FileInfoBlock *fib;
+    BOOL skipped = FALSE;
 
     join(path, home, "Data/Manifest");
     if (!(fh = Open((STRPTR)path, MODE_OLDFILE)))
@@ -464,8 +516,12 @@ static BOOL read_manifest(void)
             len--;
         if (*end)
             end++;
+        if (strncmp(line, "BACKUP ", 7))
+            skipped = FALSE;
         if (len > 5 && !strncmp(line, "LIBS ", 5))
             libsdir = dupstr(line + 5, len - 5);
+        else if (len > 4 && is_upmcc_line(line, len))
+            skipped = TRUE;
         else if (len > 4 && !strncmp(line, "NEW ", 4) && nents < MAXENT)
         {
             ents[nents].kind = E_NEW;
@@ -477,7 +533,7 @@ static BOOL read_manifest(void)
             ents[nents++].path = dupstr(line + 9, len - 9);
         }
         else if (len > 7 && !strncmp(line, "BACKUP ", 7) && nents
-            && ents[nents - 1].kind == E_REPLACED)
+            && !skipped && ents[nents - 1].kind == E_REPLACED)
             ents[nents - 1].backup = dupstr(line + 7, len - 7);
         else if (len > 4 && !strncmp(line, "DIR ", 4) && nents < MAXENT)
         {

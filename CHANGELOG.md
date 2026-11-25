@@ -8,6 +8,15 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+### Removed
+
+- Spot's UP-MCC (UP-*.mcc, UP-MCC.mcp, `up-mcc.library`, the Inter font, its
+  themes, documents and SDK headers) is no longer bundled: Spot releases it
+  separately (github.com/spotUP/selecta). Updating from 1.0 leaves the
+  installed UP-MCC files in place: `OpenMUISwitch` 1.4 skips them in 1.0's
+  record, so neither the installer's removal step nor Uninstall deletes them.
+  Installer 2.5. The compatibility fixes for UP-MCC and its probes stay.
+
 ### Fixed
 
 - External images are also looked for in `LIBS:Zune/Images` (earlier
