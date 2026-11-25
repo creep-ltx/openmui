@@ -828,11 +828,12 @@ MUIM_AskMinMax
 IPTR Text__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
-    struct MUI_MinMax *mm = msg->MinMaxInfo;
+    struct MUI_MinMax *mm;
     int height;
     struct MUI_TextData *data = INST_DATA(cl, obj);
 
     DoSuperMethodA(cl, obj, (Msg) msg);
+    mm = msg->MinMaxInfo;   /* Area points the message at its own */
 
     height = data->ztext->height;
     if (_font(obj)->tf_YSize > height)

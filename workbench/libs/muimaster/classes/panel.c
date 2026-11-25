@@ -621,11 +621,12 @@ IPTR PanelTitle__MUIM_Cleanup(struct IClass *cl, Object *obj, struct MUIP_Cleanu
 
 IPTR PanelTitle__MUIM_AskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax *msg)
 {
-    struct MUI_MinMax *mm = msg->MinMaxInfo;
+    struct MUI_MinMax *mm;
     struct PanelTitle_DATA *data = INST_DATA(cl, obj);
     IPTR result;
 
     result = DoSuperMethodA(cl, obj, (Msg) msg);
+    mm = msg->MinMaxInfo;   /* Area points the message at its own */
 
     if (!data->text) {
         mm->MinWidth = mm->DefWidth = 0;

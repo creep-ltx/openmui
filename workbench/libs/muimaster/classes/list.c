@@ -2147,11 +2147,12 @@ static BOOL List_DimsValid(Object *obj, struct MUI_ListData *data)
 IPTR List__MUIM_AskMinMax(struct IClass *cl, Object *obj,
     struct MUIP_AskMinMax *msg)
 {
-    struct MUI_MinMax *mm = msg->MinMaxInfo;
+    struct MUI_MinMax *mm;
     struct MUI_ListData *data = INST_DATA(cl, obj);
     WORD strip = List_TitleStrip(obj, data);
 
     DoSuperMethodA(cl, obj, (Msg) msg);
+    mm = msg->MinMaxInfo;   /* Area points the message at its own */
 
     /* Every entry is measured again only when something that changes the
      * sizes came since the last time (List_Dispatcher clears the flag): a
