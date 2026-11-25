@@ -1188,9 +1188,7 @@ static void Application_ReloadConfigdata(struct IClass *cl, Object *obj)
     Object *cfg;
 
     cfg = MUI_NewObject(MUIC_Configdata,
-        MUIA_Configdata_Application, obj, MUIA_Configdata_SignalPort,
-        ((struct MUI_ApplicationData *)INST_DATA(cl, obj))
-            ->app_GlobalInfo.mgi_WindowsPort, TAG_DONE);
+        MUIA_Configdata_Application, obj, TAG_DONE);
     if (cfg)
         set(obj, MUIA_Application_Configdata, cfg);
 }
@@ -1253,9 +1251,6 @@ static void Application_StartNotifications(struct IClass *cl, Object *obj)
         return;
     data->app_NotifyStarted = TRUE;
     Application_SetupConfigNotify(cl, obj);
-    if (data->app_GlobalInfo.mgi_Configdata)
-        DoMethod(data->app_GlobalInfo.mgi_Configdata,
-            MUIM_Configdata_SetupNotify);
     /* Catch a prefs file written before the notification started */
     if (data->app_CfgNotifyName
         && zune_file_written_since(data->app_CfgNotifyName, &data->app_Created))
@@ -1542,7 +1537,6 @@ static IPTR Application__OM_NEW(struct IClass *cl, Object *obj,
 
     data->app_GlobalInfo.mgi_Configdata =
         MUI_NewObject(MUIC_Configdata, MUIA_Configdata_Application, obj,
-        MUIA_Configdata_SignalPort, data->app_GlobalInfo.mgi_WindowsPort,
         TAG_DONE);
     if (!data->app_GlobalInfo.mgi_Configdata)
     {
@@ -3583,10 +3577,6 @@ static IPTR Application__MUIM_SetConfigdata(struct IClass *cl, Object *obj,
     data->app_GlobalInfo.mgi_Configdata = msg->configdata;
     get(data->app_GlobalInfo.mgi_Configdata, MUIA_Configdata_ZunePrefs,
         &data->app_GlobalInfo.mgi_Prefs);
-    if (data->app_NotifyStarted)
-        DoMethod(data->app_GlobalInfo.mgi_Configdata,
-            MUIM_Configdata_SetupNotify);
-
     QueueOpenWindows(obj, data, windows);
     return 0;
 }

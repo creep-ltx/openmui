@@ -29,13 +29,6 @@
 #include "modules.h"
 #include "classes/configdata_private.h"
 
-#include <proto/muiscreen.h>
-
-#define PUBSCREEN_FILE "env:OpenMUI/PublicScreens.iff"
-
-#define DFSN(x)
-#define DPSD(x)
-
 extern struct Library *MUIMasterBase;
 
 /* ENV:OpenMUI/global.prefs read and parsed once for every application
@@ -69,13 +62,6 @@ struct MUI_ConfigdataData
     CONST_STRPTR                appbase;
     struct ZunePrefsNew        *prefs;     /* own, cfg_shared or glob's */
     struct cfg_global          *glob;      /* the shared global settings */
-    struct SignalSemaphore      psLock;
-    struct MsgPort             *fsNotifyPort;
-    struct DateStamp            created;   /* public screens read before this */
-    struct MsgPort             *signalPort;
-    struct MUI_InputHandlerNode fsNotifyIHN;
-    struct NotifyRequest        fsNotifyRequest;
-    struct List                 pubscreens;
     UBYTE                       loaded;    /* a settings file read at creation */
     UBYTE                       direct;    /* OM_NEW's reads: the lock is held */
     UBYTE                       unshared;  /* glob's records are not looked at
@@ -443,22 +429,9 @@ void zune_cfg_global_free(void)
     cfg_release(g);
 }
 
-static void Configdata__DisposeDescriptors(struct MUI_ConfigdataData *data);
-
-/* At OM_DISPOSE: the notification, the public screen descriptions and
- * the own settings */
+/* At OM_DISPOSE: the own settings */
 static __attribute__((noinline)) void cfg_free(struct MUI_ConfigdataData *data)
 {
-    if (data->fsNotifyPort) {
-        DoMethod(data->app, MUIM_Application_RemInputHandler, (IPTR) &data->fsNotifyIHN);
-        EndNotify(&data->fsNotifyRequest);
-        if (data->signalPort)
-            ZuneDeleteSharedPort(data->fsNotifyPort);
-        else
-            DeleteMsgPort(data->fsNotifyPort);
-    }
-    if (MUIScreenBase)
-        Configdata__DisposeDescriptors(data);
     if (data->prefs && !cfg_borrowed(data))
         FreeMem(data->prefs, sizeof(*data->prefs));
     cfg_release(data->glob);
@@ -604,53 +577,6 @@ static void Configdata_SynchronizeString(struct IClass *cl, Object *obj,
  Load global (and maybe application-specific) prefs files into the dataspace,
  then fill the prefs struct with dataspace or default values
 **************************************************************************/
-/**************************************************************************
- MUIM_Configdata_SetupNotify: watch the public screen file. Called by the
- application when it first waits for input.
-**************************************************************************/
-static IPTR Configdata_LoadPubScreens(struct IClass *cl, Object *obj,
-    Msg msg);
-
-static IPTR Configdata__MUIM_SetupNotify(struct IClass *cl, Object *obj,
-    Msg msg)
-{
-    struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
-
-    if (data->fsNotifyPort || !data->app)
-        return 0;
-    /* Shares the application's signal when it gave us one */
-    data->fsNotifyPort = ZuneCreateSharedPort(data->signalPort);
-    if (data->fsNotifyPort) {
-        /* Setup filesystem notification handler ---------------------------*/
-        data->fsNotifyIHN.ihn_Signals = 1UL << data->fsNotifyPort->mp_SigBit;
-        data->fsNotifyIHN.ihn_Object  = obj;
-        data->fsNotifyIHN.ihn_Method  = MUIM_Configdata_PubScreensChanged;
-
-        DoMethod(data->app, MUIM_Application_AddInputHandler, (IPTR)&data->fsNotifyIHN);
-
-        data->fsNotifyRequest.nr_Name                 = PUBSCREEN_FILE;
-        data->fsNotifyRequest.nr_Flags                = NRF_SEND_MESSAGE;
-        data->fsNotifyRequest.nr_stuff.nr_Msg.nr_Port = data->fsNotifyPort;
-        if (StartNotify(&data->fsNotifyRequest)) {
-            DFSN(bug("[MUI:Cfg] %s: FileSystem-Notification setup for '%s'\n", __func__, data->fsNotifyRequest.nr_Name));
-        } else {
-            DFSN(bug("[MUI:Cfg] %s: FAILED to setup FileSystem-Notification for '%s'\n", __func__, data->fsNotifyRequest.nr_Name));
-            DoMethod(data->app, MUIM_Application_RemInputHandler, (IPTR)&data->fsNotifyIHN);
-            if (data->signalPort)
-                ZuneDeleteSharedPort(data->fsNotifyPort);
-            else
-                DeleteMsgPort(data->fsNotifyPort);
-            data->fsNotifyPort = NULL;
-        }
-    }
-
-    /* Catch a public screen file written before the notification */
-    if (data->fsNotifyPort
-        && zune_file_written_since(PUBSCREEN_FILE, &data->created))
-        Configdata_LoadPubScreens(cl, obj, msg);
-    return data->fsNotifyPort != NULL;
-}
-
 static BOOL prefs_read(Object *ds, CONST_STRPTR filename, BOOL clear);
 static void prefs_write(Object *ds, CONST_STRPTR filename);
 
@@ -783,7 +709,6 @@ static __attribute__((noinline)) BOOL cfg_attach(struct IClass *cl,
     if (!data->prefs)
         data->prefs = &g->prefs;
     data->loaded = TRUE;
-    DoMethod(obj, MUIM_Configdata_LoadPubScreens);
     return TRUE;
 }
 
@@ -850,8 +775,6 @@ static __attribute__((noinline)) BOOL cfg_load(struct IClass *cl,
         && (cfg_read(obj, res, data->appbase)
             || cfg_read(obj, res | CFG_ARC, data->appbase)))
         loaded = TRUE;
-    if (loaded)
-        DoMethod(obj, MUIM_Configdata_LoadPubScreens);
     return data->loaded = loaded;
 }
 
@@ -937,18 +860,11 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
 
     data = INST_DATA(cl, obj);
 
-    NEWLIST(&data->pubscreens);
-    InitSemaphore(&data->psLock);
-    DateStamp(&data->created);
 
     for (tags = msg->ops_AttrList; (tag = NextTagItem(&tags));)
     {
         switch (tag->ti_Tag)
         {
-        case MUIA_Configdata_SignalPort:
-            data->signalPort = (struct MsgPort *) tag->ti_Data;
-            break;
-
         case MUIA_Configdata_Application:
             data->app = (Object *) tag->ti_Data;
             break;
@@ -963,11 +879,6 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
         get(data->app, MUIA_Application_Base, &data->appbase);
     }
 
-    /* The public screen file notification starts when the application
-     * first waits for input (MUIM_Configdata_SetupNotify): a DOS
-     * notification costs a handler round trip, which create/dispose
-     * cycles and non-interactive uses never need. */
-
     /* No file read: the shared defaults, if built (cfg_shared) */
     if (!cfg_load(cl, obj, data) && (data->prefs = cfg_shared))
         return (IPTR) obj;
@@ -980,21 +891,6 @@ IPTR Configdata__OM_NEW(struct IClass *cl, Object *obj, struct opSet *msg)
     }
     cfg_build(cl, obj, data);
     return (IPTR) obj;
-}
-
-static void Configdata__DisposeDescriptors(struct MUI_ConfigdataData *data)
-{
-    struct Node *psNode, *tmp;
-
-    DPSD(bug("[MUI:Cfg] %s()\n", __func__);)
-
-    ObtainSemaphore(&data->psLock);
-    ForeachNodeSafe(&data->pubscreens, psNode, tmp) {
-        Remove(psNode);
-        MUIS_FreePubScreenDesc((struct MUI_PubScreenDesc *)psNode->ln_Name);
-        FreeVec(psNode);
-    }
-    ReleaseSemaphore(&data->psLock);
 }
 
 /**************************************************************************
@@ -1378,83 +1274,7 @@ static IPTR Configdata_SaveWindowPositions(struct IClass *cl, Object *obj,
 IPTR Configdata__MUIM_Load(struct IClass *cl, Object *obj,
     struct MUIP_Configdata_Load *msg)
 {
-    IPTR res = prefs_read(obj, msg->filename, TRUE);
-
-    if (res) {
-        DoMethod(obj, MUIM_Configdata_LoadPubScreens);
-    }
-
-    return res;
-}
-
-static IPTR Configdata_GetPubScrnDesc(struct IClass *cl, Object *obj,
-    struct MUIP_Configdata_GetPubScrnDesc *msg)
-{
-    struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
-    struct MUI_PubScreenDesc *desc = NULL;
-
-    DPSD(bug("[MUI:Cfg] %s()\n", __func__);)
-
-    if (MUIScreenBase) {
-        struct Node *psNode;
-        ObtainSemaphoreShared(&data->psLock);
-        ForeachNode(&data->pubscreens, psNode) {
-            if (!strcmp(((struct MUI_PubScreenDesc *)(psNode->ln_Name))->Name, msg->name)) {
-                desc = (struct MUI_PubScreenDesc *)psNode->ln_Name;
-                break;
-            }
-        }
-        ReleaseSemaphore(&data->psLock);
-    }
-    return (IPTR)desc;
-}
-
-static IPTR Configdata_LoadPubScreens(struct IClass *cl, Object *obj,
-    Msg msg)
-{
-    DPSD(bug("[MUI:Cfg] %s()\n", __func__);)
-
-    if (MUIScreenBase) {
-        struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
-        struct Node *psNode;
-        APTR pfh;
-
-        Configdata__DisposeDescriptors(data);
-
-        DPSD(bug("[MUI:Cfg] %s: loading public screen details from '%s'\n", __func__, PUBSCREEN_FILE);)
-
-        ObtainSemaphore(&data->psLock);
-        if ((pfh = MUIS_OpenPubFile(PUBSCREEN_FILE, MODE_OLDFILE))) {
-            struct MUI_PubScreenDesc *desc;
-            while ((desc = MUIS_ReadPubFile(pfh))) {
-                DPSD(bug("[MUI:Cfg] %s: descriptor @ 0x%p\n", __func__, desc);)
-                if (!(psNode = AllocVec(sizeof(struct Node), MEMF_CLEAR)))
-                    break;
-                psNode->ln_Name = (char *)desc;
-                AddTail(&data->pubscreens, psNode);
-            }
-            MUIS_ClosePubFile(pfh);
-        }
-        ReleaseSemaphore(&data->psLock);
-    }
-    return (IPTR)TRUE;
-}
-
-/* The notification port may share its signal with other ports: reload
- * only when a notification arrived, and reply to every message. */
-static IPTR Configdata_PubScreensChanged(struct IClass *cl, Object *obj,
-    Msg msg)
-{
-    struct MUI_ConfigdataData *data = INST_DATA(cl, obj);
-    struct Message *nmsg;
-    BOOL changed = FALSE;
-
-    while ((nmsg = GetMsg(data->fsNotifyPort)))
-    {
-        ReplyMsg(nmsg);
-        changed = TRUE;
-    }
-    return changed ? Configdata_LoadPubScreens(cl, obj, msg) : TRUE;
+    return prefs_read(obj, msg->filename, TRUE);
 }
 
 /*
@@ -1557,14 +1377,6 @@ BOOPSI_DISPATCHER(IPTR, Configdata_Dispatcher, cl, obj, msg)
         return Configdata_SetWindowPos(cl, obj, (APTR) msg);
     case MUIM_Configdata_GetWindowPos:
         return Configdata_GetWindowPos(cl, obj, (APTR) msg);
-    case MUIM_Configdata_GetPubScrnDesc:
-        return Configdata_GetPubScrnDesc(cl, obj, (APTR) msg);
-    case MUIM_Configdata_LoadPubScreens:
-        return Configdata_LoadPubScreens(cl, obj, (APTR) msg);
-    case MUIM_Configdata_PubScreensChanged:
-        return Configdata_PubScreensChanged(cl, obj, (APTR) msg);
-    case MUIM_Configdata_SetupNotify:
-        return Configdata__MUIM_SetupNotify(cl, obj, (APTR) msg);
     }
 
     return DoSuperMethodA(cl, obj, msg);

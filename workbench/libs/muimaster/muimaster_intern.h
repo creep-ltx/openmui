@@ -201,7 +201,6 @@ void zune_module_close(register struct Library *lib __asm("a1"));
 void zune_module_remove(register struct Library *lib __asm("a1"));
 void zune_identity_free(void);     /* at expunge */
 BOOL zune_is_master(struct Library *lib); /* this base or one of its copies */
-extern struct Library *MUIScreenBase;
 extern struct Library *CyberGfxBase;
 BOOL ZUNE_FreeBuiltinClasses(struct Library *base);
 void ZUNE_ReleaseExternalClasses(struct Library *base);

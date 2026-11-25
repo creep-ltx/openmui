@@ -62,7 +62,6 @@
 #include <proto/cybergraphics.h>
 #endif
 
-#include <proto/muiscreen.h>
 
 //#define MYDEBUG 1
 #include "debug.h"
@@ -1474,8 +1473,9 @@ static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_Wi
 
     /* The screen: the program's, else the settings' own screen mode
      * (opened once for the application), else the program's public
-     * screen, else the settings' (opened through muiscreen.library if
-     * it is not there), else the default public screen. A locked public
+     * screen, else the settings', else the default public screen (a
+     * settings screen that is not open is not opened: muiscreen.library
+     * was never opened on AmigaOS 3, the AROS code is gone, trim1). A locked public
      * screen is unlocked at cleanup (MUIWF_SCREENLOCKED). */
     if (!data->wd_UserScreen && prefs->screenmodeid != ~0)
     {
@@ -1494,18 +1494,7 @@ static __attribute__((noinline)) BOOL SetupRenderInfo(Object *obj, struct MUI_Wi
             scr = LockPubScreen(data->wd_UserPublicScreen);
         else if (name && name[0])
         {
-            if (!(scr = LockPubScreen(name)) && mgi->mgi_Configdata
-                && MUIScreenBase)
-            {
-                struct MUI_PubScreenDesc *desc = (struct MUI_PubScreenDesc *)
-                    DoMethod(mgi->mgi_Configdata,
-                        MUIM_Configdata_GetPubScrnDesc, name);
-                if (desc)
-                {
-                    MUIS_OpenPubScreen(desc);
-                    scr = LockPubScreen(name);
-                }
-            }
+            scr = LockPubScreen(name);
         }
         if (!scr && !(scr = LockPubScreen(NULL)))
             return FALSE;

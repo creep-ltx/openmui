@@ -25,7 +25,7 @@ struct Library *IFFParseBase;
 struct Library *DiskfontBase;
 struct Library *IconBase;
 struct Library *WorkbenchBase;
-struct Library *MUIMasterBase, *MUIScreenBase, *CyberGfxBase;
+struct Library *MUIMasterBase, *CyberGfxBase;
 struct RastPort zune_blank_rp;
 extern struct Library *MathIeeeDoubBasBase, *MathIeeeDoubTransBase;
 BOOL Locale_Initialize(void);
