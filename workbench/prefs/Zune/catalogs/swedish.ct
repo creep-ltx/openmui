@@ -917,3 +917,31 @@ MSG_PROGRAM_REMOVE
 _Ta bort
 ; _Remove
 ;
+MSG_MUI_PENS
+MUI-pennor
+; MUI Pens
+;
+MSG_SHINE
+Ljus
+; Shine
+;
+MSG_HALF_SHINE
+Halvljus
+; Half Shine
+;
+MSG_HALF_SHADOW
+Halvskugga
+; Half Shadow
+;
+MSG_SHADOW
+Skugga
+; Shadow
+;
+MSG_FILL
+Fyllning
+; Fill
+;
+MSG_MARK
+Markering
+; Mark
+;

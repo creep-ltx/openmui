@@ -724,3 +724,27 @@ _Add
 MSG_PROGRAM_REMOVE (//)
 _Remove
 ;
+;
+; specialp.c, MUI pens group (OpenMUI)
+;----------
+MSG_MUI_PENS (//)
+MUI Pens
+;
+MSG_SHINE (//)
+Shine
+;
+MSG_HALF_SHINE (//)
+Half Shine
+;
+MSG_HALF_SHADOW (//)
+Half Shadow
+;
+MSG_SHADOW (//)
+Shadow
+;
+MSG_FILL (//)
+Fill
+;
+MSG_MARK (//)
+Mark
+;
