@@ -4071,7 +4071,8 @@ static void WindowRealBorders(struct MUI_WindowData *data, LONG *rightp,
 /* One of the requested inner sizes (a = 0: the width, 1: the height; the
  * same rules and values for both: window.h): a pixel size or a screen
  * percentage less the borders, the default, a share between minimum and
- * maximum; without a rule that applies the size stays */
+ * maximum; without a rule that applies the size stays; a size that is
+ * set already stays too */
 static __attribute__((noinline)) void SelectDimension(
     struct MUI_WindowData *data, int a, LONG borders)
 {
@@ -4081,6 +4082,8 @@ static __attribute__((noinline)) void SelectDimension(
     LONG size = a ? data->wd_RenderInfo.mri_Screen->Height
         : data->wd_RenderInfo.mri_Screen->Width;
 
+    if (*dim)   /* the width, when only the height is chosen again */
+        return;
     if (req > 0)
         *dim = req - borders;
     else if (req == MUIV_Window_Width_Default)
@@ -4101,7 +4104,13 @@ static __attribute__((noinline)) void SelectDimension(
 static __attribute__((optimize("no-defer-pop"))) void WindowSelectDimensions(
     struct MUI_WindowData *data)
 {
+    /* A new width chooses both sizes again; a new height (only
+     * MUIA_Window_Height set since the last open) only the height, as in
+     * MUI 3.8 and MUI 5 (tests/native/winreqsize.c; the amigazen project's
+     * Mushin chose them apart too): it got the minimum height */
     if (!data->wd_Width)
+        data->wd_Height = 0;
+    if (!data->wd_Height)
     {
         /* Pixel sizes and screen percentages give the outer window size
          * in MUI 3.8/3.9 (a 400 pixel MUIA_Window_Width opens a window 400
