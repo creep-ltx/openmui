@@ -1,4 +1,4 @@
-; $VER: Install-OpenMUI 2.5 (26.11.2026) OpenMUI 1.1
+; $VER: Install-OpenMUI 2.6 (26.11.2026) OpenMUI 1.1
 ; Amiga Installer script, Installer 43 or newer (OS 3.1: Installer 43.3
 ; from Aminet; OS 3.2: SYS:System/Installer). tools/release.py fills in the
 ; lines marked COMPONENT_... when it builds the archive.
@@ -75,6 +75,14 @@
 (set #done 0)
 (set #report "")
 (set #ownlist "")
+(set #nlines 0)
+(set #nkept 0)
+(set #nolder 0)
+(set #nleft 0)
+(set #nown 0)
+(set #repfile (tackon #data "InstallReport"))
+(set #repbuf "")
+(set #repstarted 0)
 
 (procedure P_Version #number
     ("%ld.%ld" (/ #number 65536) (bitand #number 65535))
@@ -194,6 +202,30 @@
     (if (= (exists #f (noreq)) 1) (getversion #f) -1)
 )
 
+;  One line of the details: for the pages of the last message and, in
+; chunks (Installer 43 strings hold 10000 characters at most), for the
+; file Data/InstallReport.
+(procedure P_Line #l
+    (set #nlines (+ #nlines 1))
+    (set #report (cat #report #l "\n"))
+    (set #repbuf (cat #repbuf #l "\n"))
+    (if (> (strlen #repbuf) 1500) (P_FlushReport))
+)
+(procedure P_FlushReport
+    (if (and (<> #repbuf "") (= @pretend 0))
+        (if (= #repstarted 0)
+            (textfile (dest #repfile) (append #repbuf))
+            (
+                (textfile (dest (cat #repfile ".new")) (include #repfile) (append #repbuf))
+                (delete #repfile (optional "force"))
+                (rename (cat #repfile ".new") #repfile)
+            )
+        )
+        (set #repstarted 1)
+    )
+    (set #repbuf "")
+)
+
 ; A bundled MUI class. Installed into LIBS:MUI of the first LIBS: directory
 ; unless the user has the same or a newer one in a LIBS:MUI drawer; an older
 ; one there is kept in the backup. MUI's own drawer (MUI:Libs/mui) is not
@@ -229,20 +261,32 @@
         (set #own (P_ClassVersion (tackon #muidir "Libs/mui") #name))
     )
     (if (>= #best #bv)
-        (set #report (cat #report #name " " (P_Version #best) ": yours, kept "
-            "(OpenMUI's: " (P_Version #bv) ").\n"))
+        (
+            (set #nkept (+ #nkept 1))
+            (P_Line (cat #name " " (P_Version #best) ": yours, kept ("
+                "OpenMUI's: " (P_Version #bv) ")."))
+        )
         (
             (if (>= #best 0)
                 (if (= #bestat #libsmui)
-                    (set #report (cat #report #name " " (P_Version #best)
-                        ": yours, older: in the backup, OpenMUI's "
-                        (P_Version #bv) " installed.\n"))
-                    (set #report (cat #report #name " " (P_Version #best)
-                        " in " #bestat ": yours, older, left there.\n"))
+                    (
+                        (set #nolder (+ #nolder 1))
+                        (P_Line (cat #name " " (P_Version #best)
+                            ": yours, older: in the backup, OpenMUI's "
+                            (P_Version #bv) " installed."))
+                    )
+                    (
+                        (set #nleft (+ #nleft 1))
+                        (P_Line (cat #name " " (P_Version #best)
+                            " in " #bestat ": yours, older, left there."))
+                    )
                 )
             )
             (if (>= #own 0)
-                (set #ownlist (cat #ownlist (if (= #ownlist "") "" ", ") #name))
+                (
+                    (set #nown (+ #nown 1))
+                    (set #ownlist (cat #ownlist (if (= #ownlist "") "" ", ") #name))
+                )
             )
             (P_Put #src #libsmui #name)
         )
@@ -263,8 +307,11 @@
     (if (<> #other3 "")
         (if (> (P_ClassVersion #other3 #name) #best) (set #best (P_ClassVersion #other3 #name))))
     (if (>= #best #bv)
-        (set #report (cat #report #name " " (P_Version #best) ": yours, kept "
-            "(OpenMUI's: " (P_Version #bv) ").\n"))
+        (
+            (set #nkept (+ #nkept 1))
+            (P_Line (cat #name " " (P_Version #best) ": yours, kept ("
+                "OpenMUI's: " (P_Version #bv) ")."))
+        )
         (P_Put #src #libsdir #name)
     )
 )
@@ -276,17 +323,47 @@
         (P_Put #src #dir #name)
         ; OS 3.2's ENV: shows ENVARC:'s files: no report for those
         (if (<> (substr #dir 0 4) "ENV:")
-            (set #report (cat #report (tackon #dir #name) ": yours, kept.\n")))
+            (P_Line (cat (tackon #dir #name) ": yours, kept.")))
     )
 )
 
-; What happened to the MUI classes, for the last message
-(procedure P_ClassReport
-    (cat #report
-        (if (<> #ownlist "")
-            (cat #muiname "'s own " #ownlist " stay for " #muiname
-                "; OpenMUI uses its own.\n")
-            ""))
+; The classes of the real MUI that stay for it (a detail line)
+(procedure P_OwnReport
+    (if (<> #ownlist "")
+        (P_Line (cat #muiname "'s own " #ownlist " stay for " #muiname
+            "; OpenMUI uses its own."))
+    )
+)
+
+; The details on pages of 8 lines at most, one message each
+(procedure P_Pages
+    (set #np (/ (+ #nlines 7) 8))
+    (set #pos 0)
+    (set #len (strlen #report))
+    (set #pg 1)
+    (while (<= #pg #np)
+        (
+            (set #start #pos)
+            (set #cnt 0)
+            (while (and (< #cnt 8) (< #pos #len))
+                (
+                    (while (and (< #pos #len) (<> (substr #report #pos 1) "\n"))
+                        (set #pos (+ #pos 1))
+                    )
+                    (set #pos (+ #pos 1))
+                    (set #cnt (+ #cnt 1))
+                )
+            )
+            (message "Details, page " #pg " of " #np "\n\n"
+                (substr #report #start (- #pos #start))
+                (if (= #pg #np)
+                    (if (= @pretend 0)
+                        (cat "\nAll of it: " #repfile) "")
+                    "")
+                (all))
+            (set #pg (+ #pg 1))
+        )
+    )
 )
 
 (onerror
@@ -582,15 +659,28 @@
 )
 (complete 100)
 
+(P_OwnReport)
+(P_FlushReport)
 (if @pretend
     (message "Pretend mode: nothing was changed.\n\n"
-        (P_ClassReport))
-    (message "OpenMUI 1.0 is installed: " #done " files"
-        (if (> #nb 0) (cat "; the " #nb " it replaced are kept in " #backup) "")
-        ".\n\n"
-        (P_ClassReport) "\n"
-        "Reboot to use it. " #home " has "
-        (if #realmui "\"Use real MUI\" / \"Use OpenMUI\" and " "")
-        "Uninstall. Settings: SYS:Prefs/OpenMUI." (all))
+        "Your classes that would be kept: " #nkept "." (all))
+    (message "OpenMUI 1.0 is installed: " #done " files.\n"
+        (if (> #nb 0)
+            (cat #nb " files it replaced are kept in\n" #backup ".\n") "")
+        (if (> #nkept 0)
+            (cat #nkept " of your own classes were the same or newer\n"
+                "and were kept.\n") "")
+        (if (> #nolder 0)
+            (cat #nolder " older classes of yours are in the backup.\n") "")
+        (if (> #nleft 0)
+            (cat #nleft " older classes of yours are left where they are.\n") "")
+        (if (> #nown 0)
+            (cat #nown " classes of " #muiname " stay for it.\n") "")
+        "Reboot to use it. Settings: SYS:Prefs/OpenMUI.\n"
+        (if (> #nlines 0)
+            (cat "Details follow on " (/ (+ #nlines 7) 8) " pages, and in\n" #repfile)
+            "")
+        (all))
 )
+(if (> #nlines 0) (P_Pages))
 (exit (quiet))

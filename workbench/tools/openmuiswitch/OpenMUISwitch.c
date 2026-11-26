@@ -864,6 +864,8 @@ static int do_uninstall(BOOL settings, BOOL askfirst)
         DeleteFile((STRPTR)p);
     join(p, home, "Data/State");
     DeleteFile((STRPTR)p);
+    join(p, home, "Data/InstallReport");
+    DeleteFile((STRPTR)p);
     join(p, home, "Data/Parked");
     DeleteFile((STRPTR)p);
     for (i = nents - 1; i >= 0; i--)
