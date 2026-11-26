@@ -2902,16 +2902,17 @@ static IPTR Application__MUIM_SetUDataOnce(struct IClass *cl, Object *obj,
 *       MUICFG_String_Text, MUICFG_String_ActiveBackground,
 *       MUICFG_String_ActiveText, MUICFG_String_Cursor,
 *       MUICFG_String_MarkedBackground, MUICFG_String_MarkedText,
-*       MUICFG_ActiveObject_Color, MUICFG_PublicScreen.
+*       MUICFG_ActiveObject_Color, MUICFG_Pen_Shine .. MUICFG_Pen_Mark,
+*       MUICFG_PublicScreen.
 *
 *   RESULT
 *       Always zero, including unsupported IDs or ignored underlying failures.
 *
 *   NOTES
 *       Keyboard bindings, drag modifiers, and the iconification hotkey are set
-*       directly. Font IDs, String color/pen IDs, ActiveObject_Color, and
-*       PublicScreen close currently open windows and queue reopening after the
-*       change. Configdata copies the string or removes a value equal to its
+*       directly. Font IDs, String color/pen IDs, ActiveObject_Color, the Pen
+*       IDs, and PublicScreen close currently open windows and queue reopening
+*       after the change. Configdata copies the string or removes a value equal to its
 *       default. This does not save preferences to disk.
 *
 *   BUGS
@@ -3674,6 +3675,14 @@ static IPTR Application__MUIM_SetConfigItem(struct IClass *cl, Object *obj,
             case MUICFG_String_MarkedBackground:
             case MUICFG_String_MarkedText:
             case MUICFG_ActiveObject_Color:
+            case MUICFG_Pen_Shine:
+            case MUICFG_Pen_Halfshine:
+            case MUICFG_Pen_Background:
+            case MUICFG_Pen_Halfshadow:
+            case MUICFG_Pen_Shadow:
+            case MUICFG_Pen_Text:
+            case MUICFG_Pen_Fill:
+            case MUICFG_Pen_Mark:
             case MUICFG_PublicScreen:
                 {
                     struct List *windows;
