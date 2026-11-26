@@ -73,7 +73,9 @@ IPTR zune_configdata_set(Object *obj, Msg msg, const struct ZuneCfgTables *t)
         break;
 
     case MUIM_Configdata_SetPenspec:
-        if (!val || !*val)
+        /* "" is the default of the MUI pens (screen's pen): let it
+         * remove a pen set before; elsewhere "" is ignored */
+        if (!val || (!*val && !is_default_str(t->strvals, m->id, val)))
             return 0;
         def = is_default_str(t->strvals, m->id, val);
         break;

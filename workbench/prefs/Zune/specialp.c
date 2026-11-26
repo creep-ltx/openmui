@@ -27,6 +27,7 @@
 extern struct Library *MUIMasterBase;
 
 #define NBIMAGES 14
+#define NBPENS 8
 
 struct MUI_SpecialPData
 {
@@ -35,6 +36,7 @@ struct MUI_SpecialPData
     Object *gauge_popframe;
     Object *gauge;
     Object *popimage[NBIMAGES];
+    Object *poppen[NBPENS];
 };
 
 ULONG Imagecfg[NBIMAGES] =
@@ -54,6 +56,29 @@ ULONG Imagecfg[NBIMAGES] =
     MUICFG_Image_TapeUp,
     MUICFG_Image_TapeDown,
 };
+
+/* the MUI pens, in MPEN_* order; "" = the screen's pen */
+static const ULONG Pencfg[NBPENS] =
+{
+    MUICFG_Pen_Shine,
+    MUICFG_Pen_Halfshine,
+    MUICFG_Pen_Background,
+    MUICFG_Pen_Halfshadow,
+    MUICFG_Pen_Shadow,
+    MUICFG_Pen_Text,
+    MUICFG_Pen_Fill,
+    MUICFG_Pen_Mark,
+};
+
+/* a pen gadget over its label, as the string colours on the Strings page */
+static Object *MakeLabelledPoppen(Object **poppen, CONST_STRPTR label)
+{
+    return VGroup,
+        MUIA_Group_VertSpacing, 1,
+        Child, (IPTR) (*poppen = MakePoppen()),
+        Child, (IPTR) CLabel(label),
+    End;
+}
 
 static Object *MakeSpecialPopimage(CONST_STRPTR title)
 {
@@ -139,6 +164,19 @@ static IPTR SpecialP_New(struct IClass *cl, Object *obj, struct opSet *msg)
         Child, d.popimage[13] = MakeSpecialPopimage(_(MSG_TAPE_DOWN)),
         Child, (IPTR) HSpace(0),
         End, // Tape Images
+        Child, (IPTR) HGroup,
+        GroupFrameT(_(MSG_MUI_PENS)),
+        Child, (IPTR) HSpace(0),
+        Child, MakeLabelledPoppen(&d.poppen[0], _(MSG_SHINE)),
+        Child, MakeLabelledPoppen(&d.poppen[1], _(MSG_HALF_SHINE)),
+        Child, MakeLabelledPoppen(&d.poppen[2], _(MSG_BACKGROUND)),
+        Child, MakeLabelledPoppen(&d.poppen[3], _(MSG_HALF_SHADOW)),
+        Child, MakeLabelledPoppen(&d.poppen[4], _(MSG_SHADOW)),
+        Child, MakeLabelledPoppen(&d.poppen[5], _(MSG_TEXT)),
+        Child, MakeLabelledPoppen(&d.poppen[6], _(MSG_FILL)),
+        Child, MakeLabelledPoppen(&d.poppen[7], _(MSG_MARK)),
+        Child, (IPTR) HSpace(0),
+        End, // MUI Pens
         
         TAG_MORE, (IPTR) msg->ops_AttrList);
         
@@ -181,6 +219,9 @@ static IPTR SpecialP_ConfigToGadgets(struct IClass *cl, Object *obj,
         set(data->popimage[i], MUIA_Imagedisplay_Spec, (IPTR)spec);
     }
 
+    for (i = 0; i < NBPENS; i++)
+        ConfigToPen(msg->configdata, Pencfg[i], data->poppen[i]);
+
     return 1;
 }
 
@@ -214,6 +255,10 @@ static IPTR SpecialP_GadgetsToConfig(struct IClass *cl, Object *obj,
         DoMethod(msg->configdata, MUIM_Configdata_SetImspec, Imagecfg[i],
                  (IPTR)str);
     }
+
+    for (i = 0; i < NBPENS; i++)
+        PenToConfig(data->poppen[i], msg->configdata, Pencfg[i]);
+
     return TRUE;
 }
 
