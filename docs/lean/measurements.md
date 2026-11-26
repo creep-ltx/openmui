@@ -1605,6 +1605,201 @@ trim1/lean 0.93-1.01 everywhere, none above 1.00 but the A600's button click (1.
 (`libonly.sh` did not run: its helper `$ZWORK/libs` is gone.) Raw output: the round's work folder
 (outside the repository; deleted after the round).
 
+## Measurement of 2026-11-26: Mushin (amigazen) against OpenMUI, Zune68 Beta 5 and MUI 3.8
+
+Mushin (github.com/amigazen/mushin, "a MUI-compatible user interface library based on AROS Zune", AROS
+Public License) measured the way the 2026-11-25 round measured the others. Emulator figures (FS-UAE
+cycle-exact for `opbench`; Amiberry headless for the suite), not real hardware. The other columns are the
+figures of the 2026-11-25 section above (OpenMUI = `trim1`); a rebuild of OpenMUI at b9c1c4ca reproduced
+them within 2 % (A1200 and A1200/030, `opbench`), and MUI 3.8 (460,296 / 210,632 bytes) and Zune68 Beta 5
+(672,304 / 267,872) reproduced their memory figures exactly.
+
+### What was measured, and how it was built
+
+- **No build.** Mushin builds with SAS/C and smake (ToolKit); there is no compiler for that here. A try with
+  our m68k GCC stopped at the first compile: SAS/C-only code (`__asm`, `STACKED`, `all.gst`, the
+  `SDI` register macros), the NDK 3.2 header `intuition/classalign.h` and no GCC library startup. 111 of 112
+  objects failed. The repository holds one prebuilt file, `src/workbench/libs/muimaster/muimaster.library`
+  (327,208 bytes, `$VER: muimaster.library 19.99 (26.09.2026)`). Its last commit is 2026-10-05; the sources
+  have moved on since (12 October, 5 November), so this binary is **older than the repository head**. It has
+  the author's trace strings ("zune: MUI_Redraw enter ...") compiled in. No trace output reached
+  `wasabi debug`, so whether this binary is a debug build is not known.
+- **One patched byte.** The library fails to open on stock OS 3.1: `OpenLibrary("rexxsyslib.library", 37)`
+  (Workbench 2.04 and 3.1 ship v36.23; OpenMUI fixed this in 0e3bce06). Everything below ran with the
+  immediate of that call changed from 37 to 36 (offset 999, `70 25` to `70 24`), nothing else. Without the
+  patch every program fails at `OpenLibrary("muimaster.library", 11)`.
+- Mushin has no class files: all classes are inside the library, and no installer, docs or prefs program
+  are in the repository (the README's BUILD.md does not exist). Installed as `LIBS:muimaster.library`.
+- `opbench` of this session built from `tests/native/opbench.c`. A1200/030: `--cpu 030` and 16 MB Zorro III.
+  Mushin: A1200 and A600 3 repetitions (the first 9-repetition A1200 run ended without output and the A600
+  run would have taken hours); A1200/030 9 repetitions. The others 9.
+- `popup open+close` and `window resize` time out on Mushin on all machines (3 s wait in `opbench`).
+  The first A1200 run with 9 repetitions ended with its output cut at 1,024 bytes after "list activ"
+  (twice); the 3-repetition run finished all operations, so whether `opbench` crashes there is not known.
+
+### A1200 (68EC020, OS 3.1, 4 MB fast), ms per operation
+
+| operation | MUI 3.8 | OpenMUI (trim1) | Zune68 Beta 5 | Mushin | Mushin / Zune68 | Mushin / MUI 3.8 |
+|---|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 92.18 | 9.05 | 14.81 | 234.16 | 15.81 | 2.54 |
+| app+windows create | 233.80 | 173.20 | 265.30 | 8,011.48 | 30.20 | 34.27 |
+| window open+close | 520.20 | 398.90 | 600.60 | 5,723.40 | 9.53 | 11.00 |
+| full redraw | 150.70 | 132.70 | 153.40 | 1,898.37 | 12.38 | 12.60 |
+| relayout | 207.00 | 172.40 | 306.10 | 7.29 | 0.02 | 0.04 |
+| slider set | 4.03 | 2.71 | 4.44 | 23.82 | 5.36 | 5.91 |
+| notify chain | 7.81 | 5.63 | 9.09 | 49.31 | 5.42 | 6.31 |
+| cycle set | 2.44 | 2.01 | 4.86 | 160.62 | 33.05 | 65.83 |
+| radio set | 15.55 | 8.26 | 21.47 | 479.51 | 22.33 | 30.84 |
+| text set | 2.50 | 2.37 | 2.40 | 71.97 | 29.99 | 28.79 |
+| list insert 1 | 10.33 | 7.17 | 34.97 | 104.97 | 3.00 | 10.16 |
+| list insert 100 | 829.40 | 60.52 | 107.50 | 225.69 | 2.10 | 0.27 |
+| list insert 1000 | 6,649.30 | 247.10 | 673.50 | 1,132.02 | 1.68 | 0.17 |
+| list active | 21.14 | 18.41 | 23.88 | 168.11 | 7.04 | 7.95 |
+| list scroll line | 14.63 | 13.15 | 18.48 | 73.97 | 4.00 | 5.06 |
+| list scroll page | 44.38 | 38.96 | 43.30 | 125.66 | 2.90 | 2.83 |
+| list sort 1000 | 657.10 | 94.23 | 109.90 | 46,680.33 | 424.75 | 71.04 |
+| button click | 22.33 | 16.00 | 17.95 | 271.03 | 15.10 | 12.14 |
+| string type | 7.75 | 6.57 | 10.77 | 187.12 | 17.37 | 24.14 |
+| string backspace | 7.64 | 6.44 | 10.40 | 188.61 | 18.14 | 24.69 |
+| menu open+close | 13.23 | 13.03 | 19.99 | 17.78 | 0.89 | 1.34 |
+| iconify | 83.71 | 75.57 | 84.91 | 120.60 | 1.42 | 1.44 |
+| uniconify | 446.20 | 334.50 | 1,037.10 | 9,982.90 | 9.63 | 22.37 |
+| register page | 53.59 | 42.60 | 60.03 | 1,079.34 | 17.98 | 20.14 |
+| popup open+close | 120.00 | 94.56 | 139.90 | - | - | - |
+| window resize | 230.10 | 220.10 | 360.20 | - | - | - |
+
+### A1200/030 (68030 50 MHz, FS-UAE cycle-exact, 20 MB fast), ms per operation
+
+| operation | MUI 3.8 | OpenMUI (trim1) | Zune68 Beta 5 | Mushin | Mushin / Zune68 | Mushin / MUI 3.8 |
+|---|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 116.60 | 9.76 | 15.11 | 262.64 | 17.38 | 2.25 |
+| app+windows create | 281.00 | 182.90 | 275.60 | 10,067.98 | 36.53 | 35.83 |
+| window open+close | 571.90 | 415.70 | 621.80 | 7,055.47 | 11.35 | 12.34 |
+| full redraw | 147.80 | 139.00 | 161.10 | 3,011.68 | 18.69 | 20.38 |
+| relayout | 206.90 | 180.20 | 323.40 | 12.47 | 0.04 | 0.06 |
+| slider set | 4.17 | 2.88 | 4.71 | 39.45 | 8.38 | 9.46 |
+| notify chain | 8.05 | 6.00 | 9.64 | 83.37 | 8.65 | 10.36 |
+| cycle set | 2.57 | 2.17 | 4.94 | 307.23 | 62.19 | 119.54 |
+| radio set | 16.42 | 8.88 | 22.97 | 947.59 | 41.25 | 57.71 |
+| text set | 2.55 | 2.41 | 2.45 | 148.08 | 60.44 | 58.07 |
+| list insert 1 | 10.61 | 7.46 | 36.13 | 155.63 | 4.31 | 14.67 |
+| list insert 100 | 850.70 | 62.40 | 113.00 | 282.57 | 2.50 | 0.33 |
+| list insert 1000 | 6,840.80 | 258.20 | 706.00 | 1,242.53 | 1.76 | 0.18 |
+| list active | 21.81 | 19.31 | 24.14 | 315.78 | 13.08 | 14.48 |
+| list scroll line | 14.98 | 13.35 | 18.81 | 128.08 | 6.81 | 8.55 |
+| list scroll page | 46.13 | 40.01 | 44.40 | 180.10 | 4.06 | 3.90 |
+| list sort 1000 | 658.20 | 95.07 | 114.00 | 47,982.41 | 420.90 | 72.90 |
+| button click | 23.78 | 17.06 | 19.10 | 594.45 | 31.12 | 25.00 |
+| string type | 8.41 | 7.04 | 11.37 | 419.30 | 36.88 | 49.86 |
+| string backspace | 8.31 | 6.93 | 11.03 | 429.81 | 38.97 | 51.72 |
+| menu open+close | 13.86 | 13.65 | 19.98 | 19.18 | 0.96 | 1.38 |
+| iconify | 98.58 | 79.37 | 87.44 | 123.79 | 1.42 | 1.26 |
+| uniconify | 494.90 | 350.80 | 1,067.00 | 18,766.56 | 17.59 | 37.92 |
+| register page | 55.51 | 44.65 | 62.51 | 2,530.82 | 40.49 | 45.59 |
+| popup open+close | 120.00 | 98.13 | 139.80 | - | - | - |
+| window resize | 230.10 | 220.10 | 360.20 | - | - | - |
+
+### A600 (68000, OS 3.1, 4 MB fast), ms per operation
+
+| operation | MUI 3.8 | OpenMUI (trim1) | Zune68 Beta 5 | Mushin | Mushin / Zune68 | Mushin / MUI 3.8 |
+|---|---:|---:|---:|---:|---:|---:|
+| prefs+app (empty) | 357.00 | 34.76 | 61.62 | 965.63 | 15.67 | 2.70 |
+| app+windows create | 938.20 | 703.60 | 1,065.70 | 33,222.14 | 31.17 | 35.41 |
+| window open+close | 1,763.80 | 1,388.10 | 2,190.00 | 23,562.16 | 10.76 | 13.36 |
+| full redraw | 470.70 | 441.80 | 532.30 | 7,660.89 | 14.39 | 16.28 |
+| relayout | 698.90 | 607.10 | 1,168.00 | 30.76 | 0.03 | 0.04 |
+| slider set | 15.12 | 10.09 | 16.05 | 98.60 | 6.14 | 6.52 |
+| notify chain | 29.38 | 20.93 | 32.83 | 203.65 | 6.20 | 6.93 |
+| cycle set | 9.36 | 7.83 | 18.08 | 673.54 | 37.25 | 71.96 |
+| radio set | 60.46 | 32.29 | 82.36 | 2,007.76 | 24.38 | 33.21 |
+| text set | 9.69 | 9.30 | 9.38 | 301.96 | 32.19 | 31.16 |
+| list insert 1 | 32.39 | 28.76 | 125.00 | 400.82 | 3.21 | 12.37 |
+| list insert 100 | 2,746.30 | 221.60 | 422.10 | 887.36 | 2.10 | 0.32 |
+| list insert 1000 | 23,958.00 | 1,003.90 | 2,752.20 | 4,638.54 | 1.69 | 0.19 |
+| list active | 64.97 | 60.76 | 75.94 | 669.46 | 8.82 | 10.30 |
+| list scroll line | 39.97 | 37.07 | 55.57 | 272.82 | 4.91 | 6.83 |
+| list scroll page | 153.70 | 134.20 | 148.80 | 474.85 | 3.19 | 3.09 |
+| list sort 1000 | 2,494.40 | 378.90 | 434.80 | 179,833.48 | 413.60 | 72.09 |
+| button click | 91.12 | 61.40 | 74.46 | 1,134.14 | 15.23 | 12.45 |
+| string type | 31.55 | 25.86 | 43.79 | 781.40 | 17.84 | 24.77 |
+| string backspace | 31.20 | 25.41 | 42.41 | 795.36 | 18.75 | 25.49 |
+| menu open+close | 46.49 | 46.08 | 40.13 | 62.67 | 1.56 | 1.35 |
+| iconify | 301.60 | 229.60 | 264.50 | 351.88 | 1.33 | 1.17 |
+| uniconify | 1,535.30 | 1,211.20 | 3,987.50 | 41,859.39 | 10.50 | 27.26 |
+| register page | 163.10 | 145.20 | 218.30 | 4,548.45 | 20.84 | 27.89 |
+| popup open+close | 404.60 | 338.90 | 481.50 | - | - | - |
+| window resize | 620.20 | 470.80 | 791.00 | - | - | - |
+
+Reading it: Mushin is slower than Zune68 Beta 5 in every operation but `relayout`, `menu open+close` and
+`iconify` (about equal), by 2x (list insert 1000, list scroll page) to 400x (`list sort 1000`: 46.7 s on
+the A1200, the same 1000 rows take 0.095 s in OpenMUI and 0.66 s in MUI 3.8). Most simple operations
+(`text set` 72 ms, `cycle set` 161 ms, `string type` 187 ms on the A1200) come out at roughly whole
+multiples of 20 ms, one PAL frame, which looks like a wait for the display in the redraw path; that is a
+guess, not found in the code. `relayout` (7.3 ms against 172 ms in OpenMUI) was not checked for whether it
+redraws. The A600 is 4 times slower than the A1200 as for every library.
+
+### Memory (MUI-Demo cold, A1200/030 FS-UAE, bytes)
+
+| | first program | each further | library file |
+|---|---:|---:|---:|
+| MUI 3.8 | 460,808 | 210,632 | - |
+| OpenMUI (b9c1c4ca) | 423,496 | 187,336 | 232,064 (+ 54 class files, 290,212 bytes, loaded on demand) |
+| Zune68 Beta 5 | 672,304 | 267,872 | 433,720 (+ 39 plugins, 803,100 bytes) |
+| **Mushin** | **711,344** | **315,056** | 327,208 (no class files) |
+
+First minus further (the library with its data): MUI 3.8 about 250 KB, OpenMUI 236 KB, Zune68 396 KB,
+Mushin 396 KB. Mushin's file is smaller than Zune68's core library, but everything is in it and it takes the
+same memory when opened. (`libonly.sh` does not give usable figures here: its holder program reports
+24,816 bytes for MUI 3.8 and Zune68 as well.) An Amiberry run of the same demo, measured with the library
+already resident, gave 297,968 for the first program; the figures above are from FS-UAE with the library
+not yet loaded.
+
+### Real-program suite (`suite.sh`, Amiberry, a1200-31 OS 3.1, groups mui3, mcc, mui5, `--no-leak`)
+
+| | Mushin | OpenMUI (21.227 identity, default) |
+|---|---:|---:|
+| rows in the result tables | 182 | 182 |
+| ok (window opened, quit, incl. `ok,*`) | 121 | 141 |
+| machine reset or frozen during the run | 8 reset, 2 frozen | 2 reset, 2 frozen |
+| group mui3 (90) | 66 | 73 |
+| group mcc (42) | 27 | 29 |
+
+An OpenMUI build with the MUI 3.8 identity (19.81, `MUI5_TEST=0`) gave 132 of 182; the difference to the
+default build is the MUI 5 programs (`mui5-*`) and a few that ask for version 20 or higher. Programs that run
+on Mushin and not on OpenMUI in this run: `amipg` (ends at once on MUI 3.8 on OS 3.1 too), `envelope-demo`,
+`ticklish`, `up-demo` (the last three also fail in about half of earlier OpenMUI runs). Programs that run on
+OpenMUI and reset the whole machine on Mushin: `albin`, `amirc`, `animmaker`, `ibrowse25`, `ibrowse30`,
+`simplemail`, `tablegroup-demo`. Both fail on 37 programs (most MUI 5 demos, `netsurf`, `freeciv`, ...).
+Raw tables: `suite-real/mush-*` in the work folder (outside the repository).
+
+### Is Zune68 forked from Mushin? What the code shows
+
+Mushin's README says: "Zune68 ... is itself a fork of mushin, albeit one that does not acknowledge its origins".
+Checked against the sources:
+
+- **History.** Zune68's history (now OpenMUI's) is a `git filter-repo` extraction of AROS: 3,571 AROS
+  commits with their original authors, dates and an `AROS-Commit` trailer, pinned to AROS revision 5f32b5ee
+  (`tools/upstream/source.json`, `commit-map`); the first Zune68 commit is dated 2026-10-07. Mushin's
+  history has 30 commits: one import of "AROS Zune components" on 2025-10-21 (`ab805da`, squashed) and its own
+  work from 2025-10-22 on. No amigazen commit, author or message occurs in our history.
+- **Text.** Of the 2,849 non-trivial lines Mushin added to 15 core files (window, group, virtgroup, area,
+  application, list, notify, string, configdata, frame, imspec, support, mui_redraw, support_classes,
+  muimaster_init) relative to its AROS import, 138 (5 %) appear in the Zune68 Beta 5 source; of the AROS
+  lines in the same files 86 % do. `window.c`: 9 of 1,077, `group.c`: 15 of 314, `frame.c`: 0 of 105. The
+  two larger overlaps are explained by the shared AROS base (`mui_redraw.c`: the `__dummyAreaData__` macros,
+  AROS code of 2002) and by a notification-walk fix: `struct NotifyWalk` is in Zune68 from 2026-10-07
+  (c6e52945) and in Mushin from 2026-10-12 (02f75b6), so if one took it from the other it was Mushin.
+- **Identifiers that exist only in Mushin** (`ZuneSin`, `MADF2_SETUP`, `VirtgroupData38`, `ZUNE_FreeClass`,
+  `reaction.prefs`, `mushin`) are in neither OpenMUI's tree nor Zune68 Beta 5's source tarball. The SAS/C
+  build (smakefile, SCOPTIONS, `include/SDI`, `all.gst`, `muimaster_init.c` with `__asm __saveds`) is not in
+  Zune68, which has its own GCC startup (f5db14ae).
+- **Files with the same name in both** are AROS files (`muiscreen_init.c`, `muimaster.cd`, `strings.h`) or
+  generated from the same public API (`muiscreen_lib.sfd`: 4 lines differ in 21). `amigasupport.c` exists in
+  both but is 16 lines in Zune68 and 88 in Mushin.
+- **Result.** The comparison shows two independent descendants of AROS Zune with different compilers,
+  start-up code and fixes; it shows no code taken from Mushin into Zune68 or OpenMUI. It cannot rule out that
+  ideas or bug reports were exchanged, and it cannot see anything not in the public history.
+
 ## Tools
 
 - `tests/lean/scripts/`: `build.sh`, `measure.sh`, `libonly.sh`, `libsopen.sh`,
