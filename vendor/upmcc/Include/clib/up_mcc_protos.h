@@ -1,4 +1,4 @@
-/* Automatically generated header (sfdc 1.11e)! Do not edit! */
+/* Automatically generated header (sfdc 1.12)! Do not edit! */
 
 #ifndef CLIB_UP_MCC_PROTOS_H
 #define CLIB_UP_MCC_PROTOS_H

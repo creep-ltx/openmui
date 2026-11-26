@@ -38,31 +38,20 @@ extern "C" {
     X(TRACK, "gui.track", 0x3A3A44u, 0u, 0xFFFFFFu)                  \
     X(HOVER_LIGHT, "gui.hover_light", 0xE4E4EAu, 0u, 0xFFFFFFu)      \
     X(TILE_PAD, "gui.tile_pad", 10u, 0u, 64u)                        \
-    X(COVER_AMIGA, "gui.cover.amiga", 0xB4470Au, 0u, 0xFFFFFFu)      \
+    X(COVER_AMIGA, "gui.cover.amiga", 0xB4390Au, 0u, 0xFFFFFFu)      \
     X(COVER_COMMODORE_64, "gui.cover.commodore_64", 0x4338CAu, 0u, 0xFFFFFFu) \
     X(COVER_ATARI, "gui.cover.atari", 0x14703Au, 0u, 0xFFFFFFu)      \
     X(COVER_ZX_SPECTRUM, "gui.cover.zx_spectrum", 0xB91C1Cu, 0u, 0xFFFFFFu) \
-    X(COVER_PC_TRACKER, "gui.cover.pc_tracker", 0x0B5E85u, 0u, 0xFFFFFFu) \
+    X(COVER_PC_TRACKER, "gui.cover.pc_tracker", 0x0B6A82u, 0u, 0xFFFFFFu) \
     X(COVER_NES, "gui.cover.nes", 0x9D174Du, 0u, 0xFFFFFFu)          \
     X(COVER_GAME_BOY, "gui.cover.game_boy", 0x3F6212u, 0u, 0xFFFFFFu) \
-    X(COVER_SNES, "gui.cover.snes", 0x7E22CEu, 0u, 0xFFFFFFu)        \
-    X(COVER_PC_ENGINE, "gui.cover.pc_engine", 0x8A6508u, 0u, 0xFFFFFFu) \
+    X(COVER_SNES, "gui.cover.snes", 0x6D28D9u, 0u, 0xFFFFFFu)        \
+    X(COVER_PC_ENGINE, "gui.cover.pc_engine", 0x854D0Eu, 0u, 0xFFFFFFu) \
     X(COVER_MSX, "gui.cover.msx", 0x475569u, 0u, 0xFFFFFFu)          \
     X(COVER_MEGA_DRIVE, "gui.cover.mega_drive", 0x1D4ED8u, 0u, 0xFFFFFFu) \
     X(COVER_SEGA_MASTER_SYSTEM, "gui.cover.sega_master_system", 0x0F766Eu, 0u, 0xFFFFFFu) \
     X(COVER_CONSOLE, "gui.cover.console", 0x52525Bu, 0u, 0xFFFFFFu) \
-    X(COVER_MUSIC, "gui.cover.music", 0x9A1A8Au, 0u, 0xFFFFFFu)      \
-    X(COVER_TEXT,"gui.cover.text", 0xFFFFFFu, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_PLAYLIST, "gui.cover.kind_playlist", 0x7C3AEDu, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_ALBUM, "gui.cover.kind_album", 0xB45309u, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_ARTIST, "gui.cover.kind_artist", 0xBE185Du, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_DLNA, "gui.cover.kind_dlna", 0x1E40AFu, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_LOCAL, "gui.cover.kind_local", 0x786C09u, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_RADIO, "gui.cover.kind_radio", 0xB91C1Cu, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_PODCAST, "gui.cover.kind_podcast", 0xA21CAFu, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_MODULES_PL, "gui.cover.kind_modules_pl", 0x0E7490u, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_HIPPO, "gui.cover.kind_hippo", 0x15803Du, 0u, 0xFFFFFFu) \
-    X(COVER_KIND_ARCHIVE, "gui.cover.kind_archive", 0x4D7C0Fu, 0u, 0xFFFFFFu)
+    X(COVER_TEXT, "gui.cover.text", 0xFFFFFFu, 0u, 0xFFFFFFu)
 
 /* Layer 1 (D-DUI-9): base tokens. A theme swaps these and the role tokens above follow. X(id, file key, default, min,
  * max). A value may be written as `@gui.base.<name>` (a reference to another base token). Widgets read roles only. */

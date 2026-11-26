@@ -12,9 +12,6 @@ UP-List.mcc/UPA_List_MaxRows
 UP-List.mcc/UPA_List_Title
 UP-List.mcc/UPA_List_DoublePick
 UP-List.mcc/UPA_List_NoSelect
-UP-List.mcc/UPA_List_KeysUnfocused
-UP-List.mcc/UPA_List_Cancelled
-UP-List.mcc/UPA_List_Raised
 UP-List.mcc/UPM_List_GetRow
 
 /****** UP-List.mcc/UPA_List_Count ******
@@ -236,63 +233,6 @@ UP-List.mcc/UPM_List_GetRow
 *
 *   INPUTS
 *       UPA_List_NoSelect - access I. Tag value from <mcc/up.h>.
-*
-*   RESULT
-*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
-*
-*   SEE ALSO
-*       <mcc/up.h>, UP-List.mcc
-*
-******/
-
-/****** UP-List.mcc/UPA_List_KeysUnfocused ******
-*
-*   NAME
-*       UPA_List_KeysUnfocused -- attribute of UP-List.mcc
-*
-*   FUNCTION
-*       BOOL: Up/Down/Return act while no object is active (popup list; MUI draws a white frame round an active object)
-*
-*   INPUTS
-*       UPA_List_KeysUnfocused - access I. Tag value from <mcc/up.h>.
-*
-*   RESULT
-*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
-*
-*   SEE ALSO
-*       <mcc/up.h>, UP-List.mcc
-*
-******/
-
-/****** UP-List.mcc/UPA_List_Cancelled ******
-*
-*   NAME
-*       UPA_List_Cancelled -- attribute of UP-List.mcc
-*
-*   FUNCTION
-*       BOOL: set TRUE when Esc is pressed on a list that has UPA_List_KeysUnfocused on (popup list). A notification on it closes the popup.
-*
-*   INPUTS
-*       UPA_List_Cancelled - access S. Tag value from <mcc/up.h>.
-*
-*   RESULT
-*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
-*
-*   SEE ALSO
-*       <mcc/up.h>, UP-List.mcc
-*
-******/
-
-/****** UP-List.mcc/UPA_List_Raised ******
-*
-*   NAME
-*       UPA_List_Raised -- attribute of UP-List.mcc
-*
-*   FUNCTION
-*       BOOL: resting rows are drawn on the Raised theme token instead of Surface, for a list inside a UP-Panel.mcc popup with the Raised role.
-*
-*   INPUTS
-*       UPA_List_Raised - access I. Tag value from <mcc/up.h>.
 *
 *   RESULT
 *       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).

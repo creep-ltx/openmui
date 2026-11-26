@@ -1,13 +1,12 @@
-UP-MCC by Spot (spotUP), built from the source at
-https://github.com/spotUP/selecta (the classes are in plugins/shared/mcc)
-Commit 6bf6d41611bc29e2996b7839d2c25044af34dc50 (2026-11-20).
-Built 2026-11-26 with the repository's own CMake target up_mcc_dist
-(amiga-gcc 6.5, -m68020 -mcrt=nix20); the staged tree (Libs, Fonts, Themes,
-Docs, Include, README) is kept here unchanged, not stripped. Docs/updemo.c is
-the staged Demo/updemo.c; the UP-Demo binary is not kept.
-Versions: the eleven UP-*.mcc, UP-MCC.mcp and up-mcc.library all carry
-"1.0 (07.11.2026)"; UP-MCC.mcp is version 1 (below 11), so MUI's
-preferences do not list its settings page.
+UP-MCC 1.0 by Spot (spotUP), released 2026-11-12
+https://github.com/spotUP/selecta (source; the classes are in plugins/shared/mcc)
+Release assets: UP-MCC.lha
+SHA256 db07096b288d7371cb771030ac7c8cf1e5658d133d53261991f5ad8df4ff154d
+and UP-MCC-Dark.theme / UP-MCC-Light.theme (identical to Themes/Dark.theme
+and Themes/Light.theme in the archive).
+The archive's Libs, Fonts, Themes, Docs, Include and README are kept here
+unchanged; Docs/updemo.c is the archive's Demo/updemo.c. The binaries are
+shipped as released (not rebuilt, not stripped).
 Licences: Docs/LICENSE (MIT, the package code), Docs/LICENSE.Lucide (ISC,
 the Lucide icons baked into up-mcc.library), Docs/LICENSE.Inter (SIL Open
 Font License 1.1, Fonts/Inter-Regular.ttf).
