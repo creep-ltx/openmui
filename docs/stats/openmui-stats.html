@@ -86,7 +86,7 @@ th { color: var(--text-secondary); font-weight: 600; }
 <div class="wrap">
   <button class="toggle" id="theme" type="button">Light / dark</button>
   <h1>OpenMUI in numbers</h1>
-  <p class="lede">OpenMUI (the build after trim round 1, 2026-11-25) next to Zune68 Beta 5 (2026.11.22), MUI 3.8 and MUI 5. All figures were measured in
+  <p class="lede">OpenMUI (development build of 2026-11-25) next to Zune68 Beta 5 (2026.11.22), MUI 3.8 and MUI 5. All figures were measured in
   emulated Amigas (FS-UAE, cycle-exact; A1200 68EC020 and 68030 at 50 MHz, A600, OS 3.1 unless noted), not on a real Amiga. Measured 2026-11-25, all libraries in one session; memory of MUI 5 and the library alone: 2026-11-23.</p>
 
   <div class="lineage card" style="padding:12px 18px">
@@ -153,7 +153,7 @@ th { color: var(--text-secondary); font-weight: 600; }
 
   <div data-sec="zune68" class="card">
     <h2>Against Zune68 Beta 5</h2>
-    <p class="sub">Zune68 Beta 5 (2026.11.22, as released) and OpenMUI after trim round 1 of 2026-11-25, the same test on the same machine (A1200, OS 3.1), measured in one session on 2026-11-25. Each bar is the library's time as a share of MUI 3.8's; shorter is faster.</p>
+    <p class="sub">Zune68 Beta 5 (2026.11.22, as released) and OpenMUI (2026-11-25), the same test on the same machine (A1200, OS 3.1), measured in one session on 2026-11-25. Each bar is the library's time as a share of MUI 3.8's; shorter is faster.</p>
     <div class="legend" id="cmplegend"></div>
     <svg id="cmp"></svg>
     <div class="facts">
@@ -198,7 +198,7 @@ th { color: var(--text-secondary); font-weight: 600; }
 
 <script>
 const LIBS = [
-  { id: 'openmui', name: 'OpenMUI 1.0', color: 'var(--s-openmui)' },
+  { id: 'openmui', name: 'OpenMUI', color: 'var(--s-openmui)' },
   { id: 'mui38',   name: 'MUI 3.8',       color: 'var(--s-mui38)' },
   { id: 'mui5',    name: 'MUI 5',         color: 'var(--s-mui5)' },
   { id: 'zune68',  name: 'Zune68 Beta 5', color: 'var(--s-zune68)' },
@@ -382,7 +382,7 @@ function memChart(id, key) {
 }
 memChart('memFirst', 'first'); memChart('memFurther', 'further'); memChart('memLib', 'lib'); memChart('memFile', 'file');
 document.getElementById('mempending').textContent =
-  'First and further program: 2026-11-25, OpenMUI trim round 1 on the A1200 (OS 3.1, 4 MB fast), MUI 3.8 and Zune68 Beta 5 on the A1200/030; MUI 5 (2026-11-23) on OS 3.2.1, the others on OS 3.1. Library alone: 2026-11-23, not re-measured. The library file and "library alone" are larger for OpenMUI than for MUI 3.8 because MUI 3.8 keeps more of its code in separate class files; what a program actually costs is the first two charts.';
+  'First and further program: measured 2026-11-25 on OS 3.1 (MUI 5: 2026-11-23, OS 3.2.1). Library alone: 2026-11-23, not re-measured. The library file and "library alone" are larger for OpenMUI than for MUI 3.8 because MUI 3.8 keeps more of its code in separate class files; what a program actually costs is the first two charts.';
 (function () {
   const t = document.getElementById('memTable');
   const rows = [['First program', 'first'], ['Each further program', 'further'], ['Library alone', 'lib'], ['Library file', 'file']];
