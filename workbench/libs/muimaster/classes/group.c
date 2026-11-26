@@ -173,6 +173,7 @@ _Static_assert(offsetof(struct MUI_MinMax, MinHeight)
 #define GROUP_NOFWD_GET   (1<<13)   /* OM_GET is not passed to the children */
 #define GROUP_NOFWD       (1<<14)   /* methods are not passed to the children */
 #define GROUP_XFULL       (1<<15)   /* x has room for the GroupVirtual */
+#define GROUP_NEST_ONE    (1UL<<24) /* bits 24-31: InitChanges inside the first */
 #define GROUP_UPDATE      (GROUP_UPDATE_PAGE | GROUP_UPDATE_SCROLL)
 
 #define GROUP_SET_UPDATE(data, u) \
@@ -876,9 +877,9 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *       children or defer their connection/setup/cleanup.
 *
 *   BUGS
-*       There is one flag, not a nesting counter. Calling InitChange twice on
-*       the same object does not require two exits and clears the prior changed
-*       marker.
+*       Nested calls count, as in MUI 3.8: only the ExitChange that matches
+*       the first InitChange lays out again (up to 255 levels inside the first). A second
+*       InitChange clears the prior changed marker.
 *
 */
 /****** Group.mui/MUIM_Group_ExitChange ************
@@ -891,7 +892,8 @@ static inline struct MinList *group_children(struct MUI_GroupData *data)
 *
 *   FUNCTION
 *       Clear changing/changed flags and request Window recalculation when set
-*       up, unless an ancestor group is still changing.
+*       up, unless an ancestor group is still changing. Inside a nested
+*       InitChange it only counts the nesting down.
 *
 *   INPUTS
 *       No arguments beyond MethodID. Requires a valid connected Group ancestor
@@ -1882,6 +1884,11 @@ IPTR Group__MUIM_InitChange(struct IClass *cl, Object *obj,
 {
     struct MUI_GroupData *data = GDATA(cl, obj);
 
+    /* Nested: MUI 3.8 lays out at the outermost ExitChange only
+     * (tests/native/groupnest.c; the idea from the amigazen project's
+     * Mushin) */
+    if (data->flags & GROUP_CHANGING)
+        data->flags += GROUP_NEST_ONE;
     data->flags &= ~GROUP_CHANGED;
     data->flags |= GROUP_CHANGING;
     return TRUE;
@@ -1898,9 +1905,14 @@ static __attribute__((noinline)) IPTR group_exit_change(struct IClass *cl,
     Object *obj)
 {
     Object *win, *parent = obj;
+    ULONG *flags = &((struct MUI_GroupData *)INST_DATA(cl, obj))->flags;
 
-    ((struct MUI_GroupData *)INST_DATA(cl, obj))->flags
-        &= ~(GROUP_CHANGING | GROUP_CHANGED);
+    if (*flags >= GROUP_NEST_ONE)   /* an inner ExitChange */
+    {
+        *flags -= GROUP_NEST_ONE;
+        return TRUE;
+    }
+    *flags &= ~(GROUP_CHANGING | GROUP_CHANGED);
     if (!(_flags(obj) & MADF_SETUP) || !(win = _win(obj)))
         return TRUE;
     while ((parent = _parent(parent)) && parent != win)
