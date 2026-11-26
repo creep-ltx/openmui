@@ -148,6 +148,15 @@
 #define MUICFG_WindowPos                0x509
 #define MUICFG_Window_Buttons           0x50a
 #define MUICFG_Frame_Thickness          0x50b   /* ULONG, auto = 0 (def), thick, thin; Zune's own id, MUI's is unknown */
+/* the MUI pens, in MPEN_* order: penspecs, "" (def) = the screen's; Zune's own ids */
+#define MUICFG_Pen_Shine                0x50c
+#define MUICFG_Pen_Halfshine            0x50d
+#define MUICFG_Pen_Background           0x50e
+#define MUICFG_Pen_Halfshadow           0x50f
+#define MUICFG_Pen_Shadow               0x510
+#define MUICFG_Pen_Text                 0x511
+#define MUICFG_Pen_Fill                 0x512
+#define MUICFG_Pen_Mark                 0x513
 
 #define MUICFG_CustomFrame_1            0x600
 #define MUICFG_CustomFrame_2            0x601

@@ -190,6 +190,7 @@ struct ZunePrefsNew
     BalancingLook        balancing_look; /* yet unused, remove this comment when handled */
     ActiveObjectLook     active_object_look; /* yet unused, remove this comment when handled */
     CONST_STRPTR         active_object_color; /* yet unused, remove this comment when handled */
+    CONST_STRPTR         mui_pens[MPEN_COUNT]; /* "" = the screen's pen */
 
     /* Scrollbars */
     ScrollbarType        scrollbar_type;

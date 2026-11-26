@@ -1395,7 +1395,9 @@ static __attribute__((noinline)) void InitRenderInfoPens(Object *obj, struct MUI
     for (i = 0; i < MPEN_COUNT; i++)
     {
         struct MUI_PenSpec derived;
-        struct MUI_PenSpec *spec = &MUIMB(MUIMasterBase)->defaultPens[i];
+        CONST_STRPTR pref = muiGlobalInfo(obj)->mgi_Prefs->mui_pens[i];
+        struct MUI_PenSpec *spec = pref[0] ? (struct MUI_PenSpec *)pref
+            : &MUIMB(MUIMasterBase)->defaultPens[i];
         LONG pen;
 
         if (!spec->buf[0] &&
