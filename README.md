@@ -138,7 +138,9 @@ behaviour):
 - **OpenMUI preferences** (`SYS:Prefs/OpenMUI`) with an import of MUI 3.8's
   settings.
 - **Bundled MUI classes** with their preference pages: NList, NListtree,
-  TextEditor, BetterString, TheBar, Busy, Listtree and others.
+  TextEditor, BetterString, TheBar, Busy, Listtree and others, and Spot's
+  [UP-MCC](https://github.com/spotUP/selecta) 1.0 (eleven flat-look classes,
+  `up-mcc.library`, the Inter font, Dark and Light themes; MIT).
 - **Installer** that leaves a real MUI alone, keeps every file it replaces and
   provides *Use real MUI*, *Use OpenMUI* and *Uninstall* in `SYS:OpenMUI`.
 - Swedish catalogs, an SDK with examples, the programmer reference and the
@@ -203,7 +205,8 @@ plain text in `Docs/OpenMUI`.
 | **OpenMUI** | The lean edition of Zune68: rewritten classes for 68000-class machines, with MUI 3.8's look, memory use and speed as the target and MUI 3, 4 and 5 programs as the workload. |
 
 The AROS Public License applies to the core (`LICENSE`). The bundled classes
-keep their own licences and notices (`LEGAL`, `ACKNOWLEDGEMENTS`).
+keep their own licences and notices (`LEGAL`, `ACKNOWLEDGEMENTS`). UP-MCC is
+by spotUP (MIT; Lucide icons ISC; Inter font SIL OFL 1.1).
 
 ## Repository branches
 

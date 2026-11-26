@@ -1,0 +1,122 @@
+TABLE OF CONTENTS
+
+UP-Text.mcc/UPA_Text_Contents
+UP-Text.mcc/UPA_Text_Widest
+UP-Text.mcc/UPA_Text_Tone
+UP-Text.mcc/UPA_Text_Align
+UP-Text.mcc/UPA_Text_Ellipsis
+UP-Text.mcc/UPA_Text_Fixed
+
+/****** UP-Text.mcc/UPA_Text_Contents ******
+*
+*   NAME
+*       UPA_Text_Contents -- attribute of UP-Text.mcc
+*
+*   FUNCTION
+*       STRPTR copied into the object; redraws only when it changed
+*
+*   INPUTS
+*       UPA_Text_Contents - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Text.mcc
+*
+******/
+
+/****** UP-Text.mcc/UPA_Text_Widest ******
+*
+*   NAME
+*       UPA_Text_Widest -- attribute of UP-Text.mcc
+*
+*   FUNCTION
+*       STRPTR longest text the line shows (default width); absent = contents
+*
+*   INPUTS
+*       UPA_Text_Widest - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Text.mcc
+*
+******/
+
+/****** UP-Text.mcc/UPA_Text_Tone ******
+*
+*   NAME
+*       UPA_Text_Tone -- attribute of UP-Text.mcc
+*
+*   FUNCTION
+*       UPV_Text_Tone_*
+*
+*   INPUTS
+*       UPA_Text_Tone - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Text.mcc
+*
+******/
+
+/****** UP-Text.mcc/UPA_Text_Align ******
+*
+*   NAME
+*       UPA_Text_Align -- attribute of UP-Text.mcc
+*
+*   FUNCTION
+*       UPV_Text_Align_*
+*
+*   INPUTS
+*       UPA_Text_Align - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Text.mcc
+*
+******/
+
+/****** UP-Text.mcc/UPA_Text_Ellipsis ******
+*
+*   NAME
+*       UPA_Text_Ellipsis -- attribute of UP-Text.mcc
+*
+*   FUNCTION
+*       BOOL cut with "..." when wider than the box
+*
+*   INPUTS
+*       UPA_Text_Ellipsis - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Text.mcc
+*
+******/
+
+/****** UP-Text.mcc/UPA_Text_Fixed ******
+*
+*   NAME
+*       UPA_Text_Fixed -- attribute of UP-Text.mcc
+*
+*   FUNCTION
+*       BOOL never wider than the default width of the widest text
+*
+*   INPUTS
+*       UPA_Text_Fixed - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Text.mcc
+*
+******/

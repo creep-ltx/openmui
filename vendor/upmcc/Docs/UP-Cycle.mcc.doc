@@ -1,0 +1,42 @@
+TABLE OF CONTENTS
+
+UP-Cycle.mcc/UPA_Cycle_Active
+UP-Cycle.mcc/UPA_Cycle_Entries
+
+/****** UP-Cycle.mcc/UPA_Cycle_Active ******
+*
+*   NAME
+*       UPA_Cycle_Active -- attribute of UP-Cycle.mcc
+*
+*   FUNCTION
+*       LONG: index of the shown entry (notifies)
+*
+*   INPUTS
+*       UPA_Cycle_Active - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Cycle.mcc
+*
+******/
+
+/****** UP-Cycle.mcc/UPA_Cycle_Entries ******
+*
+*   NAME
+*       UPA_Cycle_Entries -- attribute of UP-Cycle.mcc
+*
+*   FUNCTION
+*       Char**: NULL terminated, must outlive the object
+*
+*   INPUTS
+*       UPA_Cycle_Entries - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Cycle.mcc
+*
+******/

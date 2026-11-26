@@ -8,14 +8,6 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
-### Removed
-
-- Spot's UP-MCC (UP-*.mcc, UP-MCC.mcp, `up-mcc.library`, the Inter font, its
-  themes, documents and SDK headers) is no longer bundled. Updating from 1.0 leaves the
-  installed UP-MCC files in place: `OpenMUISwitch` 1.4 skips them in 1.0's
-  record, so neither the installer's removal step nor Uninstall deletes them.
-  Installer 2.5. The compatibility fixes for UP-MCC and its probes stay.
-
 ### Fixed
 
 - A window that is an AppWindow (`MUIA_Window_AppWindow`) is removed from
@@ -32,6 +24,11 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Changed
 
+- UP-MCC (bundled, Spot's) is updated from the 1.0 release to a build of
+  github.com/spotUP/selecta commit 6bf6d416 (2026-11-20): the eleven UP-
+  classes, UP-MCC.mcp, `up-mcc.library`, themes, documents and SDK headers.
+  The files still say 1.0 (07.11.2026); UP-MCC.mcp is version 1, so its page
+  stays hidden in the preferences. Installer 2.5.
 - Code inherited from Zune that could not run on AmigaOS 3 is gone: the
   public screen list of muiscreen.library (which the library never opened)
   with the file notification every program started for it, and the custom

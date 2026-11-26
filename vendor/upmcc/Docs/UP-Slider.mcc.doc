@@ -1,0 +1,16 @@
+TABLE OF CONTENTS
+
+UP-Slider.mcc/UP-Slider.mcc
+
+/****** UP-Slider.mcc/UP-Slider.mcc ******
+*
+*   NAME
+*       UP-Slider.mcc -- MUI class, themed horizontal slider
+*
+*   FUNCTION
+*       The class has no UPA_ attributes of its own: it is driven by the standard MUI numeric attributes MUIA_Numeric_Min, MUIA_Numeric_Max and MUIA_Numeric_Value (and MUIA_FixWidth). Create it with MUI_NewObject("UP-Slider.mcc", ...) or UP_NewSlider.
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP_NewSlider
+*
+******/

@@ -1,0 +1,16 @@
+TABLE OF CONTENTS
+
+UP-Balance.mcc/UP-Balance.mcc
+
+/****** UP-Balance.mcc/UP-Balance.mcc ******
+*
+*   NAME
+*       UP-Balance.mcc -- MUI class, themed balance (divider) between two group children
+*
+*   FUNCTION
+*       The class has no UPA_ attributes of its own: it is used like the MUI Balance class. Create it with MUI_NewObject("UP-Balance.mcc", ...) or UP_NewBalance.
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP_NewBalance
+*
+******/

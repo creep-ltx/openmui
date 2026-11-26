@@ -1,0 +1,202 @@
+TABLE OF CONTENTS
+
+UP-Button.mcc/UPA_Button_Caption
+UP-Button.mcc/UPA_Button_Widest
+UP-Button.mcc/UPA_Button_Icon
+UP-Button.mcc/UPA_Button_AltIcon
+UP-Button.mcc/UPA_Button_IconOnly
+UP-Button.mcc/UPA_Button_Role
+UP-Button.mcc/UPA_Button_FixedWidth
+UP-Button.mcc/UPA_Button_FixedHeight
+UP-Button.mcc/UPA_Button_Align
+UP-Button.mcc/UPA_Button_IconData
+
+/****** UP-Button.mcc/UPA_Button_Caption ******
+*
+*   NAME
+*       UPA_Button_Caption -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       STRPTR shown text
+*
+*   INPUTS
+*       UPA_Button_Caption - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_Widest ******
+*
+*   NAME
+*       UPA_Button_Widest -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       STRPTR longest caption (sets the minimum width); absent = fit the caption
+*
+*   INPUTS
+*       UPA_Button_Widest - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_Icon ******
+*
+*   NAME
+*       UPA_Button_Icon -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       STRPTR Lucide icon name of the baked set ("play", "skip-forward"); NULL, absent or unknown = none
+*
+*   INPUTS
+*       UPA_Button_Icon - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_AltIcon ******
+*
+*   NAME
+*       UPA_Button_AltIcon -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       STRPTR icon name swapped in by mui_aabtn_set_alt; NULL, absent or unknown = none
+*
+*   INPUTS
+*       UPA_Button_AltIcon - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_IconOnly ******
+*
+*   NAME
+*       UPA_Button_IconOnly -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       BOOL no caption drawn
+*
+*   INPUTS
+*       UPA_Button_IconOnly - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_Role ******
+*
+*   NAME
+*       UPA_Button_Role -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       UPV_Button_Role_*
+*
+*   INPUTS
+*       UPA_Button_Role - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_FixedWidth ******
+*
+*   NAME
+*       UPA_Button_FixedWidth -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       LONG exact width in px, 0 = from the contents
+*
+*   INPUTS
+*       UPA_Button_FixedWidth - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_FixedHeight ******
+*
+*   NAME
+*       UPA_Button_FixedHeight -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       LONG exact height in px, 0 = from the contents
+*
+*   INPUTS
+*       UPA_Button_FixedHeight - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_Align ******
+*
+*   NAME
+*       UPA_Button_Align -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       UPV_Button_Align_*
+*
+*   INPUTS
+*       UPA_Button_Align - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/
+
+/****** UP-Button.mcc/UPA_Button_IconData ******
+*
+*   NAME
+*       UPA_Button_IconData -- attribute of UP-Button.mcc
+*
+*   FUNCTION
+*       Struct UP_IconData*: caller icon for a glyph not in the set; used when UPA_Button_Icon names none. The struct and its mask are NOT copied: they must stay valid until the object is disposed
+*
+*   INPUTS
+*       UPA_Button_IconData - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Button.mcc
+*
+******/

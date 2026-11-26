@@ -1,0 +1,62 @@
+TABLE OF CONTENTS
+
+UP-Scroller.mcc/UPA_Scroller_First
+UP-Scroller.mcc/UPA_Scroller_Visible
+UP-Scroller.mcc/UPA_Scroller_Entries
+
+/****** UP-Scroller.mcc/UPA_Scroller_First ******
+*
+*   NAME
+*       UPA_Scroller_First -- attribute of UP-Scroller.mcc
+*
+*   FUNCTION
+*       LONG: first visible entry (notifies)
+*
+*   INPUTS
+*       UPA_Scroller_First - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Scroller.mcc
+*
+******/
+
+/****** UP-Scroller.mcc/UPA_Scroller_Visible ******
+*
+*   NAME
+*       UPA_Scroller_Visible -- attribute of UP-Scroller.mcc
+*
+*   FUNCTION
+*       LONG: entries that fit the owner
+*
+*   INPUTS
+*       UPA_Scroller_Visible - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Scroller.mcc
+*
+******/
+
+/****** UP-Scroller.mcc/UPA_Scroller_Entries ******
+*
+*   NAME
+*       UPA_Scroller_Entries -- attribute of UP-Scroller.mcc
+*
+*   FUNCTION
+*       LONG: entries in the owner
+*
+*   INPUTS
+*       UPA_Scroller_Entries - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Scroller.mcc
+*
+******/

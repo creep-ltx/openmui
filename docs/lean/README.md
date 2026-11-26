@@ -5704,7 +5704,6 @@ The final build (164b3637) against lean (47730569), side by side in the same ses
 
 ## Left open
 
-- **UP-MCC no longer bundled (2026-11-25)**: OpenMUI 1.1 does not ship Spot's UP-MCC (branch `noupmcc`). Everything below about the bundled UP-MCC is history. Updates from 1.0 leave UP-MCC's files in place (OpenMUISwitch 1.4 skips them in 1.0's record). The compatibility fixes and the `up-demo` suite entry stay.
 - **Round `trim1` (2026-11-25)**: **A settings public screen** (the settings' `MUICFG_PublicScreen`)
   that is not open is still not opened: MUI 3.8 opens one described in its PSI file; OpenMUI never
   could on AmigaOS 3 (muiscreen.library was never opened) and the dead AROS code is gone, so it would be

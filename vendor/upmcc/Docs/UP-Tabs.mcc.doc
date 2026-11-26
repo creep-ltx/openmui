@@ -1,0 +1,42 @@
+TABLE OF CONTENTS
+
+UP-Tabs.mcc/UPA_Tabs_Active
+UP-Tabs.mcc/UPA_Tabs_Captions
+
+/****** UP-Tabs.mcc/UPA_Tabs_Active ******
+*
+*   NAME
+*       UPA_Tabs_Active -- attribute of UP-Tabs.mcc
+*
+*   FUNCTION
+*       LONG: index of the active tab (notifies)
+*
+*   INPUTS
+*       UPA_Tabs_Active - access ISG. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Tabs.mcc
+*
+******/
+
+/****** UP-Tabs.mcc/UPA_Tabs_Captions ******
+*
+*   NAME
+*       UPA_Tabs_Captions -- attribute of UP-Tabs.mcc
+*
+*   FUNCTION
+*       Char**: NULL terminated, at most MUI_AATABS_MAX, must outlive the object
+*
+*   INPUTS
+*       UPA_Tabs_Captions - access I. Tag value from <mcc/up.h>.
+*
+*   RESULT
+*       Read with GetAttr/get(), set with SetAttrs/set() or in the MUI_NewObject tag list, as the access letters allow (I = initial, S = set, G = get).
+*
+*   SEE ALSO
+*       <mcc/up.h>, UP-Tabs.mcc
+*
+******/

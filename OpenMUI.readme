@@ -28,6 +28,10 @@ Contents
   settings.
 - [PLUGINS] bundled MUI classes with their preference pages: NList,
   NListtree, TextEditor, BetterString, TheBar, Busy, Listtree and others.
+- UP-MCC 1.0: eleven flat-look classes (UP-Button, UP-Text, UP-Panel,
+  UP-Tabs, UP-Balance, UP-Slider, UP-Progress, UP-Cycle, UP-Field,
+  UP-Scroller, UP-List), UP-MCC.mcp, up-mcc.library, the Inter font and
+  the Dark and Light themes.
 - Swedish catalogs, an SDK with examples, the user guide, developer guide,
   programmer reference and changelog (Docs/OpenMUI), and the full source.
 
@@ -112,7 +116,7 @@ Zune: the MUI-compatible GUI toolkit of AROS, The AROS Development Team.
 Zune68: Zune ported to AmigaOS 3 by Stefan Reinauer.
 OpenMUI: the lean edition of Zune68, rewritten for 68000-class machines.
 Bundled classes keep their authors' names and licences (see Source and
-Docs).
+Docs). UP-MCC is by spotUP (https://github.com/spotUP/selecta), MIT.
 
 Source and licences
 -------------------
@@ -122,3 +126,5 @@ Zune68:  https://github.com/reinauer/zune68
 AROS:    https://github.com/aros-development-team/AROS
 The core is under the AROS Public License (LICENSE). The bundled classes
 keep their own licences and copyright notices, included with the source.
+UP-MCC's licences (MIT; Lucide icons ISC; Inter font SIL OFL 1.1) are in
+Docs/UP-MCC.
