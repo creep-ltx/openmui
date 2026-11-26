@@ -12,3 +12,9 @@ of Spot (spotUP), https://github.com/spotUP/selecta, MIT License. It includes
 the Lucide icons (ISC License, Copyright (c) 2026 Lucide Icons and
 Contributors) and the Inter font (SIL Open Font License 1.1, Copyright (c)
 2016 The Inter Project Authors, https://github.com/rsms/inter).
+
+Three fixes in muimaster.library (Group's nested InitChange count, a window's
+requested height, MUI_RemoveClipRegion's clip stack) follow fixes the
+amigazen project made in Mushin (https://github.com/amigazen/mushin, AROS
+Public License 1.1), checked against MUI 3.8 and MUI 5 and written for
+OpenMUI. Thanks to the amigazen project.

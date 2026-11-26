@@ -5702,6 +5702,58 @@ The final build (164b3637) against lean (47730569), side by side in the same ses
   AppWindow's node), 80-160 less for EvenMore, NewsRog and WookieChat, 64 and 128 more for AnimMaker
   and Amplifier (both vary between runs), the other 167 as lean.
 
+## Mushin fixes (2026-11-26, branch `mushfix`)
+
+Branch `mushfix`, from `lean` 940aa31f. The fixes the amigazen project's Mushin (github.com/amigazen/mushin,
+an AROS Zune descendant under the AROS Public License, as OpenMUI) made that OpenMUI might lack
+([measurements](measurements.md), section 2026-11-26), each read in Mushin's history, looked for in
+OpenMUI, probed black-box on MUI 3.8 (a1200-31-mui38), MUI 5 (a1200-32-mui5) and OpenMUI in Amiberry,
+and taken only where MUI behaves as Mushin. Taken code is OpenMUI's own, credited in the commits,
+[ACKNOWLEDGEMENTS](../../ACKNOWLEDGEMENTS) and [LEGAL](../../LEGAL). Emulator figures.
+
+| # | Mushin's fix | verdict | evidence |
+|---|---|---|---|
+| 1 | Group InitChange/ExitChange nest count | **taken** (1f9be926) | `tests/native/groupnest.c`: InitChange twice, add a child, ExitChange once: MUI 3.8 width 0 (no layout), OpenMUI 64; after the second exit 64 on both. Count in the top byte of the group's flags (no larger instance) |
+| 2 | Family unlink of a one-sided link | **not reproducible** | the one-sided link came from Mushin's own unlink in `MUI_DisposeObject`/Family dispose; OpenMUI disposes as MUI (`DisposeObject`, removal only through OM_REMMEMBER); read |
+| 3 | Window width and height chosen apart; a chrome-only saved winpos | **taken** (14e17988), first half | `tests/native/winreqsize.c`: only `MUIA_Window_Height` 150 set between opens: MUI 3.8 72x150, MUI 5 80x150, OpenMUI 72x42 (minimum), now 72x150. A cleared width still chooses both (as before). The winpos half is a Voyager heuristic (a height at the minimum becomes the default): not MUI's, not taken |
+| 4 | RemEventHandler of a node never added | **MUI differs** | a zeroed node removed: MUI 3.8, MUI 5 and OpenMUI all reset the machine (a plain Remove writes to 0/4); MUI has no guard, none added |
+| 5 | MUI_RemoveClipRegion pops the clip stack | **taken** (bbc1ad10) | `tests/native/clipstack.c`: a region the program installed between two pushes, or before the first, is not put back on MUI 3.8 and MUI 5 (the region under it on the stack, or none); OpenMUI put the handle back. `check_clipping.py` now expects MUI's stack |
+| 6 | Window render info before MUIM_Window_Setup | **already correct** | a Window subclass reads `MUIA_Window_Screen` in its MUIM_Window_Setup, before and after the super call: non-NULL on all three (probe); OpenMUI sets up the render info first (`window.c`) |
+| 7 | A List drag keeps mouse moves | **not reproducible, open** | a list drag from injected input (`IND_WRITEEVENT`, and `tests/lean/mdrag.c` from another process) starts on none of MUI 3.8, MUI 5, OpenMUI (the press selects, no drag image), so there is no MUI reference; `lean`'s DragnDrop drag did not start with mdrag either (above). OpenMUI's List, like Mushin's before the fix, eats the press. Needs a drag by hand on MUI 3.8 |
+| 8 | ReAction prefs overlay (`ENV:sys/reaction.prefs`) | **evaluated, not adopted** | a feature: 451 lines that put OS 3.2's ReAction frames, bevels, fonts and pattern over every program's MUI settings. MUI 3.8 has nothing like it; on by default it would change every program's pixels. Fits only as an opt-in setting (off) with a module loaded at settings load when on; a MUI 3 program then pays one flag test. For the partner to decide |
+| 9 | amipg, envelope-demo, ticklish, up-demo ran on Mushin only | **MUI differs** | all four fail on real MUI 3.8 too (suite, this session: up-demo and amipg exit, envelope-demo and ticklish no window). Mushin's windows were all 256 high at y 0 on a 256-line screen: Mushin opens a window taller than the screen squeezed; MUI 3.8 (and OpenMUI) does not open it (Envelope-Demo then waits forever, its source shows it does not check the open). Ticklish is flaky on OpenMUI (a Hollywood window, once ok) |
+
+Size: library +76 bytes (254,232 against 254,156 unstripped): the nest count 36, the clip stack 16, the
+window 8, alignment. Stack: `-fstack-usage` of group.c, window.c and mui_removeclipregion.c against
+`lean`: no function larger (WindowSelectDimensions first grew 28 -> 32; rewritten: the "already set" test
+moved into SelectDimension; ZuneRemoveClipRegion 28 -> 24).
+
+### Checked (emulators)
+
+Final build (bbc1ad10) against `lean` (940aa31f), side by side, this session:
+- `make check` after every commit (green); `tests/native/groupnest.c`, `winreqsize.c`, `clipstack.c` on
+  the final build give MUI 3.8's answers.
+- **demopix** (Amiberry): the 27 shots pixel-identical to `lean`'s (17 of them identical to MUI 3.8, as
+  before). **fullcheck**: the same windows, sizes and losses as `lean` (MUI-Demo with 8 sub-windows 608
+  bytes, each other demo 200). **stackrun** (two rounds each, the deepest of the two): MUI-Demo 4,920 as
+  `lean`, Layout 2,224 as `lean`, Virtual 2,168 as `lean`, Pages 1,988 (`lean` 2,196), Slidorama 752
+  (`lean` 2,260): never deeper (single runs vary a lot: Pages 436-2,196 on the same build).
+- **Memory** (FS-UAE cycle-exact A1200/030, MUI-Demo cold, two rounds): first program 423,608 against
+  423,536 (+72, the library's code), further ones 187,272-187,336 on both: the same.
+- **opbench** (FS-UAE cycle-exact, medians of 9): A1200 020 and 030 two rounds each (instances swapped),
+  A600 one: every operation within the spread of the two rounds except `list sort 1000` on the 68020,
+  +0.7 % in both rounds (94.2/94.4 against 94.9/95.2 ms; the ranges overlap); on the 68000 its minimum is
+  the same to 0.001 % (378.855 against 378.856 ms), so the same work runs and the 68020 figure is the code
+  moving 76 bytes (cache), not the fixes; A600 everything 0.95-1.01.
+- **Suite** (Amiberry, OS 3.1, groups mui3, mcc and mui5, `--no-leak`, 185 rows, final and `lean` at the
+  same time): the same status for every program but AnimMaker (reset at quit on the final build). Ran again
+  alone: it resets at quit on the final build 5 times in 16 and on `lean` 2 in 13 (a build without the
+  clip-stack commit 0 in 6, frozen once; MUI 3.8 0 in 3), so a flaky quit of its own on both, not traced to
+  a commit; left open. Screenshots: 169 of 182 pixel-identical; the 13 others are clocks, a GIF animation,
+  text that differs between runs of `lean` too (AmiDrop, AmTelnet, CManager, RO) and the button under the
+  pointer in the SpeedBar/BWin demos and Voyager's busy image (which also differ between two `lean` runs).
+- **differences.md** unchanged: all three changes move OpenMUI to MUI's behaviour, none was listed there.
+
 ## Left open
 
 - **Round `trim1` (2026-11-25)**: **A settings public screen** (the settings' `MUICFG_PublicScreen`)

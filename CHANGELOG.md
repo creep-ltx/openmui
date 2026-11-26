@@ -10,6 +10,16 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ### Fixed
 
+- Group: nested `MUIM_Group_InitChange` calls are counted, as in MUI 3.8:
+  only the `ExitChange` that matches the first lays the group out again. An
+  inner `ExitChange` laid out halfway through the outer change. (Found by
+  the amigazen project's Mushin.)
+- Window: setting only `MUIA_Window_Height` on a window that had been open
+  reopened it at its minimum height; it now gets the requested height, as
+  in MUI 3.8 and MUI 5. (Found by Mushin.)
+- `MUI_RemoveClipRegion` (and `MUI_RemoveClipping`) installs the MUI region
+  pushed before the removed one, or none, as MUI 3.8 and MUI 5 do; a region
+  the program had installed itself came back instead. (Mushin's fix.)
 - A window that is an AppWindow (`MUIA_Window_AppWindow`) is removed from
   Workbench's list when it closes. It never was: Workbench kept the closed
   window, and 64 bytes were lost each time.
