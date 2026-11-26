@@ -42,8 +42,12 @@ VOID ZuneRemoveClipRegion(struct MUI_RenderInfo *mri, APTR handle)
     else if (lock_layerinfo)
         LockLayerInfo(&w->WScreen->LayerInfo);
 
-    /* The handle can belong to an outer non-MUI clip. Restore it too. */
-    InstallClipRegion(l, (struct Region *)handle);
+    /* The region under it on the stack, or none: MUI 3.8 and MUI 5 do not
+     * put back a program's own region from before the first push, nor one
+     * installed between two pushes (tests/native/clipstack.c; the amigazen
+     * project's Mushin made the same fix) */
+    InstallClipRegion(l, mri->mri_rCount
+        ? mri->mri_Tail->rArray[mri->mri_rCount - 1] : NULL);
 
     if (refreshmode)
         BeginRefresh(w);
@@ -65,12 +69,14 @@ VOID ZuneRemoveClipRegion(struct MUI_RenderInfo *mri, APTR handle)
 
 /*  FUNCTION
         Pop and dispose of the most recently pushed MUI clipping region,
-        and install the region that was current before the matching add
-        call. Refresh processing is suspended and resumed when necessary.
+        and install the MUI region pushed before it, or no region when the
+        stack is empty, as MUI does. Refresh processing is suspended and
+        resumed when necessary.
 
     INPUTS
         mri - Valid rendering context used when the region was pushed.
-        handle - Token from the matching add call. (APTR)-1 does nothing.
+        handle - Token from the matching add call. (APTR)-1 does nothing;
+                 any other value is not used.
 
     RESULT
         None.

@@ -120,7 +120,9 @@ def check_virtual_paint(path):
             assert h.mem.r32(MRI + 92) == count + 1
             assert not h.call('Group__MUIM_Virtgroup_BeginPaint', cl, OBJECT)
         h.call('Group__MUIM_Virtgroup_EndPaint', cl, OBJECT)
-        assert h.mem.r32(LAYER + 126) == old_clip
+        # the MUI region under it, none for an outer program region (MUI)
+        assert h.mem.r32(LAYER + 126) == (old_clip if count or not result
+                                          else 0)
         assert h.mem.r32(MRI + 92) == count
         if failure == 'intersect':
             h.call('ZuneRemoveClipRegion', MRI, outer)
@@ -247,7 +249,9 @@ def check_refresh_culling(path):
         h.call('MUI_Redraw', OBJECT, 1)
         assert not h.draws
         assert h.region_allocations == int(virtual)
-        assert h.mem.r32(LAYER + 126) == outer
+        # a virtual parent's clip came and went: the stack's empty again,
+        # and an empty stack installs none (MUI: tests/native/clipstack.c)
+        assert h.mem.r32(LAYER + 126) == (0 if virtual else outer)
         assert bytes(h.mem.r_block(MRI + 96, 8)) == sentinel
         assert h.mem.r32(OBJECT + 64) == flags
         h.finish()
@@ -358,8 +362,18 @@ def check(path):
     assert (a, b) == (outer, first)
     h.call('ZuneRemoveClipRegion', MRI, b)
     assert h.mem.r32(LAYER + 126) == first
+    # A region installed between the pushes is not put back: the one
+    # under it on the stack is (MUI 3.8, MUI 5: tests/native/clipstack.c)
+    second = h.alloc(12)
+    h.mem.w32(LAYER + 126, outer)
+    b = h.call('ZuneAddClipRegion', MRI, second)
+    assert b == outer
+    h.call('ZuneRemoveClipRegion', MRI, b)
+    assert h.mem.r32(LAYER + 126) == first, 'not the region under it'
+    h.mem.w32(LAYER + 126, first)
     h.call('ZuneRemoveClipRegion', MRI, a)
-    assert h.mem.r32(LAYER + 126) == outer, 'lost external clipping region'
+    # the program's own region from before the first push neither
+    assert h.mem.r32(LAYER + 126) == 0, 'not emptied as MUI'
     h.call('ZuneRemoveClipRegion', MRI, a)  # empty stack cannot underflow
     h.finish()
 
