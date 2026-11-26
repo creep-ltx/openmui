@@ -20,6 +20,16 @@ measured on a real Amiga.
 
 ![Headline figures](docs/stats/headline.png)
 
+Newest measurement: 2026-11-25, after trim round 1 (details in
+[docs/lean/measurements.md](docs/lean/measurements.md)): first program 423,536
+bytes, each further 187,272-187,336 (MUI-Demo, A1200, OS 3.1); library file 232,100
+bytes stripped. The speed tables further down are from 2026-11-23. Charts of 2026-11-25
+(emulated, cycle-exact FS-UAE, bars are midpoints of the range over the instances):
+
+![A600 (68000), OpenMUI's time as a share of MUI 3.8's](docs/stats/speed-a600.png)
+
+![A1200 with a 68030 at 50 MHz, OpenMUI's time as a share of MUI 3.8's](docs/stats/speed-030.png)
+
 ### Speed
 
 Milliseconds per operation, measured 2026-11-23 with the build after the
