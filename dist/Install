@@ -213,6 +213,7 @@
 )
 (procedure P_FlushReport
     (if (and (<> #repbuf "") (= @pretend 0))
+        (
         (if (= #repstarted 0)
             (textfile (dest #repfile) (append #repbuf))
             (
@@ -222,6 +223,7 @@
             )
         )
         (set #repstarted 1)
+        )
     )
     (set #repbuf "")
 )
@@ -264,7 +266,7 @@
         (
             (set #nkept (+ #nkept 1))
             (P_Line (cat #name " " (P_Version #best) ": yours, kept ("
-                "OpenMUI's: " (P_Version #bv) ")."))
+                "OpenMUI: " (P_Version #bv) ")."))
         )
         (
             (if (>= #best 0)
@@ -285,7 +287,8 @@
             (if (>= #own 0)
                 (
                     (set #nown (+ #nown 1))
-                    (set #ownlist (cat #ownlist (if (= #ownlist "") "" ", ") #name))
+                    (P_Line (cat #name " " (P_Version #own) ": " #muiname
+                        "'s own, stays for it."))
                 )
             )
             (P_Put #src #libsmui #name)
@@ -310,7 +313,7 @@
         (
             (set #nkept (+ #nkept 1))
             (P_Line (cat #name " " (P_Version #best) ": yours, kept ("
-                "OpenMUI's: " (P_Version #bv) ")."))
+                "OpenMUI: " (P_Version #bv) ")."))
         )
         (P_Put #src #libsdir #name)
     )
@@ -324,14 +327,6 @@
         ; OS 3.2's ENV: shows ENVARC:'s files: no report for those
         (if (<> (substr #dir 0 4) "ENV:")
             (P_Line (cat (tackon #dir #name) ": yours, kept.")))
-    )
-)
-
-; The classes of the real MUI that stay for it (a detail line)
-(procedure P_OwnReport
-    (if (<> #ownlist "")
-        (P_Line (cat #muiname "'s own " #ownlist " stay for " #muiname
-            "; OpenMUI uses its own."))
     )
 )
 
@@ -659,7 +654,6 @@
 )
 (complete 100)
 
-(P_OwnReport)
 (P_FlushReport)
 (if @pretend
     (message "Pretend mode: nothing was changed.\n\n"
@@ -678,7 +672,8 @@
             (cat #nown " classes of " #muiname " stay for it.\n") "")
         "Reboot to use it. Settings: SYS:Prefs/OpenMUI.\n"
         (if (> #nlines 0)
-            (cat "Details follow on " (/ (+ #nlines 7) 8) " pages, and in\n" #repfile)
+            (cat "Details follow on " (/ (+ #nlines 7) 8) " page"
+                (if (> #nlines 8) "s" "") ", and in\n" #repfile)
             "")
         (all))
 )
