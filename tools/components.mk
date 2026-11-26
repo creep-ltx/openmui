@@ -47,7 +47,7 @@ $(BUILD)/Tools/openmuiswitch_strings.h: $(ROOT)/workbench/tools/openmuiswitch/ca
 $(BUILD)/Tools/OpenMUISwitch: $(ROOT)/workbench/tools/openmuiswitch/OpenMUISwitch.c \
   $(BUILD)/Tools/openmuiswitch_strings.h
 	@mkdir -p $(@D)
-	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) -Wno-pointer-sign $(PROGRAM_DEPS) \
+	$(CC) $(CPUFLAGS) $(CRTFLAGS) $(CFLAGS) -Wno-pointer-sign $(OPENMUI_VERSION_FLAGS) $(PROGRAM_DEPS) \
 	  -I$(BUILD)/Tools -I$(ROOT)/workbench/tools/openmuiswitch -o $@ $<
 $(BUILD)/Tools/OpenMUISwitch: $(BUILD)/cflags
 -include $(BUILD)/Tools/OpenMUISwitch.d

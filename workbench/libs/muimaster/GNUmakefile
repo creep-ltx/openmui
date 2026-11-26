@@ -31,7 +31,8 @@ CRTFLAGS = -noixemul
 CFLAGS ?= -std=gnu17 -Os -g -Wall -Wno-pointer-sign \
 	-falign-functions=4 -falign-loops=4 -falign-jumps=4
 # Every native build is a release build: compile out assert().
-CPPFLAGS += -DNDEBUG -DMUIMASTER_YES_INLINE_STDARG= -DZUNE68_GCC_NATIVE \
+include ../../../tools/version.mk
+CPPFLAGS += $(OPENMUI_VERSION_FLAGS) -DNDEBUG -DMUIMASTER_YES_INLINE_STDARG= -DZUNE68_GCC_NATIVE \
   -DMUI_OBSOLETE -DMUIMASTER_LIBRARY_BUILD \
   -I$(BUILD)/include -I$(BUILD) -Igcc -Iinclude -I. -include include/clib/muimaster_protos.h -include lazylib.h \
   -include $(BUILD)/trace-config.h
@@ -314,6 +315,7 @@ check-core: $(BUILD)/list-repaint-probe $(BUILD)/config-init-probe $(MUI5_PROBE_
 	$(PYTHON) ../../../tests/check_trace.py \
 	  $(BUILD)/muimaster.library
 	$(PYTHON) ../../../tests/check_release.py
+	$(PYTHON) ../../../tests/check_version.py
 	$(PYTHON) ../../../tests/check_opentest_stack.py $(BUILD)/opentest $(BUILD)/compatcheck
 endif
 
@@ -325,7 +327,6 @@ $(BUILD)/trace-config.h: FORCE
 
 # The date in the $VER strings: the day of the build, or ZUNE68_DATE=DD.MM.YYYY.
 # Written only when it changes, so a build on the same day recompiles nothing.
-ZUNE68_DATE ?= $(shell date +%d.%m.%Y)
 $(BUILD)/build-date.h: FORCE
 	@mkdir -p $(@D)
 	@printf '#define ZUNE68_LIBRARY_DATE "%s"\n' '$(ZUNE68_DATE)' | cmp -s - $@ || \
@@ -413,7 +414,7 @@ $(BUILD)/cf/%.o: classes/%.c $(GENERATED)
 
 $(BUILD)/cf/classfile-%.o: classfile.c classfile.h native_version.h $(GENERATED)
 	@mkdir -p $(@D)
-	$(CC) -I. -I$(BUILD) -include $(BUILD)/trace-config.h $(CF_CFLAGS) \
+	$(CC) -I. -I$(BUILD) $(OPENMUI_VERSION_FLAGS) -include $(BUILD)/trace-config.h $(CF_CFLAGS) \
 	  $$(cat $(BUILD)/cf/$*.flags) -c $< -o $@
 
 $(BUILD)/cf/cfbases.o: cfbases.c classfile.h

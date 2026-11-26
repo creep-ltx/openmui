@@ -7,7 +7,8 @@ BUILD ?= ../../../build/muimaster
 CPUFLAGS ?= -m68000 -msoft-float
 CFLAGS ?= -std=gnu17 -Os -g -Wall -Wno-pointer-sign
 MASTER := ../../libs/muimaster
-CPPFLAGS += -DNDEBUG -DNO_INLINE_STDARG -I$(BUILD)/include \
+include ../../../tools/version.mk
+CPPFLAGS += $(OPENMUI_VERSION_FLAGS) -DNDEBUG -DNO_INLINE_STDARG -I$(BUILD)/include \
   -I$(BUILD)/prefs -I$(BUILD) -Iinclude -I$(MASTER)/include -include clib/alib_protos.h
 SOURCES := prefswindowp.c zune.c listview.c zunestuff.c windowp.c buttonsp.c groupsp.c \
   cyclesp.c slidersp.c scrollbarsp.c listviewsp.c stringsp.c specialp.c \

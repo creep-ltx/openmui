@@ -94,7 +94,7 @@ static int Strnicmp(const char *a, const char *b, int n)
 
 #define Stricmp(a, b) Strnicmp((const char *)(a), (const char *)(b), 0x7fff)
 
-static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.3 (24.11.2026) OpenMUI 1.0";
+static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.3 (24.11.2026) OpenMUI " ZUNE68_EDITION_NUMBER;
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;

@@ -60,9 +60,9 @@
 })
 
 
-/* OpenMUI 1.0: the name the Version command shows; the beta number is in
- * the text after the date. */
-#define ZUNEVERSION "$VER: OpenMUI 1.0 (19.11.2026) by Tobias Karlsson"
+/* The name the Version command shows: OpenMUI and the release version
+ * (the file VERSION, passed by the makefile). */
+#define ZUNEVERSION "$VER: OpenMUI " ZUNE68_EDITION_NUMBER " (" OPENMUI_BUILD_DATE ") by Tobias Karlsson"
 
 /* The catalogs (translations too) still say "Zune" in window titles and the
  * About menu item: show the same text with "OpenMUI" in its place. */

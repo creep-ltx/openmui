@@ -244,3 +244,24 @@ Issues and pull requests go to <https://github.com/creep-ltx/openmui>.
 
 Open items and planned work: [lean/roadmap.md](lean/roadmap.md) and
 `docs/lean/README.md` ("Left open").
+
+## Releasing: edit VERSION
+
+The release version is the one line in the file `VERSION` at the top of the
+tree (`1.1b1`, or `1.2` for a final release). Nothing else states it by hand:
+
+- the makefiles read it (`tools/version.mk`) and pass it with `-D` as
+  `ZUNE68_EDITION_NUMBER`: the library's `$VER` edition and the About window,
+  the preferences program's `$VER` and OpenMUISwitch's `$VER` ("OpenMUI x.y"
+  after the tool's own version, which stays separate);
+- `tools/release.py` puts it in `Install` (the placeholder `[EDITION]`), the
+  readmes and the archive name (`OpenMUI-<version>-<date>-amigaos3-m68k.lha`);
+- `README.md` and `docs/user-guide.md` start with `**Version <version>.**`;
+  change those two lines by hand.
+
+`tests/check_version.py` (part of `make check`) fails when a file outside the
+history (`CHANGELOG.md`, `docs/lean`, `docs/production.md`, `docs/stats`,
+tests, vendored code) names another "OpenMUI x.y" or when the two doc lines
+differ from `VERSION`. The library's compatibility numbers (21.227, 19.35,
+20.6000) are not release versions and do not change. Also move the
+`## Unreleased` section of `CHANGELOG.md` under the new version's heading.

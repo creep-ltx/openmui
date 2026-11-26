@@ -22,7 +22,7 @@ def component_version(path):
     data = path.read_bytes()
     if data[:4] != struct.pack('>I', 1011):
         raise ValueError(f'{path}: expected an Amiga Hunk load file')
-    pattern = rb'\$VER: ' + re.escape(path.name.encode()) + rb' (\d+)\.(\d+)\b'
+    pattern = rb'\$VER: ' + re.escape(path.name.encode()) + rb' (\d+)\.(\d+)(?:b\d+)?\b'
     versions = set(re.findall(pattern, data))
     if len(versions) != 1:
         raise ValueError(f'{path}: missing or ambiguous matching $VER string')
@@ -35,7 +35,7 @@ def library_version(path):
     The library version is the one it reports to applications; releases
     are identified by the $VER date and the text after it: "Zune68 <stage>"
     for upstream's release lines (stage "Beta 2"), or an edition of its own
-    such as "OpenMUI 0.1b1" (earlier: "Zune68k lean"), which is then the
+    such as "OpenMUI X.YbN" (earlier: "Zune68k lean"), which is then the
     stage.
     """
     data = path.read_bytes()
@@ -115,7 +115,12 @@ def package_path(name):
     return name
 
 
-def install_script(files, class_files=()):
+def release_version():
+    """The release version: the file VERSION at the top of the tree."""
+    return (ROOT / 'VERSION').read_text().strip()
+
+
+def install_script(files, class_files=(), edition=None):
     """dist/Install with the package check and the catalog lines filled in.
 
     The libraries, LIBS:OpenMUI and the MUI classes are installed by the
@@ -123,7 +128,8 @@ def install_script(files, class_files=()):
     checked to be in the package with a readable version, and each catalog
     gets its line, its language drawer named the Amiga way (german ->
     deutsch) in the first directory of LOCALE:."""
-    script = (ROOT / 'dist/Install').read_text()
+    script = ((ROOT / 'dist/Install').read_text()
+              .replace('[EDITION]', edition or release_version()))
     files = [package_path(name) for name in files]
     files += ['Libs/OpenMUI/' + name for name in class_files
               if 'Libs/OpenMUI/' + name not in files]
@@ -293,7 +299,8 @@ def release(build_dir, output_dir, lha, full=True, strip='m68k-amigaos-strip'):
                 (ROOT / 'dist' / name).read_text(encoding='ascii'),
                 version, date, line), encoding='ascii')
         (package / 'Install').write_bytes(
-            install_script(files, class_files).encode('latin1'))
+            install_script(files, class_files, line[len('OpenMUI '):]
+                           if line.startswith('OpenMUI ') else None).encode('latin1'))
         for name in files:
             target = package / package_path(name)
             target.parent.mkdir(parents=True, exist_ok=True)

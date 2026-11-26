@@ -11,7 +11,7 @@ MUI 5. Its look and memory use follow MUI 3.8.
 > Zune, the MUI-compatible toolkit of AROS (The AROS Development Team), as
 > ported to AmigaOS 3 by Stefan Reinauer (Zune68).
 
-**Version 1.0.** Problem reports: see
+**Version 1.1b1.** Problem reports: see
 [Reporting a problem](#reporting-a-problem).
 
 ## Memory and speed

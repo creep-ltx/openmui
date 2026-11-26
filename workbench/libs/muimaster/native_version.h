@@ -42,7 +42,11 @@
  * editions used LIBS:Zune, ENV:Zune and ENVARC:Zune (the installer and
  * OpenMUI prefs move the settings, the library reads the old ones while
  * there are no new ones). */
-#define ZUNE68_EDITION_NUMBER "1.0"
+/* ZUNE68_EDITION_NUMBER is the release version, from the file VERSION at
+ * the top of the tree (tools/version.mk passes it with -D). */
+#ifndef ZUNE68_EDITION_NUMBER
+#error "ZUNE68_EDITION_NUMBER: build with the makefile (it reads VERSION)"
+#endif
 #define ZUNE68_EDITION "OpenMUI " ZUNE68_EDITION_NUMBER
 #define ZUNE68_STRINGIFY_(x) #x
 #define ZUNE68_STRINGIFY(x) ZUNE68_STRINGIFY_(x)

@@ -8,32 +8,20 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
-### Fixed
+## 1.1b1 (2026-11-26)
 
-- Group: nested `MUIM_Group_InitChange` calls are counted, as in MUI 3.8:
-  only the `ExitChange` that matches the first lays the group out again. An
-  inner `ExitChange` laid out halfway through the outer change. (Found by
-  the amigazen project's Mushin.)
-- Window: setting only `MUIA_Window_Height` on a window that had been open
-  reopened it at its minimum height; it now gets the requested height, as
-  in MUI 3.8 and MUI 5. (Found by Mushin.)
-- `MUI_RemoveClipRegion` (and `MUI_RemoveClipping`) installs the MUI region
-  pushed before the removed one, or none, as MUI 3.8 and MUI 5 do; a region
-  the program had installed itself came back instead. (Mushin's fix.)
-- A window that is an AppWindow (`MUIA_Window_AppWindow`) is removed from
-  Workbench's list when it closes. It never was: Workbench kept the closed
-  window, and 64 bytes were lost each time.
-- External images are also looked for in `LIBS:Zune/Images` (earlier
-  installs) and, after it, `MUI:Images`; the External lists of the
-  preferences show all three drawers merged (the first drawer wins a name).
-  After an update over a hand-copied older build the lists were empty. The
-  installer and `OpenMUISwitch MIGRATE` (1.3) copy `LIBS:Zune/Images` to
-  `LIBS:OpenMUI/Images` when that does not exist, with or without an
-  earlier installer record; the copy is not recorded, so Uninstall leaves
-  it. OpenMUI ships no image sets.
+### Added
+
+- `opbench` (tests/native): `menu shown+close` and `menu select`, which wait
+  until Intuition has shown and closed the menus. `menu open+close` stops when
+  the program's loop has nothing more to do, which for a toolkit that asks for
+  IDCMP_MENUVERIFY is before its menu is shown.
 
 ### Changed
 
+- One central release version: the file `VERSION`. The library, the
+  preferences program, OpenMUISwitch, the installer, the readmes and the
+  archive name take it from there; `make check` fails on a hard-coded one.
 - UP-MCC 1.0 (spotUP) stays bundled, as released. UP-MCC.mcp is version 1,
   so its page stays hidden in the preferences. Installer 2.5.
 - Code inherited from Zune that could not run on AmigaOS 3 is gone: the
@@ -91,7 +79,35 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 - The default-settings tables use 16-bit fields (0.4 KB less code), so the
   library stays the same size (232,084 bytes stripped).
 
+- Measurements of 2026-11-23 against Zune68 Beta 5 and MUI 3.8 redone with
+  this build (README, statistics page, `docs/lean/measurements.md`).
+- The size of the class files in `LIBS:OpenMUI`: 289,948 bytes stripped for
+  release 1.0 (the developer guide was right; the measurements of 2026-11-23
+  said 359,108), 290,056 now.
+
 ### Fixed
+
+- Group: nested `MUIM_Group_InitChange` calls are counted, as in MUI 3.8:
+  only the `ExitChange` that matches the first lays the group out again. An
+  inner `ExitChange` laid out halfway through the outer change. (Found by
+  the amigazen project's Mushin.)
+- Window: setting only `MUIA_Window_Height` on a window that had been open
+  reopened it at its minimum height; it now gets the requested height, as
+  in MUI 3.8 and MUI 5. (Found by Mushin.)
+- `MUI_RemoveClipRegion` (and `MUI_RemoveClipping`) installs the MUI region
+  pushed before the removed one, or none, as MUI 3.8 and MUI 5 do; a region
+  the program had installed itself came back instead. (Mushin's fix.)
+- A window that is an AppWindow (`MUIA_Window_AppWindow`) is removed from
+  Workbench's list when it closes. It never was: Workbench kept the closed
+  window, and 64 bytes were lost each time.
+- External images are also looked for in `LIBS:Zune/Images` (earlier
+  installs) and, after it, `MUI:Images`; the External lists of the
+  preferences show all three drawers merged (the first drawer wins a name).
+  After an update over a hand-copied older build the lists were empty. The
+  installer and `OpenMUISwitch MIGRATE` (1.3) copy `LIBS:Zune/Images` to
+  `LIBS:OpenMUI/Images` when that does not exist, with or without an
+  earlier installer record; the copy is not recorded, so Uninstall leaves
+  it. OpenMUI ships no image sets.
 
 - The preferences program no longer stops answering when UP-MCC's page is
   chosen. Like MUI 3.8 and MUI 5 it lists a settings class (`.mcp`) only
@@ -101,21 +117,6 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
   it reads its theme with libnix's `fopen`, whose
   `malloc` locks a semaphore the class library never set up. OpenMUI's own
   Busy.mcp and Listtree.mcp are now version 11.1 so that they stay listed.
-
-### Added
-
-- `opbench` (tests/native): `menu shown+close` and `menu select`, which wait
-  until Intuition has shown and closed the menus. `menu open+close` stops when
-  the program's loop has nothing more to do, which for a toolkit that asks for
-  IDCMP_MENUVERIFY is before its menu is shown.
-
-### Documentation
-
-- Measurements of 2026-11-23 against Zune68 Beta 5 and MUI 3.8 redone with
-  this build (README, statistics page, `docs/lean/measurements.md`).
-- The size of the class files in `LIBS:OpenMUI`: 289,948 bytes stripped for
-  release 1.0 (the developer guide was right; the measurements of 2026-11-23
-  said 359,108), 290,056 now.
 
 ## 1.0 (2026-11-19)
 
