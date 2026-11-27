@@ -21,7 +21,7 @@ from release import (component_files, builtin_class_files, install_script,
 # Installer 43 documentation; anything else is a typo or needs 44+)
 BUILTINS = {
     'set', 'if', 'while', 'foreach', 'procedure', 'cat', 'tackon', 'exists',
-    'getversion', 'getassign', 'getenv', 'expandpath', 'pathonly', 'fileonly',
+    'getversion', 'getsize', 'getassign', 'getenv', 'expandpath', 'pathonly', 'fileonly',
     'substr', 'strlen', 'abort', 'exit', 'message', 'welcome', 'working',
     'complete', 'askbool', 'copyfiles', 'makedir', 'textfile', 'run',
     'onerror', 'and', 'or', 'not', 'bitand', '=', '<>', '<', '>', '<=', '>=',

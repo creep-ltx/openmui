@@ -42,7 +42,7 @@
  * library under, is not used any more: it is handled only as the record
  * says (deleted, put back from the backup, parked), like any other file,
  * and STATUS names one that is left in a LIBS: directory.
- * ISZUNE FILE: return code 0 when FILE is a Zune68 library, 5 when it is
+ * ISZUNE FILE: return code 0 when FILE is OpenMUI's or a Zune68 file, 5 when it is
  *          not, 10 when it cannot be read (for the installer).
  * LIBSDIR N: sets ENV:OpenMUI-LibsDir to the Nth directory of the LIBS:
  *          assign; return code 5 when there is none (for the installer).
@@ -94,7 +94,7 @@ static int Strnicmp(const char *a, const char *b, int n)
 
 #define Stricmp(a, b) Strnicmp((const char *)(a), (const char *)(b), 0x7fff)
 
-static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.3 (24.11.2026) OpenMUI " ZUNE68_EDITION_NUMBER;
+static const char version[] __attribute__((used)) ="$VER: OpenMUISwitch 1.4 (27.11.2026) OpenMUI " ZUNE68_EDITION_NUMBER;
 
 struct IntuitionBase *IntuitionBase;
 struct Library *IconBase;
@@ -312,8 +312,10 @@ static BOOL move(const char *from, const char *to)
     return FALSE;
 }
 
-/* Does the file contain "OpenMUI" (this edition) or "Zune68" (earlier
- * editions, Zune68k lean)? 1 yes, 0 no, -1 unreadable */
+/* Does the file contain "OpenMUI" (this edition), "Zune68" (earlier
+ * editions, Zune68k lean) or "AROS native AmigaOS port" (the version
+ * string of the classes built from AROS sources)? 1 yes, 0 no,
+ * -1 unreadable */
 static int file_is_zune(const char *path)
 {
     static const char key[] = "Zune68";
@@ -324,7 +326,7 @@ static int file_is_zune(const char *path)
 
     if (!fh)
         return -1;
-    if (!(buf = AllocVec(4096 + 8, MEMF_ANY)))
+    if (!(buf = AllocVec(4096 + 24, MEMF_ANY)))
     {
         Close(fh);
         return -1;
@@ -334,12 +336,14 @@ static int file_is_zune(const char *path)
         n += keep;
         for (i = 0; i + 6 <= n; i++)
             if ((buf[i] == 'Z' && !memcmp(buf + i, key, 6))
-                || (buf[i] == 'O' && i + 7 <= n && !memcmp(buf + i, "OpenMUI", 7)))
+                || (buf[i] == 'O' && i + 7 <= n && !memcmp(buf + i, "OpenMUI", 7))
+                || (buf[i] == 'A' && i + 24 <= n
+                    && !memcmp(buf + i, "AROS native AmigaOS port", 24)))
             {
                 found = 1;
                 break;
             }
-        keep = n < 6 ? n : 6;
+        keep = n < 23 ? n : 23;
         memmove(buf, buf + n - keep, keep);
     }
     FreeVec(buf);

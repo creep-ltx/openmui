@@ -78,6 +78,7 @@
 (set #nlines 0)
 (set #nkept 0)
 (set #nolder 0)
+(set #nrebuilt 0)
 (set #nleft 0)
 (set #nown 0)
 (set #repfile (tackon #data "InstallReport"))
@@ -202,6 +203,18 @@
     (if (= (exists #f (noreq)) 1) (getversion #f) -1)
 )
 
+; 1 if #dir/#name has the same version as OpenMUI's #src but is another
+; build of it, made by an earlier OpenMUI or Zune68 (ISZUNE: "OpenMUI",
+; "Zune68" or "AROS native AmigaOS port" in the file). The same version
+; from anyone else is the user's and stays.
+(procedure P_OurOldBuild #src #dir #name
+    (set #f (tackon #dir #name))
+    (if (= (getsize #f) (getsize #src))
+        0
+        (if (= 0 (run (cat (P_Quote #tool) " ISZUNE " (P_Quote #f)) (safe))) 1 0)
+    )
+)
+
 ;  One line of the details: for the pages of the last message and, in
 ; chunks (Installer 43 strings hold 10000 characters at most), for the
 ; file Data/InstallReport.
@@ -262,6 +275,17 @@
     (if (<> #muidir "")
         (set #own (P_ClassVersion (tackon #muidir "Libs/mui") #name))
     )
+    (set #rebuild 0)
+    (if (= #best #bv)
+        (if (= #bestat #libsmui)
+            (set #rebuild (P_OurOldBuild #src #libsmui #name))))
+    (if (= #rebuild 1)
+        (
+            (set #nrebuilt (+ #nrebuilt 1))
+            (P_Line (cat #name " " (P_Version #bv)
+                ": an earlier OpenMUI/Zune68 build, in the backup, updated."))
+            (P_Put #src #libsmui #name)
+        )
     (if (>= #best #bv)
         (
             (set #nkept (+ #nkept 1))
@@ -293,6 +317,7 @@
             )
             (P_Put #src #libsmui #name)
         )
+    )
     )
 )
 
@@ -666,6 +691,9 @@
                 "and were kept.\n") "")
         (if (> #nolder 0)
             (cat #nolder " older classes of yours are in the backup.\n") "")
+        (if (> #nrebuilt 0)
+            (cat #nrebuilt " classes from an earlier OpenMUI or Zune68\n"
+                "were updated (the old ones are in the backup).\n") "")
         (if (> #nleft 0)
             (cat #nleft " older classes of yours are left where they are.\n") "")
         (if (> #nown 0)
