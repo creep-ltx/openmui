@@ -70,16 +70,6 @@ static const ULONG Pencfg[NBPENS] =
     MUICFG_Pen_Mark,
 };
 
-/* a pen gadget over its label, as the string colours on the Strings page */
-static Object *MakeLabelledPoppen(Object **poppen, CONST_STRPTR label)
-{
-    return VGroup,
-        MUIA_Group_VertSpacing, 1,
-        Child, (IPTR) (*poppen = MakePoppen()),
-        Child, (IPTR) CLabel(label),
-    End;
-}
-
 static Object *MakeSpecialPopimage(CONST_STRPTR title)
 {
     return MUI_NewObject
@@ -164,18 +154,26 @@ static IPTR SpecialP_New(struct IClass *cl, Object *obj, struct opSet *msg)
         Child, d.popimage[13] = MakeSpecialPopimage(_(MSG_TAPE_DOWN)),
         Child, (IPTR) HSpace(0),
         End, // Tape Images
-        Child, (IPTR) HGroup,
+        /* two rows of four, labels beside: the page fits 640x256 in topaz 8
+         * (440 x 195, docs/lean/README.md); one row was 502 wide */
+        Child, (IPTR) ColGroup(8),
         GroupFrameT(_(MSG_MUI_PENS)),
-        Child, (IPTR) HSpace(0),
-        Child, MakeLabelledPoppen(&d.poppen[0], _(MSG_SHINE)),
-        Child, MakeLabelledPoppen(&d.poppen[1], _(MSG_HALF_SHINE)),
-        Child, MakeLabelledPoppen(&d.poppen[2], _(MSG_BACKGROUND)),
-        Child, MakeLabelledPoppen(&d.poppen[3], _(MSG_HALF_SHADOW)),
-        Child, MakeLabelledPoppen(&d.poppen[4], _(MSG_SHADOW)),
-        Child, MakeLabelledPoppen(&d.poppen[5], _(MSG_TEXT)),
-        Child, MakeLabelledPoppen(&d.poppen[6], _(MSG_FILL)),
-        Child, MakeLabelledPoppen(&d.poppen[7], _(MSG_MARK)),
-        Child, (IPTR) HSpace(0),
+        Child, (IPTR) Label(_(MSG_SHINE)),
+        Child, (IPTR) (d.poppen[0] = MakePoppen()),
+        Child, (IPTR) Label(_(MSG_HALF_SHINE)),
+        Child, (IPTR) (d.poppen[1] = MakePoppen()),
+        Child, (IPTR) Label(_(MSG_BACKGROUND)),
+        Child, (IPTR) (d.poppen[2] = MakePoppen()),
+        Child, (IPTR) Label(_(MSG_HALF_SHADOW)),
+        Child, (IPTR) (d.poppen[3] = MakePoppen()),
+        Child, (IPTR) Label(_(MSG_SHADOW)),
+        Child, (IPTR) (d.poppen[4] = MakePoppen()),
+        Child, (IPTR) Label(_(MSG_TEXT)),
+        Child, (IPTR) (d.poppen[5] = MakePoppen()),
+        Child, (IPTR) Label(_(MSG_FILL)),
+        Child, (IPTR) (d.poppen[6] = MakePoppen()),
+        Child, (IPTR) Label(_(MSG_MARK)),
+        Child, (IPTR) (d.poppen[7] = MakePoppen()),
         End, // MUI Pens
         
         TAG_MORE, (IPTR) msg->ops_AttrList);
