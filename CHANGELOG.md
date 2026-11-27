@@ -8,6 +8,11 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+- The MUI pens (shine, half shine, background, half shadow, shadow, text,
+  fill, mark) can be set in the settings, Special page (spotUP). Unset, each
+  is the screen's pen as before; set, a dark theme on a plain Workbench
+  screen no longer draws black text. OpenMUI's own setting ids 0x50c-0x513;
+  MUI 3.8 has none there.
 - Installer: a class of the same version left by an earlier OpenMUI or Zune68
   is now updated (the old file goes to the backup). Before, it was kept as
   the user's own, so older builds stayed. Same-version classes from anyone
