@@ -8,6 +8,11 @@ OpenMUI is not MUI and is not affiliated with MUI's authors.
 
 ## Unreleased
 
+- Installer: a class of the same version left by an earlier OpenMUI or Zune68
+  is now updated (the old file goes to the backup). Before, it was kept as
+  the user's own, so older builds stayed. Same-version classes from anyone
+  else are still kept. OpenMUISwitch 1.4.
+
 ## 1.1b1 (2026-11-26)
 
 ### Added
